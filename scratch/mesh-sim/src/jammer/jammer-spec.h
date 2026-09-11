@@ -26,7 +26,7 @@ struct Interval
 struct JammerSpec
 {
 	//Enabled: Info on Jammer existance status
-	bool enabled = true; 
+	bool enabled; 
 
 	//ID: Record of Jammer Node ID 
 	std::string id;
@@ -37,7 +37,7 @@ struct JammerSpec
 	std::string type;
 
 	//Target Frequency: Array of Jamming Frequencies
-	std::vector<double> target_freq;
+	std::vector<double> target_freq_mhz;
 
 	//Power: Power of Jamming in dBm
 	double tx_power_dbm;
@@ -49,10 +49,10 @@ struct JammerSpec
 	std::vector<Interval> intervals;
 
 	//Duty Cycle: Time jammer is transmitting 
-	double duty_cycle = 1.0;
+	double duty_cycle;
 
 	//Max Range: Max range for interrupted receivers
-	double max_range_m = 0.0
+	double max_range_m;
 	
 	//Beamwidth Angle: Apex degree of jamming cone (min: 0.0, max: 180)
 	double beamwidth_deg;
