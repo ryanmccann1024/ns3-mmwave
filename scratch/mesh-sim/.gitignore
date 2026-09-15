@@ -2,3 +2,6 @@
 .pytest_cache/
 docs/rl-program/
 docs/claude/
+tests/fixtures/regression/p0/*.json
+!tests/fixtures/regression/p0/manifest.json
+*.gz
