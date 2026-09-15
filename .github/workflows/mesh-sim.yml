@@ -43,7 +43,7 @@ jobs:
         shell: bash
         working-directory: scratch/mesh-sim
         run: |
-          binaries=(../../build/scratch/mesh-sim/ns3*-sim-debug)
+          binaries=("$GITHUB_WORKSPACE"/build/scratch/mesh-sim/ns3*-sim-debug)
           test "${#binaries[@]}" -eq 1
           test -x "${binaries[0]}"
           MESH_SIM_BIN="${binaries[0]}" make -C tests integration
