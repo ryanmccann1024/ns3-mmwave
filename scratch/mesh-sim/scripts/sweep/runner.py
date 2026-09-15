@@ -1,7 +1,6 @@
 """Orchestrate a parameter sweep: generate configs, run sims, plot."""
 
 import configparser
-import glob
 import json
 import itertools
 import os
@@ -10,19 +9,15 @@ import subprocess
 import sys
 from datetime import datetime
 
+from scripts.sim_support import find_mesh_root, find_sim_binary, simulator_env
+
 from .config import SweepConfig
 from .ini_writer import copy_scenario_files, write_point_ini
 
 
 def _find_sim_binary(mesh_sim_root: str) -> str | None:
     """Auto-detect the sim binary from the ns-3 build directory."""
-    # Walk up to ns-3 root (mesh-sim is at scratch/mesh-sim/)
-    ns3_root = os.path.dirname(os.path.dirname(mesh_sim_root))
-    pattern = os.path.join(ns3_root, "build", "scratch", "mesh-sim", "ns3*-sim-*")
-    matches = sorted(glob.glob(pattern))
-    if matches:
-        return matches[0]
-    return None
+    return find_sim_binary(mesh_sim_root)
 
 
 
@@ -91,12 +86,7 @@ def run_sweep(
     resume: bool = False,
 ) -> None:
     """Execute the full sweep."""
-    # Resolve mesh-sim root (base_scenario is absolute, walk up)
-    mesh_sim_root = cfg.base_scenario
-    while mesh_sim_root != "/" and not os.path.isfile(
-        os.path.join(mesh_sim_root, "sim.cc")
-    ):
-        mesh_sim_root = os.path.dirname(mesh_sim_root)
+    mesh_sim_root = str(find_mesh_root(cfg.base_scenario))
 
     # Find sim binary
     if not sim_binary:
@@ -233,13 +223,7 @@ def run_sweep(
         # Captured stdout/stderr; the sim writes its own run.log at the point root.
         log_path = os.path.join(point_dir, "console.log")
         status = "completed"
-        env = os.environ.copy()
-        ns3_root = os.path.dirname(os.path.dirname(mesh_sim_root))
-        lib_dir = os.path.join(ns3_root, "build", "lib")
-        for var in ("DYLD_LIBRARY_PATH", "LD_LIBRARY_PATH"):
-            env[var] = os.pathsep.join(
-                [lib_dir] + [part for part in env.get(var, "").split(os.pathsep) if part]
-            )
+        env = simulator_env(mesh_sim_root)
         with open(log_path, "w") as log_f:
             log_f.write(f"Command: {' '.join(cmd)}\n\n")
             log_f.flush()

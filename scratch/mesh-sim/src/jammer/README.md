@@ -33,8 +33,6 @@ that passes all gates, in this order:
    @c azimuth_deg, @c zenith_deg, and @c beamwidth_deg (omni when
    @c beamwidth_deg >= 360).
 
-@endcode
-
 @section jammer_schema jammers.json layout
 
 | Field | Type | Meaning |
@@ -45,18 +43,27 @@ that passes all gates, in this order:
 | @c target_freq | number[] | Target band (MHz). Empty ⇒ all frequencies. 2 values = @c [lo,hi] band; 1 value = spot ±2.5 MHz. |
 | @c tx_power_dbm | number | Transmit power (dBm). |
 | @c tx_array_gain_dbi | number | Antenna gain (dBi); added to EIRP. |
-| @c duty_cycle | number | Fraction transmitting, [0,1]. |
+| @c duty_cycle | number | [0,1]: constant scales power; random sets on-probability per second. |
 | @c max_range_m | number | Range cutoff (m); 0 disables. |
 | @c beamwidth_deg | number | Cone width; 360 = omni. |
 | @c azimuth_deg | number | Horizontal pointing, deg from North (0=N, 90=E). |
 | @c zenith_deg | number | Vertical pointing (0=up, 90=horizontal, 180=down). |
+
 | @c position | {x,y,z} | Location (ENU metres, same frame as nodes). |
 | @c velocity / @c waypoints / @c random_walk | — | Optional jammer motion. |
 | @c intervals | {start,end}[] | Active windows in **sim seconds** (from scenario start). |
 
-@warning A ground emitter must use @c zenith_deg = 90 (horizontal). A value of
-@c 0 points the beam straight **up**, so no ground node is inside the cone and
-the jammer affects nothing. @c make_jammers.py defaults to 90.
+The beam is a hard cone gate: a 60-degree beam accepts receivers within 30
+degrees of the pointing vector; it is not a smooth antenna pattern. Range 0
+disables only the hard distance cutoff—propagation still reduces received power.
+For a constant jammer, duty cycle 0.5 halves interference power (about -3 dB);
+for a random jammer it instead switches full power on/off. These are the current
+model assumptions, not changes to jamming physics.
+
+@warning A narrow directional ground emitter normally uses @c zenith_deg = 90 (horizontal). A value of
+@c 0 points the beam straight **up**; coplanar receivers are outside a narrow
+upward cone unless co-located. An omni beam ignores pointing angles.
+@c make_jammers.py defaults to 90.
 
 @section jammer_csv Mapping the EW trials CSV
 
@@ -80,6 +87,6 @@ the jammer affects nothing. @c make_jammers.py defaults to 90.
 - **Per-interval power/heading.** One @ref mesh_sim::JammerSpec has a single
   power and heading; a sweep is modeled as several specs (one per trial),
   which @c make_jammers.py produces when @c --trial is omitted.
-- **SINR floor.** A strong jammer can drive SINR negative; that is physically
-  correct (the field radios simply drop those links). Capacity/MCS are floored
-  accordingly downstream.
+- **SINR floor.** The current evaluator clamps SINR to 0 dB when jammer power
+  is nonzero. It does not allow negative jammed SINR; whether to change this
+  floor and resulting link-failure behavior is an unresolved team decision.

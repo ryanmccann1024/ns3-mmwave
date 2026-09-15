@@ -21,7 +21,8 @@ from datetime import datetime, timezone
 
 from scripts.rl.agents.mask_ppo import MaskablePPOConfig, MaskablePpoTrainer
 from scripts.rl.bootstrap_venv import DIRECT_DEPS
-from scripts.rl.env.mesh_env import MeshRlEnv, read_scenario_seed
+from scripts.rl.env.mesh_env import MeshRlEnv
+from scripts.rl.env.config import read_scenario_seed
 
 MANIFEST_NAME = "train_manifest.json"
 MODEL_BASENAME = "maskable_ppo_mesh"

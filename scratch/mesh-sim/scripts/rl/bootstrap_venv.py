@@ -32,11 +32,14 @@ failures = []
 for mod, dist in {deps!r}.items():
     try:
         importlib.import_module(mod)
-        print(dist + "==" + importlib.metadata.version(dist))
+        version = importlib.metadata.version(dist)
+        print(dist + "==" + version)
+        if version != {expected!r}[dist]:
+            failures.append(dist + ": expected " + {expected!r}[dist] + ", got " + version)
     except Exception as exc:
         failures.append(mod + ": " + type(exc).__name__ + ": " + str(exc))
 for f in failures:
-    print("IMPORT-FAILED " + f, file=sys.stderr)
+    print("DEPENDENCY-FAILED " + f, file=sys.stderr)
 sys.exit(1 if failures else 0)
 """
 
@@ -62,6 +65,22 @@ def _venv_python(venv: Path) -> Path:
     return venv / "bin" / "python"
 
 
+def read_pins(requirements: Path) -> dict[str, str]:
+    """Read the project's exact direct-dependency pins."""
+    pins = {}
+    for line in requirements.read_text().splitlines():
+        line = line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        name, separator, version = line.partition("==")
+        if not separator or not name or not version:
+            raise ValueError(f"Expected an exact dependency pin, got: {line}")
+        pins[name] = version
+    if set(pins) != set(DIRECT_DEPS.values()):
+        raise ValueError("requirements.txt and DIRECT_DEPS must name the same dependencies")
+    return pins
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Bootstrap the mesh-sim Python venv")
     p.add_argument("--venv", default=str(MESH_SIM_ROOT / ".venv"),
@@ -79,6 +98,10 @@ def main() -> int:
     venv = Path(args.venv).resolve()
     python = _venv_python(venv)
     requirements = MESH_SIM_ROOT / "requirements.txt"
+    try:
+        expected = read_pins(requirements)
+    except (OSError, ValueError) as exc:
+        return _fail(str(exc))
 
     if not python.is_file():
         if args.check:
@@ -92,18 +115,18 @@ def main() -> int:
         if _run([str(python), "-m", "pip", "install", "-r", str(requirements)]) != 0:
             return 1
 
-    probe = _VERSION_PROBE.format(deps=DIRECT_DEPS)
+    probe = _VERSION_PROBE.format(deps=DIRECT_DEPS, expected=expected)
     result = subprocess.run([str(python), "-c", probe], capture_output=True, text=True)
     print(result.stdout, end="")
     if result.returncode != 0:
         print(result.stderr, end="", file=sys.stderr)
-        return _fail("dependency import check failed in the virtual environment")
+        return _fail("dependency import/version check failed; run setup without --check")
 
     print("\nActivate the environment with:")
     print(f"  POSIX:   source {venv}/bin/activate")
     print(f"  Windows: {venv}\\Scripts\\activate")
-    print("Note: these Python packages work on Windows, but ns-3 itself is not "
-          "supported there; the simulator must be built and run on Linux or macOS.")
+    print("mesh-sim CI covers Linux and macOS; this helper does not install "
+          "CMake/compiler tools or establish Windows simulator support.")
     return 0
 
 

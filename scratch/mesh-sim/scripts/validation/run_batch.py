@@ -22,7 +22,6 @@
 from __future__ import annotations
 
 import argparse
-import glob
 import json
 import os
 import subprocess
@@ -30,9 +29,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from scripts.sim_support import find_mesh_root, find_sim_binary, simulator_env
+
 from .build_waypoints import patch_scenario_waypoints
 
-REPO_ROOT              = Path(__file__).resolve().parents[2]
+REPO_ROOT              = find_mesh_root(__file__)
 DEFAULT_SCENARIOS_DIR  = REPO_ROOT / "inputs" / "custom" / "sherpa" / "spring_lake"
 DEFAULT_SEEDS          = "1,2,3,4,5"  ##< Default comma-separated seed list.
 
@@ -70,10 +71,7 @@ def _read_scenario_duration(ini_path: Path) -> float | None:
 #
 # @return Absolute path string of the binary, or ``None`` if not found.
 def _find_sim_binary() -> str | None:
-    ns3_root = REPO_ROOT.parent.parent
-    pattern  = str(ns3_root / "build" / "scratch" / "mesh-sim" / "ns3*-sim-*")
-    matches  = sorted(glob.glob(pattern))
-    return matches[0] if matches else None
+    return find_sim_binary(REPO_ROOT)
 
 
 ## @brief Discover all scenario directories that contain a ``run.ini`` file.
@@ -199,13 +197,7 @@ def main(argv: list[str] | None = None) -> int:
     batch_root.mkdir(parents=True, exist_ok=True)
 
     # Extend library search paths so the sim binary can find ns-3 shared libs.
-    env     = os.environ.copy()
-    ns3_root = REPO_ROOT.parent.parent
-    lib_dir  = str(ns3_root / "build" / "lib")
-    for var in ("DYLD_LIBRARY_PATH", "LD_LIBRARY_PATH"):
-        env[var] = os.pathsep.join(
-            [lib_dir] + [part for part in env.get(var, "").split(os.pathsep) if part]
-        )
+    env = simulator_env(REPO_ROOT)
 
     manifest = {
         "timestamp":     datetime.now().isoformat(),

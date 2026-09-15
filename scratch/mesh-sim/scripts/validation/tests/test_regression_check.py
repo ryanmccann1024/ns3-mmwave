@@ -82,3 +82,9 @@ def test_unattended_launchers_close_stdin_and_clean_loader_paths(tmp_path, monke
     run_sweep(SweepConfig(str(scenario), [1], "none", "", "fake"),
               str(sweep), sim_binary=sys.executable)
     assert len(calls) == 3
+
+
+def test_missing_reference_explains_cloud_bundle(tmp_path):
+    manifest = {"cases": [{"snapshot": "tests/fixtures/regression/p0/missing.json"}]}
+    with pytest.raises(ValueError, match="Ask the project team.*cloud baseline bundle"):
+        regression_check.verify_manifest_snapshots(manifest, tmp_path)

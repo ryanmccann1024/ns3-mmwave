@@ -61,8 +61,14 @@ invoking the sim.
 
 ## Regression suite
 
-One command re-runs the tracked pre-change cases against a freshly built binary
-and compares them with the committed normalized snapshots:
+The small tracked manifest identifies the pre-change cases and reference hashes.
+Full result snapshots are external artifacts, not source files. Ask the project
+team for the approved cloud bundle and unpack the JSON references under
+`tests/fixtures/regression/p0/`. Gzip archives and reference snapshots stay
+untracked; never replace them by recapturing from changed code.
+
+Once the references are installed, one command re-runs the cases against a
+freshly built binary and compares their normalized results:
 
 ```bash
 python3 -m scripts.validation.regression_check verify-suite \
@@ -86,7 +92,7 @@ Suite output is disposable. `--out` must resolve beneath `outputs/` and may not
 be `outputs/` itself. Reusing the same `--out` replaces only suite-owned
 products — `suite-report.json` and the manifest-named case subdirectories —
 leaving unrelated siblings alone. It never touches the tracked manifest or
-snapshots.
+local reference snapshots.
 
 Exit codes: `0` all required (and executed optional) cases passed, `1` a
 mismatch or failure, `2` a usage or I/O error.
@@ -95,6 +101,13 @@ Two related launcher notes: `run_batch` writes the launcher's captured
 stdout/stderr to `console.log` beside the simulator's own `run.log`, and accepts
 an optional `--band {mmwave,sub-6}` override; `build_config_files` writes
 `[channel] band` into every generated `run.ini`.
+
+Without reference data, `python3 -m scripts.validation.smoke_check --sim-binary
+<BIN> --out outputs/smoke-check/<new-name>` checks the tiny synthetic jammer
+scenario's output contracts and two-run same-seed repeatability. CI runs this
+on Linux/macOS; it is not a comparison against historical cloud references.
+`regression_snapshot.py` owns normalization/comparison; `regression_check.py`
+owns the CLI/suite. Launcher paths and loader setup live in `scripts/sim_support.py`.
 
 ## How to read the chart
 

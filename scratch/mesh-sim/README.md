@@ -38,6 +38,10 @@ On Windows the interpreter is `.venv\Scripts\python.exe`. `requirements.txt`
 pins the direct dependencies at the versions tested on the implementer's
 platform; it is not a universal lock file.
 
+Use `python3 scripts/rl/bootstrap_venv.py --check` to verify imports and exact
+installed versions without installing anything. CMake and a C++ compiler are
+separate ns-3 build prerequisites; this helper does not install them.
+
 @section run Run
 
 Simulator commands below run from the **ns3-mmwave repo root**. Python
@@ -216,7 +220,22 @@ MESH_SIM_BIN=<BIN> make integration         # 8 real-binary CLI contracts
 failure, run `make -C unit/config test`, `make -C unit/eval test`,
 `make -C unit/routing test`, and `make -C unit/traffic test` separately.
 
-One-command regression suite against committed snapshots:
+For a quick check without cloud reference data, run two tiny synthetic
+simulations and check output contracts and same-seed repeatability:
+
+```bash
+python3 -m scripts.validation.smoke_check \
+  --sim-binary <BIN> --out outputs/smoke-check/<new-name>
+```
+
+GitHub Actions runs Python contracts, builds mesh-sim, and runs CLI/synthetic
+smoke checks on Linux and macOS for PRs into `arpo-main`. This is not a training
+or cross-platform bit-identical-results claim.
+
+The historical regression suite requires the approved cloud baseline bundle.
+Ask the project team for it and unpack its reference JSON files under
+`tests/fixtures/regression/p0/`; snapshots and gzip archives are not tracked.
+The small tracked manifest retains the original hashes and scenario provenance:
 
 ```bash
 python3 -m scripts.validation.regression_check verify-suite \

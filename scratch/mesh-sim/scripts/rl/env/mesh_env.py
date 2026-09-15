@@ -1,8 +1,6 @@
 """Gymnasium environment wrapping the C++ mesh simulator via stdin/stdout JSON."""
 
-import configparser
 import json
-import os
 import re
 import subprocess
 from datetime import datetime, timezone
@@ -12,48 +10,17 @@ import gymnasium
 import numpy as np
 from gymnasium import spaces
 
-_EPISODE_RE = re.compile(r"^episode-(\d{4})$")
+from scripts.sim_support import find_mesh_root, simulator_env, tail_lines
+from .config import read_rl_bounds, read_scenario_seed
 
-# x/y/z defaults mirror RlConfig in src/domain/sim-config.h.
-_X_DEFAULT = (-1000.0, 2000.0)
-_Y_DEFAULT = (-1000.0, 1000.0)
-_Z_DEFAULT = (0.0, 100.0)
+_EPISODE_RE = re.compile(r"^episode-(\d{4})$")
 
 _STDERR_TAIL_LINES = 40
 _BAD_LINE_CHARS = 200
 
 
-def _strip_inline_comment(value: str) -> str:
-    for marker in ("#", ";"):
-        value = value.split(marker, 1)[0]
-    return value.strip()
-
-
-## @brief Read ``[scenario] seed`` from a run.ini, or None when absent.
-def read_scenario_seed(run_config: str) -> int | None:
-    ini = configparser.ConfigParser(interpolation=None)
-    ini.read(run_config)
-    if ini.has_option("scenario", "seed"):
-        try:
-            return int(_strip_inline_comment(ini.get("scenario", "seed")))
-        except ValueError:
-            return None
-    return None
-
-
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-## @brief Directory holding build/lib for the ns-3 tree containing this file.
-def _ns3_root() -> Path:
-    here = Path(__file__).resolve()
-    mesh_sim = here.parents[3]
-    if not (mesh_sim / "sim.cc").is_file():
-        raise RuntimeError(
-            f"Cannot locate mesh-sim root from {here}: expected sim.cc at {mesh_sim}"
-        )
-    return here.parents[5]
 
 
 class MeshRlEnv(gymnasium.Env):
@@ -291,14 +258,7 @@ class MeshRlEnv(gymnasium.Env):
 
     ## @brief Child environment with the ns-3 shared libraries on the loader path.
     def _child_env(self) -> dict:
-        env = dict(os.environ)
-        lib = str(_ns3_root() / "build" / "lib")
-        for var in ("DYLD_LIBRARY_PATH", "LD_LIBRARY_PATH"):
-            existing = env.get(var, "")
-            env[var] = os.pathsep.join(
-                [lib] + [part for part in existing.split(os.pathsep) if part]
-            )
-        return env
+        return simulator_env(find_mesh_root(__file__))
 
     def _write_manifest(self) -> None:
         if self._manifest is None or self._episode_dir is None:
@@ -327,8 +287,7 @@ class MeshRlEnv(gymnasium.Env):
             self._stderr_file = None
         if self._stderr_path is None or not self._stderr_path.is_file():
             return "(no stderr captured)"
-        lines = self._stderr_path.read_text(errors="replace").splitlines()
-        return "\n".join(lines[-_STDERR_TAIL_LINES:]) or "(stderr empty)"
+        return tail_lines(self._stderr_path, _STDERR_TAIL_LINES) or "(stderr empty)"
 
     ## Observation Function
     # @brief Grabs output message from sim
@@ -441,16 +400,4 @@ class MeshRlEnv(gymnasium.Env):
 
     ## @brief Read arena bounds from [rl]; defaults mirror RlConfig in C++.
     def _read_rl_bounds(self) -> None:
-        ini = configparser.ConfigParser(interpolation=None)
-        ini.read(self._run_config)
-
-        def rng(lo, hi, default):
-            if ini.has_option("rl", lo) and ini.has_option("rl", hi):
-                return (float(_strip_inline_comment(ini.get("rl", lo))),
-                        float(_strip_inline_comment(ini.get("rl", hi))))
-            return default
-
-        self._x_range = rng("x_min", "x_max", _X_DEFAULT)
-        self._y_range = rng("y_min", "y_max", _Y_DEFAULT)
-        # The C++ side always clamps z, so z bounds are never left unset here.
-        self._z_range = rng("z_min", "z_max", _Z_DEFAULT)
+        self._x_range, self._y_range, self._z_range = read_rl_bounds(self._run_config)
