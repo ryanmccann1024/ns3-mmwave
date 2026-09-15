@@ -5,7 +5,7 @@ on:
     branches: [arpo-main]
     paths: ['scratch/mesh-sim/**', '.github/workflows/mesh-sim.yml']
   push:
-    branches: [arpo-main]
+    branches: [arpo-main, 'fix/mesh-sim-*', 'feat/mesh-sim-*']
     paths: ['scratch/mesh-sim/**', '.github/workflows/mesh-sim.yml']
   workflow_dispatch:
 
