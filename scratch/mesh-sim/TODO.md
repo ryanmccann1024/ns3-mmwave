@@ -1,10 +1,5 @@
 # TODO — Future Possibilities
 
-P0 validation results are recorded in
-[`docs/rl-program/p0-baseline/baseline-test-results.md`](docs/rl-program/p0-baseline/baseline-test-results.md).
-The human accepted these results and is the final PR reviewer; no separate
-completion report is required for P0.
-
 ## RL Enhancements
 
 ### Multi-Node Control
