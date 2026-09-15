@@ -1,5 +1,10 @@
 # TODO — Future Possibilities
 
+P0 validation results are recorded in
+[`docs/rl-program/p0-baseline/baseline-test-results.md`](docs/rl-program/p0-baseline/baseline-test-results.md).
+The human accepted these results and is the final PR reviewer; no separate
+completion report is required for P0.
+
 ## RL Enhancements
 
 ### Multi-Node Control
@@ -15,18 +20,77 @@ Stable Baselines 3 (PPO/SAC) using the Gymnasium env which already supports
 both discrete and continuous spaces.
 
 ### Richer Reward Shaping
-Currently supports `throughput` (sum delivered_mbps) and `mean_sinr`.
-Future: weighted combinations of throughput, fairness (min-link capacity),
-latency, coverage area, or energy cost.
+Currently supports `throughput` (sum delivered_mbps) and `all_links_los`
+(`mean_sinr` is a deprecated alias for it). Future: weighted combinations of
+throughput, fairness (min-link capacity), latency, coverage area, or energy
+cost.
 
 ### 3D Movement for Drones
-Currently RL only adjusts x/y position. Aerial nodes (drones) should be
-able to control altitude (z-axis) while ground nodes (vehicles, pedestrians)
-remain 2D-constrained.
+The discrete action space already includes +/-Z alongside +/-X, +/-Y and Stay;
+the continuous action type still emits a 2-D target only. Remaining work:
+per-node-type constraints so aerial nodes (drones) control altitude while
+ground nodes (vehicles, pedestrians) stay 2-D constrained, and a verified 3-D
+continuous action space.
 
 ### Larger Discrete Action Spaces
 Add 4-direction (up/down in y-axis) and 8-direction (diagonals) as
 additional `action_type` options.
+
+### TODO-RL-SEEDS-1 — Multi-seed training policy
+P0 trains with one fixed seed (`m-ppo --seed`, else `[scenario] seed`) reused by
+every episode. Deciding whether episodes should vary the seed, and how the
+model/manifest should record that, is deferred.
+Owner: team — status: open.
+
+## Jammer model decisions (P0, unresolved)
+
+P0 deliberately froze the current jammer behavior and changed no physics. The
+following questions must be answered by the team before any change; do not
+infer answers from the code.
+
+- **TODO-JAM-1 — Link failure / 0 dB floor.** Jammed SINR is currently floored
+  at 0 dB. Should 0 dB make the link unusable, or should the floor be removed so
+  SINR can fall below the -6.7 dB link threshold?
+  Owner: team/Kyle/jammer developer — status: open.
+- **TODO-BAND-1 — Default band.** Should newly generated scenarios default to
+  `sub-6` while existing scenarios keep `mmwave`, or should one global default
+  apply?
+  Owner: team/Kyle/jammer developer — status: open.
+- **TODO-BAND-2 — Band versus frequency.** Should `band` stay an explicit
+  scenario choice, be renamed to describe its actual jammer-interference role,
+  or eventually be derived from / validated against `frequency_ghz`?
+  Owner: team/Kyle/jammer developer — status: open.
+- **TODO-JAM-2 — Endpoint rule.** Interference is computed at both link
+  endpoints and the worse value is used. Is that correct?
+  Owner: team/Kyle/jammer developer — status: open.
+- **TODO-JAM-3 — Frequency overlap.** Should a jammer affect a channel whenever
+  the frequency ranges overlap, instead of the current carrier-center test?
+  Owner: team/Kyle/jammer developer — status: open.
+- **TODO-JAM-4 — Recorded motion.** Which Sherpa file is the authoritative
+  jammer trajectory, and should it become waypoints or another recorded-motion
+  form?
+  Owner: team/Kyle/jammer developer — status: open.
+- **TODO-JAM-5 — Receive antenna effects.** Should the receiving node's antenna
+  direction/gain alter jammer interference, in addition to the jammer's own
+  pointing direction?
+  Owner: team/Kyle/jammer developer — status: open.
+- **TODO-JAM-6 — Duty cycle.** Should constant and random jammers keep
+  interpreting duty cycle differently?
+  Owner: team/Kyle/jammer developer — status: open.
+
+## Data provenance
+
+### TODO-DATA-1 — EW-trials source table and generated jammers.json
+No EW-trials source CSV and no field-generated `jammers.json` exist anywhere
+under `scratch/mesh-sim/`. The synthetic
+`inputs/baselines/p0-jammer-smoke/jammers.json` is P0's only jammer coverage and
+is not field data. `scripts/validation/make_jammers.py` is the generator: it
+reads an EW trial log CSV plus a scenario's `gps_all_nodes_trace.csv` and emits
+a `jammers.json` aligned to that scenario, but no input table for it is present
+here. Identify the owner and location of the real EW trials table, confirm how
+it drives `make_jammers.py`, and decide whether generated jammer input belongs
+in `inputs/calfex/` or stays local.
+Owner: team — status: open.
 
 ## Beam Codebook Model
 

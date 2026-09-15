@@ -20,7 +20,9 @@
  * |                    | (@c --seeds / @c --seed / config default).                     |
  * | CLI overrides      | Every @ref CliArgs field, with @c "(not set)" for unused flags. |
  * | Resolved config    | Key @ref SimConfig scalar fields: timing, channel, traffic,    |
- * |                    | routing, node/building counts.                                 |
+ * |                    | routing, node/building counts, plus band/RL-reward provenance   |
+ * |                    | and jammer counts.                                             |
+ * | Jammers            | One line per configured @ref JammerSpec (omitted when none).    |
  */
 #pragma once
 
@@ -109,6 +111,12 @@ WriteRunLog(const std::string&       base_output_dir,
         << (args.run_id_override < 0 ? "(not set)" : std::to_string(args.run_id_override)) << "\n";
     out << "  --positions-override = "
         << (args.positions_override_path.empty() ? "(not set)" : args.positions_override_path) << "\n";
+    out << "  --output-dir         = "
+        << (args.output_dir.empty() ? "(not set)" : args.output_dir) << "\n";
+    out << "  --debug-links        = " << (args.debug_links ? "true" : "false") << "\n";
+    out << "  --rl-mode            = " << (args.rl_mode ? "true" : "false") << "\n";
+    out << "  --band               = "
+        << (args.band.empty() ? "(not set)" : args.band) << "\n";
 
     // Resolved config — key scalar fields
     out << "\nResolved config:\n";
@@ -128,6 +136,55 @@ WriteRunLog(const std::string&       base_output_dir,
     out << "  traffic.demand_mbps = " << cfg.mesh.traffic.demand_mbps      << "\n";
     out << "  routing.algorithm   = " << cfg.mesh.routing.algorithm        << "\n";
     out << "  routing.max_hops    = " << cfg.mesh.routing.max_hops         << "\n";
+
+    size_t jammersEnabled = 0;
+    for (const auto& j : cfg.jammers)
+    {
+        if (j.enabled)
+            ++jammersEnabled;
+    }
+    const bool jammerPathEnabled = (cfg.band == "sub-6" && jammersEnabled > 0);
+
+    out << "  band                = " << cfg.band                          << "\n";
+    out << "  band_source         = " << cfg.band_source                   << "\n";
+    out << "  rl.reward_type      = " << cfg.rl.reward_type                << "\n";
+    out << "  rl.reward_alias     = "
+        << (cfg.rl.reward_type_alias.empty() ? "none" : cfg.rl.reward_type_alias) << "\n";
+    out << "  jammers.configured  = " << cfg.jammers.size()                << "\n";
+    out << "  jammers.enabled     = " << jammersEnabled                    << "\n";
+    out << "  jammer_path_enabled = " << (jammerPathEnabled ? "true" : "false") << "\n";
+
+    if (!cfg.jammers.empty())
+    {
+        out << "\nJammers:\n";
+        for (const auto& j : cfg.jammers)
+        {
+            const char* motion = !j.waypoints.empty() ? "waypoints"
+                               : (j.velocity.vx != 0.0 || j.velocity.vy != 0.0 ||
+                                  j.velocity.vz != 0.0) ? "velocity"
+                               : "static";
+
+            out << "  " << (j.id.empty() ? "(unnamed)" : j.id)
+                << ": enabled=" << (j.enabled ? "true" : "false")
+                << " type=" << j.type
+                << " target_freq_mhz=[";
+            for (size_t i = 0; i < j.target_freq.size(); ++i)
+            {
+                if (i > 0) out << ", ";
+                out << j.target_freq[i];
+            }
+            out << "]"
+                << " tx_power_dbm=" << j.tx_power_dbm
+                << " tx_array_gain_dbi=" << j.tx_array_gain_dbi
+                << " duty_cycle=" << j.duty_cycle
+                << " max_range_m=" << j.max_range_m
+                << " beamwidth_deg=" << j.beamwidth_deg
+                << " azimuth_deg=" << j.azimuth_deg
+                << " zenith_deg=" << j.zenith_deg
+                << " motion=" << motion
+                << "\n";
+        }
+    }
 }
 
 }  // namespace mesh_sim

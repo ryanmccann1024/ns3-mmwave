@@ -202,6 +202,8 @@ def run_sweep(
                 "dir": point_name,
                 "params": {f"{s}.{k}": v for (s, k), v in point_params.items()},
                 "status": "completed",
+                "console_log": f"{point_name}/console.log",
+                "output_dir": os.path.abspath(point_dir),
             })
             skipped += 1
             continue
@@ -228,21 +230,24 @@ def run_sweep(
         cmd = [sim_binary, f"--run-config={os.path.join(point_dir, 'run.ini')}",
                f"--seeds={seeds_str}"]
 
-        log_path = os.path.join(point_dir, "run.log")
+        # Captured stdout/stderr; the sim writes its own run.log at the point root.
+        log_path = os.path.join(point_dir, "console.log")
         status = "completed"
         env = os.environ.copy()
         ns3_root = os.path.dirname(os.path.dirname(mesh_sim_root))
         lib_dir = os.path.join(ns3_root, "build", "lib")
-        env["DYLD_LIBRARY_PATH"] = lib_dir + ":" + env.get("DYLD_LIBRARY_PATH", "")
-        env["LD_LIBRARY_PATH"] = lib_dir + ":" + env.get("LD_LIBRARY_PATH", "")
+        for var in ("DYLD_LIBRARY_PATH", "LD_LIBRARY_PATH"):
+            env[var] = os.pathsep.join(
+                [lib_dir] + [part for part in env.get(var, "").split(os.pathsep) if part]
+            )
         with open(log_path, "w") as log_f:
             log_f.write(f"Command: {' '.join(cmd)}\n\n")
             log_f.flush()
-            result = subprocess.run(cmd, stdout=log_f, stderr=subprocess.STDOUT,
-                                    env=env)
+            result = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=log_f,
+                                    stderr=subprocess.STDOUT, env=env)
 
         if result.returncode != 0:
-            print(f"  FAILED (exit code {result.returncode}). See {log_path}")
+            print(f"  FAILED (exit code {result.returncode}). See console log: {log_path}")
             status = "failed"
             failed += 1
         else:
@@ -259,6 +264,8 @@ def run_sweep(
             "dir": point_name,
             "params": {f"{s}.{k}": v for (s, k), v in point_params.items()},
             "status": status,
+            "console_log": f"{point_name}/console.log",
+            "output_dir": os.path.abspath(point_dir),
         })
 
         # Update manifest after each point (for resume)

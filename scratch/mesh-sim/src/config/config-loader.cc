@@ -257,6 +257,16 @@ ConfigLoader::Load(const std::string& run_config_path,
     cfg.channel.tx_array_gain_dbi = std::stod(iniGet(ini, "channel", "tx_array_gain_dbi", "12.0"));
     cfg.channel.rx_array_gain_dbi = std::stod(iniGet(ini, "channel", "rx_array_gain_dbi", "12.0"));
 
+    // Absent [channel] band keeps the "mmwave"/"default" pair set in SimConfig.
+    {
+        const std::string band = iniGet(ini, "channel", "band", "");
+        if (!band.empty())
+        {
+            cfg.band        = band;
+            cfg.band_source = "run.ini";
+        }
+    }
+
     // Validate channel_model
     {
         const std::string& cm = cfg.channel.channel_model;
@@ -302,6 +312,11 @@ ConfigLoader::Load(const std::string& run_config_path,
     cfg.rl.controlled_node_id   = iniGet(ini, "rl", "controlled_node_id", "");
     cfg.rl.action_type          = iniGet(ini, "rl", "action_type", "discrete");
     cfg.rl.reward_type          = iniGet(ini, "rl", "reward_type", "throughput");
+    if (cfg.rl.reward_type == "mean_sinr")
+    {
+        cfg.rl.reward_type       = "all_links_los";
+        cfg.rl.reward_type_alias = "mean_sinr";
+    }
     cfg.rl.step_size_m          = std::stod(iniGet(ini, "rl", "step_size_m", "50.0"));
     cfg.rl.arrival_threshold_m  = std::stod(iniGet(ini, "rl", "arrival_threshold_m", "1.0"));
     cfg.rl.x_min                = std::stod(iniGet(ini, "rl", "x_min", "-1000.0"));

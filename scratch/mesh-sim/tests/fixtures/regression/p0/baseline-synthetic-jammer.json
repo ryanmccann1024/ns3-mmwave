@@ -1,0 +1,960 @@
+{
+  "band": "sub-6",
+  "case": "synthetic-jammer",
+  "family": "baseline",
+  "seed": 1,
+  "seed_dir": "seed-1",
+  "snapshot_version": 1,
+  "sources": [
+    {
+      "path": "inputs/baselines/p0-jammer-smoke/jammers.json",
+      "sha256": "2a623a4c81b874ec08eb7600dd3d05a36e33174ad589a3d8da64258e7bd4e2fd"
+    },
+    {
+      "path": "inputs/baselines/p0-jammer-smoke/nodes.json",
+      "sha256": "12fbcb0e17633971114c049e42d36f7b5d3596420e4d6a7221bcb2a6b30ec829"
+    },
+    {
+      "path": "inputs/baselines/p0-jammer-smoke/run.ini",
+      "sha256": "bb923178325633632fc4a9841a9fb14e112f8fa6e257bdbb63d3f7ef89129f69"
+    }
+  ],
+  "summary": {
+    "duration_s": 0.4,
+    "network": {
+      "connectivity": 1.0,
+      "flows_routed": 3.0,
+      "flows_unroutable": 0.0,
+      "mean_hop_count": 1.0,
+      "mean_sinr_db": 1.7411418605334448,
+      "sum_throughput_mbps": 30.0
+    },
+    "per_flow": {
+      "node-a->node-b": {
+        "delivered_mbps": 10.0,
+        "demand_mbps": 10.0,
+        "hop_count": 1.0,
+        "latency_ms": 0.5003333333333333
+      },
+      "node-a->relay": {
+        "delivered_mbps": 10.0,
+        "demand_mbps": 10.0,
+        "hop_count": 1.0,
+        "latency_ms": 0.5002357022603955
+      },
+      "node-b->relay": {
+        "delivered_mbps": 10.0,
+        "demand_mbps": 10.0,
+        "hop_count": 1.0,
+        "latency_ms": 0.5002357022603955
+      }
+    },
+    "per_node": {
+      "node-a": {
+        "max_sinr_db": 11.418580952918557,
+        "mean_sinr_db": 2.611712790800166,
+        "min_sinr_db": 0.0,
+        "num_links": 2.0,
+        "num_los_links": 2.0,
+        "rx_throughput_mbps": 0.0,
+        "tx_throughput_mbps": 20.0
+      },
+      "node-b": {
+        "max_sinr_db": 3.273028331497696,
+        "mean_sinr_db": 1.4698546955083103,
+        "min_sinr_db": 0.0,
+        "num_links": 2.0,
+        "num_los_links": 2.0,
+        "rx_throughput_mbps": 10.0,
+        "tx_throughput_mbps": 10.0
+      },
+      "relay": {
+        "max_sinr_db": 11.418580952918557,
+        "mean_sinr_db": 1.1418580952918558,
+        "min_sinr_db": 0.0,
+        "num_links": 2.0,
+        "num_los_links": 2.0,
+        "rx_throughput_mbps": 20.0,
+        "tx_throughput_mbps": 0.0
+      }
+    },
+    "scenario": "p0-jammer-smoke",
+    "seed": 1,
+    "warmup_s": 0.0
+  },
+  "tables": {
+    "flows.csv": {
+      "columns": [
+        "time_s",
+        "src",
+        "dst",
+        "demand_mbps",
+        "delivered_mbps",
+        "latency_ms",
+        "hop_count",
+        "routable"
+      ],
+      "rows": [
+        {
+          "delivered_mbps": 10.0,
+          "demand_mbps": 10.0,
+          "dst": 1.0,
+          "hop_count": 1.0,
+          "latency_ms": 0.5,
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.0
+        },
+        {
+          "delivered_mbps": 10.0,
+          "demand_mbps": 10.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "latency_ms": 0.5,
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.0
+        },
+        {
+          "delivered_mbps": 10.0,
+          "demand_mbps": 10.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "latency_ms": 0.5,
+          "routable": 1.0,
+          "src": 1.0,
+          "time_s": 0.0
+        },
+        {
+          "delivered_mbps": 10.0,
+          "demand_mbps": 10.0,
+          "dst": 1.0,
+          "hop_count": 1.0,
+          "latency_ms": 0.5,
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.1
+        },
+        {
+          "delivered_mbps": 10.0,
+          "demand_mbps": 10.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "latency_ms": 0.5,
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.1
+        },
+        {
+          "delivered_mbps": 10.0,
+          "demand_mbps": 10.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "latency_ms": 0.5,
+          "routable": 1.0,
+          "src": 1.0,
+          "time_s": 0.1
+        },
+        {
+          "delivered_mbps": 10.0,
+          "demand_mbps": 10.0,
+          "dst": 1.0,
+          "hop_count": 1.0,
+          "latency_ms": 0.5,
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.2
+        },
+        {
+          "delivered_mbps": 10.0,
+          "demand_mbps": 10.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "latency_ms": 0.5,
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.2
+        },
+        {
+          "delivered_mbps": 10.0,
+          "demand_mbps": 10.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "latency_ms": 0.5,
+          "routable": 1.0,
+          "src": 1.0,
+          "time_s": 0.2
+        },
+        {
+          "delivered_mbps": 10.0,
+          "demand_mbps": 10.0,
+          "dst": 1.0,
+          "hop_count": 1.0,
+          "latency_ms": 0.5,
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.3
+        },
+        {
+          "delivered_mbps": 10.0,
+          "demand_mbps": 10.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "latency_ms": 0.5,
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.3
+        },
+        {
+          "delivered_mbps": 10.0,
+          "demand_mbps": 10.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "latency_ms": 0.5,
+          "routable": 1.0,
+          "src": 1.0,
+          "time_s": 0.3
+        },
+        {
+          "delivered_mbps": 10.0,
+          "demand_mbps": 10.0,
+          "dst": 1.0,
+          "hop_count": 1.0,
+          "latency_ms": 0.5,
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.4
+        },
+        {
+          "delivered_mbps": 10.0,
+          "demand_mbps": 10.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "latency_ms": 0.5,
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.4
+        },
+        {
+          "delivered_mbps": 10.0,
+          "demand_mbps": 10.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "latency_ms": 0.5,
+          "routable": 1.0,
+          "src": 1.0,
+          "time_s": 0.4
+        }
+      ]
+    },
+    "links.csv": {
+      "columns": [
+        "time_s",
+        "node_a",
+        "node_b",
+        "dist_m",
+        "sinr_db",
+        "condition",
+        "condition_reason",
+        "capacity_mbps",
+        "delivered_mbps",
+        "hop_count"
+      ],
+      "rows": [
+        {
+          "capacity_mbps": 516.5,
+          "condition": "LOS",
+          "condition_reason": "probabilistic",
+          "delivered_mbps": 10.0,
+          "dist_m": 100.0,
+          "hop_count": 1.0,
+          "node_a": 0.0,
+          "node_b": 1.0,
+          "sinr_db": 1.606434,
+          "time_s": 0.0
+        },
+        {
+          "capacity_mbps": 1557.5,
+          "condition": "LOS",
+          "condition_reason": "probabilistic",
+          "delivered_mbps": 10.0,
+          "dist_m": 70.710678,
+          "hop_count": 1.0,
+          "node_a": 0.0,
+          "node_b": 2.0,
+          "sinr_db": 11.418581,
+          "time_s": 0.0
+        },
+        {
+          "capacity_mbps": 400.0,
+          "condition": "LOS",
+          "condition_reason": "probabilistic",
+          "delivered_mbps": 10.0,
+          "dist_m": 70.710678,
+          "hop_count": 1.0,
+          "node_a": 1.0,
+          "node_b": 2.0,
+          "sinr_db": 0.0,
+          "time_s": 0.0
+        },
+        {
+          "capacity_mbps": 657.5,
+          "condition": "LOS",
+          "condition_reason": "probabilistic",
+          "delivered_mbps": 10.0,
+          "dist_m": 100.0,
+          "hop_count": 1.0,
+          "node_a": 0.0,
+          "node_b": 1.0,
+          "sinr_db": 3.273028,
+          "time_s": 0.1
+        },
+        {
+          "capacity_mbps": 400.0,
+          "condition": "LOS",
+          "condition_reason": "probabilistic",
+          "delivered_mbps": 10.0,
+          "dist_m": 70.710678,
+          "hop_count": 1.0,
+          "node_a": 0.0,
+          "node_b": 2.0,
+          "sinr_db": 0.0,
+          "time_s": 0.1
+        },
+        {
+          "capacity_mbps": 400.0,
+          "condition": "LOS",
+          "condition_reason": "probabilistic",
+          "delivered_mbps": 10.0,
+          "dist_m": 70.710678,
+          "hop_count": 1.0,
+          "node_a": 1.0,
+          "node_b": 2.0,
+          "sinr_db": 0.0,
+          "time_s": 0.1
+        },
+        {
+          "capacity_mbps": 657.5,
+          "condition": "LOS",
+          "condition_reason": "probabilistic",
+          "delivered_mbps": 10.0,
+          "dist_m": 100.0,
+          "hop_count": 1.0,
+          "node_a": 0.0,
+          "node_b": 1.0,
+          "sinr_db": 3.273028,
+          "time_s": 0.2
+        },
+        {
+          "capacity_mbps": 400.0,
+          "condition": "LOS",
+          "condition_reason": "probabilistic",
+          "delivered_mbps": 10.0,
+          "dist_m": 70.710678,
+          "hop_count": 1.0,
+          "node_a": 0.0,
+          "node_b": 2.0,
+          "sinr_db": 0.0,
+          "time_s": 0.2
+        },
+        {
+          "capacity_mbps": 400.0,
+          "condition": "LOS",
+          "condition_reason": "probabilistic",
+          "delivered_mbps": 10.0,
+          "dist_m": 70.710678,
+          "hop_count": 1.0,
+          "node_a": 1.0,
+          "node_b": 2.0,
+          "sinr_db": 0.0,
+          "time_s": 0.2
+        },
+        {
+          "capacity_mbps": 657.5,
+          "condition": "LOS",
+          "condition_reason": "probabilistic",
+          "delivered_mbps": 10.0,
+          "dist_m": 100.0,
+          "hop_count": 1.0,
+          "node_a": 0.0,
+          "node_b": 1.0,
+          "sinr_db": 3.273028,
+          "time_s": 0.3
+        },
+        {
+          "capacity_mbps": 400.0,
+          "condition": "LOS",
+          "condition_reason": "probabilistic",
+          "delivered_mbps": 10.0,
+          "dist_m": 70.710678,
+          "hop_count": 1.0,
+          "node_a": 0.0,
+          "node_b": 2.0,
+          "sinr_db": 0.0,
+          "time_s": 0.3
+        },
+        {
+          "capacity_mbps": 400.0,
+          "condition": "LOS",
+          "condition_reason": "probabilistic",
+          "delivered_mbps": 10.0,
+          "dist_m": 70.710678,
+          "hop_count": 1.0,
+          "node_a": 1.0,
+          "node_b": 2.0,
+          "sinr_db": 0.0,
+          "time_s": 0.3
+        },
+        {
+          "capacity_mbps": 657.5,
+          "condition": "LOS",
+          "condition_reason": "probabilistic",
+          "delivered_mbps": 10.0,
+          "dist_m": 100.0,
+          "hop_count": 1.0,
+          "node_a": 0.0,
+          "node_b": 1.0,
+          "sinr_db": 3.273028,
+          "time_s": 0.4
+        },
+        {
+          "capacity_mbps": 400.0,
+          "condition": "LOS",
+          "condition_reason": "probabilistic",
+          "delivered_mbps": 10.0,
+          "dist_m": 70.710678,
+          "hop_count": 1.0,
+          "node_a": 0.0,
+          "node_b": 2.0,
+          "sinr_db": 0.0,
+          "time_s": 0.4
+        },
+        {
+          "capacity_mbps": 400.0,
+          "condition": "LOS",
+          "condition_reason": "probabilistic",
+          "delivered_mbps": 10.0,
+          "dist_m": 70.710678,
+          "hop_count": 1.0,
+          "node_a": 1.0,
+          "node_b": 2.0,
+          "sinr_db": 0.0,
+          "time_s": 0.4
+        }
+      ]
+    },
+    "mcs.csv": {
+      "columns": [
+        "time_s",
+        "node_a",
+        "node_b",
+        "mcs_index",
+        "spectral_eff"
+      ],
+      "rows": [
+        {
+          "mcs_index": 3.0,
+          "node_a": 0.0,
+          "node_b": 1.0,
+          "spectral_eff": 0.6,
+          "time_s": 0.0
+        },
+        {
+          "mcs_index": 8.0,
+          "node_a": 0.0,
+          "node_b": 2.0,
+          "spectral_eff": 2.41,
+          "time_s": 0.0
+        },
+        {
+          "mcs_index": 2.0,
+          "node_a": 1.0,
+          "node_b": 2.0,
+          "spectral_eff": 0.38,
+          "time_s": 0.0
+        },
+        {
+          "mcs_index": 4.0,
+          "node_a": 0.0,
+          "node_b": 1.0,
+          "spectral_eff": 0.88,
+          "time_s": 0.1
+        },
+        {
+          "mcs_index": 2.0,
+          "node_a": 0.0,
+          "node_b": 2.0,
+          "spectral_eff": 0.38,
+          "time_s": 0.1
+        },
+        {
+          "mcs_index": 2.0,
+          "node_a": 1.0,
+          "node_b": 2.0,
+          "spectral_eff": 0.38,
+          "time_s": 0.1
+        },
+        {
+          "mcs_index": 4.0,
+          "node_a": 0.0,
+          "node_b": 1.0,
+          "spectral_eff": 0.88,
+          "time_s": 0.2
+        },
+        {
+          "mcs_index": 2.0,
+          "node_a": 0.0,
+          "node_b": 2.0,
+          "spectral_eff": 0.38,
+          "time_s": 0.2
+        },
+        {
+          "mcs_index": 2.0,
+          "node_a": 1.0,
+          "node_b": 2.0,
+          "spectral_eff": 0.38,
+          "time_s": 0.2
+        },
+        {
+          "mcs_index": 4.0,
+          "node_a": 0.0,
+          "node_b": 1.0,
+          "spectral_eff": 0.88,
+          "time_s": 0.3
+        },
+        {
+          "mcs_index": 2.0,
+          "node_a": 0.0,
+          "node_b": 2.0,
+          "spectral_eff": 0.38,
+          "time_s": 0.3
+        },
+        {
+          "mcs_index": 2.0,
+          "node_a": 1.0,
+          "node_b": 2.0,
+          "spectral_eff": 0.38,
+          "time_s": 0.3
+        },
+        {
+          "mcs_index": 4.0,
+          "node_a": 0.0,
+          "node_b": 1.0,
+          "spectral_eff": 0.88,
+          "time_s": 0.4
+        },
+        {
+          "mcs_index": 2.0,
+          "node_a": 0.0,
+          "node_b": 2.0,
+          "spectral_eff": 0.38,
+          "time_s": 0.4
+        },
+        {
+          "mcs_index": 2.0,
+          "node_a": 1.0,
+          "node_b": 2.0,
+          "spectral_eff": 0.38,
+          "time_s": 0.4
+        }
+      ]
+    },
+    "positions.csv": {
+      "columns": [
+        "time_s",
+        "node_id",
+        "x",
+        "y",
+        "z",
+        "node_type",
+        "active"
+      ],
+      "rows": [
+        {
+          "active": 1.0,
+          "node_id": 0.0,
+          "node_type": "peer",
+          "time_s": 0.0,
+          "x": 0.0,
+          "y": 0.0,
+          "z": 10.0
+        },
+        {
+          "active": 1.0,
+          "node_id": 1.0,
+          "node_type": "peer",
+          "time_s": 0.0,
+          "x": 100.0,
+          "y": 0.0,
+          "z": 10.0
+        },
+        {
+          "active": 1.0,
+          "node_id": 2.0,
+          "node_type": "peer",
+          "time_s": 0.0,
+          "x": 50.0,
+          "y": 50.0,
+          "z": 10.0
+        },
+        {
+          "active": 1.0,
+          "node_id": 0.0,
+          "node_type": "peer",
+          "time_s": 0.1,
+          "x": 0.0,
+          "y": 0.0,
+          "z": 10.0
+        },
+        {
+          "active": 1.0,
+          "node_id": 1.0,
+          "node_type": "peer",
+          "time_s": 0.1,
+          "x": 100.0,
+          "y": 0.0,
+          "z": 10.0
+        },
+        {
+          "active": 1.0,
+          "node_id": 2.0,
+          "node_type": "peer",
+          "time_s": 0.1,
+          "x": 50.0,
+          "y": 50.0,
+          "z": 10.0
+        },
+        {
+          "active": 1.0,
+          "node_id": 0.0,
+          "node_type": "peer",
+          "time_s": 0.2,
+          "x": 0.0,
+          "y": 0.0,
+          "z": 10.0
+        },
+        {
+          "active": 1.0,
+          "node_id": 1.0,
+          "node_type": "peer",
+          "time_s": 0.2,
+          "x": 100.0,
+          "y": 0.0,
+          "z": 10.0
+        },
+        {
+          "active": 1.0,
+          "node_id": 2.0,
+          "node_type": "peer",
+          "time_s": 0.2,
+          "x": 50.0,
+          "y": 50.0,
+          "z": 10.0
+        },
+        {
+          "active": 1.0,
+          "node_id": 0.0,
+          "node_type": "peer",
+          "time_s": 0.3,
+          "x": 0.0,
+          "y": 0.0,
+          "z": 10.0
+        },
+        {
+          "active": 1.0,
+          "node_id": 1.0,
+          "node_type": "peer",
+          "time_s": 0.3,
+          "x": 100.0,
+          "y": 0.0,
+          "z": 10.0
+        },
+        {
+          "active": 1.0,
+          "node_id": 2.0,
+          "node_type": "peer",
+          "time_s": 0.3,
+          "x": 50.0,
+          "y": 50.0,
+          "z": 10.0
+        },
+        {
+          "active": 1.0,
+          "node_id": 0.0,
+          "node_type": "peer",
+          "time_s": 0.4,
+          "x": 0.0,
+          "y": 0.0,
+          "z": 10.0
+        },
+        {
+          "active": 1.0,
+          "node_id": 1.0,
+          "node_type": "peer",
+          "time_s": 0.4,
+          "x": 100.0,
+          "y": 0.0,
+          "z": 10.0
+        },
+        {
+          "active": 1.0,
+          "node_id": 2.0,
+          "node_type": "peer",
+          "time_s": 0.4,
+          "x": 50.0,
+          "y": 50.0,
+          "z": 10.0
+        }
+      ]
+    },
+    "routes.csv": {
+      "columns": [
+        "time_s",
+        "src",
+        "dst",
+        "path",
+        "bottleneck_mbps",
+        "hop_count",
+        "routable"
+      ],
+      "rows": [
+        {
+          "bottleneck_mbps": 516.5,
+          "dst": 1.0,
+          "hop_count": 1.0,
+          "path": "0;1",
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.0
+        },
+        {
+          "bottleneck_mbps": 1557.5,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "path": "0;2",
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.0
+        },
+        {
+          "bottleneck_mbps": 400.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "path": "1;2",
+          "routable": 1.0,
+          "src": 1.0,
+          "time_s": 0.0
+        },
+        {
+          "bottleneck_mbps": 657.5,
+          "dst": 1.0,
+          "hop_count": 1.0,
+          "path": "0;1",
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.1
+        },
+        {
+          "bottleneck_mbps": 400.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "path": "0;2",
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.1
+        },
+        {
+          "bottleneck_mbps": 400.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "path": "1;2",
+          "routable": 1.0,
+          "src": 1.0,
+          "time_s": 0.1
+        },
+        {
+          "bottleneck_mbps": 657.5,
+          "dst": 1.0,
+          "hop_count": 1.0,
+          "path": "0;1",
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.2
+        },
+        {
+          "bottleneck_mbps": 400.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "path": "0;2",
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.2
+        },
+        {
+          "bottleneck_mbps": 400.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "path": "1;2",
+          "routable": 1.0,
+          "src": 1.0,
+          "time_s": 0.2
+        },
+        {
+          "bottleneck_mbps": 657.5,
+          "dst": 1.0,
+          "hop_count": 1.0,
+          "path": "0;1",
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.3
+        },
+        {
+          "bottleneck_mbps": 400.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "path": "0;2",
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.3
+        },
+        {
+          "bottleneck_mbps": 400.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "path": "1;2",
+          "routable": 1.0,
+          "src": 1.0,
+          "time_s": 0.3
+        },
+        {
+          "bottleneck_mbps": 657.5,
+          "dst": 1.0,
+          "hop_count": 1.0,
+          "path": "0;1",
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.4
+        },
+        {
+          "bottleneck_mbps": 400.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "path": "0;2",
+          "routable": 1.0,
+          "src": 0.0,
+          "time_s": 0.4
+        },
+        {
+          "bottleneck_mbps": 400.0,
+          "dst": 2.0,
+          "hop_count": 1.0,
+          "path": "1;2",
+          "routable": 1.0,
+          "src": 1.0,
+          "time_s": 0.4
+        }
+      ]
+    },
+    "rx-power.csv": {
+      "columns": [
+        "time_s",
+        "node_a",
+        "node_b",
+        "rx_power_dbm"
+      ],
+      "rows": [
+        {
+          "node_a": 0.0,
+          "node_b": 1.0,
+          "rx_power_dbm": -29.744908,
+          "time_s": 0.0
+        },
+        {
+          "node_a": 0.0,
+          "node_b": 2.0,
+          "rx_power_dbm": -23.579521,
+          "time_s": 0.0
+        },
+        {
+          "node_a": 1.0,
+          "node_b": 2.0,
+          "rx_power_dbm": -23.041708,
+          "time_s": 0.0
+        },
+        {
+          "node_a": 0.0,
+          "node_b": 1.0,
+          "rx_power_dbm": -31.725073,
+          "time_s": 0.1
+        },
+        {
+          "node_a": 0.0,
+          "node_b": 2.0,
+          "rx_power_dbm": -23.234545,
+          "time_s": 0.1
+        },
+        {
+          "node_a": 1.0,
+          "node_b": 2.0,
+          "rx_power_dbm": -23.041708,
+          "time_s": 0.1
+        },
+        {
+          "node_a": 0.0,
+          "node_b": 1.0,
+          "rx_power_dbm": -31.725073,
+          "time_s": 0.2
+        },
+        {
+          "node_a": 0.0,
+          "node_b": 2.0,
+          "rx_power_dbm": -23.234545,
+          "time_s": 0.2
+        },
+        {
+          "node_a": 1.0,
+          "node_b": 2.0,
+          "rx_power_dbm": -23.041708,
+          "time_s": 0.2
+        },
+        {
+          "node_a": 0.0,
+          "node_b": 1.0,
+          "rx_power_dbm": -31.725073,
+          "time_s": 0.3
+        },
+        {
+          "node_a": 0.0,
+          "node_b": 2.0,
+          "rx_power_dbm": -23.234545,
+          "time_s": 0.3
+        },
+        {
+          "node_a": 1.0,
+          "node_b": 2.0,
+          "rx_power_dbm": -23.041708,
+          "time_s": 0.3
+        },
+        {
+          "node_a": 0.0,
+          "node_b": 1.0,
+          "rx_power_dbm": -31.725073,
+          "time_s": 0.4
+        },
+        {
+          "node_a": 0.0,
+          "node_b": 2.0,
+          "rx_power_dbm": -23.234545,
+          "time_s": 0.4
+        },
+        {
+          "node_a": 1.0,
+          "node_b": 2.0,
+          "rx_power_dbm": -23.041708,
+          "time_s": 0.4
+        }
+      ]
+    }
+  },
+  "tables_missing": []
+}

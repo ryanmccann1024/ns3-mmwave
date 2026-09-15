@@ -23,14 +23,13 @@ RlBridge::RlBridge(const SimConfig& cfg, uint32_t controlledIdx)
 {
 }
 
-// @brief Logic for computing score/reward for current sim tick
-// TODO: Calculate score based on distance from ideal values
+// @brief "throughput" sums delivered_mbps; "all_links_los" returns +1 only when every peer link is LOS.
 double
 RlBridge::ComputeReward(const std::vector<ns3::Ptr<ns3::MobilityModel>>& /* mobs */,
                         const LinkTable& linkTable,
                         const std::vector<FlowResult>& flows) const
 {
-    if (m_rl.reward_type == "mean_sinr")
+    if (m_rl.reward_type == "all_links_los")
     {
         uint32_t losCount = 0;
         uint32_t count = 0;
@@ -107,18 +106,31 @@ RlBridge::WriteObs(uint32_t tick, double time_s,
 void
 RlBridge::ReadAction()
 {
+    // One warning per process; rl-bridge.h carries no state for this.
+    static bool warned = false;
+
     std::string line;
     if (!std::getline(std::cin, line))
     {
-        // stdin closed — default to stay
-        m_lastDiscreteAction = 0;
+        // stdin closed — hold position
+        m_lastDiscreteAction = 6;
+        if (!warned)
+        {
+            warned = true;
+            std::cerr << "Warning: RL action stream closed; holding position (Stay).\n";
+        }
         return;
     }
 
     auto j = json::parse(line, nullptr, false);
     if (j.is_discarded())
     {
-        m_lastDiscreteAction = 0;
+        m_lastDiscreteAction = 6;
+        if (!warned)
+        {
+            warned = true;
+            std::cerr << "Warning: malformed RL action JSON; holding position (Stay).\n";
+        }
         return;
     }
 

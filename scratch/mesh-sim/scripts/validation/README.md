@@ -59,6 +59,43 @@ to safe placeholders. All IH nodes are written with `"mobility": "waypoint"`
 and empty waypoints — always run `build_waypoints.py` afterwards before
 invoking the sim.
 
+## Regression suite
+
+One command re-runs the tracked pre-change cases against a freshly built binary
+and compares them with the committed normalized snapshots:
+
+```bash
+python3 -m scripts.validation.regression_check verify-suite \
+    --sim-binary <BIN> \
+    --manifest tests/fixtures/regression/p0/manifest.json \
+    --out outputs/p0-regression/<name>
+```
+
+It validates the manifest and every snapshot hash *before* starting a simulator
+process, then runs each case and prints one `PASS`/`FAIL`/`SKIP` row. Five
+required cases have tracked inputs — three `baselines` scenarios, one CalFEX
+sub-6 scenario, and the synthetic jammer smoke. One optional case uses the local
+Sherpa Spring Lake data: when its recorded source files are absent the row is
+`SKIP` and the console names the missing paths plus the action, "This
+Sherpa/ARPO dataset is not included in Git. Ask the project team or data owner
+for the approved inputs/custom/sherpa data." `--require-all` turns that
+unavailable optional case into a failure. An optional case that is present but
+changed, or that mismatches, always fails.
+
+Suite output is disposable. `--out` must resolve beneath `outputs/` and may not
+be `outputs/` itself. Reusing the same `--out` replaces only suite-owned
+products — `suite-report.json` and the manifest-named case subdirectories —
+leaving unrelated siblings alone. It never touches the tracked manifest or
+snapshots.
+
+Exit codes: `0` all required (and executed optional) cases passed, `1` a
+mismatch or failure, `2` a usage or I/O error.
+
+Two related launcher notes: `run_batch` writes the launcher's captured
+stdout/stderr to `console.log` beside the simulator's own `run.log`, and accepts
+an optional `--band {mmwave,sub-6}` override; `build_config_files` writes
+`[channel] band` into every generated `run.ini`.
+
 ## How to read the chart
 
 One axis: normalized histograms (densities) of sim and field samples,

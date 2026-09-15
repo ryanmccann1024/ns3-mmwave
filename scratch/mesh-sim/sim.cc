@@ -77,6 +77,12 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
         cfg.rl.enabled = true;
     }
 
+    if (!args.band.empty())
+    {
+        cfg.band        = args.band;
+        cfg.band_source = "cli";
+    }
+
     /// @brief Validate the fully-resolved config before running.
     auto vr = mesh_sim::ValidateConfig(cfg);
     if (!vr.ok())
@@ -86,6 +92,11 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
             std::cerr << "Config error: " << e << "\n";
         }
         return 1;
+    }
+
+    if (cfg.rl.reward_type_alias == "mean_sinr")
+    {
+        std::cerr << "Warning: [rl] reward_type 'mean_sinr' is deprecated; use 'all_links_los'.\n";
     }
 
     auto seeds = mesh_sim::ResolveSeeds(args, cfg); //< From cli-parser, manages seeds
@@ -149,7 +160,7 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
         /// @brief Bind the propagation/condition models to a LinkEvaluator
         ///        that will compute per-tick SINR/capacity/MCS.
         mesh_sim::LinkEvaluator linkEval;
-        linkEval.Configure(cfg, topo.GetPropagationModel(), topo.GetConditionModel(), args.band, jammerMobs);
+        linkEval.Configure(cfg, topo.GetPropagationModel(), topo.GetConditionModel(), cfg.band, jammerMobs);
 
         /// @brief Per-tick components: link table, traffic generator, router.
         mesh_sim::LinkTable      linkTable;

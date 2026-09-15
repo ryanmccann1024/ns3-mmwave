@@ -13,7 +13,8 @@
 # @code
 # outputs/<YYYY-MM>/<DD>/<HH-MM-SS>-validation/
 #   <scenario>/
-#     run.log
+#     console.log       (launcher-captured stdout/stderr)
+#     run.log           (written by the simulator)
 #     seed-<N>/         (written by the sim binary)
 #   batch_manifest.json
 # @endcode
@@ -90,16 +91,18 @@ def _discover_scenarios(scenarios_dir: Path) -> list[Path]:
 #
 # The command passes the scenario's ``run.ini``, the seed list, and the output
 # directory as command-line arguments. Both stdout and stderr are written to
-# ``<out_dir>/run.log``.
+# ``<out_dir>/console.log``; the simulator writes its own ``run.log`` there.
 #
 # @param sim_binary Path string of the ns-3 sim binary.
 # @param scenario   Scenario directory (contains ``run.ini``).
 # @param seeds      Comma-separated seed string (e.g. ``"1,2,3,4,5"``).
 # @param out_dir    Destination for sim output files and the log.
 # @param env        Environment variables dict for the subprocess.
+# @param band       Optional ``--band`` override; omitted when ``None``.
 # @return Tuple ``(returncode, log_path_str)``.
 def _run_one(sim_binary: str, scenario: Path, seeds: str,
-             out_dir: Path, env: dict[str, str]) -> tuple[int, str]:
+             out_dir: Path, env: dict[str, str],
+             band: str | None = None) -> tuple[int, str]:
     out_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
         sim_binary,
@@ -107,11 +110,14 @@ def _run_one(sim_binary: str, scenario: Path, seeds: str,
         f"--seeds={seeds}",
         f"--output-dir={out_dir}",
     ]
-    log_path = out_dir / "run.log"
+    if band is not None:
+        cmd.append(f"--band={band}")
+    log_path = out_dir / "console.log"
     with open(log_path, "w") as log_f:
         log_f.write("Command: " + " ".join(cmd) + "\n\n")
         log_f.flush()
-        result = subprocess.run(cmd, stdout=log_f, stderr=subprocess.STDOUT, env=env)
+        result = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=log_f,
+                                stderr=subprocess.STDOUT, env=env)
     return result.returncode, str(log_path)
 
 
@@ -141,6 +147,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="Override auto-detected sim binary path")
     p.add_argument("--dry-run", action="store_true",
                    help="Print what would run, don't invoke the sim")
+    p.add_argument("--band", choices=("mmwave", "sub-6"), default=None,
+                   help="Simulator --band override; omit to let each run.ini decide")
     p.add_argument("--only", default=None,
                    help="Run only this scenario name (matches scenario dir basename)")
     p.add_argument("--auto-waypoints", action="store_true",
@@ -194,14 +202,17 @@ def main(argv: list[str] | None = None) -> int:
     env     = os.environ.copy()
     ns3_root = REPO_ROOT.parent.parent
     lib_dir  = str(ns3_root / "build" / "lib")
-    env["DYLD_LIBRARY_PATH"] = lib_dir + ":" + env.get("DYLD_LIBRARY_PATH", "")
-    env["LD_LIBRARY_PATH"]   = lib_dir + ":" + env.get("LD_LIBRARY_PATH",   "")
+    for var in ("DYLD_LIBRARY_PATH", "LD_LIBRARY_PATH"):
+        env[var] = os.pathsep.join(
+            [lib_dir] + [part for part in env.get(var, "").split(os.pathsep) if part]
+        )
 
     manifest = {
         "timestamp":     datetime.now().isoformat(),
         "scenarios_dir": str(scenarios_dir),
         "seeds":         args.seeds,
         "sim_binary":    sim_binary,
+        "band_override": args.band,
         "runs":          [],
     }
 
@@ -221,7 +232,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(f"  waypoints: {status}")
 
-        rc, log  = _run_one(sim_binary, scen, args.seeds, out_dir, env)
+        rc, log  = _run_one(sim_binary, scen, args.seeds, out_dir, env, args.band)
         ok_flag  = rc == 0
         if ok_flag:
             n_ok += 1
@@ -234,6 +245,7 @@ def main(argv: list[str] | None = None) -> int:
             "scenario":     scen.name,
             "scenario_dir": str(scen),
             "output_dir":   str(out_dir),
+            "console_log":  log,
             "status":       "ok" if ok_flag else "failed",
             "exit_code":    rc,
         })
