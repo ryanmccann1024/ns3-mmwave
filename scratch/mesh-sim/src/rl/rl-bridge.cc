@@ -59,6 +59,24 @@ RlBridge::RlBridge(const SimConfig& cfg)
 
     m_lastJoint.assign(m_numSlots, kHold);
     m_lastMask.assign(5 * m_numSlots, 0);
+
+    m_nodeIds.reserve(cfg.nodes.size());
+    for (const auto& spec : cfg.nodes)
+    {
+        m_nodeIds.push_back(spec.id);
+    }
+    m_band    = cfg.band;
+    m_warmupS = cfg.warmup_s;
+
+    size_t jammersEnabled = 0;
+    for (const auto& j : cfg.jammers)
+    {
+        if (j.enabled)
+        {
+            ++jammersEnabled;
+        }
+    }
+    m_jammerPathEnabled = (cfg.band == "sub-6" && jammersEnabled > 0);
 }
 
 // @brief "throughput" sums delivered_mbps; "all_links_los" returns +1 only when
@@ -109,8 +127,32 @@ RlBridge::ComputeRewardTick(const LinkTable& linkTable,
 void
 RlBridge::AccumulateTick(const LinkTable& linkTable, const std::vector<FlowResult>& flows)
 {
-    m_rewardSum += ComputeRewardTick(linkTable, flows);
-    ++m_rewardTicks;
+    ++m_window.ticks;
+    for (const auto& fr : flows)
+    {
+        m_window.demand_mbps_sum += fr.demand_mbps;
+        m_window.delivered_mbps_sum += fr.delivered_mbps;
+        if (fr.demand_mbps > 0.0)
+        {
+            ++m_window.flow_ticks_with_demand;
+            if (!fr.routable)
+            {
+                ++m_window.unroutable_flow_ticks;
+            }
+        }
+    }
+    m_window.connected_pairs_sum += linkTable.ConnectedLinkCount();
+    for (uint32_t i = 0; i < m_numNodes; ++i)
+    {
+        for (uint32_t j = i + 1; j < m_numNodes; ++j)
+        {
+            if (linkTable.Get(i, j).is_los)
+            {
+                ++m_window.los_pairs_sum;
+            }
+        }
+    }
+    m_window.legacy_reward_sum += ComputeRewardTick(linkTable, flows);
 }
 
 bool
@@ -211,6 +253,17 @@ RlBridge::WriteInit() const
     msg["reward_type"]            = m_rl.reward_type;
     msg["reward_window"]          = "mean";
     msg["wall_policy"]            = "clip";
+    msg["facts_schema"]           = "mesh_facts_v1";
+    msg["facts_columns"]          = ojson{{"nodes", {"x", "y", "z", "vx", "vy", "vz", "slot"}},
+                                          {"links", {"sinr_db", "capacity_mbps", "is_los"}}};
+    msg["node_ids"]               = m_nodeIds;
+    msg["num_links"]              = m_numNodes * (m_numNodes - 1) / 2;
+    msg["bounds"]                 = ojson{{"x_min", m_rl.x_min}, {"x_max", m_rl.x_max},
+                                          {"y_min", m_rl.y_min}, {"y_max", m_rl.y_max},
+                                          {"z_min", m_rl.z_min}, {"z_max", m_rl.z_max}};
+    msg["band"]                   = m_band;
+    msg["jammer_path_enabled"]    = m_jammerPathEnabled;
+    msg["warmup_s"]               = m_warmupS;
 
     std::cout << msg.dump() << "\n" << std::flush;
 }
@@ -242,7 +295,7 @@ RlBridge::WriteStep(uint32_t tick, double time_s,
                     const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs,
                     const LinkTable& linkTable,
                     const std::vector<int>& mask,
-                    double reward, uint32_t ticksInStep, bool done) const
+                    double reward, WindowFacts window, bool done) const
 {
     ojson obs = ojson::array();
     for (const auto& slot : m_slots)
@@ -272,17 +325,61 @@ RlBridge::WriteStep(uint32_t tick, double time_s,
         }
     }
 
+    ojson factNodes = ojson::array();
+    for (uint32_t n = 0; n < m_numNodes; ++n)
+    {
+        auto p = mobs[n]->GetPosition();
+        auto v = mobs[n]->GetVelocity();
+        int slot = -1;
+        for (uint32_t i = 0; i < m_numSlots; ++i)
+        {
+            if (m_slots[i].active && m_slots[i].node_index == n)
+            {
+                slot = static_cast<int>(i);
+                break;
+            }
+        }
+        factNodes.push_back(ojson::array({p.x, p.y, p.z, v.x, v.y, v.z, slot}));
+    }
+
+    ojson factLinks = ojson::array();
+    for (uint32_t i = 0; i < m_numNodes; ++i)
+    {
+        for (uint32_t j = i + 1; j < m_numNodes; ++j)
+        {
+            const auto& lr = linkTable.Get(i, j);
+            factLinks.push_back(
+                ojson::array({lr.sinr_db, lr.capacity_mbps, lr.is_los ? 1 : 0}));
+        }
+    }
+
+    ojson factWindow;
+    factWindow["ticks"]                  = window.ticks;
+    factWindow["demand_mbps_sum"]        = window.demand_mbps_sum;
+    factWindow["delivered_mbps_sum"]     = window.delivered_mbps_sum;
+    factWindow["flow_ticks_with_demand"] = window.flow_ticks_with_demand;
+    factWindow["unroutable_flow_ticks"]  = window.unroutable_flow_ticks;
+    factWindow["connected_pairs_sum"]    = window.connected_pairs_sum;
+    factWindow["los_pairs_sum"]          = window.los_pairs_sum;
+    factWindow["legacy_reward_sum"]      = window.legacy_reward_sum;
+
+    ojson facts;
+    facts["nodes"]  = factNodes;
+    facts["links"]  = factLinks;
+    facts["window"] = factWindow;
+
     ojson msg;
     msg["type"]              = "step";
     msg["tick"]              = tick;
     msg["time_s"]            = time_s;
     msg["decision"]          = m_decision;
-    msg["ticks_in_step"]     = ticksInStep;
+    msg["ticks_in_step"]     = window.ticks;
     msg["obs"]               = obs;
     msg["mask"]              = mask;
     msg["reward"]            = reward;
     msg["done"]              = done;
     msg["revalidated_slots"] = m_revalidatedSlots;
+    msg["facts"]             = facts;
 
     std::cout << msg.dump() << "\n" << std::flush;
 }
@@ -446,13 +543,13 @@ RlBridge::Step(uint32_t tick, double time_s,
 {
     if (m_centralized)
     {
-        const uint32_t ticksInStep = m_rewardTicks;
-        const double reward = (m_rewardTicks > 0) ? m_rewardSum / m_rewardTicks : 0.0;
-        m_rewardSum = 0.0;
-        m_rewardTicks = 0;
+        const WindowFacts window = m_window;
+        const double reward =
+            (window.ticks > 0) ? window.legacy_reward_sum / window.ticks : 0.0;
+        m_window = WindowFacts{};
 
         m_lastMask = ComputeMask(mobs);
-        WriteStep(tick, time_s, mobs, linkTable, m_lastMask, reward, ticksInStep, done);
+        WriteStep(tick, time_s, mobs, linkTable, m_lastMask, reward, window, done);
         ++m_decision;
 
         if (!done)
