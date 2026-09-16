@@ -3,6 +3,10 @@
 C++ owns movement limits, action validity, and reward accumulation. Python
 converts and validates messages; it never re-derives masks or clamps.
 
+On the Python side, `scripts/rl/env/mesh_env.py` owns the Gymnasium API,
+`protocol.py` validates actions and messages, and `episode.py` owns the
+simulator process, episode directories, diagnostics, and manifest.
+
 ## Modes
 
 | Mode | Selected by | Action space | Stream |

@@ -637,3 +637,26 @@ def test_training_failure_closes_the_environment(sim_binary, multi_run_config,
                 for p in sorted(out_dir.glob("episode-*/rl_episode.json"))]
     assert episodes and any(e["status"] == "failed" for e in episodes)
     assert _drain_threads() == []
+
+
+def test_episode_allocation_scans_existing_directories_once(tmp_path, monkeypatch):
+    from scripts.rl.env.episode import EpisodeSession
+
+    (tmp_path / "episode-0007").mkdir()
+    (tmp_path / "episode-10000").mkdir()
+    original_iterdir = Path.iterdir
+    scans = []
+
+    def counted_iterdir(path):
+        if path == tmp_path:
+            scans.append(path)
+        return original_iterdir(path)
+
+    monkeypatch.setattr(Path, "iterdir", counted_iterdir)
+    session = EpisodeSession("sim", "run.ini", tmp_path, None)
+    first, first_index = session._allocate_episode_dir()
+    second, second_index = session._allocate_episode_dir()
+
+    assert (first.name, first_index) == ("episode-10001", 10001)
+    assert (second.name, second_index) == ("episode-10002", 10002)
+    assert len(scans) == 1
