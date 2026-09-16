@@ -23,17 +23,46 @@ automatic migration: legacy action `4` is `-Z`, centralized action `4` is hold.
 | Item | Value |
 | --- | --- |
 | Slot order | resolved `controlled_nodes` order; `all` means every `nodes.json` entry in file order. Jammers are never controllable. |
-| Slots | `M = max_controlled_nodes` (`0` auto-sizes to the resolved count); slots beyond the resolved count are padding |
+| Slots | A slot is one fixed position in the policy's action/observation vector, assigned to one controlled node. `M = max_controlled_nodes` (`0` auto-sizes); unused positions are padding, not extra nodes. |
 | Action meanings | `0 west (-x)`, `1 east (+x)`, `2 south (-y)`, `3 north (+y)`, `4 hold`; z is never changed |
-| Hold | sets the slot's velocity to `(0,0,0)` until the next decision; it does not repeat the previous command |
+| Hold | action `4` commands zero velocity until the next decision. The node stops moving; it does not repeat the previous direction. A node can also stop at a wall while a direction remains commanded. |
 | Mask order | flat `5*M` array of 0/1, `[slot0 W,E,S,N,H, slot1 …]`; padded slot is `[0,0,0,0,1]`; hold is always valid |
 | Mask rule (clip-at-wall) | a direction is valid iff there is room > `1e-6` m to that bound, so a direction is valid exactly when realized displacement would be > 0 |
 | Clamp | every tick, before the clock advances, each axis velocity is reduced so the node lands exactly on the bound instead of crossing it |
-| Speed cap | `v_i = min(step_size_m / tick_s, MaxSpeedForType(node_type))`, fixed at construction and reported in `init.slot_speed_mps` |
+| Speed cap | `v_i = min(step_size_m / tick_s, MaxSpeedForType(node_type))`, fixed at construction and reported in `init.slot_speed_mps`. `step_size_m` is nominal movement **per simulator tick**, not per RL decision. |
 | Cadence | decisions at ticks `0, k, 2k, …` with `k = decision_interval_ticks`; velocities persist between decisions; physics still advances every `tick_s` |
 | Partial windows | `num_decisions = ceil(num_ticks / k)`; the last window may be shorter, and every `step` reports its `ticks_in_step` |
 | Reward window | mean of the per-tick reward over the ticks in the window (`{0}` for the reset message), so `k = 1` equals the legacy per-tick value |
 | Terminal message | emitted at `tick == num_ticks` with `done: true`; no action is read after it |
+
+The agent cannot interrupt a command halfway through a decision window. To
+change direction more often, reduce `decision_interval_s` to an integer multiple
+of `tick_s` (down to one tick). A wall-clipped or held node still participates in
+link, traffic, and reward calculations every tick; there is no separate wall or
+hold reward. `revalidated_slots` in the *next* `step` lists only action positions
+whose invalid command C++ replaced with hold. It does not list deliberate hold
+actions or every node that happens to be stationary.
+With `all_links_los`, the reward still depends on the current links' LOS;
+being at a boundary or choosing hold has no bonus or penalty by itself.
+
+### Worked three-node example
+
+`inputs/baselines/p1-multi-smoke/run.ini` controls `node-b,node-c` and sets
+`max_controlled_nodes = 3`, so action positions 0 and 1 belong to those nodes;
+position 2 is padding. Node-a follows its own random walk. With `tick_s = 0.1`,
+`decision_interval_s = 0.5`, and `step_size_m = 1`, each active node can move up
+to 1 m per tick, or 5 m over a five-tick decision window (subject to its speed
+cap and the arena wall).
+
+| Time | Joint action just chosen | Result at next decision |
+| --- | --- | --- |
+| `0.0 s` | `[2,1,4]`: b south, c east, padding hold | At `0.5 s`, b moves `(100,0)` → `(100,-5)`; c moves `(97,50)` → `(100,50)` and clips at `x_max`. |
+| `0.5 s` | `[4,0,4]`: b hold, c west, padding hold | At `1.0 s`, b stays `(100,-5)`; c reaches `(95,50)`. |
+
+`[0,0,0]` would command **west**, not stop. Its padding action would be
+revalidated to hold. `[4,4,4]` commands both active nodes to stop. Each decision
+reward is the mean of the per-tick rewards since the prior decision. The
+time-zero reward is shown in the reset message but is not a policy-step reward.
 
 Observation layout per slot (`L = 4 + 2*(N-1)`, `obs_dim = M*L`):
 `[active, x, y, z, sinr(i,j0), cap(i,j0), sinr(i,j1), cap(i,j1), …]` with peers
@@ -42,19 +71,24 @@ The `-999` SINR sentinel is passed through unchanged.
 
 ## Message fields
 
-- `init` (centralized, first line, once per process): `type`, `contract`,
-  `dimensions`, `action_meanings`, `max_controlled_nodes`, `num_controlled`,
-  `slot_node_ids` (`null` for padding), `slot_speed_mps` (`null` for padding),
-  `num_mesh_nodes`, `obs_dim`, `mask_dim`, `tick_s`, `decision_interval_s`,
+Centralized `init` is the first line, sent once per simulator process:
+
+- Identity and actions: `type`, `contract`, `dimensions`, `action_meanings`.
+- Node layout: `max_controlled_nodes`, `num_controlled`, `slot_node_ids`,
+  `slot_speed_mps`, `num_mesh_nodes`, `obs_dim`, `mask_dim`. Padded entries in
+  the two slot lists are `null`.
+- Timing and reward: `tick_s`, `decision_interval_s`,
   `decision_interval_ticks`, `num_ticks`, `num_decisions`, `reward_type`,
   `reward_window`, `wall_policy`.
-- `step` (centralized): `type`, `tick`, `time_s`, `decision` (from 0),
-  `ticks_in_step`, `obs`, `mask`, `reward`, `done`, `revalidated_slots`.
-- action (centralized): `{"action":[…]}` — exactly `M` integers in `[0,4]`;
-  padded slots must be `4`.
-- `step` (legacy, unchanged): `type`, `tick`, `time_s`,
-  `obs.{controlled_pos,link_sinrs,link_capacities}`, `reward`, `done`,
-  `action_type`; action `{"action":<int>}`.
+
+Each centralized `step` contains `type`; `tick`, `time_s`, `decision` (from 0),
+and `ticks_in_step`; `obs`, `mask`, and `reward`; then `done` and
+`revalidated_slots`. The agent replies with `{"action":[…]}`: exactly `M`
+integers in `[0,4]`, with `4` for every padded position.
+
+Legacy `step` remains unchanged: `type`, `tick`, `time_s`,
+`obs.{controlled_pos,link_sinrs,link_capacities}`, `reward`, `done`,
+`action_type`; its reply is `{"action":<int>}`.
 
 `time_s` is simulated time, never wall clock, so identical inputs give identical
 stdout.
