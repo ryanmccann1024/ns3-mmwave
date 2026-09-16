@@ -5,6 +5,7 @@ ROOT     := ../../..
 SRCS := config-validator-test.cc \
         $(ROOT)/src/config/config-validator.cc \
         $(ROOT)/src/config/config-loader.cc \
+        $(ROOT)/src/config/rl-control.cc \
         $(ROOT)/src/util/string-utils.cc \
         $(ROOT)/src/util/ini-parser.cc
 

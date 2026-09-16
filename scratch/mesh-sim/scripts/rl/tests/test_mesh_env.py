@@ -1,13 +1,16 @@
 """Contract tests for MeshRlEnv and the training CLI, driven by fake_sim.py."""
 
+import hashlib
 import importlib.util
 import json
 import os
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import gymnasium
+import numpy as np
 import pytest
 
 from scripts.rl.env.mesh_env import MeshRlEnv
@@ -29,11 +32,49 @@ reward_type = all_links_los
 step_size_m = 5.0
 """
 
+# Centralized fixture mirroring inputs/baselines/p1-multi-smoke (N = 3, M = 3).
+MULTI_RUN_INI = """[scenario]
+name = fake-multi
+seed = 1
+duration_s = 1.0
+tick_s = 0.1
+nodes_file = nodes.json
+
+[rl]
+enabled = true
+controlled_nodes = node-b, node-c
+max_controlled_nodes = 3
+action_profile = move_2d
+decision_interval_s = 0.5
+action_type = discrete
+reward_type = all_links_los
+step_size_m = 1.0
+x_min = 0.0
+x_max = 100.0
+y_min = -50.0
+y_max = 100.0
+z_min = 0.0
+z_max = 50.0
+"""
+
+NODES_JSON = """[
+  {"id": "node-a", "role": "peer", "mobility": "fixed", "node_type": "drone",
+   "position": {"x": 50.0, "y": 20.0, "z": 10.0}},
+  {"id": "node-b", "role": "peer", "mobility": "waypoint", "node_type": "drone",
+   "waypoints": [{"t": 0.0, "x": 100.0, "y": 0.0, "z": 10.0},
+                 {"t": 1.0, "x": 100.0, "y": 40.0, "z": 10.0}]},
+  {"id": "node-c", "role": "peer", "mobility": "constant_velocity", "node_type": "drone",
+   "position": {"x": 97.0, "y": 50.0, "z": 10.0},
+   "velocity": {"vx": 0.0, "vy": 0.0, "vz": 0.0}}
+]
+"""
+
 
 @pytest.fixture
 def run_config(tmp_path: Path) -> str:
     path = tmp_path / "run.ini"
     path.write_text(RUN_INI)
+    (tmp_path / "nodes.json").write_text(NODES_JSON)
     return str(path)
 
 
@@ -267,3 +308,332 @@ def test_tiny_training_run(sim_binary, run_config, tmp_path, monkeypatch):
 
     monkeypatch.setattr(sys, "argv", argv)
     assert train.main() == 1      # refuses to reuse a populated output directory
+
+
+# 6. Centralized multi-node control ----------------------------------------------
+
+SINGLE_SLOT_INI = (MULTI_RUN_INI
+                   .replace("controlled_nodes = node-b, node-c",
+                            "controlled_nodes = node-a")
+                   .replace("max_controlled_nodes = 3", "max_controlled_nodes = 0"))
+
+
+@pytest.fixture
+def multi_run_config(tmp_path: Path) -> str:
+    path = tmp_path / "run.ini"
+    path.write_text(MULTI_RUN_INI)
+    (tmp_path / "nodes.json").write_text(NODES_JSON)
+    return str(path)
+
+
+def _multi_env(sim_binary: str, run_config: str, tmp_path: Path) -> MeshRlEnv:
+    return MeshRlEnv(sim_binary, run_config, output_dir=str(tmp_path / "train"))
+
+
+## @brief Gymnasium wants per-slot int8 masks; C++ sends one flat array.
+def _mask_tuple(env: MeshRlEnv) -> tuple:
+    flat = np.asarray(env.action_masks(), dtype=np.int8)
+    return tuple(flat[i * 5:(i + 1) * 5] for i in range(len(env.action_space.nvec)))
+
+
+def test_centralized_spaces_contract_and_padding(sim_binary, multi_run_config, tmp_path):
+    env = _multi_env(sim_binary, multi_run_config, tmp_path)
+    obs, info = env.reset()
+
+    assert env.control_mode == "centralized"
+    assert env.action_space == gymnasium.spaces.MultiDiscrete([5, 5, 5])
+    assert env.observation_space.shape == (24,)
+    assert obs.shape == (24,) and obs.dtype == np.float64
+
+    contract = env.contract
+    assert contract["contract"] == "mesh_move_2d_v1"
+    assert contract["slot_node_ids"] == ["node-b", "node-c", None]
+    assert (contract["obs_dim"], contract["mask_dim"]) == (24, 15)
+    assert (contract["num_ticks"], contract["decision_interval_ticks"],
+            contract["num_decisions"]) == (10, 5, 2)
+
+    assert info == {"tick": 0, "time_s": 0.0, "decision": 0, "ticks_in_step": 1,
+                    "revalidated_slots": []}
+    assert list(obs[16:24]) == [0.0] * 8               # padded slot is all zeros
+    mask = env.action_masks()
+    assert mask.shape == (15,) and mask.dtype == bool
+    assert list(mask[10:15]) == [False, False, False, False, True]
+    env.close()
+
+
+def test_centralized_single_slot_spaces(sim_binary, tmp_path):
+    path = tmp_path / "run.ini"
+    path.write_text(SINGLE_SLOT_INI)
+    (tmp_path / "nodes.json").write_text(NODES_JSON)
+    env = _multi_env(sim_binary, str(path), tmp_path)
+    obs, _ = env.reset()
+
+    assert env.action_space == gymnasium.spaces.MultiDiscrete([5])
+    assert obs.shape == (8,)
+    assert env.contract["slot_node_ids"] == ["node-a"]
+    assert env.action_masks().shape == (5,)
+    env.close()
+
+
+def test_centralized_joint_action_is_forwarded(sim_binary, multi_run_config, tmp_path):
+    env = _multi_env(sim_binary, multi_run_config, tmp_path)
+    env.reset()
+    obs, reward, terminated, truncated, info = env.step([2, 1, 4])
+
+    # node-b drove south for 5 ticks; node-c drove east and clipped at x_max.
+    assert (obs[1], obs[2]) == (100.0, -5.0)
+    assert (obs[9], obs[10]) == (100.0, 50.0)
+    assert list(obs[16:24]) == [0.0] * 8
+    assert info == {"tick": 5, "time_s": 0.5, "decision": 1, "ticks_in_step": 5,
+                    "revalidated_slots": []}
+    assert reward == 1.0 and not terminated and not truncated
+
+    mask = env.action_masks()
+    assert not mask[1] and not mask[6]        # both controlled nodes sit at x_max
+    assert mask[4] and mask[9] and mask[14]   # hold is always valid
+    env.close()
+
+
+def test_centralized_rejects_a_scalar_action(sim_binary, multi_run_config, tmp_path):
+    env = _multi_env(sim_binary, multi_run_config, tmp_path)
+    env.reset()
+    with pytest.raises(ValueError, match="scalar"):
+        env.step(4)
+    with pytest.raises(ValueError, match="entries"):
+        env.step([4, 4])
+    env.close()
+
+
+def test_centralized_masked_random_run_completes(sim_binary, multi_run_config, tmp_path):
+    out_dir = tmp_path / "train"
+    env = _multi_env(sim_binary, multi_run_config, tmp_path)
+    env.reset()
+    env.action_space.seed(3)
+
+    done, steps = False, 0
+    while not done:
+        action = env.action_space.sample(mask=_mask_tuple(env))
+        _, _, done, _, info = env.step(action)
+        steps += 1
+    assert steps == 2 and info["tick"] == 10
+
+    env.close()
+    manifest = _episode_manifest(out_dir, 0)
+    assert manifest["manifest_version"] == 2
+    assert manifest["status"] == "completed" and manifest["exit_code"] == 0
+    assert manifest["control_mode"] == "centralized"
+    assert manifest["contract"]["contract"] == "mesh_move_2d_v1"
+    assert manifest["decisions"] == 2 and manifest["last_tick"] == 10
+    assert manifest["stop_reason"] == "done" and manifest["escalation"] == "exited"
+
+
+@pytest.mark.parametrize("mode,pattern", [
+    ("bad_contract", "Unknown init contract"),
+    ("bad_meanings", "action_meanings"),
+    ("bad_counts", "num_controlled"),
+    ("bad_obs_len", "obs length 23 != obs_dim 24"),
+    ("bad_mask", r"mask\[0\] is not 0 or 1"),
+    ("non_finite", r"obs\[1\] is not a finite number"),
+])
+def test_centralized_faults_are_rejected(sim_binary, multi_run_config, tmp_path,
+                                         monkeypatch, mode, pattern):
+    monkeypatch.setenv("FAKE_SIM_MODE", mode)
+    out_dir = tmp_path / "train"
+    env = _multi_env(sim_binary, multi_run_config, tmp_path)
+    with pytest.raises(RuntimeError, match=pattern):
+        env.reset()
+
+    manifest = _episode_manifest(out_dir, 0)
+    assert manifest["status"] == "failed"
+    assert manifest["exit_code"] is not None
+    assert "message line" in manifest["error"]
+    assert env._proc is None
+
+    # A later close must not relabel the recorded failure.
+    env.close()
+    assert _episode_manifest(out_dir, 0)["status"] == "failed"
+
+
+def test_reset_signature_drift_fails_before_replacing_spaces(sim_binary,
+                                                             multi_run_config, tmp_path):
+    env = _multi_env(sim_binary, multi_run_config, tmp_path)
+    env.reset()
+    first_action, first_obs = env.action_space, env.observation_space
+
+    Path(multi_run_config).write_text(
+        MULTI_RUN_INI.replace("max_controlled_nodes = 3", "max_controlled_nodes = 4"))
+    with pytest.raises(RuntimeError, match="contract changed between resets"):
+        env.reset()
+    assert env.action_space is first_action and env.observation_space is first_obs
+    assert list(env.action_space.nvec) == [5, 5, 5]
+    env.close()
+
+
+def test_reset_mode_drift_is_rejected(sim_binary, multi_run_config, tmp_path):
+    env = _multi_env(sim_binary, multi_run_config, tmp_path)
+    env.reset()
+    Path(multi_run_config).write_text(RUN_INI)
+    with pytest.raises(RuntimeError, match="control_mode"):
+        env.reset()
+    assert isinstance(env.action_space, gymnasium.spaces.MultiDiscrete)
+    env.close()
+
+
+# 7. Bounded cleanup -------------------------------------------------------------
+
+def _drain_threads() -> list:
+    return [t for t in threading.enumerate() if t.name == "mesh-sim-drain"]
+
+
+def test_long_stdout_is_drained_on_close(sim_binary, multi_run_config, tmp_path,
+                                         monkeypatch):
+    monkeypatch.setenv("FAKE_SIM_MODE", "long")
+    out_dir = tmp_path / "train"
+    before = threading.active_count()
+    env = _multi_env(sim_binary, multi_run_config, tmp_path)
+    env.reset()
+    assert env.contract["num_ticks"] == 3000       # far more output than a pipe holds
+
+    proc = env._proc
+    env.close()
+
+    assert proc.poll() is not None                 # reaped, not leaked
+    assert env._proc is None
+    assert _drain_threads() == []
+    assert threading.active_count() == before
+    manifest = _episode_manifest(out_dir, 0)
+    assert manifest["status"] == "interrupted" and manifest["stop_reason"] == "close"
+    assert manifest["exit_code"] == 0
+
+
+def test_close_is_idempotent_and_reset_still_works(sim_binary, multi_run_config,
+                                                   tmp_path):
+    out_dir = tmp_path / "train"
+    env = _multi_env(sim_binary, multi_run_config, tmp_path)
+    env.reset()
+    env.close()
+    env.close()
+    assert _episode_manifest(out_dir, 0)["status"] == "interrupted"
+
+    env.reset()
+    env.close()
+    assert _episode_manifest(out_dir, 1)["status"] == "interrupted"
+    assert _drain_threads() == []
+
+
+def test_completed_episode_leaves_no_process_or_reader(sim_binary, multi_run_config,
+                                                       tmp_path):
+    before = threading.active_count()
+    env = _multi_env(sim_binary, multi_run_config, tmp_path)
+    env.reset()
+    proc = env._proc
+    env.step([4, 4, 4])
+    _, _, done, _, _ = env.step([4, 4, 4])
+    assert done
+    assert proc.poll() == 0 and env._proc is None
+    env.close()
+    assert _drain_threads() == []
+    assert threading.active_count() == before
+
+
+# 8. Scenario identity -----------------------------------------------------------
+
+def test_scenario_identity_uses_relative_nodes_and_inline_comments(tmp_path):
+    from scripts.rl.env.config import read_scenario_identity
+
+    nodes = tmp_path / "custom-nodes.json"
+    nodes.write_text(NODES_JSON)
+    ini = tmp_path / "run.ini"
+    ini.write_text(MULTI_RUN_INI.replace(
+        "nodes_file = nodes.json", "nodes_file = custom-nodes.json # relative"))
+
+    identity = read_scenario_identity(str(ini))
+    assert identity["run_config"] == str(ini.resolve())
+    assert identity["run_ini_sha256"] == hashlib.sha256(ini.read_bytes()).hexdigest()
+    assert identity["nodes_json_sha256"] == hashlib.sha256(nodes.read_bytes()).hexdigest()
+
+
+def test_scenario_identity_accepts_absolute_nodes_path(tmp_path):
+    from scripts.rl.env.config import read_scenario_identity
+
+    nodes = tmp_path / "elsewhere" / "nodes.json"
+    nodes.parent.mkdir()
+    nodes.write_text(NODES_JSON)
+    ini = tmp_path / "run.ini"
+    ini.write_text(MULTI_RUN_INI.replace("nodes_file = nodes.json",
+                                         f"nodes_file = {nodes}"))
+    identity = read_scenario_identity(str(ini))
+    assert identity["nodes_json_sha256"] == hashlib.sha256(nodes.read_bytes()).hexdigest()
+
+
+def test_scenario_identity_reports_missing_nodes_file(tmp_path):
+    from scripts.rl.env.config import read_scenario_identity
+
+    ini = tmp_path / "run.ini"
+    ini.write_text(MULTI_RUN_INI)
+    with pytest.raises(FileNotFoundError, match="nodes file not found"):
+        read_scenario_identity(str(ini))
+
+
+# 9. Centralized training metadata and error-path cleanup ------------------------
+
+@pytest.mark.skipif(importlib.util.find_spec("sb3_contrib") is None,
+                    reason="sb3_contrib not installed")
+def test_centralized_tiny_training_run(sim_binary, multi_run_config, tmp_path,
+                                       monkeypatch):
+    from scripts.rl import train
+
+    out_dir = tmp_path / "train"
+    argv = ["train", "--sim-binary", sim_binary, "--run-config", multi_run_config,
+            "--output-dir", str(out_dir), "--verbose", "0",
+            "m-ppo", "--total-timesteps", "16", "--n-steps", "16"]
+    monkeypatch.setattr(sys, "argv", argv)
+    assert train.main() == 0
+
+    manifest = json.loads((out_dir / "train_manifest.json").read_text())
+    assert manifest["manifest_version"] == 2
+    assert manifest["status"] == "completed"
+    assert manifest["control_mode"] == "centralized"
+    assert manifest["contract"]["contract"] == "mesh_move_2d_v1"
+    assert manifest["contract"]["max_controlled_nodes"] == 3
+
+    identity = manifest["scenario_identity"]
+    assert identity["run_config"] == str(Path(multi_run_config).resolve())
+    assert identity["run_ini_sha256"] == hashlib.sha256(
+        Path(multi_run_config).read_bytes()).hexdigest()
+    assert identity["nodes_json_sha256"] == hashlib.sha256(
+        (Path(multi_run_config).parent / "nodes.json").read_bytes()).hexdigest()
+
+    episodes = sorted(out_dir.glob("episode-*/rl_episode.json"))
+    assert episodes
+    for path in episodes:
+        episode = json.loads(path.read_text())
+        assert episode["manifest_version"] == 2, path
+        assert episode["status"] in ("completed", "interrupted"), path
+        if episode["status"] == "completed":
+            assert episode["decisions"] == 2 and episode["exit_code"] == 0, path
+    assert _drain_threads() == []
+
+
+@pytest.mark.skipif(importlib.util.find_spec("sb3_contrib") is None,
+                    reason="sb3_contrib not installed")
+def test_training_failure_closes_the_environment(sim_binary, multi_run_config,
+                                                 tmp_path, monkeypatch):
+    from scripts.rl import train
+
+    monkeypatch.setenv("FAKE_SIM_MODE", "exit3")
+    out_dir = tmp_path / "train"
+    argv = ["train", "--sim-binary", sim_binary, "--run-config", multi_run_config,
+            "--output-dir", str(out_dir), "--verbose", "0",
+            "m-ppo", "--total-timesteps", "16", "--n-steps", "16"]
+    monkeypatch.setattr(sys, "argv", argv)
+    assert train.main() == 1
+
+    manifest = json.loads((out_dir / "train_manifest.json").read_text())
+    assert manifest["status"] == "failed" and manifest["error"]
+    assert manifest["control_mode"] == "centralized"
+
+    episodes = [json.loads(p.read_text())
+                for p in sorted(out_dir.glob("episode-*/rl_episode.json"))]
+    assert episodes and any(e["status"] == "failed" for e in episodes)
+    assert _drain_threads() == []
