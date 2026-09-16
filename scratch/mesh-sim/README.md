@@ -160,6 +160,10 @@ configured jammers contribute interference.
 warning on stderr, and is recorded in `run.log` as `rl.reward_alias`.
 `[rl] z_min`/`z_max` are validated like the x and y bounds (`min < max`).
 
+`reward_type` is the reward the simulator computes. In centralized mode Python
+can instead compose the reward from named components — see
+[Selecting observations, rewards, and telemetry](#selecting-observations-rewards-and-telemetry).
+
 ### MaskablePPO smoke run
 
 Run from `scratch/mesh-sim/`, with global options before the `m-ppo`
@@ -215,10 +219,91 @@ Training on the bundled centralized fixture:
 ```bash
 .venv/bin/python -m scripts.rl.train \
   --sim-binary <BIN> \
-  --run-config inputs/baselines/p1-multi-smoke/run.ini \
+  --run-config inputs/baselines/centralized-multi-smoke/run.ini \
   --output-dir outputs/rl-multi \
   m-ppo --total-timesteps 16 --n-steps 16 --seed 1
 ```
+
+#### Selecting observations, rewards, and telemetry
+
+These `[rl]` keys are *read by the Python env and `train.py`; the simulator
+ignores them*. They apply to centralized mode only.
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `observation_preset` | preset name | `raw_links_v1` | which observation the policy sees |
+| `reward_components` | comma-separated names | absent (the C++ reward) | components Python composes into the returned reward |
+| `reward_weights` | comma-separated floats | `1.0` per component | one weight per component, in the same order |
+| `telemetry` | `none` or `steps` | `none` | `steps` writes `<episode-dir>/steps.jsonl` |
+| `telemetry_every` | positive int | `1` | save every kth policy decision (requires `telemetry = steps`) |
+
+`train.py` takes the same five as `--observation-preset`, `--reward-components`,
+`--reward-weights`, `--telemetry`, and `--telemetry-every`, all before the
+`m-ppo` subcommand:
+
+```bash
+.venv/bin/python -m scripts.rl.train \
+  --sim-binary <BIN> \
+  --run-config inputs/baselines/centralized-multi-smoke/run.ini \
+  --output-dir outputs/rl-multi-custom \
+  --observation-preset local_links_v1 \
+  --reward-components delivery_ratio,connectivity \
+  --telemetry steps --telemetry-every 2 \
+  m-ppo --total-timesteps 16 --n-steps 16 --seed 1
+```
+
+Each key resolves independently with precedence CLI > `run.ini` > default, and
+both manifests record the resolved value and its source. An unknown preset or
+component, a weight count that does not match the components, or any non-default
+value of these keys in legacy mode fails before the simulator starts.
+
+Observation presets:
+
+- `raw_links_v1` — the flat vector as C++ emits it: raw positions and
+  per-peer SINR/capacity, `float64`, unbounded.
+- `local_links_v1` — per slot `[active, x, y, z]` normalized to `[-1, 1]` with
+  the `[rl]` bounds, then `[present, sinr_valid, sinr_n, cap_n]` per peer;
+  `float32`, SINR clipped to [-20, 40] dB, capacity as `log10(1 + Mbps) / 4`.
+  Clipping keeps extreme values from dominating the policy input; the raw
+  simulator measurement remains available in `facts`.
+
+Reward components, each computed from the sums over one decision window:
+
+- `delivery_ratio` — delivered / demanded Mbps. A window with no meaningful
+  demand (`≤ 1e-9` in the accumulated values) is *masked*: the component is
+  reported invalid and contributes 0, avoiding division by zero.
+- `connectivity` — connected node pairs as a fraction of all pairs per tick.
+- `throughput_mbps` — delivered Mbps per tick (unnormalized; scale grows with
+  node count and demand).
+- `legacy` — the simulator's own `reward_type` value for the window. This is a
+  reward component name, not a switch to legacy single-node control.
+
+Naming any component makes Python the reward authority: `step()` returns the
+weighted total, `info["reward"]` holds the per-component values, validity, and
+weights, and the C++ value remains available as `info["reward"]["legacy"]`.
+
+With `telemetry = steps` each episode directory also gets a `steps.jsonl`: a
+header line (contract, selection, observation schema, reward schema) followed
+by one record per saved decision — the reset observation, every kth policy
+decision, and always the terminal one. Records are buffered and flushed every
+32 records and on stop, so a hard kill can lose up to 32 records. The separate
+`rl_episode.json` is updated every decision regardless of `telemetry_every`;
+that setting only reduces `steps.jsonl` records. On the
+`centralized-multi-smoke` fixture a record measures about 0.9 KB and the header about
+3.5 KB. `scripts.rl.env.telemetry.replay_file` rebuilds every saved
+observation and recomputes Python-composed rewards from the stored facts and
+schema. For the default C++ reward it checks the observation only. Replay
+does not verify simulator physics, the next state, or unsaved decisions.
+
+Both manifests carry SHA-256 fingerprints of the observation and reward schema
+descriptions. These let a loader detect changed declared layouts,
+normalization, components, or weights; they do not detect every code or physics
+change and are not evidence that a policy transfers between scenarios. When
+recorded during verification, a compiled-binary hash answers a different
+question: which executable was tested. `manifest_version` labels the saved JSON
+format, not the model or simulator version. Centralized runs need a simulator
+binary that exports per-decision facts: an `init` without `facts_schema` is
+rejected before training starts.
 
 The full contract — slot order, action meanings, mask layout, decision cadence,
 reward window, wall clipping, speed caps, and the `init`/`step`/action schemas —
@@ -255,7 +340,7 @@ python -m scripts.validation.run_batch ... [--band sub-6]
 |---|---|
 | Direct run | `<output-dir>/run.log`, `<output-dir>/inputs/` (archived scenario files), `<output-dir>/seed-N/{positions,links,rx-power,mcs,flows,routes}.csv` + `summary.json` |
 | Sweep point / validation scenario | Same layout, plus `console.log` (launcher-captured stdout/stderr; absent for direct runs) |
-| RL training | `<output-dir>/train_manifest.json`, `<output-dir>/maskable_ppo_mesh.zip`, and one `episode-NNNN/` per episode containing `run.log`, `inputs/`, `sim_stderr.log`, `rl_episode.json`, and `seed-<seed>/...` |
+| RL training | `<output-dir>/train_manifest.json`, `<output-dir>/maskable_ppo_mesh.zip`, and one `episode-NNNN/` per episode containing `run.log`, `inputs/`, `sim_stderr.log`, `rl_episode.json`, `steps.jsonl` (optional), and `seed-<seed>/...` |
 
 With no `[output] dir`, the simulator auto-generates
 `outputs/YYYY-MM/DD/HH-MM-SS/`.

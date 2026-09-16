@@ -49,7 +49,6 @@ def _fail(message: str) -> int:
     return 1
 
 
-## @brief Run a command, returning its exit code and naming it on failure.
 def _run(cmd: list[str]) -> int:
     print("+ " + " ".join(cmd))
     rc = subprocess.call(cmd)
@@ -58,7 +57,6 @@ def _run(cmd: list[str]) -> int:
     return rc
 
 
-## @brief Path to the interpreter inside a venv on this platform.
 def _venv_python(venv: Path) -> Path:
     if os.name == "nt":
         return venv / "Scripts" / "python.exe"

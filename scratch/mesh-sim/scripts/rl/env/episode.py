@@ -10,6 +10,8 @@ from pathlib import Path
 
 from scripts.sim_support import find_mesh_root, simulator_env, tail_lines
 
+from .telemetry import TELEMETRY_FILE, StepRecorder, make_header, make_record
+
 _EPISODE_RE = re.compile(r"^episode-(\d+)$")
 _STDERR_TAIL_LINES = 40
 _BAD_LINE_CHARS = 200
@@ -41,6 +43,8 @@ class EpisodeSession:
         self._cmd: list[str] = []
         self._msg_count = 0
         self._last_tail = "(no stderr captured)"
+        self._recorder: StepRecorder | None = None
+        self._last_action = None
 
     @property
     def proc(self) -> subprocess.Popen | None:
@@ -56,6 +60,7 @@ class EpisodeSession:
 
     def start(self, seed: int, seed_source: str) -> None:
         self._episode_dir, self._episode_index = self._allocate_episode_dir()
+        self._last_action = None
         self._cmd = [
             self._sim_binary,
             f"--run-config={self._run_config}",
@@ -109,15 +114,71 @@ class EpisodeSession:
         })
         self._write_manifest()
 
-    def record_step(self, msg: dict, reward: float) -> None:
+    def set_selection(self, selection, observation_schema: dict,
+                      reward_schema: dict) -> None:
+        """Record policy schemas and open optional step telemetry."""
+        if self._manifest is None:
+            return
+        self._manifest.update({
+            "manifest_version": 3,
+            "selection": selection.describe(),
+            "observation_schema_sha256": observation_schema["sha256"],
+            "reward_schema_sha256": reward_schema["sha256"],
+            "reward_components_sum": {name: 0.0
+                                      for name in selection.reward_components},
+            "telemetry": None,
+        })
+        if selection.telemetry == "steps" and self._episode_dir is not None:
+            self._recorder = StepRecorder(self._episode_dir / TELEMETRY_FILE,
+                                          selection.telemetry_every)
+            self._recorder.write_header(make_header(
+                self._manifest["contract"], selection.describe(), observation_schema,
+                reward_schema))
+            self._manifest["telemetry"] = {"file": TELEMETRY_FILE, "records": 0,
+                                           "every": selection.telemetry_every}
+        self._write_manifest()
+
+    def record_reset(self, msg: dict, obs) -> None:
+        """The reset observation is telemetry only: no policy reward, no totals."""
+        if self._recorder is not None:
+            self._append_record(msg, None, obs)
+            self._write_manifest()
+
+    def record_step(self, msg: dict, reward: float, detail: dict | None = None) -> None:
         if self._manifest is None:
             return
         self._manifest["steps"] += 1
         self._manifest["cumulative_reward"] += reward
-        if self._manifest["manifest_version"] == 2:
+        if self._manifest["manifest_version"] >= 2:
             self._manifest["decisions"] = msg["decision"]
             self._manifest["last_tick"] = msg["tick"]
+        breakdown = (detail or {}).get("breakdown")
+        sums = self._manifest.get("reward_components_sum")
+        if breakdown is not None and sums is not None:
+            for name, value in breakdown.components.items():
+                sums[name] = sums.get(name, 0.0) + value
+        if self._recorder is not None and self._recorder.should_save(
+                msg["decision"], msg["done"]):
+            self._append_record(msg, breakdown if breakdown is not None else reward,
+                                (detail or {}).get("obs"))
         self._write_manifest()
+
+    def _append_record(self, msg: dict, reward, obs) -> None:
+        assert self._recorder is not None
+        self._recorder.append(make_record(
+            msg["decision"], msg["tick"], msg["time_s"], msg["ticks_in_step"],
+            self._last_action, msg["mask"], msg["revalidated_slots"], msg["facts"],
+            msg["reward"], reward, obs))
+        if self._manifest is not None and self._manifest.get("telemetry"):
+            self._manifest["telemetry"]["records"] = self._recorder.records
+
+    def _close_recorder(self) -> None:
+        recorder, self._recorder = self._recorder, None
+        if recorder is None:
+            return
+        recorder.close()
+        if self._manifest is not None and self._manifest.get("telemetry"):
+            self._manifest["telemetry"]["records"] = recorder.records
 
     def protocol_error(self, detail: str):
         message = f"{detail} on message line {self._msg_count}"
@@ -133,6 +194,7 @@ class EpisodeSession:
 
     def send_action(self, action) -> None:
         assert self._proc is not None and self._proc.stdin is not None
+        self._last_action = action
         message = json.dumps({"action": action})
         try:
             self._proc.stdin.write(message + "\n")
@@ -174,7 +236,7 @@ class EpisodeSession:
         self._manifest["status"] = status
         self._manifest["exit_code"] = exit_code
         self._manifest["ended_at"] = _now_iso()
-        if self._manifest["manifest_version"] == 2:
+        if self._manifest["manifest_version"] >= 2:
             self._manifest["stop_reason"] = stop_reason
             self._manifest["escalation"] = escalation
         self._write_manifest()
@@ -251,6 +313,7 @@ class EpisodeSession:
             pass
 
     def stop(self, status: str, stop_reason: str | None = None) -> int | None:
+        self._close_recorder()
         proc, self._proc = self._proc, None
         if proc is None:
             if status == "failed":

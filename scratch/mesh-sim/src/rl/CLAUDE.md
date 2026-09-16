@@ -8,6 +8,8 @@ observation+reward (every tick in legacy mode, every decision interval in
 centralized mode), reads the action from stdin, and applies it by setting
 controlled-node velocities via ConstantVelocityMobilityModel. Masks, speed
 caps, per-tick bounds clamping, and action revalidation are owned here.
+In centralized mode the bridge also exports raw per-decision facts (node,
+link, and window sums); preset selection and normalization live in Python.
 
 ## Files
 - **rl-bridge.h/cc** -- `RlBridge` class with `Step()` (IPC) and `ApplyAction()` (physics).

@@ -33,6 +33,19 @@ struct ControlSlot
     bool        active = false;    ///< False for padded slots (hold only).
 };
 
+/// Sums over the ticks of one decision window (centralized facts export).
+struct WindowFacts
+{
+    uint32_t ticks = 0;
+    double   demand_mbps_sum = 0.0;
+    double   delivered_mbps_sum = 0.0;
+    uint64_t flow_ticks_with_demand = 0;
+    uint64_t unroutable_flow_ticks = 0;
+    uint64_t connected_pairs_sum = 0;
+    uint64_t los_pairs_sum = 0;
+    double   legacy_reward_sum = 0.0;
+};
+
 class RlBridge
 {
   public:
@@ -47,7 +60,7 @@ class RlBridge
     // Clamp each controlled slot's velocity so this tick cannot leave the bounds.
     void BeforeAdvance(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs);
 
-    // Add this tick's reward to the current decision window (centralized).
+    // Add this tick's reward and fact sums to the current decision window (centralized).
     void AccumulateTick(const LinkTable& linkTable, const std::vector<FlowResult>& flows);
 
     // Write obs+reward to stdout, read action from stdin.
@@ -79,10 +92,15 @@ class RlBridge
     std::vector<int>         m_lastJoint;        ///< Last joint action (4 == hold).
     std::vector<int>         m_lastMask;         ///< Mask sent in the last step message.
     std::vector<uint32_t>    m_revalidatedSlots; ///< Slots held by revalidation, for the next message.
-    double                   m_rewardSum = 0.0;
-    uint32_t                 m_rewardTicks = 0;
+    WindowFacts              m_window;           ///< Sums for the open decision window.
     uint32_t                 m_decision = 0;
     bool                     m_streamClosed = false;
+
+    // Copied from SimConfig at construction: WriteInit runs after cfg is gone.
+    std::vector<std::string> m_nodeIds;              ///< nodes.json ids in file order.
+    std::string              m_band;
+    double                   m_warmupS = 0.0;
+    bool                     m_jammerPathEnabled = false;
 
     // Last action received from Python
     int    m_lastDiscreteAction = 0;
@@ -102,7 +120,7 @@ class RlBridge
                    const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs,
                    const LinkTable& linkTable,
                    const std::vector<int>& mask,
-                   double reward, uint32_t ticksInStep, bool done) const;
+                   double reward, WindowFacts window, bool done) const;
     std::vector<int> ComputeMask(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs) const;
     void ReadJointAction();
     ns3::Vector ClampVelocityForTick(const ns3::Vector& pos, const ns3::Vector& vel) const;

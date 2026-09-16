@@ -1,11 +1,27 @@
 # RL bridge contract
 
-C++ owns movement limits, action validity, and reward accumulation. Python
+At each decision, the simulator sends Python what the policy can see (`obs`),
+which moves are allowed (`mask`), its reward, and raw measurements (`facts`).
+The Gymnasium environment validates that message, selects the configured
+observation and reward, and passes them to MaskablePPO. The chosen joint action
+returns through the bridge; the simulator applies it until the next decision.
+A decision window is the simulator ticks between those chances to change
+direction. Each tick still updates movement, links, traffic, and reward.
+
+C++ owns movement limits, action validity, and base reward accumulation. Python
 converts and validates messages; it never re-derives masks or clamps.
+For a code walkthrough, start with the tick loop in `sim.cc`, then
+`src/config/rl-control.cc` for the selected nodes and timing, then
+`src/rl/rl-bridge.cc` for the messages, actions, and tick reward. Follow one
+`step` into `scripts/rl/env/mesh_env.py` to see what Gymnasium returns.
 
 On the Python side, `scripts/rl/env/mesh_env.py` owns the Gymnasium API,
 `protocol.py` validates actions and messages, and `episode.py` owns the
 simulator process, episode directories, diagnostics, and manifest.
+`selection.py` resolves the observation/reward/telemetry selection and its
+precedence, and validates it. `observations.py` owns the named observation
+presets and their schema identity. `rewards.py` owns the reward components and
+the composer. `telemetry.py` owns `steps.jsonl` records and their replay.
 
 ## Modes
 
@@ -37,7 +53,9 @@ automatic migration: legacy action `4` is `-Z`, centralized action `4` is hold.
 
 The agent cannot interrupt a command halfway through a decision window. To
 change direction more often, reduce `decision_interval_s` to an integer multiple
-of `tick_s` (down to one tick). A wall-clipped or held node still participates in
+of `tick_s` (down to one tick). The ratio check allows a `1e-6`-tick tolerance
+for floating-point rounding; it does not allow arbitrary fractions. A
+wall-clipped or held node still participates in
 link, traffic, and reward calculations every tick; there is no separate wall or
 hold reward. `revalidated_slots` in the *next* `step` lists only action positions
 whose invalid command C++ replaced with hold. It does not list deliberate hold
@@ -47,7 +65,7 @@ being at a boundary or choosing hold has no bonus or penalty by itself.
 
 ### Worked three-node example
 
-`inputs/baselines/p1-multi-smoke/run.ini` controls `node-b,node-c` and sets
+`inputs/baselines/centralized-multi-smoke/run.ini` controls `node-b,node-c` and sets
 `max_controlled_nodes = 3`, so action positions 0 and 1 belong to those nodes;
 position 2 is padding. Node-a follows its own random walk. With `tick_s = 0.1`,
 `decision_interval_s = 0.5`, and `step_size_m = 1`, each active node can move up
@@ -67,7 +85,8 @@ time-zero reward is shown in the reset message but is not a policy-step reward.
 Observation layout per slot (`L = 4 + 2*(N-1)`, `obs_dim = M*L`):
 `[active, x, y, z, sinr(i,j0), cap(i,j0), sinr(i,j1), cap(i,j1), …]` with peers
 in node-index order skipping the slot's own node; a padded slot is all zeros.
-The `-999` SINR sentinel is passed through unchanged.
+The `-999` SINR sentinel is still passed through unchanged in this `obs`; the
+Python observation presets treat `sinr_db < -900` or a non-finite value as invalid.
 
 ## Message fields
 
@@ -80,11 +99,13 @@ Centralized `init` is the first line, sent once per simulator process:
 - Timing and reward: `tick_s`, `decision_interval_s`,
   `decision_interval_ticks`, `num_ticks`, `num_decisions`, `reward_type`,
   `reward_window`, `wall_policy`.
+- Facts metadata: `facts_schema`, `facts_columns`, `node_ids`, `num_links`,
+  `bounds`, `band`, `jammer_path_enabled`, `warmup_s` (see below).
 
 Each centralized `step` contains `type`; `tick`, `time_s`, `decision` (from 0),
-and `ticks_in_step`; `obs`, `mask`, and `reward`; then `done` and
-`revalidated_slots`. The agent replies with `{"action":[…]}`: exactly `M`
-integers in `[0,4]`, with `4` for every padded position.
+and `ticks_in_step`; `obs`, `mask`, and `reward`; then `done`,
+`revalidated_slots`, and `facts`. The agent replies with `{"action":[…]}`:
+exactly `M` integers in `[0,4]`, with `4` for every padded position.
 
 Legacy `step` remains unchanged: `type`, `tick`, `time_s`,
 `obs.{controlled_pos,link_sinrs,link_capacities}`, `reward`, `done`,
@@ -92,6 +113,45 @@ Legacy `step` remains unchanged: `type`, `tick`, `time_s`,
 
 `time_s` is simulated time, never wall clock, so identical inputs give identical
 stdout.
+
+## Per-decision facts (`mesh_facts_v1`)
+
+Every centralized `step` carries a `facts` object of raw simulator values; C++
+does no clipping, scaling, or feature selection. Legacy mode emits no facts and
+its stream is unchanged. `init.facts_schema = "mesh_facts_v1"` names this
+schema, and `init.facts_columns` names the column order of both tables:
+
+| Table | Rows | Columns | Units |
+| --- | --- | --- | --- |
+| `facts.nodes` | `N`, in `nodes.json` order | `x, y, z, vx, vy, vz, slot` | m, m/s; `slot` is the controlled slot index or `-1` |
+| `facts.links` | `N(N-1)/2`, pairs `i<j` with `i` outer | `sinr_db, capacity_mbps, is_los` | dB, Mbps, 0/1 |
+
+Node rows are instantaneous at the decision tick, the same instant as `obs`:
+position from the mobility model and the velocity in effect after the per-tick
+bounds clamp. Link rows come straight from the symmetric link table, so a pair
+appears once; the `-999` SINR sentinel is possible in principle and Python
+treats it as invalid. `init` also carries `node_ids` (the `N` ids in file
+order), `num_links`, the movement `bounds` (`x_min`…`z_max`), `band`,
+`jammer_path_enabled` (`band = sub-6` with at least one enabled jammer, exported
+as metadata only), and `warmup_s` (metadata: the RL reward does not skip warmup).
+
+`facts.window` holds sums over exactly the ticks of this decision window, the
+same window as `reward`:
+
+| Field | Meaning |
+| --- | --- |
+| `ticks` | ticks in the window; equals `ticks_in_step` |
+| `demand_mbps_sum`, `delivered_mbps_sum` | Σ over ticks of Σ over flows (Mbps·tick) |
+| `flow_ticks_with_demand` | count of (tick, flow) pairs with `demand_mbps > 0` |
+| `unroutable_flow_ticks` | those of the above that were not routable; zero-demand flows are excluded because the router marks them unroutable |
+| `connected_pairs_sum` | Σ of the connected-pair count per tick |
+| `los_pairs_sum` | Σ over ticks of the LOS pair count over `i<j` |
+| `legacy_reward_sum` | Σ of the per-tick `reward_type` value |
+
+Invariant: `reward == legacy_reward_sum / ticks` (`0.0` when `ticks == 0`), so
+the emitted `reward` is unchanged by the facts export. The reset message covers
+tick 0 only, so its window has `ticks = 1`; that reward is observable but is not
+a policy reward. C++ never emits NaN or infinity in `facts`.
 
 ## Invalid or missing actions
 

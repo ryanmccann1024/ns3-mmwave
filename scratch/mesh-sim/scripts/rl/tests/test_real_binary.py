@@ -1,20 +1,27 @@
-"""Centralized-control tests against the real mesh-sim binary (p1-multi-smoke).
+"""Centralized-control tests against the real mesh-sim binary.
 
 Set MESH_SIM_BIN to a built simulator to run them; every run writes only into
 pytest's tmp_path, never into inputs/.
 """
 
+import importlib.util
 import json
 import os
 import statistics
 import subprocess
+import sys
 import threading
 from pathlib import Path
 
 import gymnasium
+import numpy as np
 import pytest
 
 from scripts.rl.env.mesh_env import MeshRlEnv
+from scripts.rl.env.observations import get_preset
+from scripts.rl.env.rewards import RewardComposer
+from scripts.rl.env.selection import resolve_selection
+from scripts.rl.env.telemetry import replay_file
 from scripts.sim_support import find_mesh_root, simulator_env
 
 MESH_SIM_BIN = os.environ.get("MESH_SIM_BIN")
@@ -26,7 +33,7 @@ if not MESH_SIM_BIN:
     )
 
 MESH_ROOT = find_mesh_root(__file__)
-FIXTURE = MESH_ROOT / "inputs" / "baselines" / "p1-multi-smoke"
+FIXTURE = MESH_ROOT / "inputs" / "baselines" / "centralized-multi-smoke"
 RUN_CONFIG = FIXTURE / "run.ini"
 
 SLOT_WIDTH = 8          # 4 + 2*(N-1) with N = 3
@@ -44,7 +51,6 @@ def _slot_xy(obs, slot: int) -> tuple[float, float]:
     return obs[base + 1], obs[base + 2]
 
 
-## @brief One scripted simulator run with closed stdin and a hard timeout.
 def _run_binary(run_config: Path, out_dir: Path, lines: list[str],
                 timeout: float = 300.0) -> tuple[subprocess.CompletedProcess, list[dict]]:
     cmd = [MESH_SIM_BIN, f"--run-config={run_config}", "--rl-mode", "--seed=1",
@@ -108,7 +114,7 @@ def test_live_spaces_and_metadata(env):
     assert list(obs[16:24]) == [0.0] * 8
 
 
-# 2. Scripted pathway of plan §8 -------------------------------------------------
+# Scripted positions and masks ----------------------------------------------------
 
 def test_scripted_positions_and_masks(env, tmp_path):
     env.reset()
@@ -132,7 +138,7 @@ def test_scripted_positions_and_masks(env, tmp_path):
     assert _slot_xy(obs, 1) == (95.0, 50.0)
 
     manifest = _episode_manifest(Path(env._output_dir))
-    assert manifest["manifest_version"] == 2 and manifest["status"] == "completed"
+    assert manifest["manifest_version"] == 3 and manifest["status"] == "completed"
     assert manifest["exit_code"] == 0 and manifest["stop_reason"] == "done"
     assert manifest["decisions"] == 2 and manifest["last_tick"] == 10
 
@@ -218,7 +224,6 @@ BUILDINGS = [{
 }]
 
 
-## @brief Rewrite whole-key INI lines, failing loudly if the fixture changed.
 def _edit_ini(text: str, **values: str) -> str:
     seen, lines = set(), []
     for line in text.splitlines():
@@ -261,9 +266,10 @@ def test_partial_windows_clipping_and_reward_mean(tmp_path):
 
     _, coarse_messages = _run_binary(
         coarse_config, tmp_path / "coarse", [_action(a) for a in COARSE_ACTIONS])
-    fine_lines = [_action(action)
-                  for action, window in zip(COARSE_ACTIONS, COARSE_WINDOWS)
-                  for _ in range(window)]
+    fine_actions = [action
+                    for action, window in zip(COARSE_ACTIONS, COARSE_WINDOWS)
+                    for _ in range(window)]
+    fine_lines = [_action(action) for action in fine_actions]
     _, fine_messages = _run_binary(fine_config, tmp_path / "fine", fine_lines)
 
     coarse, fine = _steps(coarse_messages), _steps(fine_messages)
@@ -284,6 +290,7 @@ def test_partial_windows_clipping_and_reward_mean(tmp_path):
 
     # Reward over a window is the mean of the per-tick rewards, reset excluded.
     fine_rewards = [s["reward"] for s in fine]
+    assert any(reward < 0 for reward in fine_rewards[1:])
     windows, start = [], 1
     for length in COARSE_WINDOWS:
         windows.append(fine_rewards[start:start + length])
@@ -294,3 +301,183 @@ def test_partial_windows_clipping_and_reward_mean(tmp_path):
     )
     for step, window in zip(coarse[1:], windows):
         assert step["reward"] == pytest.approx(statistics.fmean(window), abs=1e-9)
+
+    env = MeshRlEnv(MESH_SIM_BIN, str(fine_config),
+                    output_dir=str(tmp_path / "fine-env"))
+    try:
+        env.reset()
+        returned = []
+        for action in fine_actions:
+            _, reward, done, _, _ = env.step(action)
+            returned.append(reward)
+        assert done
+        assert returned == fine_rewards[1:]
+    finally:
+        env.close()
+
+
+# Facts, observations, rewards, and telemetry -------------------------------------
+
+CUSTOM_SELECTION = {"observation_preset": "local_links_v1",
+                    "reward_components": "delivery_ratio,connectivity",
+                    "telemetry": "steps"}
+SCRIPTED_ACTIONS = ([2, 1, 4], [4, 0, 4])
+TOTAL_TICKS = 11                # ticks 0..10 with warmup_s = 0
+NUM_LINKS = 3
+
+
+@pytest.fixture
+def facts_run(tmp_path):
+    out_dir = tmp_path / "facts"
+    _, messages = _run_binary(RUN_CONFIG, out_dir, [_action(a) for a in SCRIPTED_ACTIONS])
+    init = next(m for m in messages if m.get("type") == "init")
+    return init, _steps(messages), out_dir
+
+
+@pytest.fixture
+def custom_env(tmp_path):
+    made = []
+
+    def make(name: str, **overrides) -> MeshRlEnv:
+        selection = resolve_selection(str(RUN_CONFIG), **dict(CUSTOM_SELECTION, **overrides))
+        env = MeshRlEnv(MESH_SIM_BIN, str(RUN_CONFIG),
+                        output_dir=str(tmp_path / name), selection=selection)
+        made.append(env)
+        return env
+
+    yield make
+    for env in made:
+        env.close()
+
+
+def _play(env: MeshRlEnv) -> float:
+    env.reset()
+    total, done = 0.0, False
+    for action in SCRIPTED_ACTIONS:
+        _, reward, done, _, _ = env.step(action)
+        total += reward
+    assert done
+    return total
+
+
+def test_facts_rows_window_and_raw_links_rebuild(facts_run):
+    init, steps, _ = facts_run
+    raw_links = get_preset("raw_links_v1")
+    legacy = RewardComposer(["legacy"], [1.0])
+
+    for step in steps:
+        facts = step["facts"]
+        window = facts["window"]
+        assert len(facts["nodes"]) == init["num_mesh_nodes"] == 3
+        assert len(facts["links"]) == init["num_links"] == NUM_LINKS
+        assert window["ticks"] == step["ticks_in_step"]
+        assert step["reward"] == pytest.approx(
+            window["legacy_reward_sum"] / window["ticks"], abs=1e-9)
+        assert legacy.compose(window, step["reward"], init).total == pytest.approx(
+            step["reward"], abs=1e-9)
+
+        for slot, node_id in enumerate(init["slot_node_ids"]):
+            if node_id is None:
+                continue
+            row = facts["nodes"][init["node_ids"].index(node_id)]
+            assert _slot_xy(step["obs"], slot) == (row[0], row[1])
+
+        assert raw_links.build(facts, init).tolist() == step["obs"]
+
+
+def test_window_sums_match_the_run_summary(facts_run):
+    init, steps, out_dir = facts_run
+    windows = [step["facts"]["window"] for step in steps]
+    ticks = sum(w["ticks"] for w in windows)
+    assert ticks == TOTAL_TICKS
+
+    summary = json.loads((out_dir / "seed-1" / "summary.json").read_text())
+    connectivity = sum(w["connected_pairs_sum"] for w in windows) / (ticks * NUM_LINKS)
+    assert connectivity == pytest.approx(summary["network"]["connectivity"], abs=1e-9)
+
+    delivered = sum(w["delivered_mbps_sum"] for w in windows)
+    per_flow = sum(flow["delivered_mbps"] for flow in summary["per_flow"].values())
+    assert delivered == pytest.approx(ticks * per_flow, abs=1e-6)
+
+
+def test_custom_selection_observations_rewards_and_replay(custom_env):
+    env = custom_env("custom")
+    obs, info = env.reset()
+
+    assert isinstance(env.observation_space, gymnasium.spaces.Box)
+    assert env.observation_space.shape == (36,)
+    assert env.observation_space.dtype == np.float32
+    assert np.all(np.isfinite(obs)) and env.observation_space.contains(obs)
+
+    total, done = 0.0, False
+    for action in SCRIPTED_ACTIONS:
+        obs, reward, done, _, info = env.step(action)
+        assert np.all(np.isfinite(obs)) and env.observation_space.contains(obs)
+        assert info["reward"]["total"] == reward
+        total += reward
+    assert done
+
+    out_dir = Path(env._output_dir)
+    manifest = _episode_manifest(out_dir)
+    assert manifest["manifest_version"] == 3 and manifest["status"] == "completed"
+    assert manifest["cumulative_reward"] == pytest.approx(total)
+
+    replay = replay_file(out_dir / "episode-0000" / "steps.jsonl")
+    assert (replay.records, replay.obs_mismatches, replay.reward_mismatches) == (3, 0, 0)
+
+
+def test_telemetry_is_reproducible_and_cadence_bounded(custom_env):
+    full = custom_env("full")
+    rewards = [_play(full), _play(full)]
+    full_dir = Path(full._output_dir)
+    assert ((full_dir / "episode-0000" / "steps.jsonl").read_bytes()
+            == (full_dir / "episode-0001" / "steps.jsonl").read_bytes())
+    assert rewards[0] == pytest.approx(rewards[1])
+    assert _episode_manifest(full_dir, 0)["telemetry"]["records"] == 3
+
+    strided = custom_env("strided", telemetry_every=2)
+    strided_reward = _play(strided)
+    strided_manifest = _episode_manifest(Path(strided._output_dir), 0)
+    assert strided_manifest["telemetry"]["records"] == 2
+    assert strided_manifest["decisions"] == 2
+    assert strided_manifest["cumulative_reward"] == pytest.approx(rewards[0])
+    assert strided_reward == pytest.approx(rewards[0])
+
+
+@pytest.mark.skipif(importlib.util.find_spec("sb3_contrib") is None,
+                    reason="sb3_contrib not installed")
+def test_training_run_writes_matching_schema_hashes(tmp_path):
+    out_dir = tmp_path / "train"
+    result = subprocess.run(
+        [sys.executable, "-m", "scripts.rl.train", "--sim-binary", MESH_SIM_BIN,
+         "--run-config", str(RUN_CONFIG), "--output-dir", str(out_dir),
+         "--observation-preset", "local_links_v1",
+         "--reward-components", "delivery_ratio,connectivity",
+         "--telemetry", "steps", "--telemetry-every", "2",
+         "m-ppo", "--total-timesteps", "16", "--n-steps", "16", "--seed", "1"],
+        cwd=MESH_ROOT, text=True, capture_output=True, timeout=900,
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
+
+    manifest = json.loads((out_dir / "train_manifest.json").read_text())
+    assert manifest["manifest_version"] == 3
+    source = manifest["selection"]["source"]
+    assert [source[key] for key in ("observation_preset", "reward_components",
+                                    "telemetry", "telemetry_every")] == ["cli"] * 4
+    assert manifest["observation_schema"]["obs_dim"] == 36
+    assert manifest["reward_schema"]["zero_demand_rule"] == "masked"
+
+    hashes = (manifest["observation_schema"]["sha256"],
+              manifest["reward_schema"]["sha256"])
+    completed = [path for path in sorted(out_dir.glob("episode-*/rl_episode.json"))
+                 if json.loads(path.read_text())["status"] == "completed"]
+    assert completed, "no completed episode in the training run"
+    episode = json.loads(completed[0].read_text())
+    assert episode["manifest_version"] == 3
+    assert (episode["observation_schema_sha256"],
+            episode["reward_schema_sha256"]) == hashes
+
+    header = json.loads(
+        (completed[0].parent / "steps.jsonl").read_text().splitlines()[0])
+    assert (header["observation_schema"]["sha256"],
+            header["reward_schema"]["sha256"]) == hashes
