@@ -3,8 +3,8 @@
 
 Legacy single-node mode is used unless [rl] controlled_nodes is set, which selects
 the centralized protocol. FAKE_SIM_MODE selects normal (default), exit3, malformed,
-or one of the isolated centralized fault modes; it never proves real movement or
-reward correctness.
+no_facts (pre-P2 binary), or one of the isolated centralized fault modes; it never
+proves real movement or reward correctness.
 """
 
 import configparser
@@ -26,6 +26,14 @@ SPEED_CAP_MPS = 20.0
 EPS = 1e-6
 BOUND_DEFAULTS = {"x": (-1000.0, 2000.0), "y": (-1000.0, 1000.0), "z": (0.0, 100.0)}
 LONG_MODE_TICKS = 3000       # enough valid post-EOF lines to fill a pipe buffer
+
+FACTS_SCHEMA = "mesh_facts_v1"
+FACTS_COLUMNS = {"nodes": ["x", "y", "z", "vx", "vy", "vz", "slot"],
+                 "links": ["sinr_db", "capacity_mbps", "is_los"]}
+SINR_MIN_DB = -6.7           # connectivity/LOS threshold for the synthetic links
+DEMAND_MBPS_DEFAULT = 10.0
+DELIVERED_FRACTION = 0.5
+LEGACY_REWARD_TICK = 1.0
 
 
 ## @brief Parse the ns-3 CommandLine spellings the real binary accepts.
@@ -146,6 +154,12 @@ def _mask(nodes: list[dict], slots: list[int], num_slots: int, bounds: dict) -> 
     return flat
 
 
+def _link_values(nodes: list[dict], i: int, j: int) -> tuple[float, float]:
+    """Synthetic (sinr_db, capacity_mbps) shared by obs and facts, so both agree."""
+    distance = math.dist(nodes[i]["pos"], nodes[j]["pos"])
+    return 20.0 - 0.01 * distance, max(0.0, 100.0 - 0.1 * distance)
+
+
 def _observation(nodes: list[dict], slots: list[int], num_slots: int) -> list[float]:
     flat = []
     for slot in range(num_slots):
@@ -155,12 +169,47 @@ def _observation(nodes: list[dict], slots: list[int], num_slots: int) -> list[fl
         index = slots[slot]
         x, y, z = nodes[index]["pos"]
         flat.extend([1.0, x, y, z])
-        for peer, node in enumerate(nodes):
+        for peer in range(len(nodes)):
             if peer == index:
                 continue
-            distance = math.dist(nodes[index]["pos"], node["pos"])
-            flat.extend([20.0 - 0.01 * distance, 100.0 - 0.1 * distance])
+            flat.extend(_link_values(nodes, index, peer))
     return flat
+
+
+def _facts(nodes: list[dict], slots: list[int], velocities: dict, ticks: int,
+           demand_mbps: float, reward_tick: float) -> dict:
+    """§4.2 facts consistent with this tick's obs and the configured flow demand."""
+    slot_of = {index: slot for slot, index in enumerate(slots)}
+    fact_nodes = []
+    for index, node in enumerate(nodes):
+        vx, vy = velocities.get(index, (0.0, 0.0))
+        fact_nodes.append([*node["pos"], vx, vy, 0.0, slot_of.get(index, -1)])
+
+    fact_links, connected = [], 0
+    for i in range(len(nodes)):
+        for j in range(i + 1, len(nodes)):
+            sinr, capacity = _link_values(nodes, i, j)
+            is_los = int(sinr >= SINR_MIN_DB)
+            connected += is_los
+            fact_links.append([sinr, capacity, is_los])
+
+    flows = len(fact_links)
+    flow_ticks = flows * ticks if demand_mbps > 0.0 else 0
+    demand_sum = demand_mbps * flow_ticks
+    return {
+        "nodes": fact_nodes,
+        "links": fact_links,
+        "window": {
+            "ticks": ticks,
+            "demand_mbps_sum": demand_sum,
+            "delivered_mbps_sum": demand_sum * DELIVERED_FRACTION,
+            "flow_ticks_with_demand": flow_ticks,
+            "unroutable_flow_ticks": 0,
+            "connected_pairs_sum": connected * ticks,
+            "los_pairs_sum": connected * ticks,
+            "legacy_reward_sum": reward_tick * ticks,
+        },
+    }
 
 
 def _apply(nodes: list[dict], slots: list[int], num_slots: int, action: list[int],
@@ -193,7 +242,8 @@ def _advance(nodes: list[dict], slots: list[int], velocities, speed: float,
 
 def _init_message(mode: str, num_slots: int, count: int, nodes: list[dict],
                   slots: list[int], speed: float, tick_s: float, interval_s: float,
-                  k: int, num_ticks: int, ini: configparser.ConfigParser) -> dict:
+                  k: int, num_ticks: int, ini: configparser.ConfigParser,
+                  bounds: dict, band: str | None) -> dict:
     ids = [nodes[i]["id"] for i in slots] + [None] * (num_slots - count)
     speeds = [speed] * count + [None] * (num_slots - count)
     init = {
@@ -217,6 +267,19 @@ def _init_message(mode: str, num_slots: int, count: int, nodes: list[dict],
         "reward_window": "mean",
         "wall_policy": "clip",
     }
+    if mode != "no_facts":
+        init.update({
+            "facts_schema": FACTS_SCHEMA,
+            "facts_columns": FACTS_COLUMNS,
+            "node_ids": [node["id"] for node in nodes],
+            "num_links": len(nodes) * (len(nodes) - 1) // 2,
+            "bounds": {f"{axis}_{end}": bounds[axis][i]
+                       for axis in ("x", "y", "z")
+                       for i, end in enumerate(("min", "max"))},
+            "band": band if band is not None else "mmwave",
+            "jammer_path_enabled": False,
+            "warmup_s": 0.0,
+        })
     if mode == "bad_contract":
         init["contract"] = "mesh_move_9d_v9"
     elif mode == "bad_meanings":
@@ -238,14 +301,18 @@ def run_centralized(args: dict, ini: configparser.ConfigParser, mode: str) -> in
     interval_s = ini.getfloat("rl", "decision_interval_s", fallback=0.0) or tick_s
     k = max(1, int(round(interval_s / tick_s)))
     num_ticks = max(1, int(round(duration_s / tick_s)))
+    demand_mbps = ini.getfloat("traffic", "demand_mbps", fallback=DEMAND_MBPS_DEFAULT)
+    reward_tick = -1.0 if mode == "negative_reward" else LEGACY_REWARD_TICK
     if mode == "long":
         num_ticks, k, interval_s = LONG_MODE_TICKS, 1, tick_s
 
     emit(json.dumps(_init_message(mode, num_slots, count, nodes, slots, speed,
-                                  tick_s, interval_s, k, num_ticks, ini)))
+                                  tick_s, interval_s, k, num_ticks, ini, bounds,
+                                  args.get("band"))))
 
     tick, decision, revalidated, last_action = 0, 0, [], None
     window_len = 1
+    node_velocities: dict = {}
     eof = False
     while True:
         if mode == "malformed" and decision == 1:
@@ -261,7 +328,7 @@ def run_centralized(args: dict, ini: configparser.ConfigParser, mode: str) -> in
         if mode == "non_finite" and decision == 0:
             obs = list(obs)
             obs[1] = float("nan")
-        emit(json.dumps({
+        step = {
             "type": "step",
             "tick": tick,
             "time_s": tick * tick_s,
@@ -269,11 +336,15 @@ def run_centralized(args: dict, ini: configparser.ConfigParser, mode: str) -> in
             "ticks_in_step": window_len,
             "obs": obs,
             "mask": mask,
-            "reward": 1.0,
+            "reward": reward_tick,
             "done": tick >= num_ticks,
             "revalidated_slots": revalidated,
             "last_action": last_action,
-        }))
+        }
+        if mode != "no_facts":
+            step["facts"] = _facts(nodes, slots, node_velocities, window_len,
+                                   demand_mbps, reward_tick)
+        emit(json.dumps(step))
         if tick >= num_ticks:
             return 0
         if mode == "exit3" and decision == 0:
@@ -288,6 +359,9 @@ def run_centralized(args: dict, ini: configparser.ConfigParser, mode: str) -> in
                 action = list(json.loads(line)["action"])
         last_action = list(action)
         velocities, revalidated = _apply(nodes, slots, num_slots, action, mask)
+        node_velocities = {index: (velocities[slot][0] * speed,
+                                   velocities[slot][1] * speed)
+                           for slot, index in enumerate(slots)}
 
         window_len = min(k, num_ticks - tick)
         for _ in range(window_len):

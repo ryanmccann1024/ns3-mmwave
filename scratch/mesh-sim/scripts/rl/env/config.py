@@ -9,6 +9,10 @@ from scripts.sim_support import strip_inline_comment
 # Fallbacks mirror RlConfig; explicit endpoints override them independently.
 _BOUND_DEFAULTS = ((-1000.0, 2000.0), (-1000.0, 1000.0), (0.0, 100.0))
 
+# P2 selection keys read by the Python env and train.py only.
+_SELECTION_KEYS = ("observation_preset", "reward_components", "reward_weights",
+                   "telemetry", "telemetry_every")
+
 # Matches the C++ loader's scenario.nodes_file default.
 _DEFAULT_NODES_FILE = "nodes.json"
 
@@ -70,3 +74,22 @@ def read_scenario_identity(run_config: str) -> dict:
         "run_ini_sha256": _sha256(ini_path),
         "nodes_json_sha256": _sha256(nodes_path),
     }
+
+
+def read_rl_selection(run_config: str) -> dict[str, str]:
+    """Raw [rl] P2 selection strings; blank or absent keys are omitted."""
+    ini = _read_ini(run_config)
+    raw = {}
+    for key in _SELECTION_KEYS:
+        if not ini.has_option("rl", key):
+            continue
+        value = strip_inline_comment(ini.get("rl", key))
+        if value:
+            raw[key] = value
+    return raw
+
+
+def read_control_mode(run_config: str) -> str:
+    """Centralized when [rl] controlled_nodes is present, else legacy."""
+    ini = _read_ini(run_config)
+    return "centralized" if ini.has_option("rl", "controlled_nodes") else "legacy"

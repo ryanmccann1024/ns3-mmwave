@@ -14,6 +14,8 @@ import numpy as np
 import pytest
 
 from scripts.rl.env.mesh_env import MeshRlEnv
+from scripts.rl.env.selection import resolve_selection
+from scripts.rl.env.telemetry import replay_file
 
 MESH_SIM_ROOT = Path(__file__).resolve().parents[3]
 FAKE_SIM = Path(__file__).resolve().parent / "fake_sim.py"
@@ -410,7 +412,7 @@ def test_centralized_masked_random_run_completes(sim_binary, multi_run_config, t
 
     env.close()
     manifest = _episode_manifest(out_dir, 0)
-    assert manifest["manifest_version"] == 2
+    assert manifest["manifest_version"] == 3
     assert manifest["status"] == "completed" and manifest["exit_code"] == 0
     assert manifest["control_mode"] == "centralized"
     assert manifest["contract"]["contract"] == "mesh_move_2d_v1"
@@ -582,7 +584,7 @@ def test_centralized_tiny_training_run(sim_binary, multi_run_config, tmp_path,
     assert train.main() == 0
 
     manifest = json.loads((out_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 2
+    assert manifest["manifest_version"] == 3
     assert manifest["status"] == "completed"
     assert manifest["control_mode"] == "centralized"
     assert manifest["contract"]["contract"] == "mesh_move_2d_v1"
@@ -599,7 +601,7 @@ def test_centralized_tiny_training_run(sim_binary, multi_run_config, tmp_path,
     assert episodes
     for path in episodes:
         episode = json.loads(path.read_text())
-        assert episode["manifest_version"] == 2, path
+        assert episode["manifest_version"] == 3, path
         assert episode["status"] in ("completed", "interrupted"), path
         if episode["status"] == "completed":
             assert episode["decisions"] == 2 and episode["exit_code"] == 0, path
@@ -651,3 +653,226 @@ def test_episode_allocation_scans_existing_directories_once(tmp_path, monkeypatc
     assert (first.name, first_index) == ("episode-10001", 10001)
     assert (second.name, second_index) == ("episode-10002", 10002)
     assert len(scans) == 1
+
+
+# 10. P2 selection, composed reward, and telemetry --------------------------------
+
+P2_SELECTION = {"observation_preset": "local_links_v1",
+                "reward_components": "delivery_ratio,connectivity"}
+
+
+def _p2_env(sim_binary: str, run_config: str, tmp_path: Path, **overrides) -> MeshRlEnv:
+    selection = resolve_selection(run_config, **dict(P2_SELECTION, **overrides))
+    return MeshRlEnv(sim_binary, run_config, output_dir=str(tmp_path / "train"),
+                     selection=selection)
+
+
+def _records(out_dir: Path, index: int = 0) -> tuple[dict, list[dict]]:
+    lines = (out_dir / f"episode-{index:04d}" / "steps.jsonl").read_text().splitlines()
+    parsed = [json.loads(line) for line in lines]
+    return parsed[0], parsed[1:]
+
+
+def _run_to_done(env: MeshRlEnv) -> None:
+    done = False
+    while not done:
+        _, _, done, _, _ = env.step([4, 4, 4])
+
+
+def test_p2_preset_and_reward_block(sim_binary, multi_run_config, tmp_path):
+    env = _p2_env(sim_binary, multi_run_config, tmp_path)
+    obs, info = env.reset()
+
+    assert env.observation_space.shape == (36,)
+    assert env.observation_space.dtype == np.float32
+    assert obs.shape == (36,) and obs.dtype == np.float32
+    assert env.observation_space.contains(obs)
+    assert "reward" not in info                 # reset info stays P1-shaped
+
+    obs, reward, terminated, _, info = env.step([4, 4, 4])
+    block = info["reward"]
+    assert set(block) == {"total", "components", "valid", "weights", "legacy"}
+    assert reward == block["total"] == pytest.approx(1.5)
+    assert block["components"]["delivery_ratio"] == pytest.approx(0.5)
+    assert block["components"]["connectivity"] == pytest.approx(1.0)
+    assert block["valid"] == {"delivery_ratio": 1, "connectivity": 1}
+    assert block["legacy"] == 1.0
+    assert obs.shape == (36,) and not terminated
+    env.close()
+
+
+@pytest.mark.parametrize("components", [None, "legacy"])
+def test_negative_legacy_reward_window(sim_binary, multi_run_config, tmp_path,
+                                       monkeypatch, components):
+    monkeypatch.setenv("FAKE_SIM_MODE", "negative_reward")
+    env = _p2_env(sim_binary, multi_run_config, tmp_path,
+                  observation_preset=None, reward_components=components)
+    try:
+        env.reset()
+        _, reward, _, _, info = env.step([4, 4, 4])
+        assert reward == -1.0
+        if components is None:
+            assert "reward" not in info
+        else:
+            assert info["reward"]["total"] == info["reward"]["legacy"] == -1.0
+    finally:
+        env.close()
+
+
+@pytest.mark.parametrize("telemetry,expected", [(None, False), ("steps", True)])
+def test_telemetry_file_only_when_selected(sim_binary, multi_run_config, tmp_path,
+                                           telemetry, expected):
+    out_dir = tmp_path / "train"
+    env = _p2_env(sim_binary, multi_run_config, tmp_path, telemetry=telemetry)
+    env.reset()
+    _run_to_done(env)
+    env.close()
+
+    assert (out_dir / "episode-0000" / "steps.jsonl").is_file() is expected
+    manifest = _episode_manifest(out_dir, 0)
+    assert (manifest["telemetry"] is not None) is expected
+
+
+def test_telemetry_default_cadence_replays(sim_binary, multi_run_config, tmp_path):
+    before = threading.active_count()
+    out_dir = tmp_path / "train"
+    env = _p2_env(sim_binary, multi_run_config, tmp_path, telemetry="steps")
+    env.reset()
+    _run_to_done(env)
+    env.close()
+
+    header, records = _records(out_dir)
+    assert header["type"] == "header"
+    assert len(records) == env.contract["num_decisions"] + 1 == 3
+    assert [record["decision"] for record in records] == [0, 1, 2]
+    assert records[0]["reward"] is None and records[0]["action_sent"] is None
+    assert records[1]["action_sent"] == [4, 4, 4]
+    assert records[1]["reward"]["total"] == pytest.approx(1.5)
+
+    summary = replay_file(out_dir / "episode-0000" / "steps.jsonl")
+    assert (summary.records, summary.obs_mismatches,
+            summary.reward_mismatches) == (3, 0, 0)
+
+    manifest = _episode_manifest(out_dir, 0)
+    assert manifest["telemetry"] == {"file": "steps.jsonl", "records": 3, "every": 1}
+    assert manifest["cumulative_reward"] == pytest.approx(3.0)
+    assert _drain_threads() == []
+    assert threading.active_count() == before
+
+
+def test_telemetry_stride_keeps_full_manifest_totals(sim_binary, multi_run_config,
+                                                     tmp_path):
+    out_dir = tmp_path / "train"
+    env = _p2_env(sim_binary, multi_run_config, tmp_path, telemetry="steps",
+                  telemetry_every=2)
+    env.reset()
+    _run_to_done(env)
+    env.close()
+
+    _, records = _records(out_dir)
+    assert [record["decision"] for record in records] == [0, 2]   # reset + terminal
+    summary = replay_file(out_dir / "episode-0000" / "steps.jsonl")
+    assert (summary.obs_mismatches, summary.reward_mismatches) == (0, 0)
+
+    manifest = _episode_manifest(out_dir, 0)
+    assert manifest["telemetry"] == {"file": "steps.jsonl", "records": 2, "every": 2}
+    # Decision 1 was not saved, but both policy steps count in every total.
+    assert manifest["decisions"] == 2
+    assert manifest["cumulative_reward"] == pytest.approx(3.0)
+    assert manifest["reward_components_sum"] == pytest.approx(
+        {"delivery_ratio": 1.0, "connectivity": 2.0})
+
+
+def test_zero_demand_masks_delivery_ratio(sim_binary, tmp_path):
+    path = tmp_path / "run.ini"
+    path.write_text(MULTI_RUN_INI + "\n[traffic]\ndemand_mbps = 0\n")
+    (tmp_path / "nodes.json").write_text(NODES_JSON)
+    env = _p2_env(sim_binary, str(path), tmp_path)
+    env.reset()
+    _, reward, _, _, info = env.step([4, 4, 4])
+
+    block = info["reward"]
+    assert block["valid"] == {"delivery_ratio": 0, "connectivity": 1}
+    assert block["components"]["delivery_ratio"] == 0.0
+    assert reward == pytest.approx(1.0)        # connectivity alone
+    env.close()
+
+
+@pytest.mark.parametrize("overrides", [
+    {"observation_preset": None, "reward_components": None},
+    {},
+])
+def test_pre_p2_binary_is_rejected(sim_binary, multi_run_config, tmp_path,
+                                   monkeypatch, overrides):
+    monkeypatch.setenv("FAKE_SIM_MODE", "no_facts")
+    out_dir = tmp_path / "train"
+    env = _p2_env(sim_binary, multi_run_config, tmp_path, **overrides)
+    with pytest.raises(RuntimeError, match="facts_schema missing"):
+        env.reset()
+
+    error = _episode_manifest(out_dir, 0)["error"]
+    assert "requires a P2 simulator binary" in error
+    env.close()
+
+
+@pytest.mark.skipif(importlib.util.find_spec("sb3_contrib") is None,
+                    reason="sb3_contrib not installed")
+def test_p2_training_records_selection_and_schema_hashes(sim_binary, multi_run_config,
+                                                         tmp_path, monkeypatch):
+    from scripts.rl import train
+
+    out_dir = tmp_path / "train"
+    argv = ["train", "--sim-binary", sim_binary, "--run-config", multi_run_config,
+            "--output-dir", str(out_dir), "--verbose", "0",
+            "--observation-preset", "local_links_v1",
+            "--reward-components", "delivery_ratio,connectivity",
+            "--reward-weights", "1.0,0.5",
+            "--telemetry", "steps", "--telemetry-every", "2",
+            "m-ppo", "--total-timesteps", "16", "--n-steps", "16"]
+    monkeypatch.setattr(sys, "argv", argv)
+    assert train.main() == 0
+
+    manifest = json.loads((out_dir / "train_manifest.json").read_text())
+    assert manifest["manifest_version"] == 3
+    selection = manifest["selection"]
+    assert selection["observation_preset"] == "local_links_v1"
+    assert selection["reward_components"] == ["delivery_ratio", "connectivity"]
+    assert selection["reward_weights"] == [1.0, 0.5]
+    assert set(selection["source"].values()) == {"cli"}
+    assert manifest["observation_schema"]["obs_dim"] == 36
+    assert manifest["reward_schema"]["zero_demand_rule"] == "masked"
+    assert manifest["telemetry"] == {"mode": "steps", "every": 2}
+
+    obs_sha = manifest["observation_schema"]["sha256"]
+    reward_sha = manifest["reward_schema"]["sha256"]
+    episodes = sorted(out_dir.glob("episode-*/rl_episode.json"))
+    assert episodes
+    for path in episodes:
+        episode = json.loads(path.read_text())
+        assert episode["manifest_version"] == 3, path
+        assert episode["observation_schema_sha256"] == obs_sha, path
+        assert episode["reward_schema_sha256"] == reward_sha, path
+        header = json.loads((path.parent / "steps.jsonl").read_text().splitlines()[0])
+        assert header["observation_schema"]["sha256"] == obs_sha, path
+        assert header["reward_schema"]["sha256"] == reward_sha, path
+        assert header["selection"]["telemetry_every"] == 2, path
+    assert _drain_threads() == []
+
+
+def test_default_selection_telemetry_replays_via_p1_flat(sim_binary, multi_run_config,
+                                                         tmp_path):
+    out_dir = tmp_path / "train"
+    env = _p2_env(sim_binary, multi_run_config, tmp_path, observation_preset=None,
+                  reward_components=None, telemetry="steps")
+    obs, _ = env.reset()
+    assert obs.shape == (24,) and obs.dtype == np.float64   # P1 policy path intact
+    _run_to_done(env)
+    env.close()
+
+    header, records = _records(out_dir)
+    assert header["observation_schema"]["schema_id"] == "p1_flat"
+    assert header["reward_schema"]["authority"] == "cpp"
+    assert records[1]["reward"] == {"total": 1.0, "source": "cpp"}
+    summary = replay_file(out_dir / "episode-0000" / "steps.jsonl")
+    assert (summary.obs_mismatches, summary.reward_mismatches) == (0, 0)
+    assert _episode_manifest(out_dir, 0)["reward_components_sum"] == {}

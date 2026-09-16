@@ -17,6 +17,22 @@ _MAX_SLOTS = 64
 _PADDED_SLOT_MASK = [0, 0, 0, 0, 1]
 _TIME_TOL = 1e-6
 
+FACTS_SCHEMA = "mesh_facts_v1"
+_FACTS_COLUMNS = {
+    "nodes": ["x", "y", "z", "vx", "vy", "vz", "slot"],
+    "links": ["sinr_db", "capacity_mbps", "is_los"],
+}
+_NODE_COLUMNS = len(_FACTS_COLUMNS["nodes"])
+_LINK_COLUMNS = len(_FACTS_COLUMNS["links"])
+_SLOT_COLUMN = 6
+_BOUND_AXES = ("x", "y", "z")
+# Counts must be integers; the Mbps and reward sums may be integral floats.
+_WINDOW_COUNTS = ("ticks", "flow_ticks_with_demand", "unroutable_flow_ticks",
+                  "connected_pairs_sum", "los_pairs_sum")
+_WINDOW_SUMS = ("demand_mbps_sum", "delivered_mbps_sum", "legacy_reward_sum")
+_DELIVERED_REL_TOL = 1e-6
+_REWARD_TOL = 1e-9
+
 
 class ProtocolError(ValueError):
     """A simulator message violates the selected wire contract."""
@@ -40,6 +56,11 @@ class CentralizedProtocol:
         self.validate_init(init)
         self._num_slots = int(init["max_controlled_nodes"])
         self._num_controlled = int(init["num_controlled"])
+        self._num_nodes = int(init["num_mesh_nodes"])
+        self._num_links = int(init["num_links"])
+        self._node_ids = list(init["node_ids"])
+        self._slot_node_ids = list(init["slot_node_ids"])
+        self._bounds = dict(init["bounds"])
         self._obs_dim = int(init["obs_dim"])
         self._mask_dim = int(init["mask_dim"])
         self._tick_s = float(init["tick_s"])
@@ -50,10 +71,23 @@ class CentralizedProtocol:
         self._last_time: float | None = None
         self._last_decision: int | None = None
         self._mask: np.ndarray | None = None
+        self._facts: dict | None = None
 
     @property
     def mask(self) -> np.ndarray | None:
         return self._mask
+
+    @property
+    def facts(self) -> dict | None:
+        return self._facts
+
+    @property
+    def node_ids(self) -> list[str]:
+        return list(self._node_ids)
+
+    @property
+    def bounds(self) -> dict:
+        return dict(self._bounds)
 
     @property
     def mask_dim(self) -> int:
@@ -162,6 +196,49 @@ class CentralizedProtocol:
             _fail(
                 f"init slot_speed_mps padding must be null, got {speeds[count:]!r}"
             )
+        self._validate_facts_metadata(init, nodes)
+
+    @staticmethod
+    def _validate_facts_metadata(init: dict, nodes: int) -> None:
+        schema = init.get("facts_schema")
+        if schema != FACTS_SCHEMA:
+            _fail(
+                f"init facts_schema {'missing' if schema is None else repr(schema)}: "
+                f"the P2 Python bridge requires a P2 simulator binary emitting "
+                f"{FACTS_SCHEMA!r}"
+            )
+        if init.get("facts_columns") != _FACTS_COLUMNS:
+            _fail(
+                f"init facts_columns {init.get('facts_columns')!r} != "
+                f"{_FACTS_COLUMNS}"
+            )
+        expected_links = nodes * (nodes - 1) // 2
+        if not _is_int(init.get("num_links")) or init["num_links"] != expected_links:
+            _fail(
+                f"init num_links {init.get('num_links')!r} != N(N-1)/2 = "
+                f"{expected_links}"
+            )
+        ids = init.get("node_ids")
+        if not isinstance(ids, list) or len(ids) != nodes:
+            _fail(f"init node_ids must be a list of {nodes} entries, got {ids!r}")
+        if not all(isinstance(i, str) and i for i in ids):
+            _fail(f"init node_ids has an empty or non-string entry: {ids!r}")
+        if len(set(ids)) != nodes:
+            _fail(f"init node_ids has duplicate entries: {ids!r}")
+        bounds = init.get("bounds")
+        if not isinstance(bounds, dict):
+            _fail(f"init bounds must be an object, got {bounds!r}")
+        for axis in _BOUND_AXES:
+            low, high = bounds.get(f"{axis}_min"), bounds.get(f"{axis}_max")
+            if not _is_finite_number(low) or not _is_finite_number(high):
+                _fail(
+                    f"init bounds {axis} endpoints must be finite, got "
+                    f"{low!r}, {high!r}"
+                )
+            if not low < high:
+                _fail(
+                    f"init bounds requires {axis}_min < {axis}_max, got {low}, {high}"
+                )
 
     def validate_step(self, msg: dict, first: bool = False) -> np.ndarray:
         if msg.get("type") != "step":
@@ -263,10 +340,138 @@ class CentralizedProtocol:
                 f"done {msg['done']} disagrees with tick {tick} of {self._num_ticks}"
             )
 
+        self._facts = self._validated_facts(msg)
         self._last_tick, self._last_decision = tick, decision
         self._last_time = msg["time_s"]
         self._mask = np.asarray(mask, dtype=np.int8)
         return np.asarray(obs, dtype=np.float64)
+
+    def _validated_facts(self, msg: dict) -> dict:
+        facts = msg.get("facts")
+        if not isinstance(facts, dict):
+            _fail(f"step facts must be an object, got {facts!r}")
+        self._check_fact_nodes(facts.get("nodes"))
+        self._check_fact_links(facts.get("links"))
+        self._check_fact_window(facts.get("window"), msg["ticks_in_step"],
+                                float(msg["reward"]))
+        return facts
+
+    def _check_fact_nodes(self, nodes) -> None:
+        if not isinstance(nodes, list) or len(nodes) != self._num_nodes:
+            _fail(
+                f"facts.nodes must have {self._num_nodes} rows, got "
+                f"{len(nodes) if isinstance(nodes, list) else nodes!r}"
+            )
+        owner: dict[int, int] = {}
+        for index, row in enumerate(nodes):
+            if not isinstance(row, list) or len(row) != _NODE_COLUMNS:
+                _fail(
+                    f"facts.nodes[{index}] must have {_NODE_COLUMNS} columns, "
+                    f"got {row!r}"
+                )
+            bad = next((c for c, v in enumerate(row) if not _is_finite_number(v)), None)
+            if bad is not None:
+                _fail(f"facts.nodes[{index}][{bad}] is not finite: {row[bad]!r}")
+            slot = row[_SLOT_COLUMN]
+            if not _is_int(slot) or not -1 <= slot < self._num_slots:
+                _fail(
+                    f"facts.nodes[{index}] slot must be an integer in "
+                    f"[-1,{self._num_slots}), got {slot!r}"
+                )
+            if slot < 0:
+                continue
+            if slot in owner:
+                _fail(
+                    f"facts.nodes slot {slot} appears on nodes {owner[slot]} and "
+                    f"{index}"
+                )
+            owner[slot] = index
+            if self._slot_node_ids[slot] != self._node_ids[index]:
+                _fail(
+                    f"facts.nodes[{index}] claims slot {slot}, which init assigns to "
+                    f"{self._slot_node_ids[slot]!r}, not {self._node_ids[index]!r}"
+                )
+        missing = [s for s in range(self._num_controlled) if s not in owner]
+        if missing:
+            _fail(f"facts.nodes is missing the active slots {missing}")
+
+    def _check_fact_links(self, links) -> None:
+        if not isinstance(links, list) or len(links) != self._num_links:
+            _fail(
+                f"facts.links must have {self._num_links} rows, got "
+                f"{len(links) if isinstance(links, list) else links!r}"
+            )
+        for index, row in enumerate(links):
+            if not isinstance(row, list) or len(row) != _LINK_COLUMNS:
+                _fail(
+                    f"facts.links[{index}] must have {_LINK_COLUMNS} columns, "
+                    f"got {row!r}"
+                )
+            sinr, capacity, is_los = row
+            if not _is_finite_number(sinr):
+                _fail(f"facts.links[{index}] sinr_db is not finite: {sinr!r}")
+            if not _is_finite_number(capacity) or capacity < 0:
+                _fail(
+                    f"facts.links[{index}] capacity_mbps must be finite and >= 0, "
+                    f"got {capacity!r}"
+                )
+            if not _is_int(is_los) or is_los not in (0, 1):
+                _fail(f"facts.links[{index}] is_los is not 0 or 1: {is_los!r}")
+
+    def _check_fact_window(self, window, ticks_in_step: int, reward: float) -> None:
+        if not isinstance(window, dict):
+            _fail(f"facts.window must be an object, got {window!r}")
+        expected = set(_WINDOW_COUNTS) | set(_WINDOW_SUMS)
+        if set(window) != expected:
+            _fail(
+                f"facts.window keys {sorted(window)} != {sorted(expected)}"
+            )
+        for key in _WINDOW_COUNTS:
+            if not _is_int(window[key]) or window[key] < 0:
+                _fail(
+                    f"facts.window {key} must be a non-negative integer, got "
+                    f"{window[key]!r}"
+                )
+        for key in ("demand_mbps_sum", "delivered_mbps_sum"):
+            if not _is_finite_number(window[key]) or window[key] < 0:
+                _fail(
+                    f"facts.window {key} must be finite and >= 0, got {window[key]!r}"
+                )
+        if not _is_finite_number(window["legacy_reward_sum"]):
+            _fail(
+                "facts.window legacy_reward_sum must be finite, got "
+                f"{window['legacy_reward_sum']!r}"
+            )
+
+        ticks = window["ticks"]
+        if ticks != ticks_in_step:
+            _fail(
+                f"facts.window ticks {ticks} != ticks_in_step {ticks_in_step}"
+            )
+        demand, delivered = window["demand_mbps_sum"], window["delivered_mbps_sum"]
+        if delivered > demand + _DELIVERED_REL_TOL * max(1.0, demand):
+            _fail(
+                f"facts.window delivered_mbps_sum {delivered} exceeds "
+                f"demand_mbps_sum {demand}"
+            )
+        pairs = ticks * self._num_links
+        for key in ("connected_pairs_sum", "los_pairs_sum"):
+            if window[key] > pairs:
+                _fail(
+                    f"facts.window {key} {window[key]} exceeds ticks*num_links = "
+                    f"{pairs}"
+                )
+        if window["unroutable_flow_ticks"] > window["flow_ticks_with_demand"]:
+            _fail(
+                f"facts.window unroutable_flow_ticks "
+                f"{window['unroutable_flow_ticks']} exceeds flow_ticks_with_demand "
+                f"{window['flow_ticks_with_demand']}"
+            )
+        if ticks and abs(reward - window["legacy_reward_sum"] / ticks) > _REWARD_TOL:
+            _fail(
+                f"reward {reward} != legacy_reward_sum/ticks = "
+                f"{window['legacy_reward_sum'] / ticks}"
+            )
 
     def joint_action(self, action) -> list[int]:
         array = np.asarray(action)

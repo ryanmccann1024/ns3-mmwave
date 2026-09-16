@@ -17,6 +17,18 @@ Centralized multi-node control uses the same command with a centralized scenario
         --run-config inputs/baselines/p1-multi-smoke/run.ini \
         --output-dir outputs/<dir> \
         m-ppo --total-timesteps 16 --n-steps 16 --seed 1
+
+A P2 selection names the observation preset, the reward components, and the
+optional per-decision telemetry (all before the subcommand):
+
+    python -m scripts.rl.train \
+        --sim-binary <BIN> \
+        --run-config inputs/baselines/p1-multi-smoke/run.ini \
+        --output-dir outputs/<dir> \
+        --observation-preset local_links_v1 \
+        --reward-components delivery_ratio,connectivity \
+        --telemetry steps --telemetry-every 2 \
+        m-ppo --total-timesteps 16 --n-steps 16 --seed 1
 """
 
 import argparse
@@ -31,6 +43,7 @@ from scripts.rl.agents.mask_ppo import MaskablePPOConfig, MaskablePpoTrainer
 from scripts.rl.bootstrap_venv import DIRECT_DEPS
 from scripts.rl.env.mesh_env import MeshRlEnv
 from scripts.rl.env.config import read_scenario_identity, read_scenario_seed
+from scripts.rl.env.selection import TELEMETRY_MODES, resolve_selection
 
 MANIFEST_NAME = "train_manifest.json"
 MODEL_BASENAME = "maskable_ppo_mesh"
@@ -86,7 +99,7 @@ def _write_manifest(out_dir: str, manifest: dict) -> None:
 
 ## @brief Train a MaskablePPO agent on the mesh sim.
 def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
-               out_dir: str, band: str | None, seed_source: str) -> str:
+               out_dir: str, band: str | None, seed_source: str, selection) -> str:
     manifest = {
         "manifest_version": 2,
         "status": "running",
@@ -123,10 +136,19 @@ def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
         # the same seed_source as this training manifest.
         env_seed = cfg.seed if seed_source == "cli" else None
         env = MeshRlEnv(sim_binary, run_config, seed=env_seed,
-                        output_dir=out_dir, band=band)
+                        output_dir=out_dir, band=band, selection=selection)
         env.reset()                   # populate dynamic obs/action spaces before wrapping
         manifest["control_mode"] = env.control_mode
         manifest["contract"] = env.contract
+        if env.control_mode == "centralized":
+            manifest.update({
+                "manifest_version": 3,
+                "selection": selection.describe(),
+                "observation_schema": env.observation_schema,
+                "reward_schema": env.reward_schema,
+                "telemetry": {"mode": selection.telemetry,
+                              "every": selection.telemetry_every},
+            })
         _write_manifest(out_dir, manifest)
 
         trainer = MaskablePpoTrainer(cfg, env, mask_fn)
@@ -162,6 +184,16 @@ def main() -> int:
                    help="Override the scenario band; omitted -> scenario decides")
     p.add_argument("--verbose", type=int, default=1, choices=[0, 1],
                    help="0 = quiet, 1 = SB3 training logs")
+    p.add_argument("--observation-preset", default=None,
+                   help="Named observation preset; omitted -> run.ini or p1_flat")
+    p.add_argument("--reward-components", default=None,
+                   help="Comma-separated reward components; omitted -> the C++ reward")
+    p.add_argument("--reward-weights", default=None,
+                   help="Comma-separated weights, one per reward component")
+    p.add_argument("--telemetry", default=None, choices=list(TELEMETRY_MODES),
+                   help="steps writes <episode-dir>/steps.jsonl")
+    p.add_argument("--telemetry-every", default=None,
+                   help="Save every kth policy decision (requires --telemetry steps)")
 
     sub = p.add_subparsers(dest="modeltype", required=True,
                            help="Which agent to train")
@@ -199,6 +231,19 @@ def main() -> int:
             return 1
         seed, seed_source = ini_seed, "run.ini"
 
+    try:
+        selection = resolve_selection(
+            args.run_config,
+            observation_preset=args.observation_preset,
+            reward_components=args.reward_components,
+            reward_weights=args.reward_weights,
+            telemetry=args.telemetry,
+            telemetry_every=args.telemetry_every,
+        )
+    except ValueError as exc:
+        print(f"Invalid RL selection: {exc}", file=sys.stderr)
+        return 1
+
     out_dir = _make_out_dir(args.output_dir)
     existing = _has_previous_run(out_dir)
     if existing:
@@ -218,7 +263,7 @@ def main() -> int:
     )
     try:
         train_mppo(cfg, args.sim_binary, args.run_config, out_dir,
-                   args.band, seed_source)
+                   args.band, seed_source, selection)
     except Exception as exc:
         print(f"Training failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1

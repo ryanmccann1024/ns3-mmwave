@@ -1,5 +1,6 @@
 """Gymnasium adapter for the mesh simulator's RL protocol."""
 
+import math
 from pathlib import Path
 
 import gymnasium
@@ -8,7 +9,12 @@ from gymnasium import spaces
 
 from .config import read_rl_bounds, read_scenario_seed
 from .episode import EpisodeSession
+from .observations import get_preset, observation_schema
 from .protocol import CentralizedProtocol, LegacyProtocol, ProtocolError, SLOT_ACTIONS
+from .rewards import RewardComposer, reward_schema
+from .selection import RlSelection, has_p2_observation, has_p2_reward, resolve_selection
+
+_TOTAL_TOL = 1e-9
 
 
 class MeshRlEnv(gymnasium.Env):
@@ -18,12 +24,22 @@ class MeshRlEnv(gymnasium.Env):
 
     def __init__(self, sim_binary: str, run_config: str, seed: int | None = None,
                  output_dir: str = "", band: str | None = None,
-                 render_mode: str | None = None):
+                 render_mode: str | None = None,
+                 selection: RlSelection | None = None):
         super().__init__()
         if not output_dir:
             raise ValueError("MeshRlEnv requires output_dir (the training output root)")
 
         self._run_config = run_config
+        self._selection = (selection if selection is not None
+                           else resolve_selection(run_config))
+        self._preset = (get_preset(self._selection.observation_preset)
+                        if has_p2_observation(self._selection) else None)
+        self._composer = (RewardComposer(self._selection.reward_components,
+                                         self._selection.reward_weights)
+                          if has_p2_reward(self._selection) else None)
+        self._observation_schema: dict | None = None
+        self._reward_schema: dict | None = None
         self._output_dir = Path(output_dir)
         self._session = EpisodeSession(sim_binary, run_config, self._output_dir, band)
         if seed is not None:
@@ -64,6 +80,18 @@ class MeshRlEnv(gymnasium.Env):
         return dict(self._contract) if self._contract is not None else None
 
     @property
+    def selection(self) -> RlSelection:
+        return self._selection
+
+    @property
+    def observation_schema(self) -> dict | None:
+        return self._observation_schema
+
+    @property
+    def reward_schema(self) -> dict | None:
+        return self._reward_schema
+
+    @property
     def _proc(self):
         return self._session.proc
 
@@ -100,19 +128,38 @@ class MeshRlEnv(gymnasium.Env):
         self._session.send_action(action_value)
         msg = self._session.read_message()
 
+        detail = None
         if self._control_mode == "centralized":
             assert isinstance(self._protocol, CentralizedProtocol)
             obs = self._validated_step(self._protocol, msg)
             info = self._centralized_info(msg)
+            if self._preset is not None:
+                obs = self._preset.build(self._protocol.facts, self._contract)
+            reward = float(msg["reward"])
+            if self._composer is not None:
+                breakdown = self._composer.compose(
+                    self._protocol.facts["window"], reward, self._contract)
+                self._check_total(breakdown)
+                reward = breakdown.total
+                info["reward"] = {
+                    "total": breakdown.total,
+                    "components": dict(breakdown.components),
+                    "valid": dict(breakdown.valid),
+                    "weights": dict(breakdown.weights),
+                    "legacy": breakdown.legacy,
+                }
+                detail = {"obs": obs, "breakdown": breakdown}
+            else:
+                detail = {"obs": obs}
         else:
             assert isinstance(self._protocol, LegacyProtocol)
             self._validated_step(self._protocol, msg)
             obs = self._protocol.parse_obs(msg)
             self._ctrl_pos = np.asarray(msg["obs"]["controlled_pos"], dtype=float)
             info = {"time_s": msg["time_s"], "tick": msg["tick"]}
-        reward = float(msg["reward"])
+            reward = float(msg["reward"])
         terminated = bool(msg["done"])
-        self._session.record_step(msg, reward)
+        self._session.record_step(msg, reward, detail)
         if terminated:
             self._session.stop("completed", "done")
         return obs, reward, terminated, False, info
@@ -209,6 +256,9 @@ class MeshRlEnv(gymnasium.Env):
             "dimensions": init["dimensions"],
             "action_meanings": tuple(init["action_meanings"]),
             "num_mesh_nodes": init["num_mesh_nodes"],
+            "facts_schema": init["facts_schema"],
+            "node_ids": tuple(init["node_ids"]),
+            "bounds": tuple(sorted(init["bounds"].items())),
             "max_controlled_nodes": slots,
             "obs_dim": init["obs_dim"],
             "mask_dim": init["mask_dim"],
@@ -229,15 +279,36 @@ class MeshRlEnv(gymnasium.Env):
         self._contract = dict(init)
         self._action_type = "discrete"
         self._protocol = protocol
-        self.observation_space = spaces.Box(
-            low=-np.inf, high=np.inf, shape=(init["obs_dim"],), dtype=np.float64
+        self.observation_space = (
+            self._preset.space(init) if self._preset is not None
+            else spaces.Box(low=-np.inf, high=np.inf, shape=(init["obs_dim"],),
+                            dtype=np.float64)
         )
         self.action_space = spaces.MultiDiscrete([SLOT_ACTIONS] * slots)
         self._session.set_contract(init)
+        self._observation_schema = observation_schema(
+            self._selection.observation_preset, init)
+        self._reward_schema = reward_schema(
+            self._selection.reward_components, self._selection.reward_weights,
+            reward_type=init["reward_type"], reward_window=init["reward_window"])
+        self._session.set_selection(self._selection, self._observation_schema,
+                                    self._reward_schema)
 
         msg = self._session.read_message()
         obs = self._validated_step(protocol, msg, first=True)
+        if self._preset is not None:
+            obs = self._preset.build(protocol.facts, init)
+        self._session.record_reset(msg, obs)
         return obs, self._centralized_info(msg)
+
+    @staticmethod
+    def _check_total(breakdown) -> None:
+        expected = sum(breakdown.weights[name] * value
+                       for name, value in breakdown.components.items()
+                       if breakdown.valid[name])
+        if (not math.isfinite(breakdown.total) or not math.isfinite(expected)
+                or abs(breakdown.total - expected) >= _TOTAL_TOL):
+            raise ValueError("Composed reward does not match its weighted components")
 
     def _validated_step(self, protocol, msg: dict, first: bool = False):
         try:
