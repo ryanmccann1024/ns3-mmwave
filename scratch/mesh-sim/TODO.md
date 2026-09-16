@@ -40,13 +40,40 @@ change it; do not infer the answer from the code.
   pedestrians have down/up masked off? Deferred with 3-D.
   Owner: team — status: open.
 - **TODO-P1-5 — Observing uncontrolled nodes.** Should uncontrolled-node
-  positions be observable by the agent? Assumed no in P1; it belongs to the
-  P2 observation module. Owner: team — status: open.
+  positions be observable by the agent? Assumed no in P1 and still excluded by
+  `local_links_v1`; tracked with the other candidate features in TODO-P2-4.
+  Owner: team — status: open.
 - **TODO-TIME-1 — Tick-count unification.** Legacy and non-RL runs keep the
   truncating `duration_s / tick_s` count; centralized runs use a robust count
   (snap to the nearest integer within 1e-6, else truncate). Unifying them
   would change existing scenarios' tick counts, so it needs a separately
   approved regression-fixture review. Owner: team — status: open.
+
+### P2 observation/reward/telemetry follow-ups
+
+- **TODO-P2-1 — Jammer 0 dB SINR clamp.** `src/eval/link-evaluator.cc:179-183`
+  clamps SINR to at least 0 dB whenever a jammer contributes power, so a jammed
+  link can never fall below the connectivity threshold and a weak link can even
+  become *connected* when a jammer turns on. Jamming enters SINR only when
+  `band = sub-6`. No jamming-aware claim, reward experiment, or jammer feature
+  should be made until this is decided; removing the clamp needs its own
+  regression review. Owner: team — status: open.
+- **TODO-P2-2 — RL reward ignores `warmup_s`.** `MetricsWriter::AccumulateTick`
+  skips ticks before `warmup_s`, but `RlBridge::AccumulateTick` accumulates
+  every tick, so RL rewards and facts windows include warmup ticks while
+  `summary.json` does not. `init.warmup_s` is exported as metadata only.
+  Aligning them would change existing RL rewards. Owner: team — status: open.
+- **TODO-P2-3 — Peer padding across node counts.** `local_links_v1` sizes its
+  peer block from the live `num_mesh_nodes`, so an observation from one N does
+  not fit another. The `present` bits are already reserved for a padded preset
+  keyed on a `max_mesh_nodes` bound; until then `check_schema` rejects a
+  different N rather than implying transfer. Owner: team — status: open.
+- **TODO-P2-4 — Candidate observation features.** The facts already carry every
+  node's velocity and position, including uncontrolled nodes, and jammer
+  interference could be added; none of them is in `local_links_v1`. Each needs
+  a leakage review (what a real node could actually know) before becoming a
+  preset feature, and any jammer feature also depends on TODO-P2-1.
+  Owner: team — status: open.
 
 ### TODO-DOC-1 — Root CLAUDE.md dependency layers
 The root `scratch/mesh-sim/CLAUDE.md` dependency-layer list does not record the
