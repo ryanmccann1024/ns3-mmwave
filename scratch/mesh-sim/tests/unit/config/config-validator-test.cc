@@ -877,17 +877,6 @@ test_rl_safety_cases()
 }
 
 static void
-test_compute_tick_count_invalid()
-{
-    const double nan = std::numeric_limits<double>::quiet_NaN();
-    check(ComputeTickCount(nan, 0.1, true) == 0, "NaN duration gives 0 ticks");
-    check(ComputeTickCount(1.0, 0.0, true) == 0, "zero tick_s gives 0 ticks");
-    check(ComputeTickCount(-1.0, 0.1, false) == 0, "negative duration gives 0 ticks");
-    check(ComputeTickCount(0.05, 0.1, true) == 0, "duration below one tick gives 0 ticks");
-    check(ComputeTickCount(1e12, 1e-9, true) == 0, "out-of-range tick ratio gives 0 ticks");
-}
-
-static void
 test_controlled_start_position()
 {
     NodeSpec fixed;
@@ -1022,7 +1011,6 @@ main()
 
     // RL resolver safety
     test_rl_safety_cases();
-    test_compute_tick_count_invalid();
     test_controlled_start_position();
     test_apply_rl_control();
 

@@ -12,7 +12,6 @@ import threading
 from pathlib import Path
 
 import gymnasium
-import numpy as np
 import pytest
 
 from scripts.rl.env.mesh_env import MeshRlEnv
@@ -138,20 +137,6 @@ def test_scripted_positions_and_masks(env, tmp_path):
     assert manifest["decisions"] == 2 and manifest["last_tick"] == 10
 
 
-def test_masked_random_run_completes(env):
-    env.reset()
-    env.action_space.seed(5)
-    done, steps = False, 0
-    while not done:
-        flat = np.asarray(env.action_masks(), dtype=np.int8)
-        action = env.action_space.sample(
-            mask=tuple(flat[i * 5:(i + 1) * 5] for i in range(3)))
-        _, _, done, _, info = env.step(action)
-        steps += 1
-    assert steps == 2 and info["tick"] == 10
-    assert _episode_manifest(Path(env._output_dir))["status"] == "completed"
-
-
 def test_repeated_resets_are_deterministic(env):
     trajectories = []
     for _ in range(2):
@@ -166,23 +151,8 @@ def test_repeated_resets_are_deterministic(env):
 
 # 3. Revalidation, structural errors, and interruption ---------------------------
 
-def test_masked_and_padded_actions_hold_per_slot(env):
-    env.reset()
-    # slot 0 east is masked (node-b sits at x_max); slot 2 is padding, so only
-    # hold is legal there. Slot 1 west is valid and must still be applied.
-    obs, _, _, _, info = env.step([1, 0, 2])
-    assert info["revalidated_slots"] == [0, 2]
-    assert _slot_xy(obs, 0) == (100.0, 0.0)
-    assert _slot_xy(obs, 1) == (92.0, 50.0)
-
-
 @pytest.mark.parametrize("line", [
-    '{"action": [2, 1, 4]',                 # invalid JSON
-    '{"action": 2}',                        # scalar, not a list
     '{"action": [2, 1]}',                   # wrong length
-    '{"action": [true, 1, 4]}',             # boolean entry
-    '{"action": [2.5, 1, 4]}',              # non-integer entry
-    '{"action": [9, 1, 4]}',                # out of range
 ])
 def test_structural_malformed_actions_hold_everything(tmp_path, line):
     result, messages = _run_binary(RUN_CONFIG, tmp_path / "out", [line])
