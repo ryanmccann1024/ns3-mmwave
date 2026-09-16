@@ -34,7 +34,7 @@ reward_type = all_links_los
 step_size_m = 5.0
 """
 
-# Centralized fixture mirroring inputs/baselines/p1-multi-smoke (N = 3, M = 3).
+# Centralized fixture mirroring inputs/baselines/centralized-multi-smoke.
 MULTI_RUN_INI = """[scenario]
 name = fake-multi
 seed = 1
@@ -323,7 +323,6 @@ def _multi_env(sim_binary: str, run_config: str, tmp_path: Path) -> MeshRlEnv:
     return MeshRlEnv(sim_binary, run_config, output_dir=str(tmp_path / "train"))
 
 
-## @brief Gymnasium wants per-slot int8 masks; C++ sends one flat array.
 def _mask_tuple(env: MeshRlEnv) -> tuple:
     flat = np.asarray(env.action_masks(), dtype=np.int8)
     return tuple(flat[i * 5:(i + 1) * 5] for i in range(len(env.action_space.nvec)))
@@ -655,14 +654,14 @@ def test_episode_allocation_scans_existing_directories_once(tmp_path, monkeypatc
     assert len(scans) == 1
 
 
-# 10. P2 selection, composed reward, and telemetry --------------------------------
+# Configured observations, rewards, and telemetry ---------------------------------
 
-P2_SELECTION = {"observation_preset": "local_links_v1",
-                "reward_components": "delivery_ratio,connectivity"}
+CUSTOM_SELECTION = {"observation_preset": "local_links_v1",
+                    "reward_components": "delivery_ratio,connectivity"}
 
 
-def _p2_env(sim_binary: str, run_config: str, tmp_path: Path, **overrides) -> MeshRlEnv:
-    selection = resolve_selection(run_config, **dict(P2_SELECTION, **overrides))
+def _custom_env(sim_binary: str, run_config: str, tmp_path: Path, **overrides) -> MeshRlEnv:
+    selection = resolve_selection(run_config, **dict(CUSTOM_SELECTION, **overrides))
     return MeshRlEnv(sim_binary, run_config, output_dir=str(tmp_path / "train"),
                      selection=selection)
 
@@ -679,15 +678,15 @@ def _run_to_done(env: MeshRlEnv) -> None:
         _, _, done, _, _ = env.step([4, 4, 4])
 
 
-def test_p2_preset_and_reward_block(sim_binary, multi_run_config, tmp_path):
-    env = _p2_env(sim_binary, multi_run_config, tmp_path)
+def test_custom_preset_and_reward_block(sim_binary, multi_run_config, tmp_path):
+    env = _custom_env(sim_binary, multi_run_config, tmp_path)
     obs, info = env.reset()
 
     assert env.observation_space.shape == (36,)
     assert env.observation_space.dtype == np.float32
     assert obs.shape == (36,) and obs.dtype == np.float32
     assert env.observation_space.contains(obs)
-    assert "reward" not in info                 # reset info stays P1-shaped
+    assert "reward" not in info
 
     obs, reward, terminated, _, info = env.step([4, 4, 4])
     block = info["reward"]
@@ -705,8 +704,8 @@ def test_p2_preset_and_reward_block(sim_binary, multi_run_config, tmp_path):
 def test_negative_legacy_reward_window(sim_binary, multi_run_config, tmp_path,
                                        monkeypatch, components):
     monkeypatch.setenv("FAKE_SIM_MODE", "negative_reward")
-    env = _p2_env(sim_binary, multi_run_config, tmp_path,
-                  observation_preset=None, reward_components=components)
+    env = _custom_env(sim_binary, multi_run_config, tmp_path,
+                      observation_preset=None, reward_components=components)
     try:
         env.reset()
         _, reward, _, _, info = env.step([4, 4, 4])
@@ -723,7 +722,7 @@ def test_negative_legacy_reward_window(sim_binary, multi_run_config, tmp_path,
 def test_telemetry_file_only_when_selected(sim_binary, multi_run_config, tmp_path,
                                            telemetry, expected):
     out_dir = tmp_path / "train"
-    env = _p2_env(sim_binary, multi_run_config, tmp_path, telemetry=telemetry)
+    env = _custom_env(sim_binary, multi_run_config, tmp_path, telemetry=telemetry)
     env.reset()
     _run_to_done(env)
     env.close()
@@ -736,7 +735,7 @@ def test_telemetry_file_only_when_selected(sim_binary, multi_run_config, tmp_pat
 def test_telemetry_default_cadence_replays(sim_binary, multi_run_config, tmp_path):
     before = threading.active_count()
     out_dir = tmp_path / "train"
-    env = _p2_env(sim_binary, multi_run_config, tmp_path, telemetry="steps")
+    env = _custom_env(sim_binary, multi_run_config, tmp_path, telemetry="steps")
     env.reset()
     _run_to_done(env)
     env.close()
@@ -763,8 +762,8 @@ def test_telemetry_default_cadence_replays(sim_binary, multi_run_config, tmp_pat
 def test_telemetry_stride_keeps_full_manifest_totals(sim_binary, multi_run_config,
                                                      tmp_path):
     out_dir = tmp_path / "train"
-    env = _p2_env(sim_binary, multi_run_config, tmp_path, telemetry="steps",
-                  telemetry_every=2)
+    env = _custom_env(sim_binary, multi_run_config, tmp_path, telemetry="steps",
+                      telemetry_every=2)
     env.reset()
     _run_to_done(env)
     env.close()
@@ -787,7 +786,7 @@ def test_zero_demand_masks_delivery_ratio(sim_binary, tmp_path):
     path = tmp_path / "run.ini"
     path.write_text(MULTI_RUN_INI + "\n[traffic]\ndemand_mbps = 0\n")
     (tmp_path / "nodes.json").write_text(NODES_JSON)
-    env = _p2_env(sim_binary, str(path), tmp_path)
+    env = _custom_env(sim_binary, str(path), tmp_path)
     env.reset()
     _, reward, _, _, info = env.step([4, 4, 4])
 
@@ -802,23 +801,23 @@ def test_zero_demand_masks_delivery_ratio(sim_binary, tmp_path):
     {"observation_preset": None, "reward_components": None},
     {},
 ])
-def test_pre_p2_binary_is_rejected(sim_binary, multi_run_config, tmp_path,
-                                   monkeypatch, overrides):
+def test_binary_without_facts_is_rejected(sim_binary, multi_run_config, tmp_path,
+                                          monkeypatch, overrides):
     monkeypatch.setenv("FAKE_SIM_MODE", "no_facts")
     out_dir = tmp_path / "train"
-    env = _p2_env(sim_binary, multi_run_config, tmp_path, **overrides)
+    env = _custom_env(sim_binary, multi_run_config, tmp_path, **overrides)
     with pytest.raises(RuntimeError, match="facts_schema missing"):
         env.reset()
 
     error = _episode_manifest(out_dir, 0)["error"]
-    assert "requires a P2 simulator binary" in error
+    assert "requires a simulator binary emitting" in error
     env.close()
 
 
 @pytest.mark.skipif(importlib.util.find_spec("sb3_contrib") is None,
                     reason="sb3_contrib not installed")
-def test_p2_training_records_selection_and_schema_hashes(sim_binary, multi_run_config,
-                                                         tmp_path, monkeypatch):
+def test_training_records_selection_and_schema_hashes(sim_binary, multi_run_config,
+                                                      tmp_path, monkeypatch):
     from scripts.rl import train
 
     out_dir = tmp_path / "train"
@@ -859,18 +858,18 @@ def test_p2_training_records_selection_and_schema_hashes(sim_binary, multi_run_c
     assert _drain_threads() == []
 
 
-def test_default_selection_telemetry_replays_via_p1_flat(sim_binary, multi_run_config,
+def test_default_selection_telemetry_replays_via_raw_links(sim_binary, multi_run_config,
                                                          tmp_path):
     out_dir = tmp_path / "train"
-    env = _p2_env(sim_binary, multi_run_config, tmp_path, observation_preset=None,
-                  reward_components=None, telemetry="steps")
+    env = _custom_env(sim_binary, multi_run_config, tmp_path, observation_preset=None,
+                      reward_components=None, telemetry="steps")
     obs, _ = env.reset()
-    assert obs.shape == (24,) and obs.dtype == np.float64   # P1 policy path intact
+    assert obs.shape == (24,) and obs.dtype == np.float64
     _run_to_done(env)
     env.close()
 
     header, records = _records(out_dir)
-    assert header["observation_schema"]["schema_id"] == "p1_flat"
+    assert header["observation_schema"]["schema_id"] == "raw_links_v1"
     assert header["reward_schema"]["authority"] == "cpp"
     assert records[1]["reward"] == {"total": 1.0, "source": "cpp"}
     summary = replay_file(out_dir / "episode-0000" / "steps.jsonl")

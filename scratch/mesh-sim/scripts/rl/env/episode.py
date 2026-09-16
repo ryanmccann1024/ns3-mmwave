@@ -116,7 +116,7 @@ class EpisodeSession:
 
     def set_selection(self, selection, observation_schema: dict,
                       reward_schema: dict) -> None:
-        """Record the P2 selection and open telemetry once init and schemas exist."""
+        """Record policy schemas and open optional step telemetry."""
         if self._manifest is None:
             return
         self._manifest.update({

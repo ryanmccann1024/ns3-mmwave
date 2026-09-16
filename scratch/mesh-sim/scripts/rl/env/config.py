@@ -9,7 +9,7 @@ from scripts.sim_support import strip_inline_comment
 # Fallbacks mirror RlConfig; explicit endpoints override them independently.
 _BOUND_DEFAULTS = ((-1000.0, 2000.0), (-1000.0, 1000.0), (0.0, 100.0))
 
-# P2 selection keys read by the Python env and train.py only.
+# Policy selection keys are read by Python, not the simulator.
 _SELECTION_KEYS = ("observation_preset", "reward_components", "reward_weights",
                    "telemetry", "telemetry_every")
 
@@ -77,7 +77,7 @@ def read_scenario_identity(run_config: str) -> dict:
 
 
 def read_rl_selection(run_config: str) -> dict[str, str]:
-    """Raw [rl] P2 selection strings; blank or absent keys are omitted."""
+    """Read [rl] policy options, omitting blank or absent keys."""
     ini = _read_ini(run_config)
     raw = {}
     for key in _SELECTION_KEYS:

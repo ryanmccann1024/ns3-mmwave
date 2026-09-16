@@ -3,8 +3,8 @@
 
 Legacy single-node mode is used unless [rl] controlled_nodes is set, which selects
 the centralized protocol. FAKE_SIM_MODE selects normal (default), exit3, malformed,
-no_facts (pre-P2 binary), or one of the isolated centralized fault modes; it never
-proves real movement or reward correctness.
+no_facts (missing the facts protocol), or an isolated centralized fault mode;
+it never proves real movement or reward correctness.
 """
 
 import configparser
@@ -36,7 +36,6 @@ DELIVERED_FRACTION = 0.5
 LEGACY_REWARD_TICK = 1.0
 
 
-## @brief Parse the ns-3 CommandLine spellings the real binary accepts.
 def parse_args(argv: list[str]) -> dict:
     args = {"rl-mode": False}
     i = 0
@@ -178,7 +177,7 @@ def _observation(nodes: list[dict], slots: list[int], num_slots: int) -> list[fl
 
 def _facts(nodes: list[dict], slots: list[int], velocities: dict, ticks: int,
            demand_mbps: float, reward_tick: float) -> dict:
-    """§4.2 facts consistent with this tick's obs and the configured flow demand."""
+    """Build facts consistent with this tick's observation and flow demand."""
     slot_of = {index: slot for slot, index in enumerate(slots)}
     fact_nodes = []
     for index, node in enumerate(nodes):

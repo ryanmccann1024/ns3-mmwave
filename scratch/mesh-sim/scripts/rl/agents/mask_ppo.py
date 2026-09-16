@@ -6,10 +6,9 @@ from typing import Callable
 from gymnasium import Env
 from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
 from sb3_contrib.common.wrappers import ActionMasker
-from sb3_contrib.ppo_mask import MaskablePPO   # the real algorithm (do NOT shadow this name)
+from sb3_contrib.ppo_mask import MaskablePPO
 
 
-## @brief Non-default hyperparameters for MaskablePPO (SB3 defaults omitted).
 @dataclass
 class MaskablePPOConfig:
     total_timesteps: int = 100_000   # budget for .learn(); mesh env is slow -> start low
@@ -21,11 +20,9 @@ class MaskablePPOConfig:
     tensorboard_log: str | None = None
 
 
-## @brief Thin trainer around sb3_contrib's MaskablePPO.
-#
-# NOTE the class is deliberately NOT named "MaskablePPO" — that would shadow the
-# imported algorithm and make the constructor call itself.
 class MaskablePpoTrainer:
+    """Wrap the SB3 MaskablePPO policy and its action-mask adapter."""
+
     def __init__(self, cfg: MaskablePPOConfig, env: Env, mask_fn: Callable):
         self.cfg = cfg
         self.env = ActionMasker(env, mask_fn)   # enable masking
@@ -40,7 +37,6 @@ class MaskablePpoTrainer:
             tensorboard_log=cfg.tensorboard_log,
         )
 
-    ## @brief Train for cfg.total_timesteps (total_timesteps belongs on .learn()).
     def train(self):
         self.model.learn(total_timesteps=self.cfg.total_timesteps)
         return self.model

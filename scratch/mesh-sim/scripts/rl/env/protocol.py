@@ -204,7 +204,7 @@ class CentralizedProtocol:
         if schema != FACTS_SCHEMA:
             _fail(
                 f"init facts_schema {'missing' if schema is None else repr(schema)}: "
-                f"the P2 Python bridge requires a P2 simulator binary emitting "
+                f"centralized RL requires a simulator binary emitting "
                 f"{FACTS_SCHEMA!r}"
             )
         if init.get("facts_columns") != _FACTS_COLUMNS:

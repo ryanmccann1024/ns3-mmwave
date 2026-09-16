@@ -1,4 +1,4 @@
-"""Resolve the P2 observation/reward/telemetry selection: CLI > run.ini > default."""
+"""Resolve policy inputs, rewards, and telemetry: CLI > run.ini > default."""
 
 import math
 from dataclasses import dataclass, field
@@ -19,7 +19,7 @@ _DEFAULTS = {
 
 @dataclass(frozen=True)
 class RlSelection:
-    """Validated P2 selection with the source of every key."""
+    """Validated policy selection with the source of every key."""
 
     observation_preset: str = DEFAULT_PRESET
     reward_components: tuple[str, ...] = ()
@@ -40,12 +40,12 @@ class RlSelection:
         }
 
 
-def has_p2_observation(selection: RlSelection) -> bool:
+def uses_custom_observation(selection: RlSelection) -> bool:
     """True when a non-default observation preset is selected."""
     return selection.observation_preset != DEFAULT_PRESET
 
 
-def has_p2_reward(selection: RlSelection) -> bool:
+def uses_composed_reward(selection: RlSelection) -> bool:
     """True when Python composes the reward."""
     return bool(selection.reward_components)
 
@@ -176,7 +176,7 @@ def resolve_selection(run_config: str, *, observation_preset=None,
 
 
 def _reject_legacy_mode(run_config: str, selection: RlSelection) -> None:
-    """Legacy control mode has no facts, so it cannot honor a P2 selection (D10)."""
+    """Legacy control mode cannot honor fact-based policy options."""
     if read_control_mode(run_config) == "centralized":
         return
     resolved = selection.describe()

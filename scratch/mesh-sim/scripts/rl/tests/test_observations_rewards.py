@@ -1,4 +1,4 @@
-"""Pure unit tests for the P2 observation presets, rewards, selection, telemetry."""
+"""Unit tests for observation presets, rewards, selection, and telemetry."""
 
 import json
 import math
@@ -16,7 +16,7 @@ from scripts.rl.env.telemetry import (
     StepRecorder, make_header, make_record, replay_file,
 )
 
-# Mirrors inputs/baselines/p1-multi-smoke: N = 3, M = 3, two controlled nodes.
+# Mirrors inputs/baselines/centralized-multi-smoke: three nodes, two controlled.
 NODE_IDS = ["node-a", "node-b", "node-c"]
 BOUNDS = {"x_min": 0.0, "x_max": 100.0, "y_min": -50.0, "y_max": 100.0,
           "z_min": 0.0, "z_max": 50.0}
@@ -113,8 +113,8 @@ def test_local_links_v1_clips_extreme_links(sinr, capacity, valid):
     assert obs[7] == pytest.approx(cap_n(capacity) if valid else 0.0, abs=1e-6)
 
 
-def test_p1_flat_matches_cpp_layout():
-    preset = get_preset("p1_flat")
+def test_raw_links_matches_cpp_layout():
+    preset = get_preset("raw_links_v1")
     obs = preset.build(FACTS, CONTRACT)
     expected = [
         1.0, 100.0, 0.0, 10.0, 31.4, 1650.2, 30.1, 1601.0,
@@ -125,7 +125,7 @@ def test_p1_flat_matches_cpp_layout():
     np.testing.assert_array_equal(obs, np.asarray(expected))
 
 
-@pytest.mark.parametrize("preset_name", ["p1_flat", "local_links_v1"])
+@pytest.mark.parametrize("preset_name", ["raw_links_v1", "local_links_v1"])
 def test_schema_hash_is_deterministic_and_strict_json(preset_name):
     first = observation_schema(preset_name, CONTRACT)
     second = observation_schema(preset_name, contract_with())
@@ -135,10 +135,10 @@ def test_schema_hash_is_deterministic_and_strict_json(preset_name):
     assert json.loads(text)["sha256"] == first["sha256"]
 
 
-def test_p1_flat_schema_uses_null_bounds_but_infinite_box():
-    schema = observation_schema("p1_flat", CONTRACT)
+def test_raw_links_schema_uses_null_bounds_but_infinite_box():
+    schema = observation_schema("raw_links_v1", CONTRACT)
     assert schema["low"] == [None] * 24 and schema["high"] == [None] * 24
-    box = get_preset("p1_flat").space(CONTRACT)
+    box = get_preset("raw_links_v1").space(CONTRACT)
     assert box.low.min() == -np.inf and box.high.max() == np.inf
 
 
@@ -266,10 +266,10 @@ def test_resolve_selection_precedence(tmp_path):
         "telemetry_every": "run.ini",
     }
 
-    overridden = resolve_selection(config, observation_preset="p1_flat",
+    overridden = resolve_selection(config, observation_preset="raw_links_v1",
                                    reward_components="legacy",
                                    reward_weights="0.25")
-    assert overridden.observation_preset == "p1_flat"
+    assert overridden.observation_preset == "raw_links_v1"
     assert overridden.reward_components == ("legacy",)
     assert overridden.reward_weights == (0.25,)
     assert overridden.describe()["source"]["reward_weights"] == "cli"
@@ -277,7 +277,7 @@ def test_resolve_selection_precedence(tmp_path):
     defaults = resolve_selection(write_ini(
         tmp_path, "[rl]\ncontrolled_nodes = node-b\n", name="plain.ini"))
     assert defaults.describe() == {
-        "observation_preset": "p1_flat", "reward_components": [],
+        "observation_preset": "raw_links_v1", "reward_components": [],
         "reward_weights": [], "telemetry": "none", "telemetry_every": 1,
         "source": {key: "default" for key in
                    ("observation_preset", "reward_components", "reward_weights",
@@ -304,7 +304,7 @@ def test_resolve_selection_rejects_p2_selection_in_legacy_mode(tmp_path):
     config = write_ini(tmp_path, LEGACY_INI)
     with pytest.raises(ValueError, match="observation_preset"):
         resolve_selection(config, observation_preset="local_links_v1")
-    assert resolve_selection(config).observation_preset == "p1_flat"
+    assert resolve_selection(config).observation_preset == "raw_links_v1"
 
 
 def test_telemetry_records_replay_without_mismatch(tmp_path):

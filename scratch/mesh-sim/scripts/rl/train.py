@@ -1,35 +1,5 @@
 #!/usr/bin/env python3
-"""Training entry point for the mesh-sim RL agent (MaskablePPO).
-
-Usage (run from mesh-sim)
--------------------------
-    python -m scripts.rl.train \
-        --sim-binary <BIN> \
-        --run-config inputs/baselines/p0-smoke/run.ini \
-        --output-dir outputs/<dir> \
-        [--band sub-6] \
-        m-ppo --total-timesteps 16 --n-steps 16 --seed 1
-
-Centralized multi-node control uses the same command with a centralized scenario:
-
-    python -m scripts.rl.train \
-        --sim-binary <BIN> \
-        --run-config inputs/baselines/p1-multi-smoke/run.ini \
-        --output-dir outputs/<dir> \
-        m-ppo --total-timesteps 16 --n-steps 16 --seed 1
-
-A P2 selection names the observation preset, the reward components, and the
-optional per-decision telemetry (all before the subcommand):
-
-    python -m scripts.rl.train \
-        --sim-binary <BIN> \
-        --run-config inputs/baselines/p1-multi-smoke/run.ini \
-        --output-dir outputs/<dir> \
-        --observation-preset local_links_v1 \
-        --reward-components delivery_ratio,connectivity \
-        --telemetry steps --telemetry-every 2 \
-        m-ppo --total-timesteps 16 --n-steps 16 --seed 1
-"""
+"""Train a MaskablePPO policy on mesh-sim scenarios."""
 
 import argparse
 import importlib.metadata
@@ -51,7 +21,6 @@ MODEL_BASENAME = "maskable_ppo_mesh"
 _MAX_ERROR_CHARS = 1000
 
 
-## @brief Adapter ActionMasker calls each step to fetch the current mask.
 def mask_fn(env):
     return env.unwrapped.action_masks()
 
@@ -60,7 +29,6 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-## @brief Installed versions of all direct project dependencies.
 def _package_versions() -> dict:
     versions = {}
     for mod, distribution in DIRECT_DEPS.items():
@@ -71,7 +39,6 @@ def _package_versions() -> dict:
     return versions
 
 
-## @brief Build the output directory (explicit, or timestamped).
 def _make_out_dir(output_dir: str) -> str:
     if output_dir:
         out_dir = output_dir
@@ -83,7 +50,6 @@ def _make_out_dir(output_dir: str) -> str:
     return out_dir
 
 
-## @brief True when out_dir already holds a training run we must not clobber.
 def _has_previous_run(out_dir: str) -> str | None:
     for name in (MANIFEST_NAME, f"{MODEL_BASENAME}.zip"):
         if os.path.exists(os.path.join(out_dir, name)):
@@ -97,7 +63,6 @@ def _write_manifest(out_dir: str, manifest: dict) -> None:
         fh.write("\n")
 
 
-## @brief Train a MaskablePPO agent on the mesh sim.
 def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
                out_dir: str, band: str | None, seed_source: str, selection) -> str:
     manifest = {
@@ -185,7 +150,7 @@ def main() -> int:
     p.add_argument("--verbose", type=int, default=1, choices=[0, 1],
                    help="0 = quiet, 1 = SB3 training logs")
     p.add_argument("--observation-preset", default=None,
-                   help="Named observation preset; omitted -> run.ini or p1_flat")
+                   help="Named observation preset; omitted -> run.ini or raw_links_v1")
     p.add_argument("--reward-components", default=None,
                    help="Comma-separated reward components; omitted -> the C++ reward")
     p.add_argument("--reward-weights", default=None,

@@ -12,7 +12,8 @@ from .episode import EpisodeSession
 from .observations import get_preset, observation_schema
 from .protocol import CentralizedProtocol, LegacyProtocol, ProtocolError, SLOT_ACTIONS
 from .rewards import RewardComposer, reward_schema
-from .selection import RlSelection, has_p2_observation, has_p2_reward, resolve_selection
+from .selection import (RlSelection, resolve_selection, uses_composed_reward,
+                        uses_custom_observation)
 
 _TOTAL_TOL = 1e-9
 
@@ -34,10 +35,10 @@ class MeshRlEnv(gymnasium.Env):
         self._selection = (selection if selection is not None
                            else resolve_selection(run_config))
         self._preset = (get_preset(self._selection.observation_preset)
-                        if has_p2_observation(self._selection) else None)
+                        if uses_custom_observation(self._selection) else None)
         self._composer = (RewardComposer(self._selection.reward_components,
                                          self._selection.reward_weights)
-                          if has_p2_reward(self._selection) else None)
+                          if uses_composed_reward(self._selection) else None)
         self._observation_schema: dict | None = None
         self._reward_schema: dict | None = None
         self._output_dir = Path(output_dir)

@@ -651,7 +651,7 @@ test_rl_action_profile()
     auto cfg = makeRlCfg();
     cfg.rl.action_profile = "move_3d";
     auto r3 = ResolveRlControl(cfg);
-    check(hasResErr(r3, "rl.action_profile 'move_3d' is reserved and not implemented in P1"),
+    check(hasResErr(r3, "rl.action_profile 'move_3d' is reserved and not implemented"),
           "move_3d reported as reserved");
 
     cfg.rl.action_profile = "teleport";

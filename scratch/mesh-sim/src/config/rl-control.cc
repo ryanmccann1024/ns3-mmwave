@@ -95,7 +95,7 @@ ControlledStartPosition(const NodeSpec& spec)
 namespace
 {
 
-// Rule 2: legacy selection, identical to the historical sim.cc block.
+// Keep the single-node selector's existing fallback behavior.
 void
 resolveLegacy(const SimConfig& cfg, RlControlResolution& r)
 {
@@ -115,7 +115,7 @@ resolveLegacy(const SimConfig& cfg, RlControlResolution& r)
     r.num_slots          = 1;
 }
 
-// Rules 3.1-3.6: selector validation and token -> node index mapping.
+// Validate the selector and map node ids to their indices.
 void
 resolveSelection(const SimConfig& cfg, RlControlResolution& r)
 {
@@ -131,7 +131,7 @@ resolveSelection(const SimConfig& cfg, RlControlResolution& r)
     }
     if (cfg.rl.action_profile == "move_3d")
     {
-        r.errors.push_back("rl.action_profile 'move_3d' is reserved and not implemented in P1");
+        r.errors.push_back("rl.action_profile 'move_3d' is reserved and not implemented");
     }
     else if (cfg.rl.action_profile != "move_2d")
     {
@@ -139,7 +139,7 @@ resolveSelection(const SimConfig& cfg, RlControlResolution& r)
                            "' (must be one of: 'move_2d')");
     }
 
-    // Rule 3.3: ids must be unique before any id can select exactly one node.
+    // Node ids must be unique to select exactly one node.
     std::set<std::string> seen;
     std::set<std::string> reported;
     for (const auto& n : cfg.nodes)
@@ -222,7 +222,7 @@ resolveSelection(const SimConfig& cfg, RlControlResolution& r)
     }
 }
 
-// Rule 3.7: slot count.
+// Resolve the policy vector's controlled-node capacity.
 void
 resolveSlotCount(const SimConfig& cfg, RlControlResolution& r)
 {
@@ -261,7 +261,7 @@ resolveSlotCount(const SimConfig& cfg, RlControlResolution& r)
     r.num_slots = m;
 }
 
-// Rule 3.8: decision cadence in ticks.
+// Resolve the interval between policy decisions in simulator ticks.
 void
 resolveCadence(const SimConfig& cfg, RlControlResolution& r, bool timingOk)
 {
@@ -300,7 +300,7 @@ resolveCadence(const SimConfig& cfg, RlControlResolution& r, bool timingOk)
     r.decision_interval_ticks = k;
 }
 
-// Rule 3.9: every controlled start position must lie inside the [rl] bounds.
+// Keep every controlled start position within the movement bounds.
 void
 resolveStartPositions(const SimConfig& cfg, RlControlResolution& r)
 {

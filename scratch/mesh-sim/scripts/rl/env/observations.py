@@ -69,7 +69,7 @@ def _peer_indices(contract: dict, index: int) -> list[int]:
     return [p for p in range(_num_nodes(contract)) if p != index]
 
 
-def _build_p1_flat(facts: dict, contract: dict) -> np.ndarray:
+def _build_raw_links(facts: dict, contract: dict) -> np.ndarray:
     n = _num_nodes(contract)
     nodes, links = facts["nodes"], facts["links"]
     values: list[float] = []
@@ -113,7 +113,7 @@ def _build_local_links_v1(facts: dict, contract: dict) -> np.ndarray:
     return np.asarray(values, dtype=np.float32)
 
 
-def _p1_flat_features(contract: dict) -> list[str]:
+def _raw_links_features(contract: dict) -> list[str]:
     names = []
     for slot in range(_num_slots(contract)):
         names.append(f"slot{slot}.active")
@@ -137,7 +137,7 @@ def _local_links_features(contract: dict) -> list[str]:
     return names
 
 
-def _p1_flat_space(contract: dict) -> spaces.Box:
+def _raw_links_space(contract: dict) -> spaces.Box:
     width = _num_slots(contract) * (4 + 2 * (_num_nodes(contract) - 1))
     return spaces.Box(low=-np.inf, high=np.inf, shape=(width,), dtype=np.float64)
 
@@ -185,12 +185,12 @@ class ObservationPreset:
 
 
 PRESETS = {
-    "p1_flat": ObservationPreset(
-        name="p1_flat",
+    "raw_links_v1": ObservationPreset(
+        name="raw_links_v1",
         dtype="float64",
-        _build=_build_p1_flat,
-        _space=_p1_flat_space,
-        _features=_p1_flat_features,
+        _build=_build_raw_links,
+        _space=_raw_links_space,
+        _features=_raw_links_features,
         normalization={"position": "raw", "sinr_clip_db": None, "capacity": "raw"},
     ),
     "local_links_v1": ObservationPreset(
@@ -204,7 +204,7 @@ PRESETS = {
     ),
 }
 
-DEFAULT_PRESET = "p1_flat"
+DEFAULT_PRESET = "raw_links_v1"
 
 
 def get_preset(name: str) -> ObservationPreset:
@@ -274,7 +274,7 @@ _SCENARIO_FIELDS = ("node_ids", "slot_node_ids")
 def check_schema(saved: dict, live: dict) -> list[str]:
     """Raise on structural differences; return warnings for scenario identity."""
     fields = [f for f in _STRUCTURAL_FIELDS if saved.get(f) != live.get(f)]
-    # Bounds are part of local_links_v1's coordinate transform, not of p1_flat.
+    # Bounds affect local_links_v1's coordinates, not raw_links_v1's raw values.
     if "local_links_v1" in (saved.get("schema_id"), live.get("schema_id")):
         if saved.get("bounds") != live.get("bounds"):
             fields.append("bounds")

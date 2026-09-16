@@ -1,4 +1,4 @@
-"""Centralized-control tests against the real mesh-sim binary (p1-multi-smoke).
+"""Centralized-control tests against the real mesh-sim binary.
 
 Set MESH_SIM_BIN to a built simulator to run them; every run writes only into
 pytest's tmp_path, never into inputs/.
@@ -33,7 +33,7 @@ if not MESH_SIM_BIN:
     )
 
 MESH_ROOT = find_mesh_root(__file__)
-FIXTURE = MESH_ROOT / "inputs" / "baselines" / "p1-multi-smoke"
+FIXTURE = MESH_ROOT / "inputs" / "baselines" / "centralized-multi-smoke"
 RUN_CONFIG = FIXTURE / "run.ini"
 
 SLOT_WIDTH = 8          # 4 + 2*(N-1) with N = 3
@@ -51,7 +51,6 @@ def _slot_xy(obs, slot: int) -> tuple[float, float]:
     return obs[base + 1], obs[base + 2]
 
 
-## @brief One scripted simulator run with closed stdin and a hard timeout.
 def _run_binary(run_config: Path, out_dir: Path, lines: list[str],
                 timeout: float = 300.0) -> tuple[subprocess.CompletedProcess, list[dict]]:
     cmd = [MESH_SIM_BIN, f"--run-config={run_config}", "--rl-mode", "--seed=1",
@@ -115,7 +114,7 @@ def test_live_spaces_and_metadata(env):
     assert list(obs[16:24]) == [0.0] * 8
 
 
-# 2. Scripted pathway of plan §8 -------------------------------------------------
+# Scripted positions and masks ----------------------------------------------------
 
 def test_scripted_positions_and_masks(env, tmp_path):
     env.reset()
@@ -225,7 +224,6 @@ BUILDINGS = [{
 }]
 
 
-## @brief Rewrite whole-key INI lines, failing loudly if the fixture changed.
 def _edit_ini(text: str, **values: str) -> str:
     seen, lines = set(), []
     for line in text.splitlines():
@@ -318,12 +316,12 @@ def test_partial_windows_clipping_and_reward_mean(tmp_path):
         env.close()
 
 
-# 5. P2 facts, observations, rewards, and telemetry ------------------------------
+# Facts, observations, rewards, and telemetry -------------------------------------
 
-P2_SELECTION = {"observation_preset": "local_links_v1",
-                "reward_components": "delivery_ratio,connectivity",
-                "telemetry": "steps"}
-P2_ACTIONS = ([2, 1, 4], [4, 0, 4])
+CUSTOM_SELECTION = {"observation_preset": "local_links_v1",
+                    "reward_components": "delivery_ratio,connectivity",
+                    "telemetry": "steps"}
+SCRIPTED_ACTIONS = ([2, 1, 4], [4, 0, 4])
 TOTAL_TICKS = 11                # ticks 0..10 with warmup_s = 0
 NUM_LINKS = 3
 
@@ -331,17 +329,17 @@ NUM_LINKS = 3
 @pytest.fixture
 def facts_run(tmp_path):
     out_dir = tmp_path / "facts"
-    _, messages = _run_binary(RUN_CONFIG, out_dir, [_action(a) for a in P2_ACTIONS])
+    _, messages = _run_binary(RUN_CONFIG, out_dir, [_action(a) for a in SCRIPTED_ACTIONS])
     init = next(m for m in messages if m.get("type") == "init")
     return init, _steps(messages), out_dir
 
 
 @pytest.fixture
-def p2_env(tmp_path):
+def custom_env(tmp_path):
     made = []
 
     def make(name: str, **overrides) -> MeshRlEnv:
-        selection = resolve_selection(str(RUN_CONFIG), **dict(P2_SELECTION, **overrides))
+        selection = resolve_selection(str(RUN_CONFIG), **dict(CUSTOM_SELECTION, **overrides))
         env = MeshRlEnv(MESH_SIM_BIN, str(RUN_CONFIG),
                         output_dir=str(tmp_path / name), selection=selection)
         made.append(env)
@@ -355,16 +353,16 @@ def p2_env(tmp_path):
 def _play(env: MeshRlEnv) -> float:
     env.reset()
     total, done = 0.0, False
-    for action in P2_ACTIONS:
+    for action in SCRIPTED_ACTIONS:
         _, reward, done, _, _ = env.step(action)
         total += reward
     assert done
     return total
 
 
-def test_facts_rows_window_and_p1_flat_rebuild(facts_run):
+def test_facts_rows_window_and_raw_links_rebuild(facts_run):
     init, steps, _ = facts_run
-    p1_flat = get_preset("p1_flat")
+    raw_links = get_preset("raw_links_v1")
     legacy = RewardComposer(["legacy"], [1.0])
 
     for step in steps:
@@ -384,7 +382,7 @@ def test_facts_rows_window_and_p1_flat_rebuild(facts_run):
             row = facts["nodes"][init["node_ids"].index(node_id)]
             assert _slot_xy(step["obs"], slot) == (row[0], row[1])
 
-        assert p1_flat.build(facts, init).tolist() == step["obs"]
+        assert raw_links.build(facts, init).tolist() == step["obs"]
 
 
 def test_window_sums_match_the_run_summary(facts_run):
@@ -402,8 +400,8 @@ def test_window_sums_match_the_run_summary(facts_run):
     assert delivered == pytest.approx(ticks * per_flow, abs=1e-6)
 
 
-def test_p2_selection_observations_rewards_and_replay(p2_env):
-    env = p2_env("p2")
+def test_custom_selection_observations_rewards_and_replay(custom_env):
+    env = custom_env("custom")
     obs, info = env.reset()
 
     assert isinstance(env.observation_space, gymnasium.spaces.Box)
@@ -412,7 +410,7 @@ def test_p2_selection_observations_rewards_and_replay(p2_env):
     assert np.all(np.isfinite(obs)) and env.observation_space.contains(obs)
 
     total, done = 0.0, False
-    for action in P2_ACTIONS:
+    for action in SCRIPTED_ACTIONS:
         obs, reward, done, _, info = env.step(action)
         assert np.all(np.isfinite(obs)) and env.observation_space.contains(obs)
         assert info["reward"]["total"] == reward
@@ -428,8 +426,8 @@ def test_p2_selection_observations_rewards_and_replay(p2_env):
     assert (replay.records, replay.obs_mismatches, replay.reward_mismatches) == (3, 0, 0)
 
 
-def test_telemetry_is_reproducible_and_cadence_bounded(p2_env):
-    full = p2_env("full")
+def test_telemetry_is_reproducible_and_cadence_bounded(custom_env):
+    full = custom_env("full")
     rewards = [_play(full), _play(full)]
     full_dir = Path(full._output_dir)
     assert ((full_dir / "episode-0000" / "steps.jsonl").read_bytes()
@@ -437,7 +435,7 @@ def test_telemetry_is_reproducible_and_cadence_bounded(p2_env):
     assert rewards[0] == pytest.approx(rewards[1])
     assert _episode_manifest(full_dir, 0)["telemetry"]["records"] == 3
 
-    strided = p2_env("strided", telemetry_every=2)
+    strided = custom_env("strided", telemetry_every=2)
     strided_reward = _play(strided)
     strided_manifest = _episode_manifest(Path(strided._output_dir), 0)
     assert strided_manifest["telemetry"]["records"] == 2
@@ -448,7 +446,7 @@ def test_telemetry_is_reproducible_and_cadence_bounded(p2_env):
 
 @pytest.mark.skipif(importlib.util.find_spec("sb3_contrib") is None,
                     reason="sb3_contrib not installed")
-def test_p2_training_run_writes_matching_schema_hashes(tmp_path):
+def test_training_run_writes_matching_schema_hashes(tmp_path):
     out_dir = tmp_path / "train"
     result = subprocess.run(
         [sys.executable, "-m", "scripts.rl.train", "--sim-binary", MESH_SIM_BIN,
