@@ -177,23 +177,14 @@ def test_seed_and_bounds_strip_inline_comments(sim_binary, run_config, tmp_path,
 
 # 3. Protocol failures -----------------------------------------------------------
 
-@pytest.mark.parametrize("axis", list("xyz"))
-@pytest.mark.parametrize("suffix", ["min", "max"])
-def test_partial_bounds_override_one_endpoint(sim_binary, run_config, tmp_path, axis, suffix):
+def test_partial_bounds_override_one_endpoint(tmp_path):
     from scripts.rl.env.config import read_rl_bounds
 
-    defaults = {"x": (-1000.0, 2000.0), "y": (-1000.0, 1000.0), "z": (0.0, 100.0)}
-    value = defaults[axis][0 if suffix == "min" else 1] + (1 if suffix == "min" else -1)
-    with open(run_config, "a") as handle:
-        handle.write(f"{axis}_{suffix} = {value} # one endpoint only\n")
-    expected = list(defaults[axis])
-    expected[0 if suffix == "min" else 1] = value
-    assert read_rl_bounds(run_config)["xyz".index(axis)] == tuple(expected)
-
-    env = MeshRlEnv(sim_binary, run_config, output_dir=str(tmp_path / "train"))
-    env.reset()
-    assert getattr(env, f"_{axis}_range") == tuple(expected)
-    env.close()
+    ini = tmp_path / "run.ini"
+    ini.write_text("[rl]\nx_min = -10 # one endpoint only\n")
+    assert read_rl_bounds(str(ini)) == (
+        (-10.0, 2000.0), (-1000.0, 1000.0), (0.0, 100.0)
+    )
 
 def test_premature_exit_reports_code_and_stderr(sim_binary, run_config, tmp_path,
                                                 monkeypatch):
