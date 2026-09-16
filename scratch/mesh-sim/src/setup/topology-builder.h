@@ -18,6 +18,7 @@
  * | @c "constant_velocity"   | @c ConstantVelocityMobilityModel    | Position and velocity set after install. |
  * | @c "random_walk"         | @c RandomWalk2dMobilityModel        | Direction changes every 1 simulated second; bounds and speed from @ref RandomWalkParams. |
  * | @c "waypoint"            | @c WaypointMobilityModel            | All @ref Waypoint entries added via @c ns3::Seconds(wp.t). |
+ * | RL-controlled (centralized) | @c ConstantVelocityMobilityModel | Overrides the configured model for every index in @c cfg.rl.controlled_indices; starts at @ref ControlledStartPosition with zero velocity. |
  *
  * **Channel condition model selection**
  * When @c cfg.buildings is non-empty a @c BuildingsChannelConditionModel is
@@ -237,6 +238,19 @@ class TopologyBuilder
      * @param spec  Node specification providing the ordered waypoint list.
      */
     void InstallMobilityWaypoint(const ns3::Ptr<ns3::Node>& node, const NodeSpec& spec);
+
+    /**
+     * @brief Install @c ns3::ConstantVelocityMobilityModel on an RL-controlled node.
+     *
+     * Used in centralized RL mode instead of the node's configured mobility
+     * model: the node starts at @ref ControlledStartPosition (first waypoint for
+     * waypoint mobility, otherwise @ref NodeSpec::position) with zero velocity,
+     * and @ref RlBridge owns every subsequent velocity change.
+     *
+     * @param node  ns-3 node to install the model on.
+     * @param spec  Node specification providing the start position.
+     */
+    void InstallMobilityRlControlled(const ns3::Ptr<ns3::Node>& node, const NodeSpec& spec);
 };
 
 }  // namespace mesh_sim

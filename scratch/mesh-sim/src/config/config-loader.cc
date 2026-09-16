@@ -326,6 +326,14 @@ ConfigLoader::Load(const std::string& run_config_path,
     cfg.rl.z_min		= std::stod(iniGet(ini, "rl", "z_min", "0.0"));
     cfg.rl.z_max		= std::stod(iniGet(ini, "rl", "z_max", "100.0"));
 
+    // Key presence (not its value) selects centralized multi-node control.
+    cfg.rl.controlled_nodes     = iniGet(ini, "rl", "controlled_nodes", "");
+    cfg.rl.controlled_nodes_set =
+        ini.count("rl") != 0 && ini.at("rl").count("controlled_nodes") != 0;
+    cfg.rl.max_controlled_nodes = std::stoi(iniGet(ini, "rl", "max_controlled_nodes", "0"));
+    cfg.rl.action_profile       = iniGet(ini, "rl", "action_profile", "move_2d");
+    cfg.rl.decision_interval_s  = std::stod(iniGet(ini, "rl", "decision_interval_s", "0.0"));
+
 
     // --- Load nodes.json ---
     std::string nodes_file = iniGet(ini, "scenario", "nodes_file", "nodes.json");

@@ -5,6 +5,8 @@
 
 #include "src/config/config-validator.h"
 
+#include "src/config/rl-control.h"
+
 #include <algorithm>
 #include <initializer_list>
 
@@ -238,6 +240,10 @@ ValidateConfig(const SimConfig& cfg)
                     "' does not match any node ID");
             }
         }
+
+        // Slot/cadence/start-position rules live in the shared resolver.
+        const RlControlResolution ctl = ResolveRlControl(cfg);
+        r.errors.insert(r.errors.end(), ctl.errors.begin(), ctl.errors.end());
     }
 
     // -- jammers --

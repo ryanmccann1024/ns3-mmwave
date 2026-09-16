@@ -9,43 +9,92 @@
 #include <string>
 
 using json = nlohmann::json;
+using ojson = nlohmann::ordered_json;
 
 namespace mesh_sim
 {
 
-RlBridge::RlBridge(const SimConfig& cfg, uint32_t controlledIdx)
+namespace
+{
+constexpr double kWallEps = 1e-6;
+constexpr int    kHold = 4;
+}  // namespace
+
+RlBridge::RlBridge(const SimConfig& cfg)
     : m_rl(cfg.rl),
       m_tickS(cfg.tick_s),
-      m_controlledIdx(controlledIdx),
+      m_controlledIdx(cfg.rl.controlled_indices.empty()
+                          ? static_cast<uint32_t>(cfg.nodes.size()) - 1
+                          : cfg.rl.controlled_indices[0]),
       m_numNodes(static_cast<uint32_t>(cfg.nodes.size())),
-      m_maxSpeed(MaxSpeedForType(cfg.nodes[controlledIdx].node_type)),
-      m_nodeType(cfg.nodes[controlledIdx].node_type)
+      m_maxSpeed(MaxSpeedForType(cfg.nodes[m_controlledIdx].node_type)),
+      m_nodeType(cfg.nodes[m_controlledIdx].node_type),
+      m_centralized(cfg.rl.control_mode == "centralized")
 {
+    m_numSlots = m_centralized ? std::max(1u, cfg.rl.num_slots) : 1u;
+    m_k        = std::max(1u, cfg.rl.decision_interval_ticks);
+    m_numTicks = cfg.rl.num_ticks;
+
+    m_slots.resize(m_numSlots);
+    const uint32_t resolved = static_cast<uint32_t>(cfg.rl.controlled_indices.size());
+    for (uint32_t i = 0; i < m_numSlots; ++i)
+    {
+        if (!m_centralized || i >= resolved)
+        {
+            if (i == 0)
+            {
+                // Legacy: the single controlled node, speed capped as today.
+                m_slots[0] = ControlSlot{m_controlledIdx, cfg.nodes[m_controlledIdx].id,
+                                         m_maxSpeed, true};
+            }
+            continue;
+        }
+        const uint32_t idx = cfg.rl.controlled_indices[i];
+        const auto& spec = cfg.nodes[idx];
+        m_slots[i] = ControlSlot{idx, spec.id,
+                                 std::min(m_rl.step_size_m / m_tickS,
+                                          MaxSpeedForType(spec.node_type)),
+                                 true};
+    }
+
+    m_lastJoint.assign(m_numSlots, kHold);
+    m_lastMask.assign(5 * m_numSlots, 0);
 }
 
-// @brief "throughput" sums delivered_mbps; "all_links_los" returns +1 only when every peer link is LOS.
+// @brief "throughput" sums delivered_mbps; "all_links_los" returns +1 only when
+//        every controlled node has at least one peer link and all are LOS.
 double
-RlBridge::ComputeReward(const std::vector<ns3::Ptr<ns3::MobilityModel>>& /* mobs */,
-                        const LinkTable& linkTable,
-                        const std::vector<FlowResult>& flows) const
+RlBridge::ComputeRewardTick(const LinkTable& linkTable,
+                            const std::vector<FlowResult>& flows) const
 {
     if (m_rl.reward_type == "all_links_los")
     {
-        uint32_t losCount = 0;
-        uint32_t count = 0;
-        for (uint32_t j = 0; j < m_numNodes; ++j)
+        for (const auto& slot : m_slots)
         {
-            if (j == m_controlledIdx)
+            if (!slot.active)
             {
                 continue;
             }
-            if (linkTable.Get(m_controlledIdx, j).is_los)
+            uint32_t losCount = 0;
+            uint32_t count = 0;
+            for (uint32_t j = 0; j < m_numNodes; ++j)
             {
-                ++losCount;
+                if (j == slot.node_index)
+                {
+                    continue;
+                }
+                if (linkTable.Get(slot.node_index, j).is_los)
+                {
+                    ++losCount;
+                }
+                ++count;
             }
-            ++count;
+            if (count == 0 || losCount != count)
+            {
+                return -1.0;
+            }
         }
-        return (count > 0 && losCount == count) ? 1.0 : -1.0;
+        return 1.0;
     }
 
     // Default: "throughput" — sum of delivered_mbps across all flows
@@ -55,6 +104,19 @@ RlBridge::ComputeReward(const std::vector<ns3::Ptr<ns3::MobilityModel>>& /* mobs
         total += fr.delivered_mbps;
     }
     return total;
+}
+
+void
+RlBridge::AccumulateTick(const LinkTable& linkTable, const std::vector<FlowResult>& flows)
+{
+    m_rewardSum += ComputeRewardTick(linkTable, flows);
+    ++m_rewardTicks;
+}
+
+bool
+RlBridge::IsDecisionTick(uint32_t ti) const
+{
+    return m_centralized && ti < m_numTicks && (ti % m_k) == 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -99,6 +161,132 @@ RlBridge::WriteObs(uint32_t tick, double time_s,
     std::cout << msg.dump() << "\n" << std::flush;
 }
 
+void
+RlBridge::WriteInit() const
+{
+    if (!m_centralized)
+    {
+        return;
+    }
+
+    ojson slotIds = ojson::array();
+    ojson slotSpeeds = ojson::array();
+    uint32_t numControlled = 0;
+    for (const auto& slot : m_slots)
+    {
+        if (slot.active)
+        {
+            ++numControlled;
+            slotIds.push_back(slot.node_id);
+            slotSpeeds.push_back(slot.speed_mps);
+        }
+        else
+        {
+            slotIds.push_back(nullptr);
+            slotSpeeds.push_back(nullptr);
+        }
+    }
+
+    const uint32_t obsDim  = m_numSlots * (4 + 2 * (m_numNodes - 1));
+    const uint32_t maskDim = 5 * m_numSlots;
+    const uint32_t numDecisions = (m_numTicks + m_k - 1) / m_k;
+
+    ojson msg;
+    msg["type"]                   = "init";
+    msg["contract"]               = "mesh_move_2d_v1";
+    msg["dimensions"]             = 2;
+    msg["action_meanings"]        = {"west", "east", "south", "north", "hold"};
+    msg["max_controlled_nodes"]   = m_numSlots;
+    msg["num_controlled"]         = numControlled;
+    msg["slot_node_ids"]          = slotIds;
+    msg["slot_speed_mps"]         = slotSpeeds;
+    msg["num_mesh_nodes"]         = m_numNodes;
+    msg["obs_dim"]                = obsDim;
+    msg["mask_dim"]               = maskDim;
+    msg["tick_s"]                 = m_tickS;
+    msg["decision_interval_s"]    = m_k * m_tickS;
+    msg["decision_interval_ticks"] = m_k;
+    msg["num_ticks"]              = m_numTicks;
+    msg["num_decisions"]          = numDecisions;
+    msg["reward_type"]            = m_rl.reward_type;
+    msg["reward_window"]          = "mean";
+    msg["wall_policy"]            = "clip";
+
+    std::cout << msg.dump() << "\n" << std::flush;
+}
+
+std::vector<int>
+RlBridge::ComputeMask(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs) const
+{
+    std::vector<int> mask(5 * m_numSlots, 0);
+    for (uint32_t i = 0; i < m_numSlots; ++i)
+    {
+        const auto& slot = m_slots[i];
+        if (!slot.active)
+        {
+            mask[5 * i + 4] = 1;  // padded slot: hold only
+            continue;
+        }
+        auto p = mobs[slot.node_index]->GetPosition();
+        mask[5 * i + 0] = (p.x - m_rl.x_min > kWallEps) ? 1 : 0;
+        mask[5 * i + 1] = (m_rl.x_max - p.x > kWallEps) ? 1 : 0;
+        mask[5 * i + 2] = (p.y - m_rl.y_min > kWallEps) ? 1 : 0;
+        mask[5 * i + 3] = (m_rl.y_max - p.y > kWallEps) ? 1 : 0;
+        mask[5 * i + 4] = 1;
+    }
+    return mask;
+}
+
+void
+RlBridge::WriteStep(uint32_t tick, double time_s,
+                    const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs,
+                    const LinkTable& linkTable,
+                    const std::vector<int>& mask,
+                    double reward, uint32_t ticksInStep, bool done) const
+{
+    ojson obs = ojson::array();
+    for (const auto& slot : m_slots)
+    {
+        if (!slot.active)
+        {
+            for (uint32_t k = 0; k < 4 + 2 * (m_numNodes - 1); ++k)
+            {
+                obs.push_back(0.0);
+            }
+            continue;
+        }
+        auto p = mobs[slot.node_index]->GetPosition();
+        obs.push_back(1.0);
+        obs.push_back(p.x);
+        obs.push_back(p.y);
+        obs.push_back(p.z);
+        for (uint32_t j = 0; j < m_numNodes; ++j)
+        {
+            if (j == slot.node_index)
+            {
+                continue;
+            }
+            const auto& lr = linkTable.Get(slot.node_index, j);
+            obs.push_back(lr.sinr_db);
+            obs.push_back(lr.capacity_mbps);
+        }
+    }
+
+    ojson msg;
+    msg["type"]              = "step";
+    msg["tick"]              = tick;
+    msg["time_s"]            = time_s;
+    msg["decision"]          = m_decision;
+    msg["ticks_in_step"]     = ticksInStep;
+    msg["obs"]               = obs;
+    msg["mask"]              = mask;
+    msg["reward"]            = reward;
+    msg["done"]              = done;
+    msg["revalidated_slots"] = m_revalidatedSlots;
+
+    std::cout << msg.dump() << "\n" << std::flush;
+}
+
 // ---------------------------------------------------------------------------
 // JSON input (Python → C++)
 // ---------------------------------------------------------------------------
@@ -134,6 +322,21 @@ RlBridge::ReadAction()
         return;
     }
 
+    // A non-object line or a non-integer "action" (e.g. a joint-action list) is
+    // malformed for the legacy encoding; it must not abort the run.
+    if (!j.is_object() ||
+        (m_rl.action_type != "continuous" && j.contains("action") &&
+         !j["action"].is_number_integer()))
+    {
+        m_lastDiscreteAction = 6;
+        if (!warned)
+        {
+            warned = true;
+            std::cerr << "Warning: malformed RL action JSON; holding position (Stay).\n";
+        }
+        return;
+    }
+
     if (m_rl.action_type == "continuous")
     {
         const auto& a = j["action"];
@@ -148,6 +351,88 @@ RlBridge::ReadAction()
     }
 }
 
+void
+RlBridge::ReadJointAction()
+{
+    static bool warnedClosed = false;
+    static bool warnedMalformed = false;
+    static bool warnedRevalidated = false;
+
+    m_revalidatedSlots.clear();
+
+    if (m_streamClosed)
+    {
+        m_lastJoint.assign(m_numSlots, kHold);
+        return;
+    }
+
+    std::string line;
+    if (!std::getline(std::cin, line))
+    {
+        m_streamClosed = true;
+        m_lastJoint.assign(m_numSlots, kHold);
+        if (!warnedClosed)
+        {
+            warnedClosed = true;
+            std::cerr << "Warning: RL action stream closed; all controlled nodes hold.\n";
+        }
+        return;
+    }
+
+    auto j = json::parse(line, nullptr, false);
+    bool structural = !j.is_discarded() && j.is_object() && j.contains("action") &&
+                      j["action"].is_array() && j["action"].size() == m_numSlots;
+    std::vector<int> proposed;
+    if (structural)
+    {
+        for (const auto& entry : j["action"])
+        {
+            if (!entry.is_number_integer())
+            {
+                structural = false;
+                break;
+            }
+            const int a = entry.get<int>();
+            if (a < 0 || a > kHold)
+            {
+                structural = false;
+                break;
+            }
+            proposed.push_back(a);
+        }
+    }
+
+    if (!structural)
+    {
+        m_lastJoint.assign(m_numSlots, kHold);
+        if (!warnedMalformed)
+        {
+            warnedMalformed = true;
+            std::cerr << "Warning: malformed RL joint action; all controlled nodes hold.\n";
+        }
+        return;
+    }
+
+    for (uint32_t i = 0; i < m_numSlots; ++i)
+    {
+        const bool padded = !m_slots[i].active;
+        const bool masked = !padded && m_lastMask[5 * i + proposed[i]] == 0;
+        if ((padded && proposed[i] != kHold) || masked)
+        {
+            proposed[i] = kHold;
+            m_revalidatedSlots.push_back(i);
+        }
+    }
+
+    if (!m_revalidatedSlots.empty() && !warnedRevalidated)
+    {
+        warnedRevalidated = true;
+        std::cerr << "Warning: RL joint action revalidated; invalid slot actions replaced by hold.\n";
+    }
+
+    m_lastJoint = proposed;
+}
+
 // ---------------------------------------------------------------------------
 // Step: write obs, read action
 // ---------------------------------------------------------------------------
@@ -159,12 +444,78 @@ RlBridge::Step(uint32_t tick, double time_s,
                const std::vector<FlowResult>& flowResults,
                bool done)
 {
-    double reward = ComputeReward(mobs, linkTable, flowResults);
+    if (m_centralized)
+    {
+        const uint32_t ticksInStep = m_rewardTicks;
+        const double reward = (m_rewardTicks > 0) ? m_rewardSum / m_rewardTicks : 0.0;
+        m_rewardSum = 0.0;
+        m_rewardTicks = 0;
+
+        m_lastMask = ComputeMask(mobs);
+        WriteStep(tick, time_s, mobs, linkTable, m_lastMask, reward, ticksInStep, done);
+        ++m_decision;
+
+        if (!done)
+        {
+            ReadJointAction();
+        }
+        return;
+    }
+
+    double reward = ComputeRewardTick(linkTable, flowResults);
     WriteObs(tick, time_s, mobs, linkTable, reward, done);
 
     if (!done)
     {
         ReadAction();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Movement: per-tick clamp and action application
+// ---------------------------------------------------------------------------
+
+ns3::Vector
+RlBridge::ClampVelocityForTick(const ns3::Vector& pos, const ns3::Vector& vel) const
+{
+    auto clampAxis = [this](double p, double v, double lo, double hi) {
+        const double next = p + v * m_tickS;
+        if (next > hi)
+        {
+            return (hi > p) ? (hi - p) / m_tickS : 0.0;
+        }
+        if (next < lo)
+        {
+            return (lo < p) ? (lo - p) / m_tickS : 0.0;
+        }
+        return v;
+    };
+
+    return ns3::Vector(clampAxis(pos.x, vel.x, m_rl.x_min, m_rl.x_max),
+                       clampAxis(pos.y, vel.y, m_rl.y_min, m_rl.y_max),
+                       vel.z);
+}
+
+void
+RlBridge::BeforeAdvance(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs)
+{
+    if (!m_centralized)
+    {
+        return;
+    }
+
+    for (const auto& slot : m_slots)
+    {
+        if (!slot.active)
+        {
+            continue;
+        }
+        auto cvmm = mobs[slot.node_index]->GetObject<ns3::ConstantVelocityMobilityModel>();
+        if (!cvmm)
+        {
+            continue;
+        }
+        cvmm->SetVelocity(ClampVelocityForTick(cvmm->GetPosition(), cvmm->GetVelocity()));
     }
 }
 
@@ -177,8 +528,38 @@ RlBridge::Step(uint32_t tick, double time_s,
 // Discrete action indices MUST match the Python env's action_masks():
 //   0:-X  1:+X  2:-Y  3:+Y  4:-Z  5:+Z  6:Stay
 void
-RlBridge::ApplyAction(ns3::Ptr<ns3::MobilityModel> mob)
+RlBridge::ApplyAction(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs)
 {
+    if (m_centralized)
+    {
+        for (uint32_t i = 0; i < m_numSlots; ++i)
+        {
+            const auto& slot = m_slots[i];
+            if (!slot.active)
+            {
+                continue;
+            }
+            double vx = 0.0;
+            double vy = 0.0;
+            switch (m_lastJoint[i])
+            {
+            case 0: vx = -slot.speed_mps; break;  // west
+            case 1: vx =  slot.speed_mps; break;  // east
+            case 2: vy = -slot.speed_mps; break;  // south
+            case 3: vy =  slot.speed_mps; break;  // north
+            default: break;                       // hold
+            }
+            auto cvmm = mobs[slot.node_index]->GetObject<ns3::ConstantVelocityMobilityModel>();
+            if (cvmm)
+            {
+                cvmm->SetVelocity(ns3::Vector(vx, vy, 0.0));
+            }
+        }
+        return;
+    }
+
+    ns3::Ptr<ns3::MobilityModel> mob = mobs[m_slots[0].node_index];
+
     auto pos = mob->GetPosition();
     double desiredX = pos.x;
     double desiredY = pos.y;

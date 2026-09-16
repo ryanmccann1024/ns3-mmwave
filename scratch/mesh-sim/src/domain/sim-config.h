@@ -49,11 +49,14 @@ struct TimingInfo
  * sim exchanges JSON observations and actions with an external RL agent via
  * stdin/stdout at each tick (activated by the @c --rl-mode CLI flag).
  *
- * **Action types**
- * | @c action_type   | Description                                                     |
- * |------------------|-----------------------------------------------------------------|
- * | @c "discrete"    | Left/right/up/down/stop offsets of @c step_size_m each tick.   |
- * | @c "continuous"  | Absolute (x, y) velocity vector; capped by @ref MaxSpeedForType. |
+ * **Action meanings**
+ * | Mode                        | Action space                                          |
+ * |-----------------------------|-------------------------------------------------------|
+ * | legacy @c "discrete"        | 7 actions (0:-X 1:+X 2:-Y 3:+Y 4:-Z 5:+Z 6:Stay) that |
+ * |                             |   set an absolute target clamped to the bounding box. |
+ * | legacy @c "continuous"      | An absolute (x, y[, z]) target position.              |
+ * | centralized @c "move_2d"    | @c MultiDiscrete([5]*M) per slot: 0:west 1:east       |
+ * |                             |   2:south 3:north 4:hold.                             |
  *
  * **Reward types**
  * | @c reward_type     | Description                                                   |
@@ -87,6 +90,25 @@ struct RlConfig
     double y_max =  1000.0;  ///< Northern boundary of the controlled node's allowed area (m).
     double z_min = 0.0;
     double z_max = 100.0;
+
+    // ---- Centralized multi-node control (raw @c [rl] keys) -----------------
+    std::string controlled_nodes;             ///< @c "all" or a comma-separated list of node
+                                              ///<   ids. Presence selects centralized mode.
+    bool        controlled_nodes_set = false; ///< @c true when the @c controlled_nodes key is
+                                              ///<   present in @c run.ini.
+    int         max_controlled_nodes = 0;     ///< Slot count @c M; @c 0 means the resolved
+                                              ///<   controlled-node count.
+    std::string action_profile = "move_2d";   ///< Centralized action profile; @c "move_2d" only.
+    double      decision_interval_s = 0.0;    ///< Seconds between RL decisions; @c 0 means
+                                              ///<   @ref SimConfig::tick_s.
+
+    // ---- Resolved fields (never from INI; written by @c ApplyRlControl) -----
+    std::string control_mode = "legacy";        ///< @c "legacy" or @c "centralized".
+    std::vector<uint32_t> controlled_indices;   ///< Slot order indices into
+                                                ///<   @ref SimConfig::nodes.
+    uint32_t num_slots = 0;                     ///< Resolved slot count @c M (legacy: 1).
+    uint32_t decision_interval_ticks = 1;       ///< Resolved decision cadence @c k in ticks.
+    uint32_t num_ticks = 0;                     ///< Loop tick count for the resolved mode.
 };
 
 /**

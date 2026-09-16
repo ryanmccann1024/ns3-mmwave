@@ -179,6 +179,59 @@ seed (a multi-seed training policy is a later TODO). Training refuses to start
 if the output directory already contains `train_manifest.json` or
 `maskable_ppo_mesh.zip`.
 
+### Centralized multi-node control
+
+Setting `[rl] controlled_nodes` switches the bridge from the legacy
+single-node mode to centralized mode, where one MaskablePPO policy moves a
+fixed set of mesh nodes. The keys below apply only when `[rl] enabled = true`;
+all other `[rl]` keys keep their existing meaning.
+
+| Key | Type / unit | Default | Mode |
+|---|---|---|---|
+| `controlled_nodes` | `all` or comma-separated node ids | absent (legacy mode) | centralized selector |
+| `max_controlled_nodes` | int, slot count `M` | `0` (auto-size to the resolved count), max `64` | centralized |
+| `action_profile` | enum | `move_2d` (only accepted value) | centralized |
+| `decision_interval_s` | seconds | `0` (means `tick_s`); must be an integer multiple of `tick_s` | centralized |
+
+`controlled_nodes` and the legacy `controlled_node_id` are mutually exclusive:
+setting both is a configuration error. The legacy key keeps `Discrete(7)` with
+`6:Stay`; `controlled_nodes` opts into `MultiDiscrete([5]*M)` with `4:hold`.
+
+`all` means every node listed in `nodes.json`, in file order. Jammers live in
+`jammers.json`, are never mesh nodes, and can never be controlled — even if a
+jammer's `id` equals a node's `id`.
+
+In centralized mode `reward_type = all_links_los` is the conjunction over every
+controlled node (`+1` only if each one has at least one peer link and all of
+them are LOS), and the reward reported per decision is the mean of the per-tick
+rewards in that decision window.
+
+`action_set` and `dimensions` are **not** accepted keys. The loader ignores
+unknown keys silently, so either spelling has no effect; `dimensions` is
+derived metadata reported in the `init` message.
+
+Training on the bundled centralized fixture:
+
+```bash
+.venv/bin/python -m scripts.rl.train \
+  --sim-binary <BIN> \
+  --run-config inputs/baselines/p1-multi-smoke/run.ini \
+  --output-dir outputs/rl-multi \
+  m-ppo --total-timesteps 16 --n-steps 16 --seed 1
+```
+
+The full contract — slot order, action meanings, mask layout, decision cadence,
+reward window, wall clipping, speed caps, and the `init`/`step`/action schemas —
+lives in [`src/rl/README.md`](src/rl/README.md).
+
+C++ owns the simulation because ns-3 mobility, propagation, link evaluation,
+and routing already live there and must stay deterministic and testable without
+Python; the bridge exposes only observations, masks, and rewards over
+stdin/stdout. Python provides the Gymnasium/SB3 integration because
+MaskablePPO, vectorized rollouts, and model persistence are Python libraries.
+Movement limits and action validity are therefore decided once, in C++, and
+Python never re-derives them.
+
 ### Band in sweeps and validation batches
 
 The generic sweep matrix already covers `band` — no band-specific syntax:

@@ -20,8 +20,8 @@
  * |                    | (@c --seeds / @c --seed / config default).                     |
  * | CLI overrides      | Every @ref CliArgs field, with @c "(not set)" for unused flags. |
  * | Resolved config    | Key @ref SimConfig scalar fields: timing, channel, traffic,    |
- * |                    | routing, node/building counts, plus band/RL-reward provenance   |
- * |                    | and jammer counts.                                             |
+ * |                    | routing, node/building counts, plus band/RL-reward provenance,  |
+ * |                    | the resolved RL control block, and jammer counts.              |
  * | Jammers            | One line per configured @ref JammerSpec (omitted when none).    |
  */
 #pragma once
@@ -150,6 +150,32 @@ WriteRunLog(const std::string&       base_output_dir,
     out << "  rl.reward_type      = " << cfg.rl.reward_type                << "\n";
     out << "  rl.reward_alias     = "
         << (cfg.rl.reward_type_alias.empty() ? "none" : cfg.rl.reward_type_alias) << "\n";
+
+    // RL control provenance: resolved by ResolveRlControl before this is called.
+    std::string rlContract = "legacy_discrete7";
+    if (cfg.rl.control_mode == "centralized")
+        rlContract = "mesh_move_2d_v1";
+    else if (cfg.rl.action_type == "continuous")
+        rlContract = "legacy_continuous";
+
+    std::string rlControlled;
+    for (uint32_t idx : cfg.rl.controlled_indices)
+    {
+        if (idx >= cfg.nodes.size())
+            continue;
+        if (!rlControlled.empty())
+            rlControlled += ",";
+        rlControlled += cfg.nodes[idx].id;
+    }
+
+    out << "  rl.control_mode     = " << cfg.rl.control_mode                 << "\n";
+    out << "  rl.contract         = " << rlContract                          << "\n";
+    out << "  rl.controlled_nodes = "
+        << (rlControlled.empty() ? "(none)" : rlControlled)                  << "\n";
+    out << "  rl.max_controlled_nodes = " << cfg.rl.num_slots                << "\n";
+    out << "  rl.decision_interval_s  = "
+        << (cfg.rl.decision_interval_ticks * cfg.tick_s)                     << "\n";
+    out << "  rl.decision_interval_ticks = " << cfg.rl.decision_interval_ticks << "\n";
     out << "  jammers.configured  = " << cfg.jammers.size()                << "\n";
     out << "  jammers.enabled     = " << jammersEnabled                    << "\n";
     out << "  jammer_path_enabled = " << (jammerPathEnabled ? "true" : "false") << "\n";
