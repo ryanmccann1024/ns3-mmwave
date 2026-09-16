@@ -2,8 +2,8 @@
 
 ## RL Enhancements
 
-### Multi-Node Control — remaining work after P1
-P1 landed centralized control: `[rl] controlled_nodes` gives one MaskablePPO
+### Multi-node control
+`[rl] controlled_nodes` gives one MaskablePPO
 policy a fixed set of mesh nodes with the 2-D `move_2d` profile. Remaining:
 
 - **3-D `move_3d` profile.** `nvec = [7]*M` with `down`/`up` added and hold at
@@ -12,7 +12,7 @@ policy a fixed set of mesh nodes with the 2-D `move_2d` profile. Remaining:
 - **Coupled and collision constraints.** Per-slot masks cannot express
   minimum separation, collision avoidance, or any joint constraint between
   controlled nodes. Owner: team — status: open.
-- **Transfer and evaluation loader.** P1 emits compatibility metadata
+- **Transfer and evaluation loader.** Centralized runs emit compatibility metadata
   (`init` contract block, `rl_episode.json`, `train_manifest.json`,
   `run.log`) but adds no model-loading entry point. A later loader must check
   contract id, action meanings, `max_controlled_nodes`, `num_mesh_nodes`,
@@ -21,26 +21,26 @@ policy a fixed set of mesh nodes with the 2-D `move_2d` profile. Remaining:
   mismatch. Transfer across scenarios is never implied by matching shapes.
   Owner: team — status: open.
 
-### P1 centralized-control questions (temporary assumptions in effect)
+### Centralized-control questions (temporary assumptions in effect)
 Each item below records the assumption the landed code implements. Confirm or
 change it; do not infer the answer from the code.
 
-- **TODO-P1-1 — Waypoint start.** Should an RL-controlled waypoint node start
+- **TODO-RL-CONTROL-1 — Waypoint start.** Should an RL-controlled waypoint node start
   at its first waypoint and ignore the rest? Assumed yes: a controlled
   waypoint node is placed at `waypoints.front()` and RL then owns its motion.
   Owner: team — status: open.
-- **TODO-P1-2 — `all` eligibility.** Should `all` exclude any node class (for
+- **TODO-RL-CONTROL-2 — `all` eligibility.** Should `all` exclude any node class (for
   example a traffic gateway)? Assumed no exclusions: `all` is every entry of
   `nodes.json`. Owner: team — status: open.
-- **TODO-P1-3 — Per-slot speed.** Is `step_size_m / tick_s` capped by node
+- **TODO-RL-CONTROL-3 — Per-slot speed.** Is `step_size_m / tick_s` capped by node
   type the right per-slot speed, or is a `speed_mps` key wanted? Assumed the
   former, which keeps current movement for existing configs.
   Owner: team — status: open.
-- **TODO-P1-4 — 3-D ground types.** In a 3-D profile, should vehicles and
+- **TODO-RL-CONTROL-4 — 3-D ground types.** In a 3-D profile, should vehicles and
   pedestrians have down/up masked off? Deferred with 3-D.
   Owner: team — status: open.
-- **TODO-P1-5 — Observing uncontrolled nodes.** Should uncontrolled-node
-  positions be observable by the agent? Assumed no in P1 and still excluded by
+- **TODO-RL-CONTROL-5 — Observing uncontrolled nodes.** Should uncontrolled-node
+  positions be observable by the agent? Currently excluded from
   `local_links_v1`; tracked with the other candidate features in TODO-P2-4.
   Owner: team — status: open.
 - **TODO-TIME-1 — Tick-count unification.** Legacy and non-RL runs keep the
@@ -79,8 +79,8 @@ change it; do not infer the answer from the code.
 The root `scratch/mesh-sim/CLAUDE.md` dependency-layer list does not record the
 new `setup → config` edge: `src/setup/topology-builder.cc` includes
 `src/config/rl-control.h` for `ControlledStartPosition`. That file is
-human-owned and was deliberately not edited in P1; the line should be added by
-its owner. Owner: team — status: open.
+human-owned and was deliberately not edited when centralized control was
+added; the line should be added by its owner. Owner: team — status: open.
 
 ### Continuous Desired-Position Actions with SB3
 The discrete left/right/stay action space is a v0 simplification. The
