@@ -12,11 +12,13 @@ from scripts.rl.cli_common import (MANIFEST_NAME, add_scenario_arguments,
 from scripts.rl.env.config import read_scenario_identity
 from scripts.rl.env.mesh_env import MeshRlEnv
 from scripts.rl.policy.bundle import (eval_selection, load_model, read_bundle,
-                                      selection_from_manifest)
+                                      seed_roles, selection_from_manifest,
+                                      training_provenance)
 from scripts.rl.policy.compat import check_compatibility
 from scripts.rl.policy.evaluate import (EVAL_MANIFEST_NAME, HoldPolicy, ModelPolicy,
                                         PolicySpec, Prepared, RandomValidPolicy,
                                         evaluate)
+from scripts.sim_support import parse_seed_spec
 
 POLICY_NAMES = ("model", "hold", "random_valid")
 SELECTION_FLAGS = ("observation_preset", "reward_components", "reward_weights",
@@ -25,19 +27,6 @@ SELECTION_FLAGS = ("observation_preset", "reward_components", "reward_weights",
 
 def mask_fn(env):
     return env.unwrapped.action_masks()
-
-
-def _parse_seeds(raw: str) -> list[int]:
-    tokens = [token.strip() for token in raw.split(",") if token.strip()]
-    if not tokens:
-        raise ValueError("--seeds must list at least one integer")
-    try:
-        seeds = [int(token) for token in tokens]
-    except ValueError as exc:
-        raise ValueError(f"--seeds must be integers: {exc}") from exc
-    if len(set(seeds)) != len(seeds):
-        raise ValueError(f"--seeds must be distinct, got {seeds}")
-    return seeds
 
 
 def _parse_policies(raw: str) -> list[str]:
@@ -97,7 +86,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output-dir", required=True,
                    help="Evaluation output root; must be outside --run-dir")
     p.add_argument("--seeds", required=True,
-                   help="Comma-separated distinct episode seeds")
+                   help="Comma-separated distinct episode seeds; A-B is an inclusive range")
+    p.add_argument("--label", default=None,
+                   help="Name shared by evaluations of independently trained models")
+    p.add_argument("--allow-seed-overlap", action="store_true",
+                   help="Evaluate on a training or model-selection seed; not held out")
     p.add_argument("--policies", default=",".join(POLICY_NAMES),
                    help=f"Comma-separated subset of {list(POLICY_NAMES)}")
     p.add_argument("--allow-different-scenario", action="store_true",
@@ -125,11 +118,24 @@ def _resolve_run(args, policies: list[str]) -> tuple:
     return None, args.run_config, args.band, selection_from_args(args)
 
 
+def _overlap_message(roles: dict, run_dir: str) -> str:
+    """Name every held-out seed that is really a training or model-selection seed."""
+    parts = []
+    for seed in roles["overlap"]:
+        which = []
+        if seed == roles["training_seed"]:
+            which.append("the training seed")
+        if seed == roles["model_selection_seed"]:
+            which.append("the model-selection seed")
+        parts.append(f"held-out seed {seed} is {' and '.join(which)} of {run_dir}")
+    return "; ".join(parts)
+
+
 def _print_summary(manifest: dict) -> None:
     for name, block in manifest["policies"].items():
         summary = block["summary"]
         print(f"{name}: mean_return={summary['mean_return']} "
-              f"episodes={summary['completed_episodes']} "
+              f"episodes={summary['completed_episodes']}/{summary['expected_episodes']} "
               f"revalidated={summary['revalidated_slots_total']} "
               f"mask_violations={summary['mask_violations_total']}")
 
@@ -141,15 +147,15 @@ def _exit_code(manifest: dict, expected_episodes: int) -> int:
             episode["status"] != "completed" for episode in episodes):
         print("Not every evaluation episode completed", file=sys.stderr)
         return 1
-    counters = sum(episode["revalidated_slots_total"] + episode["mask_violations"]
-                   for episode in episodes)
+    counters = sum((episode["revalidated_slots_total"] or 0)
+                   + (episode["mask_violations"] or 0) for episode in episodes)
     return 2 if counters else 0
 
 
 def main(argv=None) -> int:
     args = _build_parser().parse_args(argv)
     try:
-        seeds = _parse_seeds(args.seeds)
+        seeds = parse_seed_spec(args.seeds)
         policies = _parse_policies(args.policies)
         _check_output_dir(args.output_dir, args.run_dir)
     except ValueError as exc:
@@ -158,12 +164,28 @@ def main(argv=None) -> int:
 
     try:
         bundle, run_config, band, selection = _resolve_run(args, policies)
+        train_manifest = bundle.manifest if bundle is not None else None
+        roles = seed_roles(train_manifest, args.model if bundle is not None else None,
+                           seeds)
+        roles["overlap_allowed"] = bool(args.allow_seed_overlap)
+        if roles["overlap"] and "model" in policies:
+            message = _overlap_message(roles, args.run_dir)
+            if not args.allow_seed_overlap:
+                print(f"{message}; choose other seeds or pass --allow-seed-overlap",
+                      file=sys.stderr)
+                return 1
+            print(f"WARNING: {message}; these results are not held out",
+                  file=sys.stderr)
         selection = eval_selection(selection)
         identity = read_scenario_identity(run_config)
         base = {
             "sim_binary": os.path.abspath(args.sim_binary),
             "run_config": os.path.abspath(run_config),
             "band": band,
+            "label": args.label,
+            "seed_roles": roles,
+            "training": (training_provenance(train_manifest)
+                         if train_manifest is not None else None),
             "scenario_identity": identity,
             "bundle": bundle.describe() if bundle is not None else None,
         }

@@ -4,7 +4,8 @@
 Legacy single-node mode is used unless [rl] controlled_nodes is set, which selects
 the centralized protocol. FAKE_SIM_MODE selects normal (default), exit3, malformed,
 no_facts (missing the facts protocol), or an isolated centralized fault mode;
-it never proves real movement or reward correctness.
+it never proves real movement or reward correctness. FAKE_SIM_FAIL_SEEDS lists the
+seeds that die mid-episode in centralized mode; other seeds are unaffected.
 """
 
 import configparser
@@ -288,7 +289,13 @@ def _init_message(mode: str, num_slots: int, count: int, nodes: list[dict],
     return init
 
 
-def run_centralized(args: dict, ini: configparser.ConfigParser, mode: str) -> int:
+def _fail_seeds() -> set[int]:
+    raw = os.environ.get("FAKE_SIM_FAIL_SEEDS", "")
+    return {int(token) for token in raw.split(",") if token.strip()}
+
+
+def run_centralized(args: dict, ini: configparser.ConfigParser, mode: str,
+                    seed: int) -> int:
     nodes = _load_nodes(args["run-config"], ini)
     slots = _resolve_slots(ini, nodes)
     count = len(slots)
@@ -344,6 +351,9 @@ def run_centralized(args: dict, ini: configparser.ConfigParser, mode: str) -> in
             step["facts"] = _facts(nodes, slots, node_velocities, window_len,
                                    demand_mbps, reward_tick)
         emit(json.dumps(step))
+        if decision == 1 and seed in _fail_seeds():
+            print(STDERR_MARKER, file=sys.stderr, flush=True)
+            return 3
         if tick >= num_ticks:
             return 0
         if mode == "exit3" and decision == 0:
@@ -382,7 +392,7 @@ def main() -> int:
     write_outputs(Path(args["output-dir"]), seed, args.get("band"))
 
     if ini.has_option("rl", "controlled_nodes"):
-        return run_centralized(args, ini, mode)
+        return run_centralized(args, ini, mode, seed)
 
     n_messages = int(round(duration_s / tick_s)) + 1
     pos = [0.0, 0.0, 0.0]

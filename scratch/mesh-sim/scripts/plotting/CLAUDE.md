@@ -30,6 +30,7 @@ This module is read-only with respect to sim data -- it never modifies outputs.
 - `cli.py` owns saving and closing figures.
 - Aggregation is seed-aware: single-seed runs skip CI, multi-seed runs add CI bands/error bars.
 - CSV loaders return `pd.DataFrame | None`; callers must handle `None`.
+- t critical values come from `scripts/stats.py`; an untabulated df rounds down.
 
 ## Running
 

@@ -5,6 +5,8 @@ import os
 import sys
 from dataclasses import dataclass, field
 
+from scripts.sim_support import parse_seed_spec
+
 
 @dataclass
 class SweepDimension:
@@ -26,19 +28,6 @@ class SweepConfig:
     label: str
     overrides: dict[tuple[str, str], str] = field(default_factory=dict)
     dimensions: list[SweepDimension] = field(default_factory=list)
-
-
-def _parse_seeds(seeds_str: str) -> list[int]:
-    """Parse seeds string supporting ranges (e.g. '1-1000') and lists (e.g. '1, 2, 3')."""
-    seeds: list[int] = []
-    for part in seeds_str.split(","):
-        part = part.strip()
-        if "-" in part:
-            lo, hi = part.split("-", 1)
-            seeds.extend(range(int(lo.strip()), int(hi.strip()) + 1))
-        else:
-            seeds.append(int(part))
-    return seeds
 
 
 def _parse_section_key(dotted: str) -> tuple[str, str]:
@@ -67,7 +56,7 @@ def parse_sweep_config(path: str) -> SweepConfig:
 
     base_scenario = cfg.get("sweep.meta", "base_scenario")
     seeds_str = cfg.get("sweep.meta", "seeds", fallback="1")
-    seeds = _parse_seeds(seeds_str)
+    seeds = parse_seed_spec(seeds_str, distinct=False)
     auto_plot = cfg.get("sweep.meta", "auto_plot", fallback="none")
     plot_config = cfg.get("sweep.meta", "plot_config", fallback="")
     label = cfg.get("sweep.meta", "label", fallback="sweep")

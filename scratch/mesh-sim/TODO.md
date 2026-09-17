@@ -108,6 +108,11 @@ additional `action_type` options.
 P0 trains with one fixed seed (`m-ppo --seed`, else `[scenario] seed`) reused by
 every episode. Deciding whether episodes should vary the seed, and how the
 model/manifest should record that, is deferred.
+That one integer also sets both the PPO initialization and the training scenario,
+so the across-training-runs interval in `scripts.rl.compare` conflates the two
+sources of randomness and cannot attribute run-to-run spread to either.
+Separately, `--eval-episodes > 1` appears to replay the same evaluation seed
+rather than sampling new ones — unverified.
 Owner: team — status: open.
 
 ### TODO-RL-RESUME-1 — Resume from checkpoint
@@ -123,6 +128,33 @@ directional reward difference visible on a tiny run, and it is not evidence that
 training converges or that a policy is useful. A real learning-signal study —
 scenario set, seeds, budgets, baselines, and success criteria — belongs to a
 separately approved campaign phase. Owner: team — status: open.
+
+### TODO-RL-BASELINE-1 — Greedy baseline
+`scripts.rl.evaluate` offers `hold` and seeded `random_valid`, which bracket "do
+nothing" and "valid noise" but not "a sensible hand-written controller". A greedy
+baseline cannot be added as just another policy: a policy sees only `obs`, whose
+layout differs per observation preset (`raw_links_v1` is raw, `local_links_v1` is
+normalized), so it needs either a facts-access contract of its own or a decoder
+per preset, plus its own validation, because a greedy baseline becomes the de
+facto benchmark everything else is judged against. `scripts.rl.compare` accepts
+any baseline name present in a manifest, so adding one later needs no change to
+the comparison harness. Owner: team — status: open.
+
+### TODO-RL-EVAL-1 — Simulator-summary metrics in policy comparisons
+Every statistic in `scripts.rl.compare` comes from the RL telemetry window, and
+each output states `metric_source` accordingly. A run's `summary.json` carries
+richer per-seed metrics but excludes warmup ticks while the RL window does not,
+so the two cannot be mixed in one table whenever `warmup_s > 0`. Using
+`summary.json` metrics requires resolving that warmup mismatch first (see the
+RL-reward warmup entry above). Owner: team — status: open.
+
+### TODO-RL-EVAL-2 — Merging evaluations of one model across output directories
+An evaluation is compared as a single `eval_manifest.json`, so baselines are
+re-run inside every evaluation and a per-seed cluster array (each seed in its own
+output directory) cannot be assembled into one comparison. A merge needs an
+explicit rule set, sketched as: a `completed` record supersedes a `failed` one
+for the same seed, and two `completed` records for one seed must agree on
+`actions_sha256` or the merge is refused. Owner: team — status: open.
 
 ## Jammer model decisions (P0, unresolved)
 

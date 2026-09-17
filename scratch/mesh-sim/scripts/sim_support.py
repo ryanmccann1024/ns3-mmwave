@@ -32,6 +32,32 @@ def simulator_env(mesh_root: str | Path) -> dict[str, str]:
     return env
 
 
+def parse_seed_spec(raw: str, distinct: bool = True) -> list[int]:
+    """Expand a comma list of integers and inclusive `A-B` ranges, order preserved."""
+    tokens = [token.strip() for token in str(raw).split(",") if token.strip()]
+    if not tokens:
+        raise ValueError("seed specification is empty")
+    seeds: list[int] = []
+    for token in tokens:
+        low, separator, high = token.partition("-")
+        try:
+            start = int(low.strip())
+            end = int(high.strip()) if separator else start
+        except ValueError as exc:
+            raise ValueError(
+                f"seed {token!r} is not an integer or an A-B range: {exc}") from exc
+        if start > end:
+            raise ValueError(f"seed range {token!r} must have A <= B")
+        seeds.extend(range(start, end + 1))
+    if distinct:
+        seen: set[int] = set()
+        for seed in seeds:
+            if seed in seen:
+                raise ValueError(f"seed {seed} is listed more than once")
+            seen.add(seed)
+    return seeds
+
+
 def strip_inline_comment(value: str) -> str:
     """Mirror the C++ INI parser's # and ; inline-comment handling."""
     for marker in ("#", ";"):

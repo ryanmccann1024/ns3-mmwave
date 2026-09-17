@@ -14,10 +14,14 @@ from scripts.rl.env.protocol import SLOT_ACTIONS
 from scripts.rl.env.telemetry import TELEMETRY_FILE
 
 EVAL_MANIFEST_NAME = "eval_manifest.json"
-EVAL_MANIFEST_VERSION = 1
+EVAL_MANIFEST_VERSION = 2
+METRIC_SOURCE = {"kind": "telemetry_window", "warmup_excluded": False}
 HOLD_ACTION = 4
 _RETURN_TOL = 1e-9
 _DEMAND_EPS = 1e-9
+_MAX_ERROR_CHARS = 1000
+_METRIC_NAMES = ("delivery_ratio", "connectivity", "los_fraction",
+                 "unroutable_fraction", "first_all_los_decision")
 
 
 class Policy(Protocol):
@@ -93,25 +97,29 @@ class EpisodeResult:
     """One evaluated episode and the domain metrics derived from its telemetry."""
 
     seed: int
-    episode_dir: str
+    episode_dir: str | None
     status: str
     exit_code: int | None
     decisions: int
-    total_return: float
+    total_return: float | None
     reward_components_sum: dict
-    revalidated_slots_total: int
-    mask_violations: int
-    actions_sha256: str
+    revalidated_slots_total: int | None
+    mask_violations: int | None
+    actions_sha256: str | None
     metrics: dict
+    summary_json: str | None = None
+    error: str | None = None
 
     def describe(self) -> dict:
         return {"seed": self.seed, "episode_dir": self.episode_dir,
-                "status": self.status, "exit_code": self.exit_code,
+                "status": self.status, "error": self.error,
+                "exit_code": self.exit_code,
                 "decisions": self.decisions, "return": self.total_return,
                 "reward_components_sum": dict(self.reward_components_sum),
                 "revalidated_slots_total": self.revalidated_slots_total,
                 "mask_violations": self.mask_violations,
-                "actions_sha256": self.actions_sha256, "metrics": dict(self.metrics)}
+                "actions_sha256": self.actions_sha256, "metrics": dict(self.metrics),
+                "summary_json": self.summary_json}
 
 
 def _episode_dir(env) -> Path:
@@ -137,14 +145,14 @@ def _read_records(episode_dir: Path) -> list[dict]:
 
 
 def episode_metrics(episode_dir: Path, num_links: int) -> dict:
-    """Delivery, connectivity, and LOS from the saved per-decision window sums."""
+    """Delivery, connectivity, LOS, and routability from the per-decision window sums."""
     records = _read_records(episode_dir)
-    metrics = {"delivery_ratio": None, "connectivity": None, "los_fraction": None,
-               "first_all_los_decision": None}
+    metrics = {name: None for name in _METRIC_NAMES}
     if not records:
         return metrics
 
     ticks = demand = delivered = connected = los = 0.0
+    flow_ticks = unroutable = 0.0
     for record in records:
         window = record["facts"]["window"]
         ticks += int(window["ticks"])
@@ -152,6 +160,8 @@ def episode_metrics(episode_dir: Path, num_links: int) -> dict:
         delivered += float(window["delivered_mbps_sum"])
         connected += int(window["connected_pairs_sum"])
         los += int(window["los_pairs_sum"])
+        flow_ticks += int(window["flow_ticks_with_demand"])
+        unroutable += int(window["unroutable_flow_ticks"])
         if (metrics["first_all_los_decision"] is None
                 and int(window["los_pairs_sum"]) == int(window["ticks"]) * num_links):
             metrics["first_all_los_decision"] = int(record["decision"])
@@ -162,6 +172,8 @@ def episode_metrics(episode_dir: Path, num_links: int) -> dict:
     if pairs > 0:
         metrics["connectivity"] = connected / pairs
         metrics["los_fraction"] = los / pairs
+    if flow_ticks > 0:
+        metrics["unroutable_fraction"] = unroutable / flow_ticks
     return metrics
 
 
@@ -196,6 +208,7 @@ def run_episode(env, policy: Policy, seed: int, initial=None) -> EpisodeResult:
         raise RuntimeError(
             f"Episode return {total!r} does not match {episode_dir}/rl_episode.json "
             f"cumulative_reward {recorded!r}")
+    summary = episode_dir / f"seed-{int(seed)}" / "summary.json"
     return EpisodeResult(
         seed=int(seed),
         episode_dir=str(episode_dir),
@@ -208,19 +221,62 @@ def run_episode(env, policy: Policy, seed: int, initial=None) -> EpisodeResult:
         mask_violations=violations,
         actions_sha256=_actions_sha256(actions),
         metrics=episode_metrics(episode_dir, int(contract.get("num_links", 0))),
+        summary_json=str(summary) if summary.is_file() else None,
     )
 
 
-def summarize(results: list[EpisodeResult]) -> dict:
-    """Per-policy aggregate over its episodes."""
-    returns = [r.total_return for r in results]
+def _not_run(seed: int) -> EpisodeResult:
+    """A seed the evaluation never attempted because it aborted earlier."""
+    return EpisodeResult(seed=int(seed), episode_dir=None, status="not_run",
+                         exit_code=None, decisions=0, total_return=None,
+                         reward_components_sum={}, revalidated_slots_total=None,
+                         mask_violations=None, actions_sha256=None,
+                         metrics={name: None for name in _METRIC_NAMES})
+
+
+def _partial_episode(env, seed: int, recorded: set[str]) -> tuple[Path | None, dict]:
+    """The failing episode's directory and manifest, only if they belong to this seed."""
+    try:
+        path = _episode_dir(env)
+        manifest = json.loads((path / "rl_episode.json").read_text())
+    except (OSError, ValueError, RuntimeError, KeyError):
+        return None, {}
+    if str(path) in recorded or int(manifest.get("seed", -1)) != int(seed):
+        return None, {}
+    return path, manifest
+
+
+def _failed_result(env, seed: int, exc: BaseException,
+                   recorded: set[str]) -> EpisodeResult:
+    """The record for an episode that raised: partial totals, an error, no metrics."""
+    episode_dir, partial = _partial_episode(env, seed, recorded)
+    reported = partial.get("status") if isinstance(partial.get("status"), str) else ""
+    # A partial window spans less time than a full episode, so it is never averaged.
+    return EpisodeResult(
+        seed=int(seed), episode_dir=None if episode_dir is None else str(episode_dir),
+        status=reported if reported and reported != "completed" else "failed",
+        exit_code=partial.get("exit_code"),
+        decisions=int(partial.get("decisions") or 0),
+        total_return=partial.get("cumulative_reward"),
+        reward_components_sum=dict(partial.get("reward_components_sum") or {}),
+        revalidated_slots_total=None, mask_violations=None, actions_sha256=None,
+        metrics={name: None for name in _METRIC_NAMES},
+        error=f"{type(exc).__name__}: {exc}"[:_MAX_ERROR_CHARS],
+    )
+
+
+def summarize(results: list[EpisodeResult], expected: int | None = None) -> dict:
+    """Per-policy aggregate; returns and counters cover completed episodes only."""
+    done = [r for r in results if r.status == "completed"]
+    returns = [r.total_return for r in done]
     return {
+        "expected_episodes": len(results) if expected is None else int(expected),
         "mean_return": (sum(returns) / len(returns)) if returns else None,
         "min_return": min(returns) if returns else None,
         "max_return": max(returns) if returns else None,
-        "revalidated_slots_total": sum(r.revalidated_slots_total for r in results),
-        "mask_violations_total": sum(r.mask_violations for r in results),
-        "completed_episodes": sum(1 for r in results if r.status == "completed"),
+        "revalidated_slots_total": sum(r.revalidated_slots_total or 0 for r in done),
+        "mask_violations_total": sum(r.mask_violations or 0 for r in done),
+        "completed_episodes": len(done),
     }
 
 
@@ -228,8 +284,15 @@ def _initial_manifest(base: dict, seeds: list[int]) -> dict:
     return {
         "eval_manifest_version": EVAL_MANIFEST_VERSION,
         "status": "running",
+        "error": None,
+        "label": base.get("label"),
         "started_at": now_iso(),
         "ended_at": None,
+        "metric_source": dict(METRIC_SOURCE),
+        "seed_roles": base.get("seed_roles"),
+        "training": base.get("training"),
+        "episodes_expected": None,
+        "episodes_completed": 0,
         "sim_binary": base.get("sim_binary"),
         "run_config": base.get("run_config"),
         "band": base.get("band"),
@@ -250,44 +313,68 @@ def _initial_manifest(base: dict, seeds: list[int]) -> dict:
     }
 
 
+def _store(manifest: dict, name: str, results: list[EpisodeResult],
+           expected: int) -> None:
+    manifest["policies"][name] = {
+        "episodes": [result.describe() for result in results],
+        "summary": summarize(results, expected),
+    }
+    manifest["episodes_completed"] = sum(
+        block["summary"]["completed_episodes"] for block in manifest["policies"].values())
+
+
 def evaluate(make_env, policies: list[PolicySpec], seeds: list[int], out_dir,
              base: dict) -> dict:
-    """Run every policy over every seed and write eval_manifest.json."""
+    """Run every policy over every seed and write eval_manifest.json after each episode."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    seeds = [int(seed) for seed in seeds]
     manifest_path = out_dir / EVAL_MANIFEST_NAME
     manifest = _initial_manifest(base, seeds)
+    manifest["episodes_expected"] = len(policies) * len(seeds)
     write_json(manifest_path, manifest)
+    collected: dict[str, list[EpisodeResult]] = {spec.name: [] for spec in policies}
 
     try:
         for spec in policies:
+            results = collected[spec.name]
             env = make_env(spec.name)
             try:
-                prepared = spec.build(env, int(seeds[0]))
+                prepared = spec.build(env, seeds[0])
                 manifest.update(prepared.manifest_updates)
-                results = [run_episode(env, prepared.policy, int(seed),
-                                       initial=prepared.initial if index == 0 else None)
-                           for index, seed in enumerate(seeds)]
-                if manifest["contract"] is None:
-                    manifest["contract"] = env.contract
-                    manifest["selection"] = env.selection.describe()
-                    manifest["observation_schema"] = env.observation_schema
-                    manifest["reward_schema"] = env.reward_schema
-                manifest["policies"][spec.name] = {
-                    "episodes": [result.describe() for result in results],
-                    "summary": summarize(results),
-                }
-                write_json(manifest_path, manifest)
+                recorded: set[str] = set()
+                for index, seed in enumerate(seeds):
+                    try:
+                        result = run_episode(
+                            env, prepared.policy, seed,
+                            initial=prepared.initial if index == 0 else None)
+                    except Exception as exc:
+                        result = _failed_result(env, seed, exc, recorded)
+                    if result.episode_dir is not None:
+                        recorded.add(result.episode_dir)
+                    if manifest["contract"] is None and env.contract is not None:
+                        manifest["contract"] = env.contract
+                        manifest["selection"] = env.selection.describe()
+                        manifest["observation_schema"] = env.observation_schema
+                        manifest["reward_schema"] = env.reward_schema
+                    results.append(result)
+                    _store(manifest, spec.name, results, len(seeds))
+                    write_json(manifest_path, manifest)
             finally:
                 env.close()
-    except Exception as exc:
+    except BaseException as exc:
+        for name, results in collected.items():
+            results.extend(_not_run(seed) for seed in seeds[len(results):])
+            _store(manifest, name, results, len(seeds))
         manifest["status"] = "failed"
         manifest["ended_at"] = now_iso()
-        manifest["error"] = f"{type(exc).__name__}: {exc}"
+        manifest["error"] = f"{type(exc).__name__}: {exc}"[:_MAX_ERROR_CHARS]
         write_json(manifest_path, manifest)
         raise
 
-    manifest["status"] = "completed"
+    completed = manifest["episodes_completed"]
+    manifest["status"] = ("completed" if completed == manifest["episodes_expected"]
+                          else "partial" if completed else "failed")
     manifest["ended_at"] = now_iso()
     write_json(manifest_path, manifest)
     return manifest

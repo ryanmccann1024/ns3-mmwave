@@ -15,6 +15,8 @@ MANIFEST_VERSION = 4
 CHECKPOINT_DIR = "checkpoints"
 _SELECTION_KEYS = ("observation_preset", "reward_components", "reward_weights",
                    "telemetry", "telemetry_every")
+_SCENARIO_SHA_KEYS = ("run_ini_sha256", "nodes_json_sha256", "buildings_json_sha256",
+                      "jammers_json_sha256")
 
 
 @dataclass(frozen=True)
@@ -106,6 +108,44 @@ def read_bundle(run_dir, model: str = "final") -> ModelBundle:
             f"model file digest mismatch for {path}: recorded {digest}, found {actual}")
     selection = model if model in ("final", "best") else "checkpoint"
     return ModelBundle(run_dir, manifest, selection, path, digest, num_timesteps)
+
+
+def training_provenance(manifest: dict) -> dict:
+    """Portable training facts an evaluation records: seeds, budgets, scenario digests."""
+    evaluation = manifest.get("evaluation") or {}
+    identity = manifest.get("scenario_identity") or {}
+    return {
+        "algorithm": manifest.get("algorithm"),
+        "seed": manifest.get("seed"),
+        "seed_source": manifest.get("seed_source"),
+        "evaluation_seed": evaluation.get("seed"),
+        "evaluation_episodes": evaluation.get("episodes"),
+        "scenario_identity": {key: identity.get(key) for key in _SCENARIO_SHA_KEYS},
+        "hyperparameters": dict(manifest.get("hyperparameters") or {}),
+    }
+
+
+def seed_roles(manifest: dict | None, model_selection: str | None,
+               seeds) -> dict:
+    """Which evaluation seeds collide with the training or model-selection seed."""
+    held_out_seeds = [int(seed) for seed in seeds]
+    roles = {"training_seed": None, "model_selection_seed": None,
+             "selection_seed_used_for_model": model_selection == "best",
+             "held_out_seeds": held_out_seeds, "overlap": [],
+             "overlap_allowed": False, "held_out": None}
+    if manifest is None:
+        return roles
+
+    training_seed = manifest.get("seed")
+    evaluation = manifest.get("evaluation")
+    selection_seed = (evaluation or {}).get("seed") if evaluation else None
+    roles["training_seed"] = None if training_seed is None else int(training_seed)
+    roles["model_selection_seed"] = None if selection_seed is None else int(selection_seed)
+    reserved = {seed for seed in (roles["training_seed"], roles["model_selection_seed"])
+                if seed is not None}
+    roles["overlap"] = [seed for seed in held_out_seeds if seed in reserved]
+    roles["held_out"] = not roles["overlap"]
+    return roles
 
 
 def selection_from_manifest(manifest: dict) -> RlSelection:

@@ -2,6 +2,7 @@
 
 ## Scope
 Scenario definitions only. Each baseline scenario is a directory under `baselines/` containing configuration files that drive a simulation run.
+`experiments/` holds named RL experiment matrices, each row an explicit observation, action, and reward selection over one scenario.
 
 ## Per-scenario files
 - **run.ini** -- Simulation parameters (channel, traffic, routing, mesh, output settings)
