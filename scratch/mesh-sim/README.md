@@ -163,7 +163,8 @@ warning on stderr, and is recorded in `run.log` as `rl.reward_alias`.
 ### MaskablePPO smoke run
 
 Run from `scratch/mesh-sim/`, with global options before the `m-ppo`
-subcommand:
+subcommand. For a quick tour of the RL files, see the
+[RL code map](scripts/rl/README.md).
 
 ```bash
 .venv/bin/python -m scripts.rl.train \
