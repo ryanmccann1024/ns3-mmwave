@@ -460,7 +460,7 @@ matrix into the train, evaluate, and compare steps that produce them.
 
 .venv/bin/python -m scripts.rl.experiment plan \
   --matrix inputs/experiments/bypass-smoke-matrix.json \
-  --output-root outputs/bypass-matrix --sim-binary <BIN> [--rows local-delivery]
+  --output-root outputs/bypass-matrix --sim-binary <BIN>
 
 .venv/bin/python -m scripts.rl.experiment run \
   --matrix inputs/experiments/bypass-smoke-matrix.json \
@@ -480,6 +480,14 @@ record every aggregate traces back to) and `comparison.json`. Neither file
 carries a timestamp, so repeating the same command reproduces byte-identical
 output. A listed directory without a readable manifest becomes a
 `missing_evaluations` entry instead of a crash.
+
+The matrix names the scenario in `run_config`, lists independent training,
+model-selection, and held-out evaluation seeds under `seeds`, and specifies
+training and evaluation budgets. Each `rows` entry chooses one observation
+preset, action profile, and weighted reward; rows are explicit combinations,
+not an automatic Cartesian product. Add `--rows local-delivery` to both `plan`
+and `run` to select just that row; they must use the same filter for one output
+root.
 
 `experiment` writes `experiment_plan.json` under `--output-root` and keeps the
 runs beside it: `train/<row>/train-seed-<S>/`, `eval/<row>/train-seed-<S>/`, and
@@ -531,6 +539,8 @@ seeds they are approximate, not exact.
 `inputs/experiments/bypass-smoke-matrix.json` is diagnostic, not a benchmark:
 four explicit rows around one anchor on the bypass fixture with smoke-sized
 budgets. It exercises the harness; it is not evidence that a policy learns.
+For the purpose, input, and expected output of each comparison and matrix test,
+see [Policy comparison tests](src/rl/policy-comparison-tests.md).
 
 ### Band in sweeps and validation batches
 
