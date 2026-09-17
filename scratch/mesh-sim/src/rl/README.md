@@ -22,6 +22,8 @@ simulator process, episode directories, diagnostics, and manifest.
 precedence, and validates it. `observations.py` owns the named observation
 presets and their schema identity. `rewards.py` owns the reward components and
 the composer. `telemetry.py` owns `steps.jsonl` records and their replay.
+For a worked configuration, formulas, normalization, and trace inspection, see
+the [policy-input guide](policy-inputs.md).
 
 ## Modes
 
