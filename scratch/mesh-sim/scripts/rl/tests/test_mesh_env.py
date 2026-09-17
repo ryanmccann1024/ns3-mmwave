@@ -13,6 +13,7 @@ import gymnasium
 import numpy as np
 import pytest
 
+from scripts.rl.bootstrap_venv import DIRECT_DEPS
 from scripts.rl.env.mesh_env import MeshRlEnv
 from scripts.rl.env.selection import resolve_selection
 from scripts.rl.env.telemetry import replay_file
@@ -154,6 +155,23 @@ def test_reset_with_resolved_seed_keeps_source(sim_binary, run_config, tmp_path)
     assert manifest["seed_source"] == "run.ini"
 
 
+@pytest.mark.parametrize("options,expected_source", [
+    ({"seed_source": "eval"}, "eval"),
+    (None, "run.ini"),
+])
+def test_reset_options_label_the_seed_source(sim_binary, multi_run_config, tmp_path,
+                                             options, expected_source):
+    out_dir = tmp_path / "train"
+    env = MeshRlEnv(sim_binary, multi_run_config, output_dir=str(out_dir))
+    env.reset(seed=1, options=options)     # seed equals the run.ini value
+    env.close()
+
+    assert env.seed_value == 1 and env.seed_source == expected_source
+    manifest = _episode_manifest(out_dir, 0)
+    assert manifest["seed"] == 1
+    assert manifest["seed_source"] == expected_source
+
+
 def test_missing_seed_is_rejected(sim_binary, tmp_path):
     ini = tmp_path / "noseed.ini"
     ini.write_text("[scenario]\nduration_s = 0.4\ntick_s = 0.1\n")
@@ -284,7 +302,14 @@ def test_tiny_training_run(sim_binary, run_config, tmp_path, monkeypatch):
     assert manifest["status"] == "completed"
     assert manifest["seed"] == 1 and manifest["seed_source"] == "run.ini"
     assert manifest["package_versions"]["sb3_contrib"]
-    assert set(manifest["package_versions"]) == set(train.DIRECT_DEPS)
+    assert manifest["manifest_version"] == 4
+    assert manifest["control_mode"] == "legacy"
+    assert all(manifest[key] is None for key in
+               ("selection", "observation_schema", "reward_schema", "telemetry"))
+    assert set(manifest["platform"]) == {"system", "machine"}
+    assert manifest["checkpoints"] == [] and manifest["evaluation"] is None
+    assert manifest["best_model_path"] is None
+    assert set(manifest["package_versions"]) == set(DIRECT_DEPS)
     assert len(manifest["package_versions"]) == 8
     assert all(manifest["package_versions"].values())
     assert (out_dir / "maskable_ppo_mesh.zip").is_file()
@@ -567,6 +592,72 @@ def test_scenario_identity_reports_missing_nodes_file(tmp_path):
         read_scenario_identity(str(ini))
 
 
+BUILDINGS_JSON = """[
+  {"id": "wall",
+   "bounds": {"x_min": 90.0, "x_max": 110.0, "y_min": -20.0, "y_max": 20.0,
+              "z_min": 0.0, "z_max": 20.0},
+   "type": "Office", "ext_walls": "ConcreteWithWindows"}
+]
+"""
+
+JAMMERS_JSON = """[
+  {"id": "jammer-0", "enabled": true, "type": "constant",
+   "target_freq": [2400.0], "tx_power_dbm": 30.0,
+   "position": {"x": 50.0, "y": 0.0, "z": 10.0}}
+]
+"""
+
+
+def _identity_ini(tmp_path: Path, *extra_scenario_lines: str) -> Path:
+    """run.ini with nodes.json plus the given verbatim [scenario] lines."""
+    ini = tmp_path / "run.ini"
+    ini.write_text(MULTI_RUN_INI.replace(
+        "nodes_file = nodes.json",
+        "".join(["nodes_file = nodes.json\n", *extra_scenario_lines]).rstrip("\n")))
+    (tmp_path / "nodes.json").write_text(NODES_JSON)
+    return ini
+
+
+def test_scenario_identity_hashes_buildings_and_jammers(tmp_path):
+    from scripts.rl.env.config import read_scenario_identity
+
+    buildings = tmp_path / "buildings.json"
+    buildings.write_text(BUILDINGS_JSON)
+    jammers = tmp_path / "elsewhere" / "jammers.json"
+    jammers.parent.mkdir()
+    jammers.write_text(JAMMERS_JSON)
+    ini = _identity_ini(tmp_path, "buildings_file = buildings.json # blockage\n",
+                        f"jammers_file = {jammers}\n")
+
+    identity = read_scenario_identity(str(ini))
+    assert identity["buildings_json_sha256"] == hashlib.sha256(
+        buildings.read_bytes()).hexdigest()
+    assert identity["jammers_json_sha256"] == hashlib.sha256(
+        jammers.read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize("extra", [
+    ("buildings_file =\n", "jammers_file =   ; none\n"),
+    (),
+])
+def test_scenario_identity_omits_blank_or_absent_optional_files(tmp_path, extra):
+    from scripts.rl.env.config import read_scenario_identity
+
+    identity = read_scenario_identity(str(_identity_ini(tmp_path, *extra)))
+    assert identity["buildings_json_sha256"] is None
+    assert identity["jammers_json_sha256"] is None
+
+
+@pytest.mark.parametrize("key,label", [("buildings_file", "buildings file"),
+                                       ("jammers_file", "jammers file")])
+def test_scenario_identity_reports_missing_optional_file(tmp_path, key, label):
+    from scripts.rl.env.config import read_scenario_identity
+
+    ini = _identity_ini(tmp_path, f"{key} = missing.json\n")
+    with pytest.raises(FileNotFoundError, match=f"{label} not found"):
+        read_scenario_identity(str(ini))
+
+
 # 9. Centralized training metadata and error-path cleanup ------------------------
 
 @pytest.mark.skipif(importlib.util.find_spec("sb3_contrib") is None,
@@ -583,11 +674,25 @@ def test_centralized_tiny_training_run(sim_binary, multi_run_config, tmp_path,
     assert train.main() == 0
 
     manifest = json.loads((out_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 3
+    assert manifest["manifest_version"] == 4
     assert manifest["status"] == "completed"
     assert manifest["control_mode"] == "centralized"
     assert manifest["contract"]["contract"] == "mesh_move_2d_v1"
     assert manifest["contract"]["max_controlled_nodes"] == 3
+    assert set(manifest["platform"]) == {"system", "machine"}
+    assert manifest["model_sha256"] == hashlib.sha256(
+        (out_dir / "maskable_ppo_mesh.zip").read_bytes()).hexdigest()
+
+    # Cadence off by default: no checkpoints, no during-training evaluation.
+    assert manifest["checkpoints"] == []
+    assert manifest["evaluation"] is None
+    assert manifest["best_model_path"] is None
+    assert manifest["best_model_sha256"] is None
+    assert manifest["best_mean_reward"] is None
+    assert not (out_dir / "checkpoints").exists()
+    assert not (out_dir / "eval").exists()
+    assert manifest["hyperparameters"]["checkpoint_every_steps"] == 0
+    assert manifest["hyperparameters"]["eval_every_steps"] == 0
 
     identity = manifest["scenario_identity"]
     assert identity["run_config"] == str(Path(multi_run_config).resolve())
@@ -832,7 +937,7 @@ def test_training_records_selection_and_schema_hashes(sim_binary, multi_run_conf
     assert train.main() == 0
 
     manifest = json.loads((out_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 3
+    assert manifest["manifest_version"] == 4
     selection = manifest["selection"]
     assert selection["observation_preset"] == "local_links_v1"
     assert selection["reward_components"] == ["delivery_ratio", "connectivity"]
@@ -875,3 +980,79 @@ def test_default_selection_telemetry_replays_via_raw_links(sim_binary, multi_run
     summary = replay_file(out_dir / "episode-0000" / "steps.jsonl")
     assert (summary.obs_mismatches, summary.reward_mismatches) == (0, 0)
     assert _episode_manifest(out_dir, 0)["reward_components_sum"] == {}
+
+
+# 12. Checkpoint retention and during-training evaluation ------------------------
+
+@pytest.mark.skipif(importlib.util.find_spec("sb3_contrib") is None,
+                    reason="sb3_contrib not installed")
+def test_checkpoint_and_eval_cadence(sim_binary, multi_run_config, tmp_path, monkeypatch):
+    from scripts.rl import train
+
+    out_dir = tmp_path / "train"
+    argv = ["train", "--sim-binary", sim_binary, "--run-config", multi_run_config,
+            "--output-dir", str(out_dir), "--verbose", "0",
+            "m-ppo", "--total-timesteps", "16", "--n-steps", "16",
+            "--checkpoint-every-steps", "8", "--keep-checkpoints", "1",
+            "--eval-every-steps", "8", "--eval-seed", "5"]
+    monkeypatch.setattr(sys, "argv", argv)
+    assert train.main() == 0
+
+    manifest = json.loads((out_dir / "train_manifest.json").read_text())
+    assert manifest["manifest_version"] == 4 and manifest["status"] == "completed"
+    assert manifest["hyperparameters"]["checkpoint_every_steps"] == 8
+    assert manifest["hyperparameters"]["keep_checkpoints"] == 1
+    assert manifest["hyperparameters"]["eval_episodes"] == 1
+
+    # Only the newest checkpoint survives pruning, and its digest is recorded.
+    kept = sorted((out_dir / "checkpoints").glob("*.zip"))
+    assert [path.name for path in kept] == ["checkpoint_16_steps.zip"]
+    entry, = manifest["checkpoints"]
+    assert Path(entry["path"]).resolve() == kept[0].resolve()
+    assert entry["sha256"] == hashlib.sha256(kept[0].read_bytes()).hexdigest()
+    assert entry["num_timesteps"] == 16
+
+    best = out_dir / "best_model.zip"
+    assert best.is_file() and (out_dir / "evaluations.npz").is_file()
+    assert Path(manifest["best_model_path"]).resolve() == best.resolve()
+    assert manifest["best_model_sha256"] == hashlib.sha256(best.read_bytes()).hexdigest()
+    assert manifest["best_mean_reward"] is not None
+    assert manifest["model_sha256"] == hashlib.sha256(
+        (out_dir / "maskable_ppo_mesh.zip").read_bytes()).hexdigest()
+
+    evaluation = manifest["evaluation"]
+    assert [evaluation[key] for key in ("every_steps", "episodes", "seed", "seed_source")
+            ] == [8, 1, 5, "eval"]
+    assert Path(evaluation["output_dir"]).resolve() == (out_dir / "eval").resolve()
+    assert Path(evaluation["log_path"]).resolve() == (out_dir / "evaluations.npz").resolve()
+
+    eval_episodes = sorted((out_dir / "eval").glob("episode-*/rl_episode.json"))
+    assert eval_episodes
+    for path in eval_episodes:
+        episode = json.loads(path.read_text())
+        assert episode["seed"] == 5 and episode["seed_source"] == "eval", path
+    training_episodes = sorted(out_dir.glob("episode-*/rl_episode.json"))
+    assert training_episodes
+    for path in training_episodes:
+        assert json.loads(path.read_text())["seed"] == 1, path
+    assert _drain_threads() == []
+
+
+@pytest.mark.parametrize("flags", [
+    ["--eval-episodes", "0"],
+    ["--keep-checkpoints", "0"],
+    ["--checkpoint-every-steps", "-1"],
+    ["--eval-every-steps", "-8"],
+])
+def test_invalid_cadence_flags_exit_before_launch(sim_binary, multi_run_config, tmp_path,
+                                                  monkeypatch, capsys, flags):
+    from scripts.rl import train
+
+    out_dir = tmp_path / "train"
+    monkeypatch.setattr(sys, "argv",
+                        ["train", "--sim-binary", sim_binary,
+                         "--run-config", multi_run_config, "--output-dir", str(out_dir),
+                         "--verbose", "0", "m-ppo", "--total-timesteps", "16", *flags])
+    assert train.main() == 1
+    assert capsys.readouterr().err.strip()
+    assert not out_dir.exists()

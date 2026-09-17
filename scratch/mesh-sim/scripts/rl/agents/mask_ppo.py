@@ -37,9 +37,14 @@ class MaskablePpoTrainer:
             tensorboard_log=cfg.tensorboard_log,
         )
 
-    def train(self):
-        self.model.learn(total_timesteps=self.cfg.total_timesteps)
+    def train(self, callback=None):
+        self.model.learn(total_timesteps=self.cfg.total_timesteps, callback=callback)
         return self.model
+
+    @staticmethod
+    def load(path: str, env: Env, mask_fn: Callable) -> MaskablePPO:
+        """Reload a saved policy onto a fresh masked env; CPU keeps replay deterministic."""
+        return MaskablePPO.load(path, env=ActionMasker(env, mask_fn), device="cpu")
 
     def save(self, path: str) -> None:
         self.model.save(path)

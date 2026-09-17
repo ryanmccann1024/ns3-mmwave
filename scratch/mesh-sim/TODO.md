@@ -12,14 +12,12 @@ policy a fixed set of mesh nodes with the 2-D `move_2d` profile. Remaining:
 - **Coupled and collision constraints.** Per-slot masks cannot express
   minimum separation, collision avoidance, or any joint constraint between
   controlled nodes. Owner: team — status: open.
-- **Transfer and evaluation loader.** Centralized runs emit compatibility metadata
-  (`init` contract block, `rl_episode.json`, `train_manifest.json`,
-  `run.log`) but adds no model-loading entry point. A later loader must check
-  contract id, action meanings, `max_controlled_nodes`, `num_mesh_nodes`,
-  `obs_dim`, and `mask_dim` against the live `init`; then compare scenario
-  identity (`slot_node_ids`, run.ini/nodes.json hashes) and warn on a
-  mismatch. Transfer across scenarios is never implied by matching shapes.
-  Owner: team — status: open.
+- **Transfer and evaluation loader.** Landed. `scripts/rl/policy/compat.py`
+  checks a saved model against the live `init` in a fixed order — structural
+  contract fields, observation schema, reward schema, then scenario identity —
+  and `scripts/rl/evaluate.py` loads and evaluates a bundle only after those
+  checks pass. Transfer across scenarios is still never implied by matching
+  shapes. Owner: team — status: landed.
 
 ### Centralized-control questions (temporary assumptions in effect)
 Each item below records the assumption the landed code implements. Confirm or
@@ -111,6 +109,20 @@ P0 trains with one fixed seed (`m-ppo --seed`, else `[scenario] seed`) reused by
 every episode. Deciding whether episodes should vary the seed, and how the
 model/manifest should record that, is deferred.
 Owner: team — status: open.
+
+### TODO-RL-RESUME-1 — Resume from checkpoint
+Training always starts a fresh model. `checkpoints/` and `best_model.zip` are
+provenance and evaluation inputs only; there is no `--resume`. Adding one needs
+`MaskablePPO.load` plus `learn(reset_num_timesteps=False)` handling and a
+decision about manifest continuity (one manifest extended across runs, or a new
+manifest that links to its parent). Owner: team — status: open.
+
+### TODO-RL-LEARNING-1 — Learning signal beyond the diagnostic smoke
+`inputs/baselines/building-bypass-smoke/` is a diagnostic fixture: it makes a
+directional reward difference visible on a tiny run, and it is not evidence that
+training converges or that a policy is useful. A real learning-signal study —
+scenario set, seeds, budgets, baselines, and success criteria — belongs to a
+separately approved campaign phase. Owner: team — status: open.
 
 ## Jammer model decisions (P0, unresolved)
 

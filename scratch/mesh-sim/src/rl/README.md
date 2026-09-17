@@ -173,14 +173,22 @@ A policy is structurally compatible with a run only when `contract`,
 slots within one N-node scenario; it does not stabilize shapes across scenarios
 with different `N`, and matching shapes are not evidence that a policy transfers.
 
-A future loader must check, each with its own error class:
+`scripts/rl/policy/compat.py` checks a saved model against the live run in this
+order, each with its own error class, stopping at the first failure:
 
-1. **Structural** — manifest `contract.contract`, `action_meanings`,
-   `max_controlled_nodes`, `num_mesh_nodes`, `obs_dim`, `mask_dim` equal the live
-   `init`. Space equality alone cannot detect same-shape/different-meaning models.
-2. **Scenario identity** — `slot_node_ids` plus the `run.ini`/`nodes.json`
-   SHA-256 digests; a different scenario is a warning, not a silent proceed.
-3. **Transfer** — never inferred from 1–2.
+1. **Structural** — manifest `contract.contract`, `dimensions`,
+   `action_meanings`, `max_controlled_nodes`, `num_mesh_nodes`, `obs_dim`,
+   `mask_dim`, `facts_schema` equal the live `init`. Space equality alone cannot
+   detect same-shape/different-meaning models.
+2. **Observation schema** — the saved schema against the live one; structural
+   fields are errors, scenario identity fields become warnings.
+3. **Reward** — the saved `reward_schema` SHA-256 must equal the live one, and a
+   C++-authored or `legacy`-containing reward must also match `reward_type` and
+   `reward_window`.
+4. **Scenario identity** — `slot_node_ids`, `node_ids`, the `run.ini`,
+   `nodes.json`, `buildings.json`, and `jammers.json` SHA-256 digests, and the
+   band. This is the only step an explicit override may relax.
+5. **Transfer** — never inferred from 1–4.
 
 ## Random streams
 

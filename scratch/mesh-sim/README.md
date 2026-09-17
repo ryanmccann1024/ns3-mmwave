@@ -317,6 +317,134 @@ MaskablePPO, vectorized rollouts, and model persistence are Python libraries.
 Movement limits and action validity are therefore decided once, in C++, and
 Python never re-derives them.
 
+#### Model lifecycle
+
+Four commands cover a centralized run from configuration to evaluation. Run
+them from `scratch/mesh-sim/`. All but `inspect_model` need a built simulator binary.
+Validation checks the proposed run; training saves a model and its manifest;
+inspection checks those saved files; evaluation loads the model and runs new
+episodes. The [lifecycle test map](src/rl/policy-lifecycle-tests.md) gives the
+purpose and expected result of each focused check.
+
+Check a configuration before spending simulator time. Without `--launch` every
+check is static (no simulator process); `--launch` additionally starts the
+simulator under `<output-dir>/validate/`, resets once, and reports the live
+contract. It does not complete an episode:
+
+```bash
+.venv/bin/python -m scripts.rl.validate_config \
+  --sim-binary <BIN> \
+  --run-config inputs/baselines/building-bypass-smoke/run.ini \
+  --output-dir outputs/bypass-validate --launch --json
+```
+
+Train with bounded checkpoints and a masked during-training evaluation:
+
+```bash
+.venv/bin/python -m scripts.rl.train \
+  --sim-binary <BIN> \
+  --run-config inputs/baselines/building-bypass-smoke/run.ini \
+  --output-dir outputs/bypass-train \
+  m-ppo --total-timesteps 1024 --n-steps 128 --seed 1 \
+  --checkpoint-every-steps 512 --keep-checkpoints 2 \
+  --eval-every-steps 256 --eval-episodes 1 --eval-seed 2
+```
+
+`--checkpoint-every-steps 0` (the default) disables checkpoints,
+`--eval-every-steps 0` (the default) disables the evaluation callback, and
+`--keep-checkpoints` (default 3) prunes the oldest checkpoints. `--eval-seed`
+defaults to the training seed + 1. The units are SB3 timesteps, which equal
+policy decisions here because training uses one environment.
+[`callbacks.py`](scripts/rl/agents/callbacks.py) wires SB3's checkpoint
+callback (with bounded retention) and `MaskableEvalCallback` (masked,
+deterministic evaluation on a separate environment and seed). The latter saves
+`best_model.zip` when mean evaluation reward improves; neither callback
+changes the training reward or action rules.
+
+Summarize a finished (or failed) run without loading the model:
+
+```bash
+.venv/bin/python -m scripts.rl.inspect_model --run-dir outputs/bypass-train
+```
+
+Add `--json` if you need machine-readable output. This command reads the
+manifest and saved files; it does not load or run the policy. It prints status,
+seed and seed source, control mode, the contract shape, selection, observation
+and reward schema digests, scenario digests, every model
+file with `exists`/`digest_ok`, the evaluation settings, and recorded versus
+installed package versions. Exit 0 means the manifest is readable and every
+recorded model file is present with a matching digest; exit 2 means a model file
+is missing or its digest differs; exit 1 means the manifest is missing or
+unreadable.
+
+Evaluate a saved model against the `hold` and seeded `random_valid` baselines:
+
+```bash
+.venv/bin/python -m scripts.rl.evaluate \
+  --sim-binary <BIN> \
+  --run-dir outputs/bypass-train \
+  --output-dir outputs/bypass-eval \
+  --seeds 11,12,13 --policies model,hold,random_valid
+```
+
+`model` uses deterministic MaskablePPO predictions under the live action mask;
+`hold` stops every controlled node; `random_valid` chooses uniformly among
+each position's valid actions, restarting its random generator from each
+episode seed. [`bundle.py`](scripts/rl/policy/bundle.py) treats the training
+manifest plus a chosen final, best, or checkpoint ZIP as a saved model bundle,
+not a new archive.
+It checks run status and the selected ZIP's recorded digest before loading;
+[`compat.py`](scripts/rl/policy/compat.py) then checks the live scenario and
+policy contract.
+
+`--model` selects `final` (default), `best`, or `checkpoints/<file>.zip`. With
+`--run-dir` the run config, band, and selection come from the training manifest;
+`--run-config`/`--band` may override them. The scenario check always runs for
+the model; an override may cause a mismatch.
+Evaluation writes `eval_manifest.json` plus one `<policy>/episode-NNNN/`
+directory per policy and seed, and refuses an `--output-dir` inside the training
+run. Inspect `eval_manifest.json` for returns, per-seed metrics, and action
+validity counts; each episode's `steps.jsonl` has the decision trace. Exit 0
+means every episode completed with no revalidated slots or attempts to use
+masked-out actions;
+exit 2 means the episodes completed but one of those counters is non-zero; exit
+1 is an error.
+
+`train_manifest.json` is version 4. Besides the existing run identity it
+records `status`/`error`, `algorithm`, `seed` and `seed_source`, `control_mode`,
+the live `contract`, the resolved `selection`, `observation_schema` and
+`reward_schema` (with their SHA-256), `scenario_identity` (SHA-256 of the
+`run.ini`, `nodes.json`, and — when configured — `buildings.json` and
+`jammers.json`), `model_path`/`model_sha256`, `best_model_path`/
+`best_model_sha256`/`best_mean_reward`, a `checkpoints` list of
+`{path, sha256, num_timesteps}`, the `evaluation` block (cadence, episodes,
+seed, output dir, log path) or `null`, `hyperparameters`, `package_versions`,
+`python_version`, and `platform`. Models trained with older tooling carry an
+older `manifest_version` and are not loadable: retrain with the current tooling.
+
+Seed discipline: keep the training seed, the during-training evaluation seed,
+and the standalone evaluation seeds disjoint; the tools do not enforce this.
+The during-training evaluation runs in its own environment, seed, and output
+directory (`<output-dir>/eval/`)
+and contributes no gradient steps. Standalone evaluation never informs model
+selection — only the during-training callback writes `best_model.zip`.
+
+Loading a model checks compatibility in a fixed order and stops at the first
+failure: structural contract fields, then the observation schema, then the
+reward schema, then scenario identity. `--allow-different-scenario` relaxes only
+the last step, including differences in scenario-input file digests. It never
+bypasses the model ZIP's digest, structural, observation-schema, or reward
+checks, and the evaluation manifest records the run as `overridden`. Checks
+that pass mean the shapes and declared meanings match; they are never evidence
+that a policy transfers to another scenario.
+
+`inputs/baselines/building-bypass-smoke/` is a diagnostic fixture: two drones
+with one building between them. Going north or south around it is the fastest
+route to LOS. Action masks check bounds, not buildings, so moving west through
+the building also reaches LOS once x < 90. Its `run.ini` header records the
+geometry and the expected hold and north-moving numbers. It is a smoke fixture
+for the lifecycle tools, not a benchmark or a training campaign.
+
 ### Band in sweeps and validation batches
 
 The generic sweep matrix already covers `band` — no band-specific syntax:
@@ -340,7 +468,8 @@ python -m scripts.validation.run_batch ... [--band sub-6]
 |---|---|
 | Direct run | `<output-dir>/run.log`, `<output-dir>/inputs/` (archived scenario files), `<output-dir>/seed-N/{positions,links,rx-power,mcs,flows,routes}.csv` + `summary.json` |
 | Sweep point / validation scenario | Same layout, plus `console.log` (launcher-captured stdout/stderr; absent for direct runs) |
-| RL training | `<output-dir>/train_manifest.json`, `<output-dir>/maskable_ppo_mesh.zip`, and one `episode-NNNN/` per episode containing `run.log`, `inputs/`, `sim_stderr.log`, `rl_episode.json`, `steps.jsonl` (optional), and `seed-<seed>/...` |
+| RL training | `<output-dir>/train_manifest.json`, `<output-dir>/maskable_ppo_mesh.zip`, and one `episode-NNNN/` per episode containing `run.log`, `inputs/`, `sim_stderr.log`, `rl_episode.json`, `steps.jsonl` (optional), and `seed-<seed>/...`; with the cadence flags also `checkpoints/checkpoint_<N>_steps.zip`, `best_model.zip`, `evaluations.npz`, and `eval/episode-NNNN/` for the during-training evaluation. SB3 resets also leave zero-step interrupted episodes in `eval/`; filter by `rl_episode.json` `status` when aggregating. |
+| RL evaluation | `<output-dir>/eval_manifest.json` and one `<policy>/episode-NNNN/` per evaluated policy and seed, with the same episode contents as training |
 
 With no `[output] dir`, the simulator auto-generates
 `outputs/YYYY-MM/DD/HH-MM-SS/`.

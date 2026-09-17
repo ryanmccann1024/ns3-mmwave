@@ -101,7 +101,10 @@ class MeshRlEnv(gymnasium.Env):
         return self._session.command
 
     def reset(self, *, seed=None, options=None):
-        if seed is not None and int(seed) != self.seed_value:
+        if seed is not None and isinstance(options, dict) and "seed_source" in options:
+            self.seed_value = int(seed)
+            self.seed_source = str(options["seed_source"])
+        elif seed is not None and int(seed) != self.seed_value:
             self.seed_value = int(seed)
             self.seed_source = "gym"
 

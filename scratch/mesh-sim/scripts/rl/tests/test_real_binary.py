@@ -4,13 +4,16 @@ Set MESH_SIM_BIN to a built simulator to run them; every run writes only into
 pytest's tmp_path, never into inputs/.
 """
 
+import hashlib
 import importlib.util
 import json
 import os
+import shutil
 import statistics
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 import gymnasium
@@ -460,7 +463,7 @@ def test_training_run_writes_matching_schema_hashes(tmp_path):
     assert result.returncode == 0, result.stderr[-2000:]
 
     manifest = json.loads((out_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 3
+    assert manifest["manifest_version"] == 4
     source = manifest["selection"]["source"]
     assert [source[key] for key in ("observation_preset", "reward_components",
                                     "telemetry", "telemetry_every")] == ["cli"] * 4
@@ -481,3 +484,251 @@ def test_training_run_writes_matching_schema_hashes(tmp_path):
         (completed[0].parent / "steps.jsonl").read_text().splitlines()[0])
     assert (header["observation_schema"]["sha256"],
             header["reward_schema"]["sha256"]) == hashes
+
+
+# Building-bypass fixture geometry -------------------------------------------------
+
+BYPASS_FIXTURE = MESH_ROOT / "inputs" / "baselines" / "building-bypass-smoke"
+BYPASS_CONFIG = BYPASS_FIXTURE / "run.ini"
+BYPASS_DECISIONS = 20           # 200 ticks of 0.1 s at a 1.0 s decision interval
+HOLD, NORTH = 4, 3
+
+
+def _bypass_env(tmp_path: Path, name: str) -> MeshRlEnv:
+    selection = resolve_selection(str(BYPASS_CONFIG), telemetry="steps")
+    return MeshRlEnv(MESH_SIM_BIN, str(BYPASS_CONFIG),
+                     output_dir=str(tmp_path / name), selection=selection)
+
+
+def _records(out_dir: Path, index: int = 0) -> list[dict]:
+    lines = (out_dir / f"episode-{index:04d}" / "steps.jsonl").read_text().splitlines()
+    return [json.loads(line) for line in lines[1:]]
+
+
+def _is_los(record: dict) -> int:
+    return record["facts"]["links"][0][2]          # [sinr_db, capacity_mbps, is_los]
+
+
+def _play_bypass(env: MeshRlEnv, choose) -> tuple[list[float], list[np.ndarray]]:
+    """Run one full episode; `choose(mask)` returns the joint action for that decision."""
+    env.reset()
+    rewards, masks, done = [], [], False
+    for _ in range(BYPASS_DECISIONS):
+        mask = env.action_masks().astype(int)
+        masks.append(mask)
+        _, reward, done, _, info = env.step(choose(mask))
+        assert info["revalidated_slots"] == []
+        rewards.append(reward)
+    assert done
+    return rewards, masks
+
+
+def test_building_bypass_fixture_geometry(tmp_path):
+    reset_env = _bypass_env(tmp_path, "reset")
+    try:
+        reset_env.reset()
+    finally:
+        reset_env.close()
+    reset_record = _records(Path(reset_env._output_dir))[0]
+    assert reset_record["decision"] == 0
+    assert _is_los(reset_record) == 0          # the wall blocks the start geometry
+
+    hold_env = _bypass_env(tmp_path, "hold")
+    try:
+        hold_rewards, _ = _play_bypass(hold_env, lambda mask: [HOLD])
+    finally:
+        hold_env.close()
+    hold_records = [r for r in _records(Path(hold_env._output_dir))
+                    if r["decision"] >= 1]
+    assert len(hold_records) == BYPASS_DECISIONS
+    assert [_is_los(r) for r in hold_records] == [0] * BYPASS_DECISIONS
+    assert hold_rewards == [-1.0] * BYPASS_DECISIONS
+    assert sum(hold_rewards) == pytest.approx(-20.0, abs=1e-9)
+
+    north_env = _bypass_env(tmp_path, "north")
+    try:
+        north_rewards, masks = _play_bypass(
+            north_env, lambda mask: [NORTH if mask[NORTH] else HOLD])
+    finally:
+        north_env.close()
+    records = {r["decision"]: r for r in _records(Path(north_env._output_dir))
+               if r["decision"] >= 1}
+    assert sorted(records) == list(range(1, BYPASS_DECISIONS + 1))
+
+    def _all_los(record: dict) -> bool:
+        window = record["facts"]["window"]
+        return window["los_pairs_sum"] == window["ticks"]        # one link, N = 2
+
+    first_all_los = min(d for d, record in records.items() if _all_los(record))
+    assert first_all_los == 4
+    assert all(_all_los(records[d]) for d in range(4, BYPASS_DECISIONS + 1))
+    assert 15.0 <= sum(north_rewards) <= 16.0
+
+    # North is masked once the slot reaches y_max, and the policy holds from there.
+    north_flags = [int(mask[NORTH]) for mask in masks]
+    assert 0 in north_flags
+    blocked = north_flags.index(0)
+    assert north_flags[blocked:] == [0] * (BYPASS_DECISIONS - blocked)
+    assert _drain_threads() == []
+
+
+# Fresh-process lifecycle: train -> inspect-model -> evaluate ----------------------
+
+LIFECYCLE_BUDGET_S = 900.0
+EVAL_SEEDS = "1,2"
+EVAL_POLICIES = ("model", "hold", "random_valid")
+
+
+def _module_run(deadline: float, module: str, *args: str) -> subprocess.CompletedProcess:
+    remaining = deadline - time.monotonic()
+    assert remaining > 0, f"lifecycle budget of {LIFECYCLE_BUDGET_S}s exhausted"
+    return subprocess.run(
+        [sys.executable, "-m", f"scripts.rl.{module}", *args],
+        cwd=MESH_ROOT, text=True, capture_output=True, timeout=remaining,
+    )
+
+
+def _digest_flags(payload) -> list[bool]:
+    """Every `digest_ok` value anywhere in the inspect-model JSON."""
+    if isinstance(payload, dict):
+        found = [value for key, value in payload.items() if key == "digest_ok"]
+        for value in payload.values():
+            found.extend(_digest_flags(value))
+        return found
+    if isinstance(payload, list):
+        return [flag for item in payload for flag in _digest_flags(item)]
+    return []
+
+
+def _scenario_copy(tmp_path: Path, name: str) -> Path:
+    shutil.copytree(FIXTURE, tmp_path / name)
+    return tmp_path / name / "run.ini"
+
+
+def _episode_signatures(manifest: dict) -> dict:
+    return {(policy, episode["seed"]): (episode["actions_sha256"], episode["return"])
+            for policy, block in manifest["policies"].items()
+            for episode in block["episodes"]}
+
+
+@pytest.mark.skipif(importlib.util.find_spec("sb3_contrib") is None,
+                    reason="sb3_contrib not installed")
+def test_lifecycle_train_inspect_evaluate_in_fresh_processes(tmp_path):
+    deadline = time.monotonic() + LIFECYCLE_BUDGET_S
+    run_dir = tmp_path / "train"
+
+    trained = _module_run(
+        deadline, "train", "--sim-binary", MESH_SIM_BIN,
+        "--run-config", str(RUN_CONFIG), "--output-dir", str(run_dir),
+        "--observation-preset", "local_links_v1",
+        "--reward-components", "delivery_ratio,legacy",
+        "m-ppo", "--total-timesteps", "16", "--n-steps", "16", "--seed", "1",
+        "--checkpoint-every-steps", "8", "--keep-checkpoints", "1",
+        "--eval-every-steps", "8", "--eval-seed", "5")
+    assert trained.returncode == 0, trained.stderr[-2000:]
+
+    manifest = json.loads((run_dir / "train_manifest.json").read_text())
+    assert manifest["manifest_version"] == 4 and manifest["status"] == "completed"
+    assert manifest["control_mode"] == "centralized"
+    assert manifest["model_sha256"] == hashlib.sha256(
+        Path(manifest["model_path"]).read_bytes()).hexdigest()
+    assert manifest["best_model_sha256"] == hashlib.sha256(
+        Path(manifest["best_model_path"]).read_bytes()).hexdigest()
+    checkpoint, = manifest["checkpoints"]
+    assert Path(checkpoint["path"]).name == "checkpoint_16_steps.zip"
+    assert checkpoint["sha256"] == hashlib.sha256(
+        Path(checkpoint["path"]).read_bytes()).hexdigest()
+    train_hashes = (manifest["observation_schema"]["sha256"],
+                    manifest["reward_schema"]["sha256"])
+
+    inspected = _module_run(deadline, "inspect_model", "--run-dir", str(run_dir), "--json")
+    assert inspected.returncode == 0, inspected.stderr[-2000:]
+    flags = _digest_flags(json.loads(inspected.stdout))
+    assert flags and all(flags)
+
+    eval_a = tmp_path / "eval-a"
+    evaluated = _module_run(
+        deadline, "evaluate", "--sim-binary", MESH_SIM_BIN,
+        "--run-dir", str(run_dir), "--output-dir", str(eval_a),
+        "--seeds", EVAL_SEEDS, "--policies", ",".join(EVAL_POLICIES))
+    assert evaluated.returncode == 0, evaluated.stderr[-2000:]
+
+    eval_manifest = json.loads((eval_a / "eval_manifest.json").read_text())
+    assert eval_manifest["status"] == "completed"
+    assert eval_manifest["deterministic"] is True
+    assert eval_manifest["seeds"] == [1, 2] and eval_manifest["seed_source"] == "eval"
+    assert (eval_manifest["observation_schema"]["sha256"],
+            eval_manifest["reward_schema"]["sha256"]) == train_hashes
+    assert eval_manifest["compatibility"]["scenario"] == "ok"
+    assert set(eval_manifest["policies"]) == set(EVAL_POLICIES)
+    episodes = [episode for block in eval_manifest["policies"].values()
+                for episode in block["episodes"]]
+    assert len(episodes) == 6
+    assert all(episode["status"] == "completed" for episode in episodes)
+    assert all(episode["revalidated_slots_total"] == 0
+               and episode["mask_violations"] == 0 for episode in episodes)
+    for block in eval_manifest["policies"].values():
+        assert block["summary"]["completed_episodes"] == 2
+        assert block["summary"]["revalidated_slots_total"] == 0
+        assert block["summary"]["mask_violations_total"] == 0
+
+    for episode in eval_manifest["policies"]["hold"]["episodes"]:
+        steps = Path(episode["episode_dir"]) / "steps.jsonl"
+        sent = [json.loads(line)["action_sent"]
+                for line in steps.read_text().splitlines()[1:]]
+        assert all(action == [4, 4, 4] for action in sent if action is not None)
+
+    eval_b = tmp_path / "eval-b"
+    repeated = _module_run(
+        deadline, "evaluate", "--sim-binary", MESH_SIM_BIN,
+        "--run-dir", str(run_dir), "--output-dir", str(eval_b),
+        "--seeds", EVAL_SEEDS, "--policies", ",".join(EVAL_POLICIES))
+    assert repeated.returncode == 0, repeated.stderr[-2000:]
+    repeat_manifest = json.loads((eval_b / "eval_manifest.json").read_text())
+    assert _episode_signatures(repeat_manifest) == _episode_signatures(eval_manifest)
+
+    for index, model in enumerate(("best", "checkpoints/checkpoint_16_steps.zip")):
+        selected = _module_run(
+            deadline, "evaluate", "--sim-binary", MESH_SIM_BIN,
+            "--run-dir", str(run_dir), "--model", model,
+            "--output-dir", str(tmp_path / f"eval-model-{index}"),
+            "--seeds", "1", "--policies", "model")
+        assert selected.returncode == 0, selected.stderr[-2000:]
+
+    # A fourth mesh node changes the contract: structural check fails first.
+    bigger = _scenario_copy(tmp_path, "scenario-four-nodes")
+    nodes = json.loads((bigger.parent / "nodes.json").read_text())
+    nodes.append({"id": "node-d", "role": "peer", "mobility": "fixed",
+                  "node_type": "drone",
+                  "position": {"x": 60.0, "y": 30.0, "z": 10.0}})
+    (bigger.parent / "nodes.json").write_text(json.dumps(nodes, indent=2) + "\n")
+    structural = _module_run(
+        deadline, "evaluate", "--sim-binary", MESH_SIM_BIN,
+        "--run-dir", str(run_dir), "--run-config", str(bigger),
+        "--output-dir", str(tmp_path / "eval-structural"),
+        "--seeds", "1", "--policies", "model")
+    assert structural.returncode == 1
+    assert "StructuralMismatchError" in structural.stderr
+
+    # Same scenario, different bytes: identity fails, and only the flag waives it.
+    commented = _scenario_copy(tmp_path, "scenario-comment")
+    commented.write_text(commented.read_text() + "\n# identical scenario, new digest\n")
+    mismatched = _module_run(
+        deadline, "evaluate", "--sim-binary", MESH_SIM_BIN,
+        "--run-dir", str(run_dir), "--run-config", str(commented),
+        "--output-dir", str(tmp_path / "eval-scenario"),
+        "--seeds", "1", "--policies", "model")
+    assert mismatched.returncode == 1
+    assert "ScenarioMismatchError" in mismatched.stderr
+
+    overridden_dir = tmp_path / "eval-overridden"
+    overridden = _module_run(
+        deadline, "evaluate", "--sim-binary", MESH_SIM_BIN,
+        "--run-dir", str(run_dir), "--run-config", str(commented),
+        "--output-dir", str(overridden_dir), "--allow-different-scenario",
+        "--seeds", "1", "--policies", "model")
+    assert overridden.returncode == 0, overridden.stderr[-2000:]
+    overridden_manifest = json.loads(
+        (overridden_dir / "eval_manifest.json").read_text())
+    assert overridden_manifest["compatibility"]["scenario"] == "overridden"
+    assert _drain_threads() == []
