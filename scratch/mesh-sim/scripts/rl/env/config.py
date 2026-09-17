@@ -51,28 +51,43 @@ def read_rl_bounds(run_config: str) -> tuple[tuple[float, float], ...]:
     return tuple(ranges)
 
 
+def _scenario_file(ini: configparser.ConfigParser, ini_path: Path, key: str,
+                   label: str, default: str = "") -> Path | None:
+    """Resolve a [scenario] file relative to the run.ini; blank or absent means none."""
+    raw = strip_inline_comment(ini.get("scenario", key, fallback="")) or default
+    if not raw:
+        return None
+    path = Path(raw)
+    if not path.is_absolute():
+        path = ini_path.parent / path
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"{label} not found: {path} "
+            f"(scenario.{key} = '{raw}' in {ini_path})"
+        )
+    return path
+
+
 def read_scenario_identity(run_config: str) -> dict:
-    """Absolute run.ini path plus SHA-256 of the run.ini and nodes.json bytes."""
+    """Absolute run.ini path plus SHA-256 of the run.ini and its scenario input files."""
     ini_path = Path(run_config).resolve()
     if not ini_path.is_file():
         raise FileNotFoundError(f"run config not found: {run_config}")
 
     ini = _read_ini(str(ini_path))
-    raw_nodes = strip_inline_comment(
-        ini.get("scenario", "nodes_file", fallback="")) or _DEFAULT_NODES_FILE
-    nodes_path = Path(raw_nodes)
-    if not nodes_path.is_absolute():
-        nodes_path = ini_path.parent / nodes_path
-    if not nodes_path.is_file():
-        raise FileNotFoundError(
-            f"nodes file not found: {nodes_path} "
-            f"(scenario.nodes_file = '{raw_nodes}' in {ini_path})"
-        )
+    nodes_path = _scenario_file(ini, ini_path, "nodes_file", "nodes file",
+                                _DEFAULT_NODES_FILE)
+    buildings_path = _scenario_file(ini, ini_path, "buildings_file", "buildings file")
+    jammers_path = _scenario_file(ini, ini_path, "jammers_file", "jammers file")
 
     return {
         "run_config": str(ini_path),
         "run_ini_sha256": _sha256(ini_path),
         "nodes_json_sha256": _sha256(nodes_path),
+        "buildings_json_sha256": (_sha256(buildings_path)
+                                  if buildings_path is not None else None),
+        "jammers_json_sha256": (_sha256(jammers_path)
+                                if jammers_path is not None else None),
     }
 
 
