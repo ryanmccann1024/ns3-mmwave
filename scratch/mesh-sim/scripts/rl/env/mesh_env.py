@@ -1,41 +1,74 @@
 """Gymnasium environment wrapping the C++ mesh simulator via stdin/stdout JSON."""
 
-import configparser
 import json
+import re
 import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
 
 import gymnasium
 import numpy as np
 from gymnasium import spaces
 
-#Update to work with updated sim
+from scripts.sim_support import find_mesh_root, simulator_env, tail_lines
+from .config import read_rl_bounds, read_scenario_seed
+
+_EPISODE_RE = re.compile(r"^episode-(\d{4})$")
+
+_STDERR_TAIL_LINES = 40
+_BAD_LINE_CHARS = 200
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 class MeshRlEnv(gymnasium.Env):
     ## Mesh simulator RL environment.
-    
+
     # Spawns the C++ mesh-sim binary as a subprocess.  Each tick the sim writes
     # an observation+reward JSON line to stdout; this env reads it, returns it to
     # the agent, then writes the agent's action back to the sim's stdin.
-
-    # Parameters
-    # ----------
-    # sim_binary : str
-    #     Path to the built ns3 mesh-sim executable.
-    # run_config : str
-    #     Path to the run.ini with an ``[rl]`` section.
-    # seed : int
-    #    RNG seed passed to the sim via ``--seed``.
+    #
+    # Every reset() starts a fresh simulator process in its own episode-NNNN
+    # directory under output_dir. The seed is fixed for the whole training run;
+    # the episode index never feeds into it.
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
     def __init__(self, sim_binary: str, run_config: str, seed: int | None = None,
-                 output_dir: str = "", render_mode: str | None = None):
+                 output_dir: str = "", band: str | None = None,
+                 render_mode: str | None = None):
         super().__init__()
+        if not output_dir:
+            raise ValueError("MeshRlEnv requires output_dir (the training output root)")
+
         self._sim_binary = sim_binary
         self._run_config = run_config
-        self._seed = seed
-        self._output_dir = output_dir
+        self._output_dir = Path(output_dir)
+        self._band = band
+
+        if seed is not None:
+            self.seed_value = int(seed)
+            self.seed_source = "cli"
+        else:
+            ini_seed = read_scenario_seed(run_config)
+            if ini_seed is None:
+                raise ValueError(
+                    "No seed available: pass seed=<int> to MeshRlEnv or set "
+                    f"[scenario] seed in {run_config}"
+                )
+            self.seed_value = ini_seed
+            self.seed_source = "run.ini"
+
         self._proc: subprocess.Popen | None = None
         self._stderr_file = None
+        self._stderr_path: Path | None = None
+        self._episode_dir: Path | None = None
+        self._episode_index: int | None = None
+        self._manifest: dict | None = None
+        self._cmd: list[str] = []
+        self._msg_count = 0
 
         # Spaces are set dynamically on first reset once we know N and action_type.
         self.action_space: spaces.Space | None = None
@@ -45,7 +78,7 @@ class MeshRlEnv(gymnasium.Env):
         # Boundary info for action masking (read from [rl] on first reset).
         self._x_range: tuple[float, float] | None = None
         self._y_range: tuple[float, float] | None = None
-        self._z_range: tuple[float, float] | None = None   # None -> z unbounded/unknown
+        self._z_range: tuple[float, float] | None = None
         self._ctrl_pos: np.ndarray | None = None           # latest controlled-node position
 
         # Rendering (deferred to a later day).
@@ -57,34 +90,56 @@ class MeshRlEnv(gymnasium.Env):
     # ------------------------------------------------------------------
 
     def reset(self, *, seed=None, options=None):
-        #Note: Seed is passed to config, for ns-3 sim 
-        if seed is not None:
-            self._seed = seed
+        # A reset(seed=<already-resolved seed>) (SB3's DummyVecEnv does this) is not
+        # a new provenance, so only a genuinely different seed relabels the source.
+        if seed is not None and int(seed) != self.seed_value:
+            self.seed_value = int(seed)
+            self.seed_source = "gym"
 
-        self._kill_proc()
+        self._stop_proc("interrupted")
 
-        cmd = [
+        self._episode_dir, self._episode_index = self._allocate_episode_dir()
+        self._cmd = [
             self._sim_binary,
             f"--run-config={self._run_config}",
             "--rl-mode",
+            f"--seed={self.seed_value}",
+            f"--output-dir={self._episode_dir}",
         ]
-        if self._seed is not None:
-            cmd.append(f"--seed={self._seed}")
-        if self._output_dir:
-            cmd.append(f"--output-dir={self._output_dir}")
+        if self._band is not None:
+            self._cmd.append(f"--band={self._band}")
 
-        self._stderr_file = open(
-            f"{self._output_dir}/sim_stderr.log" if self._output_dir else "/dev/null",
-            "w",
-        )
-        self._proc = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=self._stderr_file,
-            text=True,
-            bufsize=1,  # line-buffered
-        )
+        self._manifest = {
+            "manifest_version": 1,
+            "episode": self._episode_index,
+            "seed": self.seed_value,
+            "seed_source": self.seed_source,
+            "command": list(self._cmd),
+            "started_at": _now_iso(),
+            "ended_at": None,
+            "status": "running",
+            "exit_code": None,
+            "steps": 0,
+            "cumulative_reward": 0.0,
+        }
+        self._write_manifest()
+
+        self._stderr_path = self._episode_dir / "sim_stderr.log"
+        self._stderr_file = open(self._stderr_path, "w")
+        self._msg_count = 0
+        try:
+            self._proc = subprocess.Popen(
+                self._cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=self._stderr_file,
+                text=True,
+                bufsize=1,  # line-buffered
+                env=self._child_env(),
+            )
+        except OSError as exc:
+            self._finalize_manifest("failed", None)
+            raise RuntimeError(f"Failed to launch simulator {self._cmd}: {exc}") from exc
 
         msg = self._read_message()
         self._action_type = msg.get("action_type", "discrete")
@@ -104,6 +159,7 @@ class MeshRlEnv(gymnasium.Env):
 
         if self.action_space is None:
             if self._action_type == "continuous":
+                # 2-D continuous target; 3-D continuous control is unverified (P1).
                 self.action_space = spaces.Box(
                     low=-np.inf, high=np.inf, shape=(2,), dtype=np.float64
                 )
@@ -123,28 +179,31 @@ class MeshRlEnv(gymnasium.Env):
         truncated = False
         info = {"time_s": msg["time_s"], "tick": msg["tick"]}
 
+        if self._manifest is not None:
+            self._manifest["steps"] += 1
+            self._manifest["cumulative_reward"] += reward
+            self._write_manifest()
+
         if terminated:
             self._wait_proc()
 
         return obs, reward, terminated, truncated, info
-    
+
     #NOTE: Use Claude for Rendering code
     def render(self):
         #TODO: Create modes for rendering environment
         pass
-        
+
     def _render_frame(self):
         #TODO: Produce Graph that shows nodes current position with link information
         #TODO: Produce Line Graph for nodes radio quality update, trying to match line similar to PID
         pass
-    
+
     ## @brief Boolean mask of legal discrete actions from the current 3-D position.
     #
     # A move is masked out (False) only when the node is already at the arena
     # boundary in that direction, so the move would be a wasted no-op the sim
-    # clamps. "Stay" is always legal. X/Y are checked against x_min/x_max and
-    # y_min/y_max; Z against z_min/z_max only when the observation carries a z
-    # coordinate AND z bounds are configured (else Z moves stay unmasked).
+    # clamps. "Stay" is always legal.
     #
     # Action index -> direction. MUST match rl-bridge.cc ApplyAction:
     #   0:-X  1:+X  2:-Y  3:+Y  4:-Z  5:+Z  6:Stay
@@ -176,22 +235,88 @@ class MeshRlEnv(gymnasium.Env):
         return self.action_masks()
 
     def close(self):
-        self._kill_proc()
+        self._stop_proc("interrupted")
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    ## @brief Next unused episode-NNNN directory under the output root.
+    def _allocate_episode_dir(self) -> tuple[Path, int]:
+        self._output_dir.mkdir(parents=True, exist_ok=True)
+        while True:
+            used = [int(m.group(1)) for m in
+                    (_EPISODE_RE.match(p.name) for p in self._output_dir.iterdir())
+                    if m]
+            index = max(used) + 1 if used else 0
+            path = self._output_dir / f"episode-{index:04d}"
+            try:
+                path.mkdir(exist_ok=False)
+            except FileExistsError:
+                continue
+            return path, index
+
+    ## @brief Child environment with the ns-3 shared libraries on the loader path.
+    def _child_env(self) -> dict:
+        return simulator_env(find_mesh_root(__file__))
+
+    def _write_manifest(self) -> None:
+        if self._manifest is None or self._episode_dir is None:
+            return
+        with open(self._episode_dir / "rl_episode.json", "w") as fh:
+            json.dump(self._manifest, fh, indent=2)
+            fh.write("\n")
+
+    def _finalize_manifest(self, status: str, exit_code: int | None) -> None:
+        if self._manifest is None:
+            return
+        self._manifest["status"] = status
+        self._manifest["exit_code"] = exit_code
+        self._manifest["ended_at"] = _now_iso()
+        self._write_manifest()
+        self._manifest = None
+
+    ## @brief Last lines of the episode stderr log, after flushing the handle.
+    def _stderr_tail(self) -> str:
+        if self._stderr_file is not None:
+            try:
+                self._stderr_file.flush()
+                self._stderr_file.close()
+            except Exception:
+                pass
+            self._stderr_file = None
+        if self._stderr_path is None or not self._stderr_path.is_file():
+            return "(no stderr captured)"
+        return tail_lines(self._stderr_path, _STDERR_TAIL_LINES) or "(stderr empty)"
 
     ## Observation Function
     # @brief Grabs output message from sim
     def _read_message(self) -> dict:
         assert self._proc is not None and self._proc.stdout is not None
         line = self._proc.stdout.readline()
+        self._msg_count += 1
         if not line:
             self._proc.wait()
             rc = self._proc.returncode
-            raise RuntimeError(f"Sim process ended unexpectedly (exit code {rc})")
-        return json.loads(line)
+            tail = self._stderr_tail()
+            self._finalize_manifest("failed", rc)
+            raise RuntimeError(
+                f"Sim process ended unexpectedly (exit code {rc})\n"
+                f"command: {self._cmd}\n"
+                f"last {_STDERR_TAIL_LINES} stderr lines:\n{tail}"
+            )
+        try:
+            return json.loads(line)
+        except json.JSONDecodeError as exc:
+            bad = line.rstrip("\n")[:_BAD_LINE_CHARS]
+            tail = self._stderr_tail()
+            self._finalize_manifest("failed", self._proc.poll())
+            raise RuntimeError(
+                f"Invalid JSON from sim on message line {self._msg_count}: {exc}\n"
+                f"offending line: {bad!r}\n"
+                f"command: {self._cmd}\n"
+                f"last {_STDERR_TAIL_LINES} stderr lines:\n{tail}"
+            ) from exc
 
     ## Action Function
     # @brief Produces action message for sim to make changes
@@ -202,17 +327,17 @@ class MeshRlEnv(gymnasium.Env):
         else:
             action_val = int(action)
         msg = json.dumps({"action": action_val})
-        self._proc.stdin.write(msg + "\n")
-        self._proc.stdin.flush()
+        try:
+            self._proc.stdin.write(msg + "\n")
+            self._proc.stdin.flush()
+        except (BrokenPipeError, ValueError, OSError):
+            pass  # the sim already died; _read_message reports it with diagnostics
 
     ## Message Parser
     # @brief Parses through output message from env and collects radio quality value
     @staticmethod
     def _parse_obs(msg: dict) -> np.ndarray:
-        """Flatten the observation dict into a numpy array.
-
-        Layout: [ctrl_x, ctrl_y, sinr_0, cap_0, sinr_1, cap_1, ...]
-        """
+        """Flatten the observation dict into [x, y, z, sinr_0, cap_0, sinr_1, cap_1, ...]."""
         obs_dict = msg["obs"]
         parts = list(obs_dict["controlled_pos"])
         sinrs = obs_dict["link_sinrs"]
@@ -221,43 +346,58 @@ class MeshRlEnv(gymnasium.Env):
             parts.append(s)
             parts.append(c)
         return np.array(parts, dtype=np.float64)
-    #TODO: Add render modes and render_fps
 
     def _wait_proc(self) -> None:
         """Wait for the sim to exit naturally after sending done=true."""
-        if self._proc is not None:
-            try:
-                self._proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                self._proc.kill()
-                self._proc.wait(timeout=5)
-            self._proc = None
+        if self._proc is None:
+            return
+        try:
+            self._proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            self._proc.kill()
+            self._proc.wait(timeout=5)
+        rc = self._proc.returncode
+        self._proc = None
+        self._close_stderr()
+        self._finalize_manifest("completed" if rc == 0 else "failed", rc)
 
-    def _kill_proc(self) -> None:
-        if self._proc is not None:
+    def _close_stderr(self) -> None:
+        if self._stderr_file is not None:
             try:
-                self._proc.kill()
-                self._proc.wait(timeout=5)
+                self._stderr_file.close()
             except Exception:
                 pass
-            self._proc = None
-        if self._stderr_file is not None:
-            self._stderr_file.close()
             self._stderr_file = None
 
-    ## @brief Read arena bounds (x/y required, z optional) from the [rl] section.
-    def _read_rl_bounds(self) -> None:
-        ini = configparser.ConfigParser()
-        ini.read(self._run_config)
-
-        def rng(lo, hi, dlo, dhi):
-            if ini.has_option("rl", lo) and ini.has_option("rl", hi):
-                return (ini.getfloat("rl", lo), ini.getfloat("rl", hi))
-            return (dlo, dhi)
-
-        self._x_range = rng("x_min", "x_max", 0.0, 500.0)
-        self._y_range = rng("y_min", "y_max", -250.0, 250.0)
-        if ini.has_option("rl", "z_min") and ini.has_option("rl", "z_max"):
-            self._z_range = (ini.getfloat("rl", "z_min"), ini.getfloat("rl", "z_max"))
+    ## @brief Stop any running sim: close stdin, then terminate, then kill.
+    def _stop_proc(self, status: str) -> None:
+        if self._proc is not None:
+            try:
+                if self._proc.stdin is not None and not self._proc.stdin.closed:
+                    self._proc.stdin.close()
+            except Exception:
+                pass
+            rc = self._reap(2)
+            if rc is None:
+                self._proc.terminate()
+                rc = self._reap(2)
+            if rc is None:
+                self._proc.kill()
+                rc = self._reap(5)
+            self._proc = None
+            self._close_stderr()
+            self._finalize_manifest(status, rc)
         else:
-            self._z_range = None
+            self._close_stderr()
+            if self._manifest is not None:
+                self._finalize_manifest(status, None)
+
+    def _reap(self, timeout: float) -> int | None:
+        try:
+            return self._proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return None
+
+    ## @brief Read arena bounds from [rl]; defaults mirror RlConfig in C++.
+    def _read_rl_bounds(self) -> None:
+        self._x_range, self._y_range, self._z_range = read_rl_bounds(self._run_config)

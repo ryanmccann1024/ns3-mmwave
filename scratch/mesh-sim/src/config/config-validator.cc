@@ -132,6 +132,7 @@ ValidateConfig(const SimConfig& cfg)
                {"auto", "static_los"});
     checkOneOf(r, "channel.scenario", cfg.channel.scenario,
                {"UMi", "UMa", "RMa", "InH", "InF"});
+    checkOneOf(r, "channel.band", cfg.band, {"mmwave", "sub-6"});
     if (cfg.channel.tx_array_gain_dbi < 0.0)
     {
         r.errors.push_back("channel.tx_array_gain_dbi must be >= 0 (got " +
@@ -201,7 +202,7 @@ ValidateConfig(const SimConfig& cfg)
         checkOneOf(r, "rl.action_type", cfg.rl.action_type,
                    {"discrete", "continuous"});
         checkOneOf(r, "rl.reward_type", cfg.rl.reward_type,
-                   {"throughput", "mean_sinr"});
+                   {"throughput", "all_links_los"});
 
         if (cfg.rl.action_type == "discrete")
         {
@@ -216,6 +217,8 @@ ValidateConfig(const SimConfig& cfg)
             r.errors.push_back("rl.x_min must be < rl.x_max");
         if (cfg.rl.y_min >= cfg.rl.y_max)
             r.errors.push_back("rl.y_min must be < rl.y_max");
+        if (cfg.rl.z_min >= cfg.rl.z_max)
+            r.errors.push_back("rl.z_min must be < rl.z_max");
 
         if (!cfg.rl.controlled_node_id.empty())
         {

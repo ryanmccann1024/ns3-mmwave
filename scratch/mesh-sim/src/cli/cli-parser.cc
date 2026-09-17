@@ -48,8 +48,8 @@ ParseCommandLine(int argc, char* argv[])
                  "Enable RL mode: exchange observations and actions via stdin/stdout JSON.",
                  args.rl_mode);
     cmd.AddValue("band",
-                 "Radio band: 'mmwave' (orthogonal beams, no interference) or "
-                 "'sub-6' (omnidirectional, co-channel interference computed).",
+                 "Override [channel] band from run.ini: 'mmwave' (jammer interference "
+                 "disabled) or 'sub-6' (jammer interference enabled).",
                  args.band);
     cmd.Parse(argc, argv);
 
@@ -67,7 +67,7 @@ ParseCommandLine(int argc, char* argv[])
         std::exit(1);
     }
     
-    if (args.band != "mmwave" && args.band != "sub-6")
+    if (!args.band.empty() && args.band != "mmwave" && args.band != "sub-6")
     {
         std::cerr << "Error: --band must be 'mmwave' or 'sub-6', got '"
                   << args.band << "'.\n";

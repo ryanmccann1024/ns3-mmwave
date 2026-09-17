@@ -46,7 +46,7 @@ _RX_GAIN_DBI    = 6.0    ##< Default per-node receive array gain (dBi);  --rx-ga
 
 # --- RL ([rl] section) defaults ---
 _RL_ACTION_TYPE   = "discrete"   ##< discrete (masked 7-action) or continuous.
-_RL_REWARD_TYPE   = "throughput" ##< throughput or mean_sinr.
+_RL_REWARD_TYPE   = "throughput" ##< throughput or all_links_los (mean_sinr alias).
 _RL_STEP_SIZE_M   = 25.0         ##< Per-move distance for each discrete action (m).
 _RL_ARRIVAL_M     = 1.0          ##< Continuous-mode arrival threshold (m).
 _RL_BOUND_MARGIN  = 250.0        ##< Padding added around node extent for x/y bounds (m).
@@ -229,6 +229,7 @@ def _trace_duration_s(trace_fp: Path) -> float | None:
 
 ## @brief Write ``run.ini`` to @p output_path using the provided parameters.
 def _create_ini(output_path: Path, scenario_name: str, sim_duration: float,
+                band: str,
                 freq_ghz: float, amc_model: str, bw_mhz: float, power_dbm: float,
                 ticks: float, demand_mbps: float, gateway_id: str | None,
                 noise_figure: float, tx_gain_dbi: float, rx_gain_dbi: float,
@@ -247,6 +248,7 @@ def _create_ini(output_path: Path, scenario_name: str, sim_duration: float,
         "buildings_file": "",
     }
     cfg["channel"] = {
+        "band":              band,
         "frequency_ghz":     str(freq_ghz),
         "tx_power_dbm":      str(power_dbm),
         "scenario":          channel_scenario,
@@ -463,6 +465,7 @@ def load_calfex_data_per_day(csv_dir: Path, per_day_dir: Path, output_path: Path
         )
         _create_ini(day_dir,
                     scenario_name=scenario_name,
+                    band=band,
                     freq_ghz=freq_ghz,
                     sim_duration=sim_duration,
                     amc_model=amc_model,
@@ -546,7 +549,7 @@ def main(argv: list[str] | None = None) -> int:
                    choices=["discrete", "continuous"],
                    help=f"[rl] action_type. Default: {_RL_ACTION_TYPE}")
     p.add_argument("--rl-reward-type", default=_RL_REWARD_TYPE,
-                   choices=["throughput", "mean_sinr"],
+                   choices=["throughput", "all_links_los", "mean_sinr"],
                    help=f"[rl] reward_type. Default: {_RL_REWARD_TYPE}")
     p.add_argument("--rl-step-size", type=float, default=_RL_STEP_SIZE_M,
                    help=f"[rl] step_size_m. Default: {_RL_STEP_SIZE_M}")

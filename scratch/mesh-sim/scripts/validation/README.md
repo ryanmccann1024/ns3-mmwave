@@ -59,6 +59,56 @@ to safe placeholders. All IH nodes are written with `"mobility": "waypoint"`
 and empty waypoints — always run `build_waypoints.py` afterwards before
 invoking the sim.
 
+## Regression suite
+
+The small tracked manifest identifies the pre-change cases and reference hashes.
+Full result snapshots are external artifacts, not source files. Ask the project
+team for the approved cloud bundle and unpack the JSON references under
+`tests/fixtures/regression/p0/`. Gzip archives and reference snapshots stay
+untracked; never replace them by recapturing from changed code.
+
+Once the references are installed, one command re-runs the cases against a
+freshly built binary and compares their normalized results:
+
+```bash
+python3 -m scripts.validation.regression_check verify-suite \
+    --sim-binary <BIN> \
+    --manifest tests/fixtures/regression/p0/manifest.json \
+    --out outputs/p0-regression/<name>
+```
+
+It validates the manifest and every snapshot hash *before* starting a simulator
+process, then runs each case and prints one `PASS`/`FAIL`/`SKIP` row. Five
+required cases have tracked inputs — three `baselines` scenarios, one CalFEX
+sub-6 scenario, and the synthetic jammer smoke. One optional case uses the local
+Sherpa Spring Lake data: when its recorded source files are absent the row is
+`SKIP` and the console names the missing paths plus the action, "This
+Sherpa/ARPO dataset is not included in Git. Ask the project team or data owner
+for the approved inputs/custom/sherpa data." `--require-all` turns that
+unavailable optional case into a failure. An optional case that is present but
+changed, or that mismatches, always fails.
+
+Suite output is disposable. `--out` must resolve beneath `outputs/` and may not
+be `outputs/` itself. Reusing the same `--out` replaces only suite-owned
+products — `suite-report.json` and the manifest-named case subdirectories —
+leaving unrelated siblings alone. It never touches the tracked manifest or
+local reference snapshots.
+
+Exit codes: `0` all required (and executed optional) cases passed, `1` a
+mismatch or failure, `2` a usage or I/O error.
+
+Two related launcher notes: `run_batch` writes the launcher's captured
+stdout/stderr to `console.log` beside the simulator's own `run.log`, and accepts
+an optional `--band {mmwave,sub-6}` override; `build_config_files` writes
+`[channel] band` into every generated `run.ini`.
+
+Without reference data, `python3 -m scripts.validation.smoke_check --sim-binary
+<BIN> --out outputs/smoke-check/<new-name>` checks the tiny synthetic jammer
+scenario's output contracts and two-run same-seed repeatability. CI runs this
+on Linux/macOS; it is not a comparison against historical cloud references.
+`regression_snapshot.py` owns normalization/comparison; `regression_check.py`
+owns the CLI/suite. Launcher paths and loader setup live in `scripts/sim_support.py`.
+
 ## How to read the chart
 
 One axis: normalized histograms (densities) of sim and field samples,

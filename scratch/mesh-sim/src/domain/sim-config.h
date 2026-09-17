@@ -56,10 +56,11 @@ struct TimingInfo
  * | @c "continuous"  | Absolute (x, y) velocity vector; capped by @ref MaxSpeedForType. |
  *
  * **Reward types**
- * | @c reward_type    | Description                                          |
- * |-------------------|------------------------------------------------------|
- * | @c "throughput"   | Sum of routed flow demand across all active paths.   |
- * | @c "mean_sinr"    | Mean SINR in dB across all evaluated links.          |
+ * | @c reward_type     | Description                                                   |
+ * |--------------------|---------------------------------------------------------------|
+ * | @c "throughput"    | Sum of @c delivered_mbps across all flows.                    |
+ * | @c "all_links_los" | +1 when the controlled node has at least one peer link and    |
+ * |                    | every such link is LOS, else -1 (legacy alias: @c "mean_sinr").|
  */
 struct RlConfig
 {
@@ -70,7 +71,9 @@ struct RlConfig
     std::string action_type         = "discrete";    ///< Action space type:
                                                      ///<   @c "discrete" or @c "continuous".
     std::string reward_type         = "throughput";  ///< Reward signal:
-                                                     ///<   @c "throughput" or @c "mean_sinr".
+                                                     ///<   @c "throughput" or @c "all_links_los".
+    std::string reward_type_alias;                   ///< Legacy spelling that was normalized
+                                                     ///<   (@c "mean_sinr") or empty.
     double step_size_m          = 50.0;   ///< Per-tick displacement in metres for the
                                            ///<   @c "discrete" action type.
     double arrival_threshold_m  =  1.0;   ///< Distance in metres below which the controlled
@@ -115,6 +118,11 @@ struct SimConfig
 
     ChannelConfig channel;  ///< Radio and channel model parameters.
     MeshConfig    mesh;     ///< Traffic generation and routing parameters.
+
+    std::string band        = "mmwave";   ///< Categorical radio mode: @c "mmwave" or @c "sub-6";
+                                           ///<   @c "sub-6" enables the jammer-interference path.
+    std::string band_source = "default";  ///< Where @c band came from: @c "cli", @c "run.ini",
+                                           ///<   or @c "default".
 
     uint32_t viz_tick_ms = 100;  ///< Interval in milliseconds at which CSV snapshots
                                   ///<   (positions, link results) are written to disk.

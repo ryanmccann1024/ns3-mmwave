@@ -23,9 +23,30 @@ If @c "./ns3 clean" doesn't clear the cache fully, remove it manually first:
 rm -rf cmake-cache build
 ```
 
+## Python environment
+
+The simulator itself needs no Python. The RL, sweep, validation, and plotting
+scripts do. One command from `scratch/mesh-sim/` creates `.venv` and installs
+`requirements.txt`:
+
+```bash
+python3 scripts/rl/bootstrap_venv.py
+.venv/bin/python -m pytest scripts/rl/tests -q
+```
+
+On Windows the interpreter is `.venv\Scripts\python.exe`. `requirements.txt`
+pins the direct dependencies at the versions tested on the implementer's
+platform; it is not a universal lock file.
+
+Use `python3 scripts/rl/bootstrap_venv.py --check` to verify imports and exact
+installed versions without installing anything. CMake and a C++ compiler are
+separate ns-3 build prerequisites; this helper does not install them.
+
 @section run Run
 
-All run commands are ran from the **ns3-mmwave repo root**.
+Simulator commands below run from the **ns3-mmwave repo root**. Python
+pipeline, validation, jammer-generation, and sweep commands run from
+**scratch/mesh-sim**.
 
 @subsection run_single Single scenario
 
@@ -52,6 +73,8 @@ Output lands under @c --output-dir: a @c run.log (resolved config summary), the
 archived input files, and @c seed-<N>/ metric folders. Always check @c run.log 's
 "Resolved config" block shows the values you expect (frequency, duration,
 bandwidth) before trusting a run.
+
+`--band` is optional; omit it to let the scenario's `run.ini` decide.
 
 @subsection run_pipeline Generating a scenario from field data
 
@@ -111,6 +134,119 @@ python -m scripts.validation.make_jammers \
 ```bash
 python -m scripts.sweep.cli --config inputs/custom/sherpa/1.1/sweep.ini
 ```
+
+## Band selection
+
+`[channel] band` accepts `mmwave` or `sub-6`. Resolution order:
+
+1. `--band=<value>` on the simulator command line,
+2. `[channel] band` in `run.ini`,
+3. the legacy default `mmwave` when neither is set.
+
+`run.log` records the resolved `band` and a `band_source` of `cli`, `run.ini`,
+or `default`. `band` is a categorical switch over the interference path, not a
+value derived from `frequency_ghz`: `sub-6` is the only mode in which
+configured jammers contribute interference.
+
+## RL reward types
+
+`[rl] reward_type` accepts:
+
+- `throughput` — sum of `delivered_mbps` across flows (default);
+- `all_links_los` — `+1` when every peer link of the controlled node is LOS,
+  `-1` otherwise.
+
+`mean_sinr` is a deprecated alias for `all_links_los`. It still runs, prints one
+warning on stderr, and is recorded in `run.log` as `rl.reward_alias`.
+`[rl] z_min`/`z_max` are validated like the x and y bounds (`min < max`).
+
+### MaskablePPO smoke run
+
+Run from `scratch/mesh-sim/`, with global options before the `m-ppo`
+subcommand. For a quick tour of the RL files, see the
+[RL code map](scripts/rl/README.md).
+
+```bash
+.venv/bin/python -m scripts.rl.train \
+  --sim-binary <BIN> \
+  --run-config inputs/baselines/p0-smoke/run.ini \
+  --output-dir outputs/p0-verification/rl \
+  m-ppo --total-timesteps 16 --n-steps 16 --seed 1
+```
+
+`--band sub-6` may be added before `m-ppo`. Omitting `--seed` falls back to
+`[scenario] seed` in the `run.ini`; either way every episode reuses that one
+seed (a multi-seed training policy is a later TODO). Training refuses to start
+if the output directory already contains `train_manifest.json` or
+`maskable_ppo_mesh.zip`.
+
+### Band in sweeps and validation batches
+
+The generic sweep matrix already covers `band` — no band-specific syntax:
+
+```ini
+[sweep.override]
+channel.band = sub-6
+
+[sweep]
+channel.band = mmwave, sub-6
+```
+
+```bash
+python -m scripts.sweep.cli --config <sweep.ini>
+python -m scripts.validation.run_batch ... [--band sub-6]
+```
+
+## Where output lands
+
+| Invocation | Location and contents |
+|---|---|
+| Direct run | `<output-dir>/run.log`, `<output-dir>/inputs/` (archived scenario files), `<output-dir>/seed-N/{positions,links,rx-power,mcs,flows,routes}.csv` + `summary.json` |
+| Sweep point / validation scenario | Same layout, plus `console.log` (launcher-captured stdout/stderr; absent for direct runs) |
+| RL training | `<output-dir>/train_manifest.json`, `<output-dir>/maskable_ppo_mesh.zip`, and one `episode-NNNN/` per episode containing `run.log`, `inputs/`, `sim_stderr.log`, `rl_episode.json`, and `seed-<seed>/...` |
+
+With no `[output] dir`, the simulator auto-generates
+`outputs/YYYY-MM/DD/HH-MM-SS/`.
+
+## Verify
+
+From `scratch/mesh-sim/tests/`:
+
+```bash
+make test                                   # standalone unit tests
+MESH_SIM_BIN=<BIN> make integration         # 8 real-binary CLI contracts
+```
+
+`make test` stops at the first failing suite. To inspect every suite despite a
+failure, run `make -C unit/config test`, `make -C unit/eval test`,
+`make -C unit/routing test`, and `make -C unit/traffic test` separately.
+
+For a quick check without cloud reference data, run two tiny synthetic
+simulations and check output contracts and same-seed repeatability:
+
+```bash
+python3 -m scripts.validation.smoke_check \
+  --sim-binary <BIN> --out outputs/smoke-check/<new-name>
+```
+
+GitHub Actions runs Python contracts, builds mesh-sim, and runs CLI/synthetic
+smoke checks on Linux and macOS for PRs into `arpo-main`. This is not a training
+or cross-platform bit-identical-results claim.
+
+The historical regression suite requires the approved cloud baseline bundle.
+Ask the project team for it and unpack its reference JSON files under
+`tests/fixtures/regression/p0/`; snapshots and gzip archives are not tracked.
+The small tracked manifest retains the original hashes and scenario provenance:
+
+```bash
+python3 -m scripts.validation.regression_check verify-suite \
+  --sim-binary <BIN> \
+  --manifest tests/fixtures/regression/p0/manifest.json \
+  --out outputs/p0-regression/<name>
+```
+
+See [`scripts/validation/README.md`](scripts/validation/README.md) for the
+suite's cases, skip behavior, and exit codes.
 
 @section docs Accessing the documentation
 

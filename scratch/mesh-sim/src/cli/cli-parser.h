@@ -50,8 +50,9 @@ struct CliArgs
                                           ///<   Negative means not set.
     bool        debug_links     = false;  ///< Enable verbose per-link debug logging when @c true.
     bool        rl_mode         = false;  ///< Enable RL mode (stdin/stdout JSON exchange) when @c true.
-    std::string band            = "mmwave"; ///< Radio band: "mmwave" (no interference, default)
-                                            ///<   or "sub-6" (co-channel interference summed).
+    std::string band;                     ///< Radio band override: @c "mmwave" or @c "sub-6".
+                                          ///<   Empty means no CLI override, so @c [channel] band
+                                          ///<   from @c run.ini decides.
 };
 
 
@@ -69,11 +70,14 @@ struct CliArgs
  * | @c --output-dir         | string | no       | Output directory override.                   |
  * | @c --debug-links        | bool   | no       | Enable verbose link-evaluation logging.      |
  * | @c --rl-mode            | bool   | no       | Enable RL stdin/stdout JSON exchange.        |
+ * | @c --band               | string | no       | Optional band override @c 'mmwave' or        |
+ * |                         |        |          | @c 'sub-6'; empty means run.ini decides.     |
  *
  * Exits with code 1 if:
  * - @c --run-config is not provided.
  * - The @c run-config file does not exist on disk.
  * - @c --positions-override is provided but the file does not exist.
+ * - @c --band is supplied with a value other than @c mmwave / @c sub-6.
  *
  * @param argc  Argument count from @c main.
  * @param argv  Argument vector from @c main.

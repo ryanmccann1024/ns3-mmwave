@@ -7,12 +7,16 @@
  * Run:    ./mesh-sim-config-test
  */
 
+#include "src/config/config-loader.h"
 #include "src/config/config-validator.h"
 #include "src/util/string-utils.h"
 
 #include <cassert>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <random>
 #include <string>
 
 using namespace mesh_sim;
@@ -313,6 +317,152 @@ test_multiple_errors()
     check(r.errors.size() >= 3, "multiple errors reported at once");
 }
 
+// ---- loader-backed scenario helper ----
+
+namespace
+{
+
+// Writes a throwaway scenario dir and loads it; extraChannel/extraRl are raw INI lines.
+class TempScenario
+{
+  public:
+    TempScenario(const std::string& extraChannel, const std::string& extraRl)
+    {
+        static int          counter = 0;
+        static std::random_device rd;
+        static const auto   salt = rd();
+        m_dir = std::filesystem::temp_directory_path() /
+                ("mesh-sim-cfg-test-" + std::to_string(salt) + "-" +
+                 std::to_string(++counter));
+        std::filesystem::remove_all(m_dir);
+        std::filesystem::create_directories(m_dir / "out");
+
+        std::ofstream ini(m_dir / "run.ini");
+        ini << "[scenario]\nname = temp\nnodes_file = nodes.json\n"
+            << "duration_s = 10.0\ntick_s = 0.1\n"
+            << "[output]\ndir = out\n"
+            << "[channel]\n" << extraChannel
+            << "[rl]\nenabled = true\n" << extraRl;
+        ini.close();
+
+        std::ofstream nodes(m_dir / "nodes.json");
+        nodes << R"([{"id":"node0","mobility":"fixed"},)"
+              << R"({"id":"node1","mobility":"fixed"}])";
+        nodes.close();
+    }
+
+    ~TempScenario()
+    {
+        std::error_code ec;
+        std::filesystem::remove_all(m_dir, ec);
+    }
+
+    SimConfig Load() const { return ConfigLoader::Load((m_dir / "run.ini").string()); }
+
+  private:
+    std::filesystem::path m_dir;
+};
+
+}  // namespace
+
+// ---- band tests ----
+
+static void
+test_band_default()
+{
+    TempScenario s("", "");
+    auto cfg = s.Load();
+    check(cfg.band == "mmwave", "missing band resolves to mmwave");
+    check(cfg.band_source == "default", "missing band records source default");
+}
+
+static void
+test_band_from_ini()
+{
+    TempScenario s("band = sub-6\n", "");
+    auto cfg = s.Load();
+    check(cfg.band == "sub-6", "[channel] band = sub-6 loaded");
+    check(cfg.band_source == "run.ini", "ini band records source run.ini");
+}
+
+static void
+test_band_invalid_rejected()
+{
+    auto cfg = makeValid();
+    cfg.band = "lte";
+    auto r = ValidateConfig(cfg);
+    check(!r.ok(), "invalid band rejected");
+    check(hasError(r, "channel.band"), "error mentions channel.band");
+    check(hasError(r, "'mmwave'") && hasError(r, "'sub-6'"),
+          "band error lists both valid values");
+}
+
+// ---- reward tests ----
+
+static void
+test_reward_alias_normalized()
+{
+    TempScenario s("", "reward_type = mean_sinr\n");
+    auto cfg = s.Load();
+    check(cfg.rl.reward_type == "all_links_los", "mean_sinr normalized to all_links_los");
+    check(cfg.rl.reward_type_alias == "mean_sinr", "alias recorded as mean_sinr");
+}
+
+static void
+test_reward_canonical_unchanged()
+{
+    TempScenario s("", "reward_type = all_links_los\n");
+    auto cfg = s.Load();
+    check(cfg.rl.reward_type == "all_links_los", "all_links_los preserved");
+    check(cfg.rl.reward_type_alias.empty(), "no alias for canonical reward");
+}
+
+static void
+test_reward_unknown_rejected()
+{
+    auto cfg = makeValid();
+    cfg.rl.enabled     = true;
+    cfg.rl.reward_type = "bogus";
+    auto r = ValidateConfig(cfg);
+    check(hasError(r, "rl.reward_type"), "unknown reward_type rejected");
+}
+
+static void
+test_reward_legacy_name_not_valid()
+{
+    auto cfg = makeValid();
+    cfg.rl.enabled     = true;
+    cfg.rl.reward_type = "mean_sinr";
+    auto r = ValidateConfig(cfg);
+    check(hasError(r, "rl.reward_type"), "un-normalized mean_sinr rejected by validator");
+}
+
+// ---- rl z-bounds tests ----
+// makeValid() itself fails validation for an unrelated reason, so these assert on
+// the presence/absence of the specific error rather than r.ok().
+
+static void
+test_rl_inverted_z_bounds()
+{
+    auto cfg = makeValid();
+    cfg.rl.enabled = true;
+    cfg.rl.z_min   = 10.0;
+    cfg.rl.z_max   =  5.0;
+    auto r = ValidateConfig(cfg);
+    check(hasError(r, "rl.z_min"), "inverted rl z bounds rejected");
+}
+
+static void
+test_rl_valid_z_bounds()
+{
+    auto cfg = makeValid();
+    cfg.rl.enabled = true;
+    cfg.rl.z_min   =  0.0;
+    cfg.rl.z_max   = 50.0;
+    auto r = ValidateConfig(cfg);
+    check(!hasError(r, "rl.z_min"), "valid rl z bounds accepted");
+}
+
 // ---- seed parsing tests ----
 
 static void
@@ -374,6 +524,21 @@ main()
     test_random_pairs_zero_count();
     test_building_inverted_bounds();
     test_multiple_errors();
+
+    // Band resolution and validation
+    test_band_default();
+    test_band_from_ini();
+    test_band_invalid_rejected();
+
+    // Reward naming
+    test_reward_alias_normalized();
+    test_reward_canonical_unchanged();
+    test_reward_unknown_rejected();
+    test_reward_legacy_name_not_valid();
+
+    // RL z bounds
+    test_rl_inverted_z_bounds();
+    test_rl_valid_z_bounds();
 
     // Seed parsing
     test_seed_single();
