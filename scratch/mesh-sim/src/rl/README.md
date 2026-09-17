@@ -3,9 +3,16 @@
 C++ owns movement limits, action validity, and reward accumulation. Python
 converts and validates messages; it never re-derives masks or clamps.
 
-On the Python side, `scripts/rl/env/mesh_env.py` owns the Gymnasium API,
-`protocol.py` validates actions and messages, and `episode.py` owns the
-simulator process, episode directories, diagnostics, and manifest.
+For a code tour, follow [`train.py`](../../scripts/rl/train.py) (CLI, training,
+model output) → [`agents/mask_ppo.py`](../../scripts/rl/agents/mask_ppo.py)
+(MaskablePPO setup) → [`env/mesh_env.py`](../../scripts/rl/env/mesh_env.py)
+(Gymnasium `reset`/`step`). Within `env/`, [`protocol.py`](../../scripts/rl/env/protocol.py)
+validates messages and actions, [`episode.py`](../../scripts/rl/env/episode.py)
+owns the simulator process and episode files, and
+[`config.py`](../../scripts/rl/env/config.py) reads the seed and movement bounds.
+On the C++ side, [`sim.cc`](../../sim.cc) advances the ticks and
+[`rl-bridge.cc`](rl-bridge.cc) exchanges observations, rewards, masks, and
+actions with Python.
 
 ## Modes
 
