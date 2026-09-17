@@ -9,15 +9,17 @@ import numpy as np
 import pytest
 
 from scripts.rl import evaluate as evaluate_cli
+from scripts.rl.cli_common import write_json
 from scripts.rl.env.observations import SchemaMismatchError, observation_schema
 from scripts.rl.env.rewards import reward_schema
 from scripts.rl.env.selection import RlSelection
 from scripts.rl.policy import evaluate as policy_evaluate
-from scripts.rl.policy.bundle import (eval_selection, read_bundle,
-                                      selection_from_manifest)
+from scripts.rl.policy.bundle import (eval_selection, read_bundle, seed_roles,
+                                      selection_from_manifest, training_provenance)
 from scripts.rl.policy.compat import (BundleError, RewardMismatchError,
                                       ScenarioMismatchError, StructuralMismatchError,
                                       check_compatibility)
+from scripts.sim_support import parse_seed_spec
 
 FAKE_SIM = Path(__file__).resolve().parent / "fake_sim.py"
 
@@ -402,7 +404,12 @@ def test_baseline_evaluation_writes_a_completed_manifest(sim_binary, multi_run_c
     assert evaluate_cli.main(_eval_argv(sim_binary, multi_run_config, out_dir)) == 0
 
     manifest = json.loads((out_dir / "eval_manifest.json").read_text())
-    assert manifest["eval_manifest_version"] == 1 and manifest["status"] == "completed"
+    assert manifest["eval_manifest_version"] == 2 and manifest["status"] == "completed"
+    assert manifest["metric_source"] == {"kind": "telemetry_window",
+                                         "warmup_excluded": False}
+    assert manifest["label"] is None and manifest["training"] is None
+    assert manifest["episodes_expected"] == 4 and manifest["episodes_completed"] == 4
+    assert manifest["seed_roles"]["held_out"] is None
     assert manifest["seeds"] == [1, 2] and manifest["seed_source"] == "eval"
     assert manifest["deterministic"] is True and manifest["bundle"] is None
     assert manifest["selection"]["telemetry"] == "steps"
@@ -457,7 +464,7 @@ def test_model_policy_requires_a_run_dir(sim_binary, multi_run_config, tmp_path)
 
 
 @pytest.mark.parametrize("flag,value", [("--seeds", "1,1"), ("--seeds", "x"),
-                                        ("--policies", "greedy")])
+                                        ("--seeds", "3-1"), ("--policies", "greedy")])
 def test_invalid_seed_and_policy_lists_are_refused(sim_binary, multi_run_config,
                                                    tmp_path, flag, value):
     argv = _eval_argv(sim_binary, multi_run_config, tmp_path / "eval")
@@ -562,3 +569,222 @@ def test_model_evaluation_refuses_a_different_node_count(sim_binary, multi_run_c
     failed = json.loads((tmp_path / "eval-4" / "eval_manifest.json").read_text())
     assert failed["status"] == "failed"
     assert failed["error"].startswith("StructuralMismatchError")
+    assert [episode["status"] for episode in failed["policies"]["model"]["episodes"]] \
+        == ["not_run"]
+
+
+# 6. Seed specifications ----------------------------------------------------------
+
+@pytest.mark.parametrize("raw,expected", [
+    ("1-3,7", [1, 2, 3, 7]),
+    ("301-303, 310", [301, 302, 303, 310]),
+    (" 5 ", [5]),
+    ("7-7", [7]),
+])
+def test_parse_seed_spec_expands_ranges_in_order(raw, expected):
+    assert parse_seed_spec(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["3-1", "1,1", "", "   ", "x", "1-x"])
+def test_parse_seed_spec_refuses_bad_specifications(raw):
+    with pytest.raises(ValueError):
+        parse_seed_spec(raw)
+
+
+def test_parse_seed_spec_keeps_repeats_when_not_distinct():
+    assert parse_seed_spec("1,1-2", distinct=False) == [1, 1, 2]
+
+
+# 7. Seed roles and training provenance -------------------------------------------
+
+def _train_manifest(seed=101, evaluation=None):
+    manifest = _manifest(_contract())
+    manifest.update({"algorithm": "MaskablePPO", "seed": seed, "seed_source": "cli",
+                     "evaluation": evaluation,
+                     "hyperparameters": {"total_timesteps": 256, "n_steps": 64}})
+    return manifest
+
+
+def test_seed_roles_flag_training_and_selection_overlap():
+    manifest = _train_manifest(evaluation={"seed": 201, "episodes": 1})
+    roles = seed_roles(manifest, "best", [101, 201, 301])
+    assert roles["training_seed"] == 101 and roles["model_selection_seed"] == 201
+    assert roles["selection_seed_used_for_model"] is True
+    assert roles["overlap"] == [101, 201] and roles["held_out"] is False
+    assert roles["overlap_allowed"] is False
+
+
+def test_seed_roles_without_an_evaluation_block_only_checks_the_training_seed():
+    roles = seed_roles(_train_manifest(), "final", [201, 301])
+    assert roles["model_selection_seed"] is None
+    assert roles["selection_seed_used_for_model"] is False
+    assert roles["overlap"] == [] and roles["held_out"] is True
+
+
+def test_seed_roles_without_a_bundle_are_unknown():
+    roles = seed_roles(None, None, [301, 302])
+    assert roles["training_seed"] is None and roles["model_selection_seed"] is None
+    assert roles["held_out"] is None and roles["held_out_seeds"] == [301, 302]
+
+
+def test_training_provenance_copies_only_portable_fields():
+    provenance = training_provenance(_train_manifest(
+        evaluation={"seed": 201, "episodes": 1}))
+    assert provenance["seed"] == 101 and provenance["evaluation_seed"] == 201
+    assert provenance["evaluation_episodes"] == 1
+    assert provenance["hyperparameters"]["total_timesteps"] == 256
+    assert set(provenance["scenario_identity"]) == {
+        "run_ini_sha256", "nodes_json_sha256", "buildings_json_sha256",
+        "jammers_json_sha256"}
+
+
+def test_evaluation_refuses_held_out_seeds_used_in_training(sim_binary, tmp_path,
+                                                            capsys):
+    run_dir = _write_run_dir(tmp_path, seed=1, evaluation={"seed": 5, "episodes": 1})
+    out_dir = tmp_path / "eval"
+    argv = ["--sim-binary", sim_binary, "--run-dir", str(run_dir), "--model", "final",
+            "--output-dir", str(out_dir), "--seeds", "1,5,11", "--policies", "model"]
+    assert evaluate_cli.main(argv) == 1
+
+    err = capsys.readouterr().err
+    assert "held-out seed 1 is the training seed" in err
+    assert "held-out seed 5 is the model-selection seed" in err
+    assert "--allow-seed-overlap" in err
+    assert not out_dir.exists()
+
+
+@pytest.mark.skipif(importlib.util.find_spec("sb3_contrib") is None,
+                    reason="sb3_contrib not installed")
+def test_allow_seed_overlap_warns_and_records_the_flag(sim_binary, multi_run_config,
+                                                       tmp_path, monkeypatch, capsys):
+    run_dir = tmp_path / "train"
+    assert _train(sim_binary, multi_run_config, run_dir, monkeypatch) == 0
+
+    out_dir = tmp_path / "eval"
+    argv = ["--sim-binary", sim_binary, "--run-dir", str(run_dir),
+            "--output-dir", str(out_dir), "--seeds", "1", "--policies", "model",
+            "--label", "overlap-check", "--allow-seed-overlap"]
+    assert evaluate_cli.main(argv) == 0
+    assert "WARNING:" in capsys.readouterr().err
+
+    manifest = json.loads((out_dir / "eval_manifest.json").read_text())
+    assert manifest["label"] == "overlap-check"
+    assert manifest["seed_roles"]["overlap"] == [1]
+    assert manifest["seed_roles"]["overlap_allowed"] is True
+    assert manifest["seed_roles"]["held_out"] is False
+    assert manifest["training"]["seed"] == 1
+    assert manifest["training"]["algorithm"] == "MaskablePPO"
+
+
+# 8. Failure tolerance and atomic manifest writes ----------------------------------
+
+def test_a_failed_episode_keeps_the_other_records(sim_binary, multi_run_config,
+                                                  tmp_path, monkeypatch):
+    monkeypatch.setenv("FAKE_SIM_FAIL_SEEDS", "2")
+    out_dir = tmp_path / "eval"
+    argv = ["--sim-binary", sim_binary, "--run-config", multi_run_config,
+            "--output-dir", str(out_dir), "--seeds", "1-3",
+            "--policies", "hold,random_valid"]
+    assert evaluate_cli.main(argv) == 1
+
+    manifest = json.loads((out_dir / "eval_manifest.json").read_text())
+    assert manifest["status"] == "partial"
+    assert manifest["episodes_expected"] == 6 and manifest["episodes_completed"] == 4
+    for block in manifest["policies"].values():
+        episodes = block["episodes"]
+        assert [episode["seed"] for episode in episodes] == [1, 2, 3]
+        assert [episode["status"] for episode in episodes] == [
+            "completed", "failed", "completed"]
+        assert block["summary"]["expected_episodes"] == 3
+        assert block["summary"]["completed_episodes"] == 2
+
+        failed = episodes[1]
+        assert set(failed["metrics"].values()) == {None}
+        assert failed["error"]
+        assert failed["summary_json"] is None
+        saved = json.loads(
+            (Path(failed["episode_dir"]) / "rl_episode.json").read_text())
+        assert saved["status"] == "failed" and saved["seed"] == 2
+        assert episodes[0]["metrics"]["unroutable_fraction"] == 0.0
+        assert Path(episodes[0]["summary_json"]).is_file()
+
+
+class _ManifestCountingPolicy:
+    """Records how many of its own episode records the manifest holds on disk."""
+
+    name = "counting"
+
+    def __init__(self, manifest_path: Path):
+        self._path = manifest_path
+        self.counts: list[int] = []
+
+    def start_episode(self, seed: int) -> None:
+        manifest = json.loads(self._path.read_text())
+        block = manifest["policies"].get(self.name) or {"episodes": []}
+        self.counts.append(len(block["episodes"]))
+
+    def act(self, obs, mask, contract):
+        return np.full(len(mask) // 5, 4, dtype=np.int64)
+
+
+def test_each_episode_record_is_written_before_the_next_episode(sim_binary,
+                                                                multi_run_config,
+                                                                tmp_path, monkeypatch):
+    from scripts.rl.env.mesh_env import MeshRlEnv
+    from scripts.rl.env.selection import resolve_selection
+
+    monkeypatch.setenv("FAKE_SIM_FAIL_SEEDS", "2")
+    out_dir = tmp_path / "eval"
+    selection = eval_selection(resolve_selection(multi_run_config))
+    policy = _ManifestCountingPolicy(out_dir / "eval_manifest.json")
+    spec = policy_evaluate.PolicySpec(
+        policy.name, lambda env, seed: policy_evaluate.Prepared(policy))
+
+    def make_env(name):
+        return MeshRlEnv(sim_binary, multi_run_config, seed=1,
+                         output_dir=str(out_dir / name), selection=selection)
+
+    manifest = policy_evaluate.evaluate(make_env, [spec], [1, 2, 3], out_dir, {})
+    assert policy.counts == [0, 1, 2]
+    assert manifest["status"] == "partial"
+
+
+class _FinishedEpisodeEnv:
+    """An env whose episode directory holds a manifest claiming the episode completed."""
+
+    def __init__(self, episode_dir: Path):
+        self._cmd = ["sim", f"--output-dir={episode_dir}"]
+
+
+def test_a_raised_episode_is_recorded_as_failed_despite_its_manifest(tmp_path):
+    episode_dir = tmp_path / "episode-0000"
+    episode_dir.mkdir()
+    write_json(episode_dir / "rl_episode.json",
+               {"seed": 7, "status": "completed", "exit_code": 0, "decisions": 3,
+                "cumulative_reward": -1.5})
+
+    result = policy_evaluate._failed_result(
+        _FinishedEpisodeEnv(episode_dir), 7,
+        RuntimeError("Episode return 0.0 does not match cumulative_reward -1.5"),
+        set())
+    assert result.status == "failed"
+    assert result.episode_dir == str(episode_dir)
+    assert result.total_return == -1.5 and result.decisions == 3
+    assert "does not match" in result.error
+    assert set(result.metrics.values()) == {None}
+
+    summary = policy_evaluate.summarize([result], expected=1)
+    assert summary["completed_episodes"] == 0
+    assert summary["mean_return"] is None
+
+
+def test_write_json_replaces_the_file_atomically(tmp_path):
+    path = tmp_path / "manifest.json"
+    write_json(path, {"a": 1})
+    assert json.loads(path.read_text()) == {"a": 1}
+    assert list(tmp_path.glob("*.tmp")) == []
+
+    with pytest.raises(TypeError):
+        write_json(path, {"a": object()})
+    assert json.loads(path.read_text()) == {"a": 1}
+    assert list(tmp_path.glob("*.tmp")) == []

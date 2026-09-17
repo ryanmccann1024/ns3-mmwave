@@ -575,7 +575,7 @@ def test_building_bypass_fixture_geometry(tmp_path):
 # Fresh-process lifecycle: train -> inspect-model -> evaluate ----------------------
 
 LIFECYCLE_BUDGET_S = 900.0
-EVAL_SEEDS = "1,2"
+EVAL_SEEDS = "11,12"
 EVAL_POLICIES = ("model", "hold", "random_valid")
 
 
@@ -656,7 +656,7 @@ def test_lifecycle_train_inspect_evaluate_in_fresh_processes(tmp_path):
     eval_manifest = json.loads((eval_a / "eval_manifest.json").read_text())
     assert eval_manifest["status"] == "completed"
     assert eval_manifest["deterministic"] is True
-    assert eval_manifest["seeds"] == [1, 2] and eval_manifest["seed_source"] == "eval"
+    assert eval_manifest["seeds"] == [11, 12] and eval_manifest["seed_source"] == "eval"
     assert (eval_manifest["observation_schema"]["sha256"],
             eval_manifest["reward_schema"]["sha256"]) == train_hashes
     assert eval_manifest["compatibility"]["scenario"] == "ok"
@@ -692,7 +692,7 @@ def test_lifecycle_train_inspect_evaluate_in_fresh_processes(tmp_path):
             deadline, "evaluate", "--sim-binary", MESH_SIM_BIN,
             "--run-dir", str(run_dir), "--model", model,
             "--output-dir", str(tmp_path / f"eval-model-{index}"),
-            "--seeds", "1", "--policies", "model")
+            "--seeds", "11", "--policies", "model")
         assert selected.returncode == 0, selected.stderr[-2000:]
 
     # A fourth mesh node changes the contract: structural check fails first.
@@ -706,7 +706,7 @@ def test_lifecycle_train_inspect_evaluate_in_fresh_processes(tmp_path):
         deadline, "evaluate", "--sim-binary", MESH_SIM_BIN,
         "--run-dir", str(run_dir), "--run-config", str(bigger),
         "--output-dir", str(tmp_path / "eval-structural"),
-        "--seeds", "1", "--policies", "model")
+        "--seeds", "11", "--policies", "model")
     assert structural.returncode == 1
     assert "StructuralMismatchError" in structural.stderr
 
@@ -717,7 +717,7 @@ def test_lifecycle_train_inspect_evaluate_in_fresh_processes(tmp_path):
         deadline, "evaluate", "--sim-binary", MESH_SIM_BIN,
         "--run-dir", str(run_dir), "--run-config", str(commented),
         "--output-dir", str(tmp_path / "eval-scenario"),
-        "--seeds", "1", "--policies", "model")
+        "--seeds", "11", "--policies", "model")
     assert mismatched.returncode == 1
     assert "ScenarioMismatchError" in mismatched.stderr
 
@@ -726,9 +726,57 @@ def test_lifecycle_train_inspect_evaluate_in_fresh_processes(tmp_path):
         deadline, "evaluate", "--sim-binary", MESH_SIM_BIN,
         "--run-dir", str(run_dir), "--run-config", str(commented),
         "--output-dir", str(overridden_dir), "--allow-different-scenario",
-        "--seeds", "1", "--policies", "model")
+        "--seeds", "11", "--policies", "model")
     assert overridden.returncode == 0, overridden.stderr[-2000:]
     overridden_manifest = json.loads(
         (overridden_dir / "eval_manifest.json").read_text())
     assert overridden_manifest["compatibility"]["scenario"] == "overridden"
+    assert _drain_threads() == []
+
+
+MATRIX_ROW = {"name": "local-delivery", "observation_preset": "local_links_v1",
+              "action_profile": "move_2d", "reward_components": ["delivery_ratio"],
+              "reward_weights": [1.0]}
+
+
+@pytest.mark.skipif(importlib.util.find_spec("sb3_contrib") is None,
+                    reason="sb3_contrib not installed")
+def test_experiment_matrix_smoke_in_fresh_processes(tmp_path):
+    deadline = time.monotonic() + LIFECYCLE_BUDGET_S
+    matrix = tmp_path / "matrix.json"
+    matrix.write_text(json.dumps({
+        "matrix_version": 1,
+        "name": "real-binary-smoke",
+        "description": "One row on the centralized fixture; smoke-sized budgets.",
+        "run_config": str(RUN_CONFIG),
+        "band": None,
+        "seeds": {"training": [1, 2], "model_selection": 5, "held_out": "11-12"},
+        "training": {"total_timesteps": 16, "n_steps": 16, "eval_every_steps": 8},
+        "evaluation": {"model": "best", "policies": ["model", "hold"]},
+        "rows": [MATRIX_ROW],
+    }))
+
+    root = tmp_path / "matrix-root"
+    result = _module_run(deadline, "experiment", "run", "--matrix", str(matrix),
+                         "--output-root", str(root), "--sim-binary", MESH_SIM_BIN)
+    assert result.returncode in (0, 2), result.stderr[-2000:]
+
+    for seed in (1, 2):
+        manifest = json.loads(
+            (root / "eval" / "local-delivery" / f"train-seed-{seed}"
+             / "eval_manifest.json").read_text())
+        assert manifest["status"] == "completed"
+        assert manifest["seed_roles"]["held_out"] is True
+        assert manifest["seeds"] == [11, 12]
+        for block in manifest["policies"].values():
+            for episode in block["episodes"]:
+                assert Path(episode["summary_json"]).is_file()
+
+    comparison = json.loads((root / "comparison" / "comparison.json").read_text())
+    assert len(comparison["evaluations"]) == 2
+    for block in comparison["evaluations"]:
+        for entry in block["comparisons"]:
+            assert entry["n_used"] == entry["n_expected"] == 2
+    group, = comparison["groups"]
+    assert group["runs_used"] == 2 and group["excluded_runs"] == []
     assert _drain_threads() == []
