@@ -52,9 +52,17 @@ def sha256_file(path) -> str:
 
 
 def write_json(path, payload) -> None:
-    with open(path, "w") as fh:
-        json.dump(payload, fh, indent=2, allow_nan=False)
-        fh.write("\n")
+    """Write JSON atomically so a reader never sees a half-written manifest."""
+    path = Path(path)
+    temp = path.with_name(path.name + ".tmp")
+    try:
+        with open(temp, "w") as fh:
+            json.dump(payload, fh, indent=2, allow_nan=False)
+            fh.write("\n")
+    except BaseException:
+        temp.unlink(missing_ok=True)
+        raise
+    os.replace(temp, path)
 
 
 def add_scenario_arguments(parser, run_config_required: bool = True) -> None:

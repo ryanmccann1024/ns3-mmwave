@@ -16,6 +16,9 @@ _SELECTION_KEYS = ("observation_preset", "reward_components", "reward_weights",
 # Matches the C++ loader's scenario.nodes_file default.
 _DEFAULT_NODES_FILE = "nodes.json"
 
+# Matches the C++ loader's rl.action_profile default.
+_DEFAULT_ACTION_PROFILE = "move_2d"
+
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -102,6 +105,14 @@ def read_rl_selection(run_config: str) -> dict[str, str]:
         if value:
             raw[key] = value
     return raw
+
+
+def read_action_profile(run_config: str) -> str:
+    """Return [rl] action_profile, or the C++ loader's default when absent."""
+    ini = _read_ini(run_config)
+    raw = strip_inline_comment(ini.get("rl", "action_profile",
+                                       fallback=_DEFAULT_ACTION_PROFILE))
+    return raw or _DEFAULT_ACTION_PROFILE
 
 
 def read_control_mode(run_config: str) -> str:
