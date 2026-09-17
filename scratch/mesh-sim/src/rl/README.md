@@ -39,9 +39,7 @@ The agent cannot interrupt a command halfway through a decision window. To
 change direction more often, reduce `decision_interval_s` to an integer multiple
 of `tick_s` (down to one tick). A wall-clipped or held node still participates in
 link, traffic, and reward calculations every tick; there is no separate wall or
-hold reward. `revalidated_slots` in the *next* `step` lists only action positions
-whose invalid command C++ replaced with hold. It does not list deliberate hold
-actions or every node that happens to be stationary.
+hold reward.
 With `all_links_los`, the reward still depends on the current links' LOS;
 being at a boundary or choosing hold has no bonus or penalty by itself.
 
@@ -121,6 +119,14 @@ stdout.
 | EOF (stdin closed) | all slots hold for the rest of the episode, one `Warning: RL action stream closed; all controlled nodes hold.`; every tick and message still runs | Stay, one `Warning: RL action stream closed; holding position (Stay).` |
 | Structural error (bad JSON, not a list, wrong length, non-integer, out of range) | all slots hold, one `Warning: malformed RL joint action; all controlled nodes hold.` | Stay, one `Warning: malformed RL action JSON; holding position (Stay).` (a non-integer `action`, e.g. a list, is malformed rather than fatal) |
 | Semantic error (masked-out direction, non-hold in a padded slot) | only that slot holds, one `Warning: RL joint action revalidated; invalid slot actions replaced by hold.`, and the slot index appears in the next message's `revalidated_slots` | n/a |
+
+`revalidated_slots` means **zero-based action positions**, not node IDs or a
+new set of controlled nodes. C++ replaces each invalid position with hold (`4`)
+before movement; valid positions keep their commands. For example, with two
+controlled nodes and a padded third position, `[2,1,0]` is executed as
+`[2,1,4]`, and the *next* `step` reports `"revalidated_slots":[2]`. The list
+is empty for a deliberate hold, wall clipping during movement, or a malformed
+whole action (which makes all positions hold instead).
 
 A centralized run never accepts a scalar action; a legacy run never accepts a list.
 
