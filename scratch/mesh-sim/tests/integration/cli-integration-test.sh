@@ -90,7 +90,7 @@ else
     pass "exits nonzero for nonexistent config"
 fi
 
-# Tests 4-8 need the baseline fixtures; a missing file would let the negative
+# Tests 4-9 need the baseline fixtures; a missing file would let the negative
 # tests pass for the wrong reason.
 for required in \
     "$SMOKE/run.ini" "$SMOKE/nodes.json" \
@@ -223,6 +223,24 @@ if [[ $jam_ok -eq 1 ]]; then
             fail "no matched link differs in sinr_db between sub-6 and mmwave"
         fi
     fi
+fi
+
+# --- Test 9: legacy stream shape is unchanged ---
+echo "Test 9: legacy RL stream shape"
+if "$BIN" --run-config="$SMOKE/run.ini" --seed=1 --output-dir="$TMP/run12" \
+        </dev/null >"$TMP/run12.out" 2>"$TMP/run12.err"; then
+    line_count=$(grep -c '' "$TMP/run12.out" || true)
+    if [[ "$line_count" -ne 5 ]]; then
+        fail "legacy stdout should have 5 lines, got $line_count"
+    elif grep -q '"type":"init"' "$TMP/run12.out"; then
+        fail "legacy stdout must not contain an init message"
+    elif ! head -n 1 "$TMP/run12.out" | grep -q 'controlled_pos'; then
+        fail "legacy first line should contain controlled_pos"
+    else
+        pass "legacy stream is 5 step lines with no init message"
+    fi
+else
+    fail "legacy p0-smoke run should exit 0"
 fi
 
 # --- Summary ---

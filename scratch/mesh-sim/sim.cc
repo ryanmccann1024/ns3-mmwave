@@ -5,6 +5,7 @@
 #include "src/cli/cli-parser.h"
 #include "src/config/config-loader.h"
 #include "src/config/config-validator.h"
+#include "src/config/rl-control.h"
 #include "src/eval/link-evaluator.h"
 #include "src/eval/link-table.h"
 #include "src/io/metrics-writer.h"
@@ -94,6 +95,19 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
         return 1;
     }
 
+    /// @brief Resolve the RL control slots, cadence, and tick count once, so
+    ///        the topology, bridge, and run.log all read the same values.
+    auto ctl = mesh_sim::ResolveRlControl(cfg);
+    if (!ctl.ok())
+    {
+        for (const auto& e : ctl.errors)
+        {
+            std::cerr << "Config error: " << e << "\n";
+        }
+        return 1;
+    }
+    mesh_sim::ApplyRlControl(cfg, ctl);
+
     if (cfg.rl.reward_type_alias == "mean_sinr")
     {
         std::cerr << "Warning: [rl] reward_type 'mean_sinr' is deprecated; use 'all_links_los'.\n";
@@ -178,26 +192,21 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
         /// @brief Optional RL bridge — picks the controlled node and steps
         ///        the obs/action loop alongside the main tick loop.
         std::unique_ptr<mesh_sim::RlBridge> rlBridge;
-        uint32_t rlControlledIdx = N - 1; // default: last node
+        const bool centralizedRl = (cfg.rl.control_mode == "centralized");
         if (cfg.rl.enabled)
         {
-            if (!cfg.rl.controlled_node_id.empty())
+            rlBridge = std::make_unique<mesh_sim::RlBridge>(cfg);
+            if (centralizedRl)
             {
-                for (uint32_t i = 0; i < cfg.nodes.size(); ++i)
-                {
-                    if (cfg.nodes[i].id == cfg.rl.controlled_node_id)
-                    {
-                        rlControlledIdx = i;
-                        break;
-                    }
-                }
+                rlBridge->WriteInit();
             }
-            rlBridge = std::make_unique<mesh_sim::RlBridge>(cfg, rlControlledIdx);
         }
 
         /// @brief Main per-tick loop: advance sim time, evaluate links,
         ///        route flows, log progress, write metrics/viz.
-        uint32_t numTicks = static_cast<uint32_t>(cfg.duration_s / cfg.tick_s);
+        uint32_t numTicks = cfg.rl.enabled
+                                ? cfg.rl.num_ticks
+                                : static_cast<uint32_t>(cfg.duration_s / cfg.tick_s);
 
         uint32_t progressInterval = std::max(1u, numTicks / 20);
         mesh_sim::ProgressLogger progress{numTicks, progressInterval, seed,
@@ -212,6 +221,10 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
             // and ThreeGpp/NYU channel-condition cache expiry.
             if (ti > 0)
             {
+                if (rlBridge)
+                {
+                    rlBridge->BeforeAdvance(mobs);
+                }
                 ns3::Simulator::Stop(ns3::Seconds(cfg.tick_s));
                 ns3::Simulator::Run();
             }
@@ -255,10 +268,25 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
             if (rlBridge)
             {
                 bool done = (ti == numTicks);
-                rlBridge->Step(ti, t, mobs, linkTable, flowResults, done);
-                if (!done)
+                if (centralizedRl)
                 {
-                    rlBridge->ApplyAction(mobs[rlControlledIdx]);
+                    rlBridge->AccumulateTick(linkTable, flowResults);
+                    if (done || rlBridge->IsDecisionTick(ti))
+                    {
+                        rlBridge->Step(ti, t, mobs, linkTable, flowResults, done);
+                        if (!done)
+                        {
+                            rlBridge->ApplyAction(mobs);
+                        }
+                    }
+                }
+                else
+                {
+                    rlBridge->Step(ti, t, mobs, linkTable, flowResults, done);
+                    if (!done)
+                    {
+                        rlBridge->ApplyAction(mobs);
+                    }
                 }
             }
         }

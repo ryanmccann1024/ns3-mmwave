@@ -10,7 +10,7 @@
  * | Channel    | @c frequency_ghz > 0; @c bandwidth_mhz > 0; @c channel_model ∈ {3gpp, nyu}; @c scenario ∈ {UMi, UMa, RMa, InH, InF}; both array gains >= 0 |
  * | Traffic    | @c model ∈ {constant, poisson, on_off}; @c flow_topology ∈ {all_pairs, random_pairs, gateway}; @c demand_mbps > 0; @c gateway topology requires a non-empty @c gateway_node_id that matches a node; @c random_pairs requires @c random_pair_count > 0 |
  * | Routing    | @c algorithm ∈ {shortest_path, max_throughput, min_hop}                    |
- * | RL         | (when enabled) @c action_type ∈ {discrete, continuous}; @c reward_type ∈ {throughput, mean_sinr}; @c step_size_m > 0 (discrete); @c arrival_threshold_m > 0 (continuous); @c x_min < @c x_max; @c y_min < @c y_max; @c controlled_node_id must match a node if set |
+ * | RL         | (when enabled) @c action_type ∈ {discrete, continuous}; @c reward_type ∈ {throughput, all_links_los}; @c step_size_m > 0 (discrete); @c arrival_threshold_m > 0 (continuous); @c x_min < @c x_max; @c y_min < @c y_max; @c z_min < @c z_max; @c controlled_node_id must match a node if set; plus every error reported by @ref ResolveRlControl (selector, slot, cadence, and start-position rules) |
  * | Buildings  | Each building's @c x_min < @c x_max; @c y_min < @c y_max; @c z_min < @c z_max |
  */
 #pragma once

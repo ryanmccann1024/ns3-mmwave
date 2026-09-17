@@ -48,6 +48,7 @@ jobs:
           test -x "${binaries[0]}"
           MESH_SIM_BIN="${binaries[0]}" make -C tests integration
           python3 -m scripts.validation.smoke_check --sim-binary "${binaries[0]}" --out outputs/ci-smoke
+          MESH_SIM_BIN="${binaries[0]}" .venv/bin/python -m pytest scripts/rl/tests/test_real_binary.py -q
       - name: Retain smoke diagnostics
         if: always()
         uses: actions/upload-artifact@v4

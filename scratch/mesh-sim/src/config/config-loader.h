@@ -13,7 +13,8 @@
  * | @c nyu_channel | All @ref NyuChannelConfig fields; only applied when @c channel_model is @c "nyu" |
  * | @c traffic   | @c model, @c demand_mbps, @c arrival_rate_hz, @c on_time_s, @c off_time_s, @c holding_time_s, @c flow_topology, @c random_pair_count, @c gateway_node_id |
  * | @c routing   | @c algorithm, @c max_hops                                            |
- * | @c rl        | @c enabled, @c controlled_node_id, @c action_type, @c reward_type, @c step_size_m, @c arrival_threshold_m, @c x_min/x_max/y_min/y_max |
+ * | @c rl        | @c enabled, @c controlled_node_id, @c action_type, @c reward_type, @c step_size_m, @c arrival_threshold_m, @c x_min/x_max/y_min/y_max/z_min/z_max |
+ * | @c rl        | (centralized control) @c controlled_nodes, @c max_controlled_nodes, @c action_profile, @c decision_interval_s. Presence of the @c controlled_nodes key alone selects centralized mode (@c controlled_nodes_set) |
  */
 #pragma once
 

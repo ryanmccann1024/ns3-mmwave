@@ -9,6 +9,14 @@ Usage (run from mesh-sim)
         --output-dir outputs/<dir> \
         [--band sub-6] \
         m-ppo --total-timesteps 16 --n-steps 16 --seed 1
+
+Centralized multi-node control uses the same command with a centralized scenario:
+
+    python -m scripts.rl.train \
+        --sim-binary <BIN> \
+        --run-config inputs/baselines/p1-multi-smoke/run.ini \
+        --output-dir outputs/<dir> \
+        m-ppo --total-timesteps 16 --n-steps 16 --seed 1
 """
 
 import argparse
@@ -22,7 +30,7 @@ from datetime import datetime, timezone
 from scripts.rl.agents.mask_ppo import MaskablePPOConfig, MaskablePpoTrainer
 from scripts.rl.bootstrap_venv import DIRECT_DEPS
 from scripts.rl.env.mesh_env import MeshRlEnv
-from scripts.rl.env.config import read_scenario_seed
+from scripts.rl.env.config import read_scenario_identity, read_scenario_seed
 
 MANIFEST_NAME = "train_manifest.json"
 MODEL_BASENAME = "maskable_ppo_mesh"
@@ -80,12 +88,15 @@ def _write_manifest(out_dir: str, manifest: dict) -> None:
 def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
                out_dir: str, band: str | None, seed_source: str) -> str:
     manifest = {
-        "manifest_version": 1,
+        "manifest_version": 2,
         "status": "running",
         "started_at": _now_iso(),
         "ended_at": None,
         "sim_binary": os.path.abspath(sim_binary),
         "run_config": os.path.abspath(run_config),
+        "scenario_identity": read_scenario_identity(run_config),
+        "control_mode": None,
+        "contract": None,
         "algorithm": "MaskablePPO",
         "seed": cfg.seed,
         "seed_source": seed_source,
@@ -106,6 +117,7 @@ def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
     _write_manifest(out_dir, manifest)
 
     model_path = os.path.abspath(os.path.join(out_dir, f"{MODEL_BASENAME}.zip"))
+    env = None
     try:
         # Let the env resolve the run.ini seed itself so episode manifests report
         # the same seed_source as this training manifest.
@@ -113,17 +125,26 @@ def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
         env = MeshRlEnv(sim_binary, run_config, seed=env_seed,
                         output_dir=out_dir, band=band)
         env.reset()                   # populate dynamic obs/action spaces before wrapping
+        manifest["control_mode"] = env.control_mode
+        manifest["contract"] = env.contract
+        _write_manifest(out_dir, manifest)
 
         trainer = MaskablePpoTrainer(cfg, env, mask_fn)
         trainer.train()
         trainer.save(os.path.join(out_dir, MODEL_BASENAME))
-        env.close()
     except Exception as exc:
         manifest["status"] = "failed"
         manifest["ended_at"] = _now_iso()
         manifest["error"] = f"{type(exc).__name__}: {exc}"[:_MAX_ERROR_CHARS]
         _write_manifest(out_dir, manifest)
         raise
+    finally:
+        # Always reap the simulator; a recorded failure is never relabelled here.
+        if env is not None:
+            try:
+                env.close()
+            except Exception:
+                pass
 
     manifest["status"] = "completed"
     manifest["ended_at"] = _now_iso()

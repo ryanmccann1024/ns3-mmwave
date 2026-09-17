@@ -3,6 +3,8 @@
 
 #include "src/setup/topology-builder.h"
 
+#include "src/config/rl-control.h"
+
 #include "ns3/boolean.h"
 #include "ns3/buildings-helper.h"
 #include "ns3/buildings-module.h"
@@ -16,6 +18,7 @@
 #include "ns3/waypoint-mobility-model.h"
 #include "ns3/waypoint.h"
 
+#include <algorithm>
 #include <stdexcept>
 
 using namespace ns3;
@@ -99,14 +102,29 @@ TopologyBuilder::GetConditionModel() const
 void
 TopologyBuilder::CreateNodesAndMobility()
 {
-    for (const auto& spec : m_cfg.nodes)
+    const bool centralizedRl =
+        m_cfg.rl.enabled && m_cfg.rl.control_mode == "centralized";
+
+    for (uint32_t i = 0; i < m_cfg.nodes.size(); ++i)
     {
+        const auto& spec = m_cfg.nodes[i];
+
         NodeContainer nc;
         nc.Create(1);
         Ptr<Node> node = nc.Get(0);
         m_nodes.Add(nc);
 
-        if (spec.mobility == "fixed")
+        const bool rlControlled =
+            centralizedRl &&
+            std::find(m_cfg.rl.controlled_indices.begin(),
+                      m_cfg.rl.controlled_indices.end(),
+                      i) != m_cfg.rl.controlled_indices.end();
+
+        if (rlControlled)
+        {
+            InstallMobilityRlControlled(node, spec);
+        }
+        else if (spec.mobility == "fixed")
         {
             InstallMobilityFixed(node, spec);
         }
@@ -212,6 +230,20 @@ TopologyBuilder::InstallMobilityConstantVelocity(const Ptr<Node>& node, const No
         Vector(spec.position.x, spec.position.y, spec.position.z));
     node->GetObject<ConstantVelocityMobilityModel>()->SetVelocity(
         Vector(spec.velocity.vx, spec.velocity.vy, spec.velocity.vz));
+}
+
+void
+TopologyBuilder::InstallMobilityRlControlled(const Ptr<Node>& node, const NodeSpec& spec)
+{
+    const Position start = ControlledStartPosition(spec);
+
+    MobilityHelper mob;
+    mob.SetMobilityModel("ns3::ConstantVelocityMobilityModel");
+    NodeContainer nc;
+    nc.Add(node);
+    mob.Install(nc);
+    node->GetObject<MobilityModel>()->SetPosition(Vector(start.x, start.y, start.z));
+    node->GetObject<ConstantVelocityMobilityModel>()->SetVelocity(Vector(0.0, 0.0, 0.0));
 }
 
 void
