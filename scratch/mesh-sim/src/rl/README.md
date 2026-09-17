@@ -71,15 +71,36 @@ The `-999` SINR sentinel is passed through unchanged.
 
 ## Message fields
 
-Centralized `init` is the first line, sent once per simulator process:
+Centralized `init` is the first line, sent once per simulator process. Python
+keeps the following values as an episode **signature** and compares them on
+every later reset. A change is an error because the same Gymnasium environment
+must not silently change its action/observation layout or behavior. This is an
+ordinary dictionary, not a SHA hash or another configuration file.
 
-- Identity and actions: `type`, `contract`, `dimensions`, `action_meanings`.
-- Node layout: `max_controlled_nodes`, `num_controlled`, `slot_node_ids`,
-  `slot_speed_mps`, `num_mesh_nodes`, `obs_dim`, `mask_dim`. Padded entries in
-  the two slot lists are `null`.
-- Timing and reward: `tick_s`, `decision_interval_s`,
-  `decision_interval_ticks`, `num_ticks`, `num_decisions`, `reward_type`,
-  `reward_window`, `wall_policy`.
+| Signature field | Meaning |
+| --- | --- |
+| `control_mode` | `centralized`; identifies the multi-node protocol (set by Python, not sent in `init`). |
+| `contract` | Protocol name, currently `mesh_move_2d_v1`. |
+| `dimensions` | `2`: actions move horizontally; z can still appear in observations. |
+| `action_meanings` | Ordered meanings of actions 0–4: west, east, south, north, hold. |
+| `num_mesh_nodes` | Total mesh nodes `N` in `nodes.json`, including uncontrolled nodes but not jammers. |
+| `max_controlled_nodes` | `M` fixed action/observation positions; includes padding, not just active controlled nodes. |
+| `obs_dim` | Observation length, `M * (4 + 2*(N-1))` for this contract. |
+| `mask_dim` | Flat action-mask length, `5*M`. |
+| `nvec` | Python's `MultiDiscrete` sizes: one 5-action choice per position, `(5,)*M`. |
+| `slot_node_ids` | Node ID assigned to each position, in order; `null` for padding. |
+| `slot_speed_mps` | Movement speed cap for each position, in m/s; `null` for padding. |
+| `tick_s` | Simulated seconds advanced by one simulator tick. |
+| `decision_interval_s` | Simulated seconds between chances to choose a new joint action. |
+| `decision_interval_ticks` | Number of simulator ticks per decision window, `k = decision_interval_s / tick_s`. |
+| `num_ticks` | Total simulator ticks in the episode. |
+| `num_decisions` | Number of decision windows, `ceil(num_ticks / k)`. |
+| `reward_type` | C++ reward selected by `[rl] reward_type`. |
+| `reward_window` | `mean`: each decision reports the mean reward of its constituent ticks. |
+| `wall_policy` | `clip`: movement is limited to the configured bounds each tick. |
+
+The `init` message also has `type: "init"` and `num_controlled`, the actual
+number of active nodes (`num_controlled <= max_controlled_nodes`).
 
 Each centralized `step` contains `type`; `tick`, `time_s`, `decision` (from 0),
 and `ticks_in_step`; `obs`, `mask`, and `reward`; then `done` and
