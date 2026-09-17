@@ -380,11 +380,34 @@ with masked deterministic actions:
 `--run-dir` the run config, band, and selection come from the training manifest;
 `--run-config`/`--band` may override them. The scenario check always runs for
 the model; an override may cause a mismatch.
+`--seeds` accepts comma-separated seeds and inclusive ranges, so
+`--seeds 301-303,310` is the same as `--seeds 301,302,303,310`. `--label <name>`
+names the experiment row an evaluation belongs to, which is how
+`scripts.rl.compare` recognizes evaluations of independently trained models as
+one group.
 Evaluation writes `eval_manifest.json` plus one `<policy>/episode-NNNN/`
 directory per policy and seed, and refuses an `--output-dir` inside the training
-run. Exit 0 means every episode completed with no revalidated slots and no
+run. The manifest is rewritten after every episode, so a seed whose simulator
+dies mid-episode leaves the records of the seeds before and after it intact; its
+own record keeps the episode directory and the partial return but reports every
+metric as `null`, because a partial window spans less time than a full episode.
+Manifest `status` is `completed` when every expected episode completed,
+`partial` when at least one episode completed and at least one did not, and
+`failed` when the evaluation aborted or nothing completed.
+Exit 0 means every episode completed with no revalidated slots and no
 masked actions, exit 2 means the episodes completed but one of those counters is
-non-zero, and exit 1 is an error.
+non-zero, and exit 1 means an error or an episode that did not complete.
+
+`eval_manifest.json` is version 2. Beyond the version-1 fields it records
+`label`; `seed_roles` (training seed, model-selection seed, held-out seeds, any
+overlap, whether the overlap was allowed, and whether the result is held out);
+`training`, copied from the training manifest (algorithm, seeds, scenario
+digests, hyperparameters); `metric_source`; and `episodes_expected` /
+`episodes_completed`. Every policy now holds exactly one record per requested
+seed in seed order, with `status` `completed`, `failed`, or `not_run` (a seed the
+evaluation never reached), and each record adds `error`,
+`metrics.unroutable_fraction`, and a `summary_json` path that is only a pointer
+and is never parsed.
 
 `train_manifest.json` is version 4. Besides the existing run identity it
 records `status`/`error`, `algorithm`, `seed` and `seed_source`, `control_mode`,
@@ -399,7 +422,12 @@ seed, output dir, log path) or `null`, `hyperparameters`, `package_versions`,
 older `manifest_version` and are not loadable: retrain with the current tooling.
 
 Seed discipline: keep the training seed, the during-training evaluation seed,
-and the standalone evaluation seeds disjoint; the tools do not enforce this.
+and the standalone evaluation seeds disjoint. With `model` among `--policies`,
+`scripts.rl.evaluate` refuses to start when a requested seed is the training
+seed or the recorded model-selection seed, naming each seed and its role.
+`--allow-seed-overlap` downgrades that refusal to a stderr `WARNING:` line and
+records `seed_roles.held_out: false`, which marks the evaluation as not held out
+and excludes it from across-run aggregates.
 The during-training evaluation runs in its own environment, seed, and output
 directory (`<output-dir>/eval/`)
 and contributes no gradient steps. Standalone evaluation never informs model
@@ -419,6 +447,90 @@ route to LOS. Action masks check bounds, not buildings, so moving west through
 the building also reaches LOS once x < 90. Its `run.ini` header records the
 geometry and the expected hold and north-moving numbers. It is a smoke fixture
 for the lifecycle tools, not a benchmark or a training campaign.
+
+#### Comparing policies and running an experiment matrix
+
+`scripts.rl.compare` turns finished evaluations into paired
+model-minus-baseline statistics, and `scripts.rl.experiment` expands a named
+matrix into the train, evaluate, and compare steps that produce them.
+
+```bash
+.venv/bin/python -m scripts.rl.compare \
+  --eval-dirs outputs/bypass-eval --output-dir outputs/bypass-compare
+
+.venv/bin/python -m scripts.rl.experiment plan \
+  --matrix inputs/experiments/bypass-smoke-matrix.json \
+  --output-root outputs/bypass-matrix --sim-binary <BIN> [--rows local-delivery]
+
+.venv/bin/python -m scripts.rl.experiment run \
+  --matrix inputs/experiments/bypass-smoke-matrix.json \
+  --output-root outputs/bypass-matrix --sim-binary <BIN>
+
+.venv/bin/python -m scripts.rl.experiment status --output-root outputs/bypass-matrix
+```
+
+`compare` takes exactly one of `--eval-dirs DIR [DIR …]` or `--plan
+experiment_plan.json`, plus a required `--output-dir` that must not already
+contain a training or evaluation manifest. `--baselines a,b` restricts the
+baselines (the default is every non-`model` policy present) and `--json` prints
+`comparison.json` instead of the summary lines. It reads only
+`eval_manifest.json` files, refuses version-1 manifests, and writes
+`episodes.csv` (one row per evaluation directory, policy, and seed — the raw
+record every aggregate traces back to) and `comparison.json`. Neither file
+carries a timestamp, so repeating the same command reproduces byte-identical
+output. A listed directory without a readable manifest becomes a
+`missing_evaluations` entry instead of a crash.
+
+`experiment` writes `experiment_plan.json` under `--output-root` and keeps the
+runs beside it: `train/<row>/train-seed-<S>/`, `eval/<row>/train-seed-<S>/`, and
+`comparison/{episodes.csv,comparison.json}`. `--rows` selects named rows. `run`
+executes the pending steps sequentially in fresh processes and always runs
+`compare` last, so a missing run is reported rather than hidden. Each step's
+state comes from its manifest alone — `pending`, `done`, `partial`, or `blocked`
+— and a blocked step is never re-run automatically: move or delete its
+directory. Re-planning the same `--output-root` with a different matrix, binary,
+or `--rows` is refused; use a new root.
+
+Two kinds of interval are reported, and they never share a label. The first is
+across evaluation seeds for one saved model: the model and a baseline are paired
+seed by seed inside one evaluation, and the interval describes how the paired
+difference varies over held-out scenario seeds with the model held fixed. The
+second is across independently trained models: evaluations that share a `--label`
+contribute one mean difference each, over the seeds common to all of them, and
+the interval describes run-to-run variation — where the training seed currently
+sets both the PPO initialization and the training scenario seed, so the two
+cannot be separated (TODO-RL-SEEDS-1). A single evaluation seed, or a single
+training run, yields a value and no interval, with `interval_omitted` saying
+why.
+
+Every comparison reports `n_expected` (the requested seeds) beside `n_used` (the
+pairs that both policies completed), and lists each dropped seed with a reason
+per side, such as `model:failed`, `hold:metric_null`, or `random_valid:not_run`.
+A `null` metric is never read as zero. `zero_variance` marks a zero-width
+interval so a deterministic scenario is not mistaken for certainty. Exit 0 means
+every expected evaluation was found, complete, held out, and free of health
+counters; exit 2 means the outputs are complete but a health counter is non-zero
+or an evaluation is not held out; exit 1 means the comparison is incomplete
+(outputs are still written) or was refused (nothing is written).
+
+`delivery_ratio` is the primary metric; `connectivity`, `los_fraction`, and
+`unroutable_fraction` follow. `return` is compared only inside one evaluation,
+where every policy shares one reward definition, and is flagged
+`comparable_across_reward_definitions: false` — two rows with different reward
+components produce returns on different scales, so comparing them would be
+meaningless.
+
+All statistics come from the RL telemetry window, which every output states as
+`metric_source`. Nothing is read from a run's `summary.json`, because that file
+excludes warmup ticks while the RL window does not; until that mismatch is
+resolved (see the RL-reward warmup entry in `TODO.md`), mixing the two sources in
+one table would be wrong whenever `warmup_s > 0`. The intervals are t intervals
+that assume approximately normal paired differences; on a bounded ratio with few
+seeds they are approximate, not exact.
+
+`inputs/experiments/bypass-smoke-matrix.json` is diagnostic, not a benchmark:
+four explicit rows around one anchor on the bypass fixture with smoke-sized
+budgets. It exercises the harness; it is not evidence that a policy learns.
 
 ### Band in sweeps and validation batches
 
