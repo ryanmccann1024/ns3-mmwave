@@ -559,11 +559,18 @@ back. Every schema, state, and refusal is documented in
 [`scripts/rl/ops/README.md`](scripts/rl/ops/README.md); the cluster commands are
 validated against a fake scheduler only, and `fetch` against a fake `rsync`.
 
-Measure one task's wall time and process-tree memory, then scale that
-measurement onto another matrix. The estimate is arithmetic on the machine it
-was measured on and records `is_cluster_estimate: false`:
+Benchmarking is a timed dress rehearsal: `run` actually trains and evaluates
+one planned `(row, training seed)` task, measuring elapsed time and the memory
+used by its Python and simulator processes. `estimate` scales those measurements
+to a target matrix without running it. Plan into a fresh output root first;
+the estimate is arithmetic on the measured machine and records
+`is_cluster_estimate: false`:
 
 ```bash
+.venv/bin/python -m scripts.rl.experiment plan \
+  --matrix inputs/experiments/bypass-smoke-matrix.json \
+  --output-root outputs/bench/bypass-smoke --sim-binary <BIN> --rows local-delivery
+
 .venv/bin/python -m scripts.rl.ops.benchmark run \
   --output-root outputs/bench/bypass-smoke --task-index 0
 
@@ -581,8 +588,11 @@ it exercises the plumbing and ranks nothing reliably:
 ```bash
 .venv/bin/python -m scripts.rl.ops.tune \
   --study inputs/experiments/bypass-smoke-study.json \
-  --output-root outputs/tune/bypass-smoke --sim-binary <BIN> [--dry-run]
+  --output-root outputs/tune/bypass-smoke --sim-binary <BIN> --dry-run
 ```
+
+Remove `--dry-run` only when ready to execute the trials; the preview launches
+no training or simulator process.
 
 Submit an already-planned output root to SLURM, one array element per
 `(row, training seed)` plus one dependent comparison job. All cluster settings
@@ -591,10 +601,16 @@ and `status` only reads:
 
 ```bash
 <venv>/bin/python -m scripts.rl.ops.cluster plan   --output-root R --cluster-config C
-<venv>/bin/python -m scripts.rl.ops.cluster submit --output-root R --cluster-config C [--tasks 0] [--dry-run]
-<venv>/bin/python -m scripts.rl.ops.cluster status --output-root R [--json]
+<venv>/bin/python -m scripts.rl.ops.cluster submit --output-root R --cluster-config C --dry-run
+<venv>/bin/python -m scripts.rl.ops.cluster status --output-root R
 <venv>/bin/python -m scripts.rl.ops.cluster resume --output-root R --cluster-config C
 ```
+
+The `submit` line previews without submitting; remove `--dry-run` only after
+checking the task table and rendered script. Add `--tasks 0` to start with a
+single array task, or `--json` to `status` for machine-readable state. The
+cluster [operations guide](scripts/rl/ops/README.md#cluster-runs) explains
+receipts, recovery, cancellation, and each command's refusal rules.
 
 Copy selected results from the run to this machine. Nothing local is ever
 overwritten, and `fetch_manifest.json` records what arrived, marking unselected

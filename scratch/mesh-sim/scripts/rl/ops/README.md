@@ -4,6 +4,17 @@ Operations plumbing *around* an existing `experiment_plan.json`: run one array
 task, measure one task's cost, search the already-wired PPO knobs, submit the
 plan to SLURM, and copy results to another machine.
 
+## Start here
+
+Create an experiment plan before benchmarking or submitting cluster tasks;
+tuning reads a study spec directly, and fetch copies an existing run. For a
+resource estimate, start at [Benchmark](#benchmark); for a small search, see
+[Tuning smoke](#tuning-smoke); for job submission and recovery, see
+[Cluster runs](#cluster-runs); for copying results home, see [Fetch](#fetch).
+The [module map](#module-map) below tells contributors which file owns each
+part. The cluster guide documents the current CLI, but live SLURM and real
+`rsync` behavior still need validation on the target site.
+
 ## What this package owns
 
 - Mapping a plan onto array tasks and reading each task's filesystem state.
@@ -131,6 +142,11 @@ healthy task as FAILED, while the raw code survives in the record.
 `exit_code: null` and `tolerated: null`.
 
 ## Cluster runs
+
+For now, use one SLURM account per output root. Scheduler lookups use the
+current account, so a second operator may not see an existing job and could
+incorrectly abandon its receipt and submit a duplicate task. This is a known
+limitation, not a substitute for the planned code safeguard.
 
 ### Commands
 
@@ -282,7 +298,13 @@ job name.
 5. Unless `--no-compare`, and only when every task is finished or covered by an
    active job, queue the compare job (below). When some tasks are uncovered —
    for example after a `--tasks 0` canary — the command says so and queues no
-   compare job.
+   compare job. If the array was submitted but compare submission is refused
+   or its outcome is uncertain, a later `resume` with no tasks left to submit
+   does **not** queue compare by itself. Check `status` and the receipts first.
+   Once every evaluation is complete and no compare job can still write, use
+   `cluster compare` on a host where the site permits it. There is currently no
+   CLI command to submit a compare-only SLURM job; do not assume the comparison
+   will appear automatically.
 
 The `sbatch` argv is
 `sbatch --parsable --no-requeue --job-name=J [--array=SPEC] --output=<log pattern>
@@ -366,6 +388,12 @@ under `--dry-run` — because active elements cannot be resolved without it;
 nothing is cancelled and nothing is recorded.
 
 ### Only one writer of `comparison.json`
+
+If a compare submission is lost after the array is queued, the same safety
+checks can prevent another automatic submission. Inspect the compare receipt
+and scheduler state before using `cluster compare`; an unresolved no-ID intent
+or a job that may still be active blocks it. The deferred compare-only
+submission path is tracked in `TODO-RL-OPS-2`.
 
 Before queuing a new compare job, an earlier compare job that is still active is
 cancelled, the `scancel` call must have succeeded, and a fresh queue snapshot
@@ -457,13 +485,18 @@ committed.
 
 ## Benchmark
 
+This is a measurement run, not a dry run: it executes one planned train step
+and its evaluation, then records wall-clock time and sampled memory. Use a
+small representative task first; the estimate does not measure the target
+matrix or predict queue wait time.
+
 ```bash
 .venv/bin/python -m scripts.rl.experiment plan \
   --matrix inputs/experiments/bypass-smoke-matrix.json \
   --output-root outputs/bench/bypass-smoke --sim-binary <BIN> --rows local-delivery
 
 .venv/bin/python -m scripts.rl.ops.benchmark run \
-  --output-root outputs/bench/bypass-smoke --task-index 0 [--sample-interval-s 0.5]
+  --output-root outputs/bench/bypass-smoke --task-index 0
 
 .venv/bin/python -m scripts.rl.ops.benchmark estimate \
   --benchmark outputs/bench/bypass-smoke/benchmark/task-0000.json \
@@ -480,6 +513,12 @@ parses `ps -A -o pid=,ppid=,rss=`, walks the parent chain from the step's pid,
 and keeps the peak summed RSS, the peak process count, and the largest single
 process RSS over the tree. Process-tree sampling is used because a training step
 can have the Python process and up to two simulator subprocesses alive at once.
+
+RSS means *resident set size*: memory currently resident in RAM, reported here
+in KiB. `peak_tree_rss_kb` is the largest sampled sum across the task's Python
+process and its descendants, not a precise peak of unique memory; shared pages
+may be counted more than once.
+
 **Sampling misses spikes shorter than the interval**; the record says so in
 `sampling.note`, and the safety factor of the estimate is the human's lever for
 that. A `ps` failure sets the three memory fields to `null` and records
@@ -582,6 +621,14 @@ at least one trial failed — records are still written in that case.
   }
 }
 ```
+
+These are different seeds: `training_seed` fixes the PPO and training-scenario
+randomness for every trial in this study. `sampler.seed` fixes Optuna's sequence
+of candidate hyperparameters; it is **not** passed to PPO or the simulator.
+The matrix's `model_selection` seed scores each trial, and held-out seeds are
+not used for tuning. Vary training seeds later to test whether the selected
+configuration is robust, rather than treating Optuna trials as independent
+training-seed replicates.
 
 Every key is validated before anything is launched:
 
@@ -709,8 +756,8 @@ the parsers remain unproven until a live run. Every query failure degrades to
 
 ### Needs a live cluster
 
-- Which scheduler and version, and whether `--array`, `--parsable`, and
-  `<job id>_<index>` element ids behave as parsed here.
+- Which scheduler and version, whether `sacct --array` and `--parsable` are
+  accepted, and whether `<job id>_<index>` element ids behave as parsed here.
 - Partition, account, QOS, constraint, site `MaxArraySize`, and any per-user
   concurrent-task cap, for the config file.
 - Whether environment modules are needed, which Python backs the shared venv,

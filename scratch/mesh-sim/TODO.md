@@ -163,14 +163,17 @@ id forms, and accepted flags are unproven on a real site. Whether the site
 exposes a meaningful start estimate or a queue position at all is likewise
 unknown; the local benchmark supports no completion ETA, and a laptop
 measurement is never a cluster estimate. Record each live finding here rather
-than inferring site behavior from the code. Owner: team — status: open.
+than inferring site behavior from the code. Verify `sacct --array` explicitly;
+the fake scheduler cannot reject unsupported flags. Owner: team — status: open.
 
 ### TODO-RL-OPS-2 — Oversized arrays and blocked-directory archiving
 A plan with more tasks than the configured `max_array_size` is refused rather
 than chunked across several arrays. A task blocked by a populated step directory
 is reported with `move or delete <dir> to retry` and is never moved, renamed, or
 deleted by the tooling; an archive helper that does it safely is not
-implemented. Owner: team — status: open.
+implemented. Submitting a compare-only SLURM job after task submission succeeds
+but compare submission is refused is also deferred; `resume` with no pending
+tasks does not queue one. Owner: team — status: open.
 
 ### TODO-RL-TUNE-1 — Further PPO knobs, budget search, and study resume
 `scripts/rl/ops/tune.py` can search only `n_steps`, `gamma`, and `ent_coef`,
