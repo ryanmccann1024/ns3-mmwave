@@ -42,6 +42,14 @@ Use `python3 scripts/rl/bootstrap_venv.py --check` to verify imports and exact
 installed versions without installing anything. CMake and a C++ compiler are
 separate ns-3 build prerequisites; this helper does not install them.
 
+`requirements-tuning.txt` pins Optuna separately and is installed by hand
+(`.venv/bin/python -m pip install -r requirements-tuning.txt`) only when you run
+the tuning smoke. It is kept out of `requirements.txt` because that file defines
+the direct dependency set recorded in every training and evaluation manifest and
+checked by `bootstrap_venv.py --check`: adding a tuner there would change every
+manifest and force a tuning-only package on machines that only train, evaluate,
+or compare.
+
 @section run Run
 
 Simulator commands below run from the **ns3-mmwave repo root**. Python
@@ -541,6 +549,61 @@ four explicit rows around one anchor on the bypass fixture with smoke-sized
 budgets. It exercises the harness; it is not evidence that a policy learns.
 For the purpose, input, and expected output of each comparison and matrix test,
 see [Policy comparison tests](src/rl/policy-comparison-tests.md).
+
+#### Benchmarking, tuning smoke, and cluster runs
+
+`scripts.rl.ops` runs a planned matrix elsewhere: it measures one
+`(row, training seed)` task, searches the PPO knobs that are already wired,
+submits the plan as a SLURM array plus one comparison job, and copies results
+back. Every schema, state, and refusal is documented in
+[`scripts/rl/ops/README.md`](scripts/rl/ops/README.md); the cluster commands are
+validated against a fake scheduler only, and `fetch` against a fake `rsync`.
+
+Measure one task's wall time and process-tree memory, then scale that
+measurement onto another matrix. The estimate is arithmetic on the machine it
+was measured on and records `is_cluster_estimate: false`:
+
+```bash
+.venv/bin/python -m scripts.rl.ops.benchmark run \
+  --output-root outputs/bench/bypass-smoke --task-index 0
+
+.venv/bin/python -m scripts.rl.ops.benchmark estimate \
+  --benchmark outputs/bench/bypass-smoke/benchmark/task-0000.json \
+  --target-matrix inputs/experiments/bypass-smoke-matrix.json \
+  --safety-factor 2.0 --output outputs/bench/bypass-smoke/benchmark/estimate.json
+```
+
+Run a small Optuna study over `n_steps`, `gamma`, and `ent_coef` for one matrix
+row and training seed, after installing `requirements-tuning.txt`. Its objective
+is one deterministic episode on the model-selection seed at a smoke budget, so
+it exercises the plumbing and ranks nothing reliably:
+
+```bash
+.venv/bin/python -m scripts.rl.ops.tune \
+  --study inputs/experiments/bypass-smoke-study.json \
+  --output-root outputs/tune/bypass-smoke --sim-binary <BIN> [--dry-run]
+```
+
+Submit an already-planned output root to SLURM, one array element per
+`(row, training seed)` plus one dependent comparison job. All cluster settings
+come from a required config file (`scripts/rl/ops/cluster-config.example.json`),
+and `status` only reads:
+
+```bash
+<venv>/bin/python -m scripts.rl.ops.cluster plan   --output-root R --cluster-config C
+<venv>/bin/python -m scripts.rl.ops.cluster submit --output-root R --cluster-config C [--tasks 0] [--dry-run]
+<venv>/bin/python -m scripts.rl.ops.cluster status --output-root R [--json]
+<venv>/bin/python -m scripts.rl.ops.cluster resume --output-root R --cluster-config C
+```
+
+Copy selected results from the run to this machine. Nothing local is ever
+overwritten, and `fetch_manifest.json` records what arrived, marking unselected
+categories `not_fetched` rather than missing:
+
+```bash
+.venv/bin/python -m scripts.rl.ops.fetch --remote user@host:/abs/output-root \
+  --dest outputs/fetched/bypass-smoke --select comparison,manifests
+```
 
 ### Band in sweeps and validation batches
 

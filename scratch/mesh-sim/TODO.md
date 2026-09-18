@@ -156,6 +156,32 @@ explicit rule set, sketched as: a `completed` record supersedes a `failed` one
 for the same seed, and two `completed` records for one seed must agree on
 `actions_sha256` or the merge is refused. Owner: team — status: open.
 
+### TODO-RL-OPS-1 — Live-cluster validation of the scheduler adapter
+`scripts/rl/ops/cluster.py` and its `squeue`/`sacct`/`sbatch`/`scancel` parsers
+are exercised against a fake scheduler only, so their state names, array-element
+id forms, and accepted flags are unproven on a real site. Whether the site
+exposes a meaningful start estimate or a queue position at all is likewise
+unknown; the local benchmark supports no completion ETA, and a laptop
+measurement is never a cluster estimate. Record each live finding here rather
+than inferring site behavior from the code. Owner: team — status: open.
+
+### TODO-RL-OPS-2 — Oversized arrays and blocked-directory archiving
+A plan with more tasks than the configured `max_array_size` is refused rather
+than chunked across several arrays. A task blocked by a populated step directory
+is reported with `move or delete <dir> to retry` and is never moved, renamed, or
+deleted by the tooling; an archive helper that does it safely is not
+implemented. Owner: team — status: open.
+
+### TODO-RL-TUNE-1 — Further PPO knobs, budget search, and study resume
+`scripts/rl/ops/tune.py` can search only `n_steps`, `gamma`, and `ent_coef`,
+because those are the only values that reach `MaskablePPO`. Widening the search
+needs the whole chain first — constructor argument, `train.py` CLI flag,
+manifest field, and comparison group key — otherwise a searched value would not
+be recorded or checked anywhere. Searching `total_timesteps` is also deferred,
+since the budget is what makes trials comparable, and study resume is deferred
+because a seeded sampler restarts its sequence on reload.
+Owner: team — status: open.
+
 ## Jammer model decisions (P0, unresolved)
 
 P0 deliberately froze the current jammer behavior and changed no physics. The
