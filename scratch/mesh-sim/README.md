@@ -409,6 +409,10 @@ not a new archive.
 It checks run status and the selected ZIP's recorded digest before loading;
 [`compat.py`](scripts/rl/policy/compat.py) then checks the live scenario and
 policy contract.
+`geometric` and `optimization` are placement baselines: `hold` on a layout
+planned once before any episode runs (see
+[Placement baselines](#placement-baselines)). They are not in the default
+`--policies` list.
 
 `--model` selects `final` (default), `best`, or `checkpoints/<file>.zip`. With
 `--run-dir` the run config, band, and selection come from the training manifest;
@@ -649,6 +653,22 @@ categories `not_fetched` rather than missing:
 .venv/bin/python -m scripts.rl.ops.fetch --remote user@host:/abs/output-root \
   --dest outputs/fetched/bypass-smoke --select comparison,manifests
 ```
+
+### Placement baselines
+
+`scripts/baselines/` runs the supplied geometric and optimization placement
+planners once, before the simulation, selected by a `[baseline]` INI section
+or by the `geometric` and `optimization` evaluation policies. Install
+`requirements-baselines.txt` first. Standalone:
+
+```bash
+.venv/bin/python -m scripts.baselines.runner \
+  --sim-binary <BIN> --run-config <INI> --seeds 1,2
+```
+
+The [placement-baseline guide](scripts/baselines/README.md) covers the keys,
+the mapping file, the direct-run guard, outputs, the rectangle-only geofence
+limit, and which files may not be committed.
 
 ### Band in sweeps and validation batches
 

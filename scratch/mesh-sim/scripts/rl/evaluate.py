@@ -20,7 +20,9 @@ from scripts.rl.policy.evaluate import (EVAL_MANIFEST_NAME, HoldPolicy, ModelPol
                                         evaluate)
 from scripts.sim_support import parse_seed_spec
 
-POLICY_NAMES = ("model", "hold", "random_valid")
+DEFAULT_POLICIES = ("model", "hold", "random_valid")
+PLACEMENT_POLICIES = ("geometric", "optimization")
+POLICY_NAMES = DEFAULT_POLICIES + PLACEMENT_POLICIES
 SELECTION_FLAGS = ("observation_preset", "reward_components", "reward_weights",
                    "telemetry", "telemetry_every")
 
@@ -60,6 +62,28 @@ def _baseline_spec(name: str) -> PolicySpec:
     return PolicySpec(name, lambda env, first_seed: Prepared(policy))
 
 
+def _placement_spec(prepared) -> PolicySpec:
+    """Hold the prepared layout; the plan is applied through the effective run.ini."""
+    policy = HoldPolicy()
+    return PolicySpec(prepared.method, lambda env, first_seed: Prepared(policy),
+                      metadata=prepared.metadata)
+
+
+def _prepare_placements(args, policies: list[str], run_config: str, band: str | None,
+                        seeds: list[int]) -> dict:
+    """Plan every requested placement method before any episode runs."""
+    methods = [name for name in policies if name in PLACEMENT_POLICIES]
+    if not methods:
+        return {}
+    from scripts.baselines import adapter
+
+    return {method: adapter.prepare(
+                run_config, method, Path(args.output_dir) / method / "baseline",
+                mode="evaluation", eval_root=args.output_dir, band=band,
+                simulation_seeds=seeds, sim_binary=args.sim_binary)
+            for method in methods}
+
+
 def _model_spec(bundle, live_identity: dict, band: str | None,
                 allow_different_scenario: bool) -> PolicySpec:
     def build(env, first_seed: int) -> Prepared:
@@ -91,7 +115,7 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="Name shared by evaluations of independently trained models")
     p.add_argument("--allow-seed-overlap", action="store_true",
                    help="Evaluate on a training or model-selection seed; not held out")
-    p.add_argument("--policies", default=",".join(POLICY_NAMES),
+    p.add_argument("--policies", default=",".join(DEFAULT_POLICIES),
                    help=f"Comma-separated subset of {list(POLICY_NAMES)}")
     p.add_argument("--allow-different-scenario", action="store_true",
                    help="Record a scenario mismatch instead of refusing; behavior unproven")
@@ -189,11 +213,16 @@ def main(argv=None) -> int:
             "scenario_identity": identity,
             "bundle": bundle.describe() if bundle is not None else None,
         }
+        placements = _prepare_placements(args, policies, run_config, band, seeds)
         specs = [_model_spec(bundle, identity, band, args.allow_different_scenario)
-                 if name == "model" else _baseline_spec(name) for name in policies]
+                 if name == "model"
+                 else _placement_spec(placements[name]) if name in placements
+                 else _baseline_spec(name) for name in policies]
+        configs = {name: str(prepared.effective_run_config)
+                   for name, prepared in placements.items()}
 
         def make_env(name: str) -> MeshRlEnv:
-            return MeshRlEnv(args.sim_binary, run_config, seed=seeds[0],
+            return MeshRlEnv(args.sim_binary, configs.get(name, run_config), seed=seeds[0],
                              output_dir=os.path.join(args.output_dir, name),
                              band=band, selection=selection)
 

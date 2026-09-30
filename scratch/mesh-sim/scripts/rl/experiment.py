@@ -11,6 +11,7 @@ from pathlib import Path
 from scripts.rl.cli_common import MANIFEST_NAME, sha256_file, write_json
 from scripts.rl.env.config import read_action_profile
 from scripts.rl.env.selection import resolve_selection
+from scripts.rl.evaluate import POLICY_NAMES
 from scripts.rl.policy.evaluate import EVAL_MANIFEST_NAME
 from scripts.sim_support import find_mesh_root, parse_seed_spec
 
@@ -83,6 +84,10 @@ def _evaluation(raw, training: dict) -> dict:
     policies = raw.get("policies")
     if not isinstance(policies, list) or not all(isinstance(p, str) for p in policies):
         raise ValueError("evaluation.policies must be an array of policy names")
+    unknown = [name for name in policies if name not in POLICY_NAMES]
+    if unknown:
+        raise ValueError(f"evaluation.policies has unknown names {unknown}; "
+                         f"valid choices: {list(POLICY_NAMES)}")
     if len(set(policies)) != len(policies):
         raise ValueError(f"evaluation.policies must be distinct, got {policies}")
     if "model" not in policies:

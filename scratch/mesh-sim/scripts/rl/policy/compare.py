@@ -128,6 +128,10 @@ def _group_key(evaluation: Evaluation) -> dict:
         key[f"training_{setting}"] = hyper.get(setting)
     if key["model_selection"] not in ("final", "best", None):
         key["bundle_num_timesteps"] = (manifest.get("bundle") or {}).get("num_timesteps")
+    for policy, block in (manifest.get("policies") or {}).items():
+        if isinstance(block, dict) and "baseline" in block:
+            baseline = block["baseline"] or {}
+            key[f"baseline_{policy}_fingerprint"] = baseline.get("fingerprint")
     return key
 
 

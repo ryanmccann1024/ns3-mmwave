@@ -1,0 +1,7 @@
+# Placement-baseline planner dependencies (scripts/baselines, third_party/arpo_placement).
+# Installed and tested with CPython 3.11.9 on macOS arm64 alongside requirements.txt
+# (numpy stays pinned there); cp311 manylinux x86_64 wheels are available but untested.
+pydantic==2.13.5
+shapely==2.1.2
+pyproj==3.7.2
+PyYAML==6.0.3

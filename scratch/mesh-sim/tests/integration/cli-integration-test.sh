@@ -243,6 +243,72 @@ else
     fail "legacy p0-smoke run should exit 0"
 fi
 
+# Temporary p0-smoke copies with a [baseline] section; <name> <rl-enabled> <algorithm>.
+make_baseline_scenario() {
+    local dir="$TMP/$1"
+    mkdir -p "$dir"
+    cp "$SMOKE/nodes.json" "$dir/nodes.json"
+    sed -E "s/^enabled( *)= *true\$/enabled\\1= $2/" "$SMOKE/run.ini" > "$dir/run.ini"
+    # Avoid auto-output root discovery for an INI copied outside mesh-sim.
+    printf 'dir = .\n\n[baseline]\nalgorithm = %s\n' "$3" >> "$dir/run.ini"
+    if ! grep -Eq "^enabled *= *$2\$" "$dir/run.ini"; then
+        echo "Error: could not set [rl] enabled = $2 in $dir/run.ini"
+        exit 1
+    fi
+}
+
+make_baseline_scenario bl-geo-rl-off false geometric
+make_baseline_scenario bl-geo-rl-on true geometric
+make_baseline_scenario bl-none-rl-off false none
+
+LAUNCHER_HINT="python -m scripts.baselines.runner --run-config <ini>"
+RL_NOTICE="Note: [baseline] algorithm 'geometric' is not applied in RL mode"
+
+# --- Test 10: active baseline without --rl-mode is refused ---
+echo "Test 10: active baseline refused on a direct run"
+for variant in bl-geo-rl-off bl-geo-rl-on; do
+    if "$BIN" --run-config="$TMP/$variant/run.ini" --seed=1 \
+            --output-dir="$TMP/run10-$variant" </dev/null >/dev/null 2>"$TMP/run10-$variant.err"; then
+        fail "$variant: direct run with an active baseline should exit nonzero"
+    elif ! grep -qF "$LAUNCHER_HINT" "$TMP/run10-$variant.err"; then
+        fail "$variant: exited nonzero but stderr lacks the launcher hint"
+    elif [[ -e "$TMP/run10-$variant" ]]; then
+        fail "$variant: refused run should not create its output directory"
+    else
+        pass "$variant: refused with the launcher hint and no output"
+    fi
+done
+
+# --- Test 11: algorithm = none runs as before ---
+echo "Test 11: baseline algorithm = none runs"
+if "$BIN" --run-config="$TMP/bl-none-rl-off/run.ini" --seed=1 \
+        --output-dir="$TMP/run11" </dev/null >/dev/null 2>"$TMP/run11.err"; then
+    if [[ ! -f "$TMP/run11/seed-1/summary.json" ]]; then
+        fail "algorithm = none run did not create seed-1/summary.json"
+    elif grep -q "\[baseline\]" "$TMP/run11.err"; then
+        fail "algorithm = none run should print no baseline notice"
+    else
+        pass "algorithm = none runs and prints no baseline notice"
+    fi
+else
+    fail "algorithm = none run should exit 0"
+fi
+
+# --- Test 12: active baseline with explicit --rl-mode runs with a notice ---
+echo "Test 12: active baseline with --rl-mode"
+if "$BIN" --run-config="$TMP/bl-geo-rl-off/run.ini" --rl-mode --seed=1 \
+        --output-dir="$TMP/run12b" </dev/null >/dev/null 2>"$TMP/run12b.err"; then
+    if ! grep -qF "$RL_NOTICE" "$TMP/run12b.err"; then
+        fail "--rl-mode run with an active baseline should print the notice"
+    elif [[ ! -f "$TMP/run12b/seed-1/summary.json" ]]; then
+        fail "--rl-mode run did not create seed-1/summary.json"
+    else
+        pass "--rl-mode run starts and prints the baseline notice"
+    fi
+else
+    fail "--rl-mode run with an active baseline should exit 0"
+fi
+
 # --- Summary ---
 echo ""
 echo "Results: $PASS passed, $FAIL failed."

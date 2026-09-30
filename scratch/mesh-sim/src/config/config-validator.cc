@@ -248,6 +248,10 @@ ValidateConfig(const SimConfig& cfg)
         r.errors.insert(r.errors.end(), ctl.errors.begin(), ctl.errors.end());
     }
 
+    // -- baseline -- value only; the direct-run guard needs the explicit --rl-mode flag (sim.cc).
+    checkOneOf(r, "baseline.algorithm", cfg.baseline.algorithm,
+               {"none", "geometric", "optimization"});
+
     // -- jammers --
     for (const auto& j : cfg.jammers)
     {

@@ -95,6 +95,18 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
         return 1;
     }
 
+    // Only the explicit --rl-mode flag acknowledges an active baseline; [rl] enabled alone does not.
+    const bool baselineActive = (cfg.baseline.algorithm != "none");
+    if (baselineActive && !args.rl_mode)
+    {
+        std::cerr << "baseline.algorithm '" << cfg.baseline.algorithm
+                  << "' is active but this is a direct simulator run; the binary never plans"
+                     " placements. Run 'python -m scripts.baselines.runner --run-config <ini>'"
+                     " or select the method with 'scripts.rl.evaluate --policies'. To"
+                     " intentionally run RL from this INI, pass --rl-mode.\n";
+        return 1;
+    }
+
     /// @brief Resolve the RL control slots, cadence, and tick count once, so
     ///        the topology, bridge, and run.log all read the same values.
     auto ctl = mesh_sim::ResolveRlControl(cfg);
@@ -111,6 +123,12 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
     if (cfg.rl.reward_type_alias == "mean_sinr")
     {
         std::cerr << "Warning: [rl] reward_type 'mean_sinr' is deprecated; use 'all_links_los'.\n";
+    }
+    if (baselineActive)
+    {
+        std::cerr << "Note: [baseline] algorithm '" << cfg.baseline.algorithm
+                  << "' is not applied in RL mode; this run uses the scenario layout."
+                     " Placement methods are selected by the evaluation policy list.\n";
     }
 
     auto seeds = mesh_sim::ResolveSeeds(args, cfg); //< From cli-parser, manages seeds

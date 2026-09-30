@@ -77,10 +77,11 @@ class ModelPolicy:
 
 @dataclass(frozen=True)
 class PolicySpec:
-    """A named policy plus how to build it once its env exists."""
+    """A named policy, how to build it once its env exists, and its manifest metadata."""
 
     name: str
     build: Callable
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -314,11 +315,13 @@ def _initial_manifest(base: dict, seeds: list[int]) -> dict:
 
 
 def _store(manifest: dict, name: str, results: list[EpisodeResult],
-           expected: int) -> None:
+           expected: int, metadata: dict) -> None:
     manifest["policies"][name] = {
         "episodes": [result.describe() for result in results],
         "summary": summarize(results, expected),
     }
+    if metadata.get(name):
+        manifest["policies"][name]["baseline"] = metadata[name]
     manifest["episodes_completed"] = sum(
         block["summary"]["completed_episodes"] for block in manifest["policies"].values())
 
@@ -334,6 +337,7 @@ def evaluate(make_env, policies: list[PolicySpec], seeds: list[int], out_dir,
     manifest["episodes_expected"] = len(policies) * len(seeds)
     write_json(manifest_path, manifest)
     collected: dict[str, list[EpisodeResult]] = {spec.name: [] for spec in policies}
+    metadata = {spec.name: spec.metadata for spec in policies}
 
     try:
         for spec in policies:
@@ -358,14 +362,14 @@ def evaluate(make_env, policies: list[PolicySpec], seeds: list[int], out_dir,
                         manifest["observation_schema"] = env.observation_schema
                         manifest["reward_schema"] = env.reward_schema
                     results.append(result)
-                    _store(manifest, spec.name, results, len(seeds))
+                    _store(manifest, spec.name, results, len(seeds), metadata)
                     write_json(manifest_path, manifest)
             finally:
                 env.close()
     except BaseException as exc:
         for name, results in collected.items():
             results.extend(_not_run(seed) for seed in seeds[len(results):])
-            _store(manifest, name, results, len(seeds))
+            _store(manifest, name, results, len(seeds), metadata)
         manifest["status"] = "failed"
         manifest["ended_at"] = now_iso()
         manifest["error"] = f"{type(exc).__name__}: {exc}"[:_MAX_ERROR_CHARS]

@@ -341,6 +341,13 @@ ConfigLoader::Load(const std::string& run_config_path,
     cfg.rl.action_profile       = iniGet(ini, "rl", "action_profile", "move_2d");
     cfg.rl.decision_interval_s  = std::stod(iniGet(ini, "rl", "decision_interval_s", "0.0"));
 
+    // [baseline] — only the selector; scripts/baselines/config.py owns the other keys.
+    cfg.baseline.algorithm = iniGet(ini, "baseline", "algorithm", "none");
+    if (cfg.baseline.algorithm.empty())
+    {
+        cfg.baseline.algorithm = "none";
+    }
+
 
     // --- Load nodes.json ---
     std::string nodes_file = iniGet(ini, "scenario", "nodes_file", "nodes.json");
