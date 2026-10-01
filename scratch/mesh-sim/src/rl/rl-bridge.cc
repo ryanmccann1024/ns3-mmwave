@@ -230,9 +230,9 @@ RlBridge::WriteInit() const
         }
     }
 
-    const uint32_t obsDim  = m_numSlots * (4 + 2 * (m_numNodes - 1));
-    const uint32_t maskDim = 5 * m_numSlots;
-    const uint32_t numDecisions = (m_numTicks + m_k - 1) / m_k;
+    const uint32_t obsDim  = m_numSlots * (4 + 2 * (m_numNodes - 1)); // Per slot: active + xyz + SINR/capacity per peer.
+    const uint32_t maskDim = 5 * m_numSlots; // Per slot: west/east/south/north/hold allowed flags.
+    const uint32_t numDecisions = (m_numTicks + m_k - 1) / m_k; // Ceiling of ticks / ticks per decision.
 
     ojson msg;
     msg["type"]                   = "init";
