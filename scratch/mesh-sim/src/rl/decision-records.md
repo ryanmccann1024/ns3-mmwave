@@ -129,7 +129,7 @@ same actions and identical `steps.jsonl` bytes (tests 16–17). Other policies r
 (JSON Schema 2020-12) validates the manifest and each JSONL line. Its SHA-256 is
 
 ```text
-cbd03e343bcedcccb747db444d37d0ed0d2b0e9a9ed4f55ed07c6fcfa7ca49eb
+2855e03eacb33acdb654d7115ee77b23500428e5916f1942459350def5a12f79
 ```
 
 A consumer vendors the file byte-for-byte and checks this digest in its own test;

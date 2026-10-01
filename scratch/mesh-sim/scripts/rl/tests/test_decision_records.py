@@ -25,7 +25,7 @@ from scripts.rl.tests.conftest import FAKE_SIM, MULTI_RUN_INI, NODES_JSON
 
 MESH_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_PATH = MESH_ROOT / "docs" / "schemas" / "decision_record.v1.schema.json"
-SCHEMA_V1_SHA256 = "cbd03e343bcedcccb747db444d37d0ed0d2b0e9a9ed4f55ed07c6fcfa7ca49eb"
+SCHEMA_V1_SHA256 = "2855e03eacb33acdb654d7115ee77b23500428e5916f1942459350def5a12f79"
 
 DEFAULT_MAX_BYTES = 67108864
 HOLD = 4
@@ -1011,6 +1011,29 @@ def test_schema_well_formed_and_documents_validate(sim_binary, multi_run_config,
     manifest, lines = documents[0]
     for label, mutant, _ in _mutants(manifest, lines[1]):
         assert _document_errors(schema, mutant), label
+
+
+def test_added_reward_components_produce_valid_decision_records(
+        sim_binary, multi_run_config, tmp_path):
+    selection = resolve_selection(
+        multi_run_config, telemetry="steps",
+        reward_components="service_success,sinr_quality",
+        reward_weights="1,0.5")
+    env = MeshRlEnv(
+        sim_binary, multi_run_config, output_dir=str(tmp_path / "extended-reward"),
+        selection=selection,
+        decision_records=DecisionRecording(_settings(), SCRIPTED))
+    try:
+        _run(env)
+    finally:
+        env.close()
+
+    manifest, lines = _read_sidecar(_episode(tmp_path / "extended-reward"))
+    assert manifest["status"] == "complete"
+    reward = lines[1]["outcome"]["reward"]
+    assert set(reward["components"]) == {"service_success", "sinr_quality"}
+    assert set(reward["valid"]) == set(reward["components"])
+    _assert_documents_valid(_load_schema(), manifest, lines)
 
 
 def test_schema_matches_jsonschema_when_installed(sim_binary, multi_run_config,

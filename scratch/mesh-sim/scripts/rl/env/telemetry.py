@@ -104,7 +104,8 @@ def reward_field(reward) -> dict | None:
 
 def make_record(decision: int, tick: int, time_s: float, ticks_in_step: int,
                 action_sent, mask, revalidated_slots, facts: dict,
-                legacy_reward: float, reward, obs) -> dict:
+                legacy_reward: float, reward, obs,
+                reward_context: dict | None = None) -> dict:
     """One saved decision; `reward` is None (reset), a RewardBreakdown, or msg.reward."""
     return {
         "type": "step",
@@ -118,6 +119,7 @@ def make_record(decision: int, tick: int, time_s: float, ticks_in_step: int,
         "facts": facts,
         "legacy_reward": float(legacy_reward),
         "reward": reward_field(reward),
+        "reward_context": reward_context,
         "obs_sha256": obs_sha256(obs),
     }
 
@@ -144,7 +146,7 @@ def replay_record(header: dict, record: dict):
         return obs, None
     composer = RewardComposer(reward_schema["components"], reward_schema["weights"])
     return obs, composer.compose(record["facts"]["window"], record["legacy_reward"],
-                                 contract)
+                                 contract, record.get("reward_context"))
 
 
 def replay_file(path) -> ReplaySummary:

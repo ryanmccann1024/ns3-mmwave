@@ -13,7 +13,7 @@ from .decisions import DecisionRecording
 from .episode import EpisodeSession
 from .observations import get_preset, observation_schema
 from .protocol import CentralizedProtocol, LegacyProtocol, ProtocolError, SLOT_ACTIONS
-from .rewards import RewardComposer, reward_schema
+from .rewards import RewardComposer, position_context, reward_schema
 from .selection import (RlSelection, resolve_selection, uses_composed_reward,
                         uses_custom_observation)
 
@@ -80,6 +80,8 @@ class MeshRlEnv(gymnasium.Env):
         self._y_range: tuple[float, float] | None = None
         self._z_range: tuple[float, float] | None = None
         self._ctrl_pos: np.ndarray | None = None
+        self._initial_nodes: list | None = None
+        self._previous_nodes: list | None = None
 
         self.window_size = 512
         self.render_mode = render_mode
@@ -159,9 +161,15 @@ class MeshRlEnv(gymnasium.Env):
             if self._preset is not None:
                 obs = self._preset.build(self._protocol.facts, self._contract)
             reward = float(msg["reward"])
+            current_nodes = self._protocol.facts["nodes"]
+            reward_context = position_context(
+                self._protocol.facts, self._previous_nodes, self._initial_nodes,
+                self._contract)
+            self._previous_nodes = [list(row) for row in current_nodes]
             if self._composer is not None:
                 breakdown = self._composer.compose(
-                    self._protocol.facts["window"], reward, self._contract)
+                    self._protocol.facts["window"], reward, self._contract,
+                    reward_context)
                 self._check_total(breakdown)
                 reward = breakdown.total
                 info["reward"] = {
@@ -171,9 +179,10 @@ class MeshRlEnv(gymnasium.Env):
                     "weights": dict(breakdown.weights),
                     "legacy": breakdown.legacy,
                 }
-                detail = {"obs": obs, "breakdown": breakdown}
+                detail = {"obs": obs, "breakdown": breakdown,
+                          "reward_context": reward_context}
             else:
-                detail = {"obs": obs}
+                detail = {"obs": obs, "reward_context": reward_context}
             if pre is not None:
                 detail["decision"] = pre
             self._last_obs = obs
@@ -335,6 +344,8 @@ class MeshRlEnv(gymnasium.Env):
 
         msg = self._session.read_message()
         obs = self._validated_step(protocol, msg, first=True)
+        self._initial_nodes = [list(row) for row in protocol.facts["nodes"]]
+        self._previous_nodes = [list(row) for row in protocol.facts["nodes"]]
         if self._preset is not None:
             obs = self._preset.build(protocol.facts, init)
         self._last_obs = obs
