@@ -91,7 +91,7 @@ def make_header(contract: dict, selection_describe: dict, observation_schema: di
     }
 
 
-def _reward_field(reward) -> dict | None:
+def reward_field(reward) -> dict | None:
     if reward is None:
         return None
     if isinstance(reward, RewardBreakdown):
@@ -117,7 +117,7 @@ def make_record(decision: int, tick: int, time_s: float, ticks_in_step: int,
         "revalidated_slots": [int(s) for s in revalidated_slots],
         "facts": facts,
         "legacy_reward": float(legacy_reward),
-        "reward": _reward_field(reward),
+        "reward": reward_field(reward),
         "obs_sha256": obs_sha256(obs),
     }
 

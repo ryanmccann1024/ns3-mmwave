@@ -66,8 +66,10 @@ class ModelPolicy:
 
     name = "model"
 
-    def __init__(self, model):
+    def __init__(self, model, capture=None):
         self._model = model
+        if capture is not None:
+            capture.attach(model)
 
     def act(self, obs, mask, contract) -> np.ndarray:
         action, _ = self._model.predict(obs, action_masks=np.asarray(mask, dtype=bool),

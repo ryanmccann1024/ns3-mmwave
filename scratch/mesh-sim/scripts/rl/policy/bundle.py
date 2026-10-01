@@ -1,7 +1,9 @@
 """Read a saved training run as a verified model bundle."""
 
 import dataclasses
+import hashlib
 import json
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -108,6 +110,14 @@ def read_bundle(run_dir, model: str = "final") -> ModelBundle:
             f"model file digest mismatch for {path}: recorded {digest}, found {actual}")
     selection = model if model in ("final", "best") else "checkpoint"
     return ModelBundle(run_dir, manifest, selection, path, digest, num_timesteps)
+
+
+def policy_weights_sha256(model_path) -> str | None:
+    """SHA-256 of the zip's policy.pth entry, stable across re-saves of identical weights."""
+    with zipfile.ZipFile(model_path) as archive:
+        if "policy.pth" not in archive.namelist():
+            return None
+        return hashlib.sha256(archive.read("policy.pth")).hexdigest()
 
 
 def training_provenance(manifest: dict) -> dict:

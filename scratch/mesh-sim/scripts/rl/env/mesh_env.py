@@ -1,13 +1,15 @@
 """Gymnasium adapter for the mesh simulator's RL protocol."""
 
 import math
+import warnings
 from pathlib import Path
 
 import gymnasium
 import numpy as np
 from gymnasium import spaces
 
-from .config import read_rl_bounds, read_scenario_seed
+from .config import read_control_mode, read_rl_bounds, read_scenario_seed
+from .decisions import DecisionRecording
 from .episode import EpisodeSession
 from .observations import get_preset, observation_schema
 from .protocol import CentralizedProtocol, LegacyProtocol, ProtocolError, SLOT_ACTIONS
@@ -26,7 +28,8 @@ class MeshRlEnv(gymnasium.Env):
     def __init__(self, sim_binary: str, run_config: str, seed: int | None = None,
                  output_dir: str = "", band: str | None = None,
                  render_mode: str | None = None,
-                 selection: RlSelection | None = None):
+                 selection: RlSelection | None = None,
+                 decision_records: DecisionRecording | None = None):
         super().__init__()
         if not output_dir:
             raise ValueError("MeshRlEnv requires output_dir (the training output root)")
@@ -42,7 +45,16 @@ class MeshRlEnv(gymnasium.Env):
         self._observation_schema: dict | None = None
         self._reward_schema: dict | None = None
         self._output_dir = Path(output_dir)
-        self._session = EpisodeSession(sim_binary, run_config, self._output_dir, band)
+        self._recording = decision_records is not None and decision_records.settings.enabled
+        if self._recording and read_control_mode(run_config) == "legacy":
+            raise ValueError(
+                f"Decision records require centralized control mode; {run_config} has no "
+                "[rl] controlled_nodes")
+        self._preference_source = (decision_records.context.preference_source
+                                   if decision_records is not None else None)
+        self._last_obs: np.ndarray | None = None
+        self._session = EpisodeSession(sim_binary, run_config, self._output_dir, band,
+                                       decision_records=decision_records)
         if seed is not None:
             self.seed_value = int(seed)
             self.seed_source = "cli"
@@ -127,6 +139,11 @@ class MeshRlEnv(gymnasium.Env):
         if self._control_mode == "centralized":
             assert isinstance(self._protocol, CentralizedProtocol)
             action_value = self._protocol.joint_action(action)
+            preferences = self._take_preferences()
+            pre = None
+            if self._recording:
+                pre = {"obs": self._last_obs, "mask": self._protocol.mask,
+                       "requested": list(action_value), "preferences": preferences}
         elif self._action_type == "continuous":
             action_value = [float(action[0]), float(action[1])]
         else:
@@ -157,6 +174,9 @@ class MeshRlEnv(gymnasium.Env):
                 detail = {"obs": obs, "breakdown": breakdown}
             else:
                 detail = {"obs": obs}
+            if pre is not None:
+                detail["decision"] = pre
+            self._last_obs = obs
         else:
             assert isinstance(self._protocol, LegacyProtocol)
             self._validated_step(self._protocol, msg)
@@ -169,6 +189,16 @@ class MeshRlEnv(gymnasium.Env):
         if terminated:
             self._session.stop("completed", "done")
         return obs, reward, terminated, False, info
+
+    def _take_preferences(self):
+        if self._preference_source is None:
+            return None
+        try:
+            return self._preference_source()
+        except Exception as exc:
+            warnings.warn(f"Decision-record preference capture failed: {exc}",
+                          RuntimeWarning, stacklevel=2)
+            return None
 
     def render(self):
         pass
@@ -307,6 +337,7 @@ class MeshRlEnv(gymnasium.Env):
         obs = self._validated_step(protocol, msg, first=True)
         if self._preset is not None:
             obs = self._preset.build(protocol.facts, init)
+        self._last_obs = obs
         self._session.record_reset(msg, obs)
         return obs, self._centralized_info(msg)
 

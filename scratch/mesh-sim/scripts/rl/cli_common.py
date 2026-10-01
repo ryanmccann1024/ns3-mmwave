@@ -9,6 +9,8 @@ from pathlib import Path
 
 from scripts.rl.bootstrap_venv import DIRECT_DEPS
 from scripts.rl.env.config import read_scenario_seed
+from scripts.rl.env.decisions import (OBS_VECTOR_MODES, PREFERENCE_MODES,
+                                      DecisionRecordSettings, resolve_decision_records)
 from scripts.rl.env.selection import TELEMETRY_MODES, RlSelection, resolve_selection
 
 MANIFEST_NAME = "train_manifest.json"
@@ -98,6 +100,33 @@ def selection_from_args(args) -> RlSelection:
         reward_weights=args.reward_weights,
         telemetry=args.telemetry,
         telemetry_every=args.telemetry_every,
+    )
+
+
+def add_decision_record_arguments(parser) -> None:
+    """Add the opt-in decision-record options resolved by env/decisions.py."""
+    parser.add_argument("--decision-records", action="store_true", default=None,
+                        help="Write <episode-dir>/policy_decisions.jsonl")
+    parser.add_argument("--decision-records-every", type=int, default=None,
+                        help="Save every kth decision (requires --decision-records)")
+    parser.add_argument("--decision-records-max-bytes", type=int, default=None,
+                        help="Per-episode decision-record file cap in bytes; 0 = no cap")
+    parser.add_argument("--decision-records-obs-vector", default=None,
+                        choices=list(OBS_VECTOR_MODES),
+                        help="always stores the observation vector in every record")
+    parser.add_argument("--decision-records-preferences", default=None,
+                        choices=list(PREFERENCE_MODES),
+                        help="off disables model action-preference capture")
+
+
+def decision_records_from_args(args) -> DecisionRecordSettings:
+    """Resolve decision-record settings from parsed CLI arguments; raises ValueError."""
+    return resolve_decision_records(
+        enabled=args.decision_records,
+        obs_vector=args.decision_records_obs_vector,
+        preferences=args.decision_records_preferences,
+        record_every=args.decision_records_every,
+        max_bytes_per_episode=args.decision_records_max_bytes,
     )
 
 
