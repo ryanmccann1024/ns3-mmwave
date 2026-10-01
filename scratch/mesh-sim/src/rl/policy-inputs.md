@@ -156,3 +156,7 @@ record's raw facts and checks for mismatches. It does not rerun radio physics,
 verify unsaved decisions, or recheck a C++-authored reward. See the
 [test map](policy-input-tests.md) for
 the small fake-simulator and real-binary checks behind this contract.
+
+Decision records are a separate opt-in (`--decision-records` on `train.py` and
+`evaluate.py`) that joins each action to the preceding `steps.jsonl` record and
+its outcome window; see [decision records](decision-records.md).

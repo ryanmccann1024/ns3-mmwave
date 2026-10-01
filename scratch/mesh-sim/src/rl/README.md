@@ -31,6 +31,7 @@ simulator process, episode directories, diagnostics, and manifest.
 precedence, and validates it. `observations.py` owns the named observation
 presets and their schema identity. `rewards.py` owns the reward components and
 the composer. `telemetry.py` owns `steps.jsonl` records and their replay.
+`decisions.py` writes the opt-in [decision records](decision-records.md).
 For training, follow [`train.py`](../../scripts/rl/train.py) (CLI and model
 output) into [`agents/mask_ppo.py`](../../scripts/rl/agents/mask_ppo.py)
 (MaskablePPO setup), then into the environment. Within `env/`, `config.py`

@@ -7,17 +7,21 @@ import os
 import sys
 from pathlib import Path
 
-from scripts.rl.cli_common import (MANIFEST_NAME, add_scenario_arguments,
-                                   add_selection_arguments, selection_from_args)
+from scripts.rl.cli_common import (MANIFEST_NAME, add_decision_record_arguments,
+                                   add_scenario_arguments, add_selection_arguments,
+                                   decision_records_from_args, package_versions,
+                                   selection_from_args, sha256_file)
 from scripts.rl.env.config import read_scenario_identity
+from scripts.rl.env.decisions import DecisionContext, DecisionRecording
 from scripts.rl.env.mesh_env import MeshRlEnv
-from scripts.rl.policy.bundle import (eval_selection, load_model, read_bundle,
-                                      seed_roles, selection_from_manifest,
+from scripts.rl.policy.bundle import (eval_selection, load_model, policy_weights_sha256,
+                                      read_bundle, seed_roles, selection_from_manifest,
                                       training_provenance)
 from scripts.rl.policy.compat import check_compatibility
 from scripts.rl.policy.evaluate import (EVAL_MANIFEST_NAME, HoldPolicy, ModelPolicy,
                                         PolicySpec, Prepared, RandomValidPolicy,
                                         evaluate)
+from scripts.rl.policy.preferences import PreferenceCapture
 from scripts.sim_support import parse_seed_spec
 
 DEFAULT_POLICIES = ("model", "hold", "random_valid")
@@ -85,7 +89,8 @@ def _prepare_placements(args, policies: list[str], run_config: str, band: str | 
 
 
 def _model_spec(bundle, live_identity: dict, band: str | None,
-                allow_different_scenario: bool) -> PolicySpec:
+                allow_different_scenario: bool,
+                capture: PreferenceCapture | None = None) -> PolicySpec:
     def build(env, first_seed: int) -> Prepared:
         # The compatibility reset is the first model episode; no extra episode is left.
         initial = env.reset(seed=first_seed, options={"seed_source": "eval"})
@@ -93,16 +98,40 @@ def _model_spec(bundle, live_identity: dict, band: str | None,
             bundle.manifest, env, live_identity=live_identity, live_band=band,
             allow_different_scenario=allow_different_scenario)
         model = load_model(bundle, env, mask_fn)
-        return Prepared(ModelPolicy(model), initial,
+        return Prepared(ModelPolicy(model, capture), initial,
                         {"compatibility": report.describe()})
 
     return PolicySpec("model", build)
+
+
+def _model_identity(bundle) -> dict:
+    """Decision-record identity of the evaluated model file."""
+    path = Path(bundle.model_path)
+    run_dir = Path(bundle.run_dir)
+    try:
+        recorded = str(path.resolve().relative_to(run_dir.resolve()))
+    except ValueError:
+        recorded = str(path.resolve())
+    versions = package_versions()
+    return {
+        "model_sha256": bundle.model_sha256,
+        "policy_weights_sha256": policy_weights_sha256(path),
+        "model_selection": bundle.selection,
+        "model_path_recorded": recorded,
+        "num_timesteps": bundle.num_timesteps,
+        "train_manifest_sha256": sha256_file(run_dir / MANIFEST_NAME),
+        "inference": {"deterministic": True, "device": "cpu",
+                      "stable_baselines3": versions["stable_baselines3"],
+                      "sb3_contrib": versions["sb3_contrib"],
+                      "torch": versions["torch"]},
+    }
 
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Evaluate mesh-sim policies")
     add_scenario_arguments(p, run_config_required=False)
     add_selection_arguments(p)
+    add_decision_record_arguments(p)
     p.add_argument("--run-dir", default=None,
                    help="Training output directory holding train_manifest.json")
     p.add_argument("--model", default="final",
@@ -182,6 +211,7 @@ def main(argv=None) -> int:
         seeds = parse_seed_spec(args.seeds)
         policies = _parse_policies(args.policies)
         _check_output_dir(args.output_dir, args.run_dir)
+        records = decision_records_from_args(args)
     except ValueError as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
@@ -214,7 +244,11 @@ def main(argv=None) -> int:
             "bundle": bundle.describe() if bundle is not None else None,
         }
         placements = _prepare_placements(args, policies, run_config, band, seeds)
-        specs = [_model_spec(bundle, identity, band, args.allow_different_scenario)
+        capture = (PreferenceCapture() if "model" in policies and records.enabled
+                   and records.preferences != "off" else None)
+        model_identity = (_model_identity(bundle) if "model" in policies and records.enabled
+                          else None)
+        specs = [_model_spec(bundle, identity, band, args.allow_different_scenario, capture)
                  if name == "model"
                  else _placement_spec(placements[name]) if name in placements
                  else _baseline_spec(name) for name in policies]
@@ -222,9 +256,15 @@ def main(argv=None) -> int:
                    for name, prepared in placements.items()}
 
         def make_env(name: str) -> MeshRlEnv:
+            is_model = name == "model"
+            context = DecisionContext(
+                mode="evaluation", source="evaluate", policy=name,
+                model=model_identity if is_model else None,
+                preference_source=capture.take if is_model and capture is not None else None)
             return MeshRlEnv(args.sim_binary, configs.get(name, run_config), seed=seeds[0],
                              output_dir=os.path.join(args.output_dir, name),
-                             band=band, selection=selection)
+                             band=band, selection=selection,
+                             decision_records=DecisionRecording(records, context))
 
         manifest = evaluate(make_env, specs, seeds, args.output_dir, base)
     except Exception as exc:

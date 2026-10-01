@@ -780,3 +780,57 @@ def test_experiment_matrix_smoke_in_fresh_processes(tmp_path):
     group, = comparison["groups"]
     assert group["runs_used"] == 2 and group["excluded_runs"] == []
     assert _drain_threads() == []
+
+
+def test_decision_records_join_real_steps(tmp_path):
+    from scripts.rl.env.decisions import (DECISIONS_FILE, DECISIONS_MANIFEST,
+                                          DecisionContext, DecisionRecording,
+                                          resolve_decision_records)
+
+    out_dir = tmp_path / "decisions"
+    selection = resolve_selection(str(RUN_CONFIG), telemetry="steps")
+    recording = DecisionRecording(
+        resolve_decision_records(enabled=True),
+        DecisionContext(mode="evaluation", source="evaluate", policy="hold"))
+    env = MeshRlEnv(MESH_SIM_BIN, str(RUN_CONFIG), output_dir=str(out_dir),
+                    selection=selection, decision_records=recording)
+    try:
+        env.reset()
+        assert not env.action_masks()[1]          # node-b starts at x_max
+        _, _, done, _, info = env.step([1, 4, 4])
+        assert info["revalidated_slots"] == [0] and not done
+        _, _, done, _, info = env.step([4, 4, 4])
+        assert done and info["revalidated_slots"] == []
+    finally:
+        env.close()
+
+    episode_dir = out_dir / "episode-0000"
+    raw = (episode_dir / DECISIONS_FILE).read_bytes()
+    lines = [json.loads(line) for line in raw.decode().splitlines()]
+    manifest = json.loads((episode_dir / DECISIONS_MANIFEST).read_text())
+    steps = {r["decision"]: r for r in map(
+        json.loads, (episode_dir / "steps.jsonl").read_text().splitlines()[1:])}
+
+    assert [line["decision"] for line in lines] == [0, 1, 2]
+    assert lines[0]["obs_sha256"] == steps[0]["obs_sha256"]
+    assert lines[0]["mask"] == steps[0]["mask"]
+    for record in lines[1:]:
+        n, source, outcome = record["decision"], record["input"], record["outcome"]
+        assert source["source_decision"] == n - 1
+        assert source["obs_sha256"] == steps[n - 1]["obs_sha256"]
+        assert source["mask"] == steps[n - 1]["mask"]
+        assert source["steps_ref"]["decision"] == n - 1
+        assert source["tick"] == outcome["tick"] - outcome["ticks_in_step"]
+        assert source["time_s"] == pytest.approx(steps[n - 1]["time_s"], abs=1e-6)
+        assert outcome["time_s"] == pytest.approx(steps[n]["time_s"], abs=1e-6)
+        assert outcome["interval_s"]["start_exclusive"] == source["time_s"]
+        assert record["action"]["requested"] == steps[n]["action_sent"]
+        assert record["action"]["revalidated_slots"] == steps[n]["revalidated_slots"]
+    assert lines[1]["action"]["revalidated_slots"] == [0]
+    assert lines[1]["action"]["applied"] == [4, 4, 4]
+
+    assert manifest["status"] == "complete"
+    assert manifest["episode"]["status"] == "completed"
+    assert manifest["coverage"]["gaps"] == [] and manifest["coverage"]["records"] == 3
+    assert manifest["jsonl_sha256"] == hashlib.sha256(raw).hexdigest()
+    assert _drain_threads() == []

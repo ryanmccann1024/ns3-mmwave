@@ -5,11 +5,14 @@ import re
 import subprocess
 import threading
 import time
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 
 from scripts.sim_support import find_mesh_root, simulator_env, tail_lines
 
+from .decisions import (DECISIONS_FILE, DECISIONS_MANIFEST, DecisionRecorder,
+                        DecisionRecording)
 from .telemetry import TELEMETRY_FILE, StepRecorder, make_header, make_record
 
 _EPISODE_RE = re.compile(r"^episode-(\d+)$")
@@ -30,7 +33,7 @@ class EpisodeSession:
     """Owns one simulator subprocess and its `rl_episode.json` manifest."""
 
     def __init__(self, sim_binary: str, run_config: str, output_dir: Path,
-                 band: str | None):
+                 band: str | None, decision_records: DecisionRecording | None = None):
         self._sim_binary = sim_binary
         self._run_config = run_config
         self._output_dir = output_dir
@@ -47,6 +50,9 @@ class EpisodeSession:
         self._last_tail = "(no stderr captured)"
         self._recorder: StepRecorder | None = None
         self._last_action = None
+        self._decision_records = decision_records
+        self._decisions: DecisionRecorder | None = None
+        self._steps_saved_decision: int | None = None
 
     @property
     def proc(self) -> subprocess.Popen | None:
@@ -64,6 +70,7 @@ class EpisodeSession:
         """Allocate `episode-NNNN/`, write a `running` manifest, and launch the simulator."""
         self._episode_dir, self._episode_index = self._allocate_episode_dir()
         self._last_action = None
+        self._steps_saved_decision = None
         self._cmd = [
             self._sim_binary,
             f"--run-config={self._run_config}",
@@ -140,18 +147,35 @@ class EpisodeSession:
                 reward_schema))
             self._manifest["telemetry"] = {"file": TELEMETRY_FILE, "records": 0,
                                            "every": selection.telemetry_every}
+        records = self._decision_records
+        if records is not None and records.settings.enabled and self._episode_dir is not None:
+            self._decisions = self._guard(
+                DecisionRecorder, self._episode_dir, records.settings, records.context,
+                episode={"dir_name": self._episode_dir.name, "index": self._episode_index,
+                         "seed": self._manifest["seed"],
+                         "seed_source": self._manifest["seed_source"]},
+                contract=self._manifest["contract"], selection_describe=selection.describe(),
+                observation_schema=observation_schema, reward_schema=reward_schema)
+            self._manifest["decision_records"] = {"manifest": DECISIONS_MANIFEST,
+                                                  "file": DECISIONS_FILE}
         self._write_manifest()
 
     def record_reset(self, msg: dict, obs) -> None:
         """The reset observation is telemetry only: no policy reward, no totals."""
         if self._recorder is not None:
             self._append_record(msg, None, obs)
+        if self._decisions is not None:
+            self._guard(self._decisions.record_reset, msg, obs, self._recorder is not None)
+        if self._recorder is not None or self._decisions is not None:
             self._write_manifest()
 
     def record_step(self, msg: dict, reward: float, detail: dict | None = None) -> None:
         """Update manifest totals and, when due, append a telemetry record."""
         if self._manifest is None:
             return
+        decision = msg.get("decision")
+        previous_steps_saved = (decision is not None
+                                and self._steps_saved_decision == decision - 1)
         self._manifest["steps"] += 1
         self._manifest["cumulative_reward"] += reward
         if self._manifest["manifest_version"] >= 2:
@@ -167,6 +191,10 @@ class EpisodeSession:
             self._append_record(msg, breakdown if breakdown is not None else reward,
                                 (detail or {}).get("obs"))
         self._write_manifest()
+        pre = (detail or {}).get("decision")
+        if self._decisions is not None and pre is not None:
+            self._guard(self._decisions.record_decision, msg, pre,
+                        breakdown if breakdown is not None else reward, previous_steps_saved)
 
     def _append_record(self, msg: dict, reward, obs) -> None:
         assert self._recorder is not None
@@ -174,6 +202,7 @@ class EpisodeSession:
             msg["decision"], msg["tick"], msg["time_s"], msg["ticks_in_step"],
             self._last_action, msg["mask"], msg["revalidated_slots"], msg["facts"],
             msg["reward"], reward, obs))
+        self._steps_saved_decision = msg["decision"]
         if self._manifest is not None and self._manifest.get("telemetry"):
             self._manifest["telemetry"]["records"] = self._recorder.records
 
@@ -184,6 +213,29 @@ class EpisodeSession:
         recorder.close()
         if self._manifest is not None and self._manifest.get("telemetry"):
             self._manifest["telemetry"]["records"] = recorder.records
+
+    def _close_decisions(self, status: str, stop_reason: str | None) -> None:
+        if self._decisions is None:
+            return
+        error = self._manifest.get("error") if self._manifest is not None else None
+        self._guard(self._decisions.close, status, stop_reason, error)
+        self._decisions = None
+
+    def _guard(self, fn, *args, **kwargs):
+        """Run a decision-recorder call; any failure fails only the sidecar."""
+        try:
+            return fn(*args, **kwargs)
+        except Exception as exc:
+            recorder, self._decisions = self._decisions, None
+            reason = f"{type(exc).__name__}: {exc}"
+            if recorder is not None:
+                try:
+                    recorder.fail(reason)
+                except Exception:
+                    pass
+            warnings.warn(f"Decision records stopped for this episode: {reason}",
+                          RuntimeWarning, stacklevel=2)
+            return None
 
     def protocol_error(self, detail: str):
         """Mark the episode failed, stop the simulator, and raise RuntimeError with stderr tail."""
@@ -328,6 +380,7 @@ class EpisodeSession:
             if status == "failed":
                 self._last_tail = self._stderr_tail()
             self._close_stderr()
+            self._close_decisions(status, stop_reason)
             if self._manifest is not None:
                 self._finalize_manifest(status, None, stop_reason, None)
             return None
@@ -355,6 +408,7 @@ class EpisodeSession:
 
         if stop_reason == "done":
             status = "completed" if rc == 0 else "failed"
+        self._close_decisions(status, stop_reason)
         self._finalize_manifest(status, rc, stop_reason, escalation)
         return rc
 

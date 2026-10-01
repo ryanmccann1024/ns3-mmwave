@@ -11,11 +11,14 @@ from dataclasses import dataclass
 from scripts.rl.agents.callbacks import CHECKPOINT_DIR, build_callbacks, list_checkpoints
 from scripts.rl.agents.mask_ppo import MaskablePPOConfig, MaskablePpoTrainer
 from scripts.rl.cli_common import (MANIFEST_NAME, MODEL_BASENAME,
-                                   add_scenario_arguments, add_selection_arguments,
+                                   add_decision_record_arguments, add_scenario_arguments,
+                                   add_selection_arguments, decision_records_from_args,
                                    has_previous_run, make_out_dir, now_iso,
                                    package_versions, resolve_seed, selection_from_args,
                                    sha256_file, write_json)
 from scripts.rl.env.config import read_scenario_identity
+from scripts.rl.env.decisions import (DecisionContext, DecisionRecording,
+                                      DecisionRecordSettings)
 from scripts.rl.env.mesh_env import MeshRlEnv
 
 MANIFEST_VERSION = 4
@@ -79,9 +82,14 @@ def _best_model_entries(out_dir: str, eval_callback) -> dict:
     }
 
 
+def _recording(records: DecisionRecordSettings | None,
+               context: DecisionContext) -> DecisionRecording | None:
+    return None if records is None else DecisionRecording(records, context)
+
+
 def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
                out_dir: str, band: str | None, seed_source: str, selection,
-               cadence: Cadence) -> str:
+               cadence: Cadence, records: DecisionRecordSettings | None = None) -> str:
     manifest = {
         "manifest_version": MANIFEST_VERSION,
         "status": "running",
@@ -133,7 +141,9 @@ def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
         # the same seed_source as this training manifest.
         env_seed = cfg.seed if seed_source == "cli" else None
         env = MeshRlEnv(sim_binary, run_config, seed=env_seed,
-                        output_dir=out_dir, band=band, selection=selection)
+                        output_dir=out_dir, band=band, selection=selection,
+                        decision_records=_recording(records,
+                                                    DecisionContext("training", "train")))
         env.reset()                   # populate dynamic obs/action spaces before wrapping
         manifest["control_mode"] = env.control_mode
         manifest["contract"] = env.contract
@@ -150,7 +160,9 @@ def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
         if cadence.eval_every > 0:
             eval_env = MeshRlEnv(sim_binary, run_config, seed=cadence.eval_seed,
                                  output_dir=os.path.join(out_dir, EVAL_DIR), band=band,
-                                 selection=selection)
+                                 selection=selection,
+                                 decision_records=_recording(records, DecisionContext(
+                                     "evaluation", "train_eval", policy="model")))
             eval_env.reset(seed=cadence.eval_seed, options={"seed_source": "eval"})
 
         callbacks, eval_callback = build_callbacks(
@@ -206,6 +218,7 @@ def main() -> int:
     p.add_argument("--verbose", type=int, default=1, choices=[0, 1],
                    help="0 = quiet, 1 = SB3 training logs")
     add_selection_arguments(p)
+    add_decision_record_arguments(p)
 
     sub = p.add_subparsers(dest="modeltype", required=True,
                            help="Which agent to train")
@@ -258,6 +271,11 @@ def main() -> int:
     except ValueError as exc:
         print(f"Invalid RL selection: {exc}", file=sys.stderr)
         return 1
+    try:
+        records = decision_records_from_args(args)
+    except ValueError as exc:
+        print(f"Invalid decision-record settings: {exc}", file=sys.stderr)
+        return 1
     cadence.eval_seed = args.eval_seed if args.eval_seed is not None else seed + 1
 
     out_dir = make_out_dir(args.output_dir)
@@ -279,7 +297,7 @@ def main() -> int:
     )
     try:
         train_mppo(cfg, args.sim_binary, args.run_config, out_dir,
-                   args.band, seed_source, selection, cadence)
+                   args.band, seed_source, selection, cadence, records)
     except Exception as exc:
         print(f"Training failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
