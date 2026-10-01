@@ -32,6 +32,8 @@ specified in `src/rl/policy-inputs.md`. Read those before changing anything here
 - `selection.py` -- `RlSelection`, resolved CLI > `run.ini [rl]` > default, with
   a per-key `source`. Non-default selections are rejected in legacy mode.
 - `telemetry.py` -- optional `steps.jsonl` writer and replay (`TELEMETRY_VERSION`).
+- `decisions.py` -- opt-in decision records (`policy_decisions*`), independent of
+  `[rl] telemetry`; recorder failures must never raise into the env.
 - `config.py` -- `run.ini` readers (seed, bounds, action profile, control mode,
   scenario identity SHA-256s). Must follow the C++ INI conventions, including
   inline comments and `nodes_file` resolved relative to `run.ini`.

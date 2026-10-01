@@ -693,8 +693,8 @@ python -m scripts.validation.run_batch ... [--band sub-6]
 |---|---|
 | Direct run | `<output-dir>/run.log`, `<output-dir>/inputs/` (archived scenario files), `<output-dir>/seed-N/{positions,links,rx-power,mcs,flows,routes}.csv` + `summary.json` |
 | Sweep point / validation scenario | Same layout, plus `console.log` (launcher-captured stdout/stderr; absent for direct runs) |
-| RL training | `<output-dir>/train_manifest.json`, `<output-dir>/maskable_ppo_mesh.zip`, and one `episode-NNNN/` per episode containing `run.log`, `inputs/`, `sim_stderr.log`, `rl_episode.json`, `steps.jsonl` (optional), and `seed-<seed>/...`; with the cadence flags also `checkpoints/checkpoint_<N>_steps.zip`, `best_model.zip`, `evaluations.npz`, and `eval/episode-NNNN/` for the during-training evaluation. SB3 resets also leave zero-step interrupted episodes in `eval/`; filter by `rl_episode.json` `status` when aggregating. |
-| RL evaluation | `<output-dir>/eval_manifest.json` and one `<policy>/episode-NNNN/` per evaluated policy and seed, with the same episode contents as training |
+| RL training | `<output-dir>/train_manifest.json`, `<output-dir>/maskable_ppo_mesh.zip`, and one `episode-NNNN/` per episode containing `run.log`, `inputs/`, `sim_stderr.log`, `rl_episode.json`, `steps.jsonl` (optional), `policy_decisions.jsonl` and `policy_decisions_manifest.json` (optional, `--decision-records`), and `seed-<seed>/...`; with the cadence flags also `checkpoints/checkpoint_<N>_steps.zip`, `best_model.zip`, `evaluations.npz`, and `eval/episode-NNNN/` for the during-training evaluation. SB3 resets also leave zero-step interrupted episodes in `eval/`; filter by `rl_episode.json` `status` when aggregating. |
+| RL evaluation | `<output-dir>/eval_manifest.json` and one `<policy>/episode-NNNN/` per evaluated policy and seed, with the same episode contents as training, including `policy_decisions.jsonl`/`policy_decisions_manifest.json` (optional, `--decision-records`) |
 
 With no `[output] dir`, the simulator auto-generates
 `outputs/YYYY-MM/DD/HH-MM-SS/`.

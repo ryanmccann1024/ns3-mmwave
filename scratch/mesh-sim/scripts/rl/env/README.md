@@ -21,6 +21,7 @@ not repeat them.
 | [`rewards.py`](rewards.py) | Reward components (`delivery_ratio`, `connectivity`, `throughput_mbps`, `legacy`), `RewardComposer`, and reward schema. |
 | [`selection.py`](selection.py) | `RlSelection`: preset, reward, and telemetry choices resolved as CLI > `run.ini [rl]` > default. |
 | [`telemetry.py`](telemetry.py) | Optional `steps.jsonl` writer and offline replay. |
+| [`decisions.py`](decisions.py) | Opt-in per-decision record writer (`policy_decisions.jsonl` + manifest); see [`src/rl/decision-records.md`](../../../src/rl/decision-records.md). |
 | [`config.py`](config.py) | `run.ini` readers: seed, movement bounds, action profile, control mode, scenario file hashes. |
 | [`__init__.py`](__init__.py) | Re-exports `MeshRlEnv`. |
 
@@ -81,6 +82,8 @@ Written under `<output_dir>/episode-NNNN/`, one directory per reset.
 | `rl_episode.json` | `EpisodeSession`; status `running`, `completed`, `interrupted`, or `failed`, plus totals and (centralized) contract, selection, and schema hashes. |
 | `sim_stderr.log` | Simulator stderr; its tail is shown in error messages. |
 | `steps.jsonl` | `telemetry.StepRecorder`, only when `telemetry = steps`; replay with `telemetry.replay_file`. |
+| `policy_decisions_manifest.json` | `decisions.DecisionRecorder`, only with `--decision-records`; identity, coverage, and status of the decision records. |
+| `policy_decisions.jsonl` | `decisions.DecisionRecorder`, only with `--decision-records`; one reset record, then one record per saved decision. |
 | Simulator outputs | Everything the simulator itself writes into `--output-dir`. |
 
 ## Conventions
