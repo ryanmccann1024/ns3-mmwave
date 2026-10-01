@@ -32,7 +32,7 @@ _MAPPING_REQUIRED = {"baseline_mapping_version", "origin", "ground_datum", "geof
                      "radios"}
 _POLYGON_KEYS = {"vertices", "polygon", "polygons", "points", "coordinates", "rings",
                  "holes", "geojson", "exterior", "interiors"}
-POLYGON_TODO = ("Phase 1 supports only axis-aligned rectangle geofences "
+POLYGON_TODO = ("only axis-aligned rectangle geofences are supported "
                 "(geofence.source 'rl_bounds' or 'rectangle_xy_m'); polygon geofences "
                 "are a documented TODO, and a bounding rectangle is never substituted")
 

@@ -129,7 +129,7 @@ simulator mobility is unchanged. Each node's altitude band is `[z, z]`.
 
 ## TODO: polygon geofences
 
-Phase 1 supports **only an axis-aligned rectangle** in scenario metres. The
+The adapter supports **only an axis-aligned rectangle** in scenario metres. The
 supplied planner can accept polygon geofences, but this adapter does not expose
 that capability: it accepts no polygon vertices and does not derive a polygon
 from buildings.
@@ -140,7 +140,7 @@ fails when `geofence` is a JSON list, when it has any of the keys `vertices`,
 `exterior`, or `interiors`, or when an unknown `source` mentions `poly`,
 `geojson`, `vert`, or `point`. The error ends with:
 
-> Phase 1 supports only axis-aligned rectangle geofences (geofence.source
+> only axis-aligned rectangle geofences are supported (geofence.source
 > 'rl_bounds' or 'rectangle_xy_m'); polygon geofences are a documented TODO,
 > and a bounding rectangle is never substituted
 

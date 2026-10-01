@@ -231,7 +231,7 @@ def test_rl_bounds_requires_explicit_keys(tmp_path):
     {"points": [{"lat": 0, "lon": 0}, {"lat": 0, "lon": 1}, {"lat": 1, "lon": 0}]},
     [{"lat": 0, "lon": 0}, {"lat": 0, "lon": 1}, {"lat": 1, "lon": 0}],
 ])
-def test_polygon_geofence_rejected_with_phase1_limit(tmp_path, geofence):
+def test_polygon_geofence_rejected_with_rectangle_limit(tmp_path, geofence):
     payload = copy.deepcopy(MAPPING)
     payload["geofence"] = geofence
     with pytest.raises(ConfigError) as err:

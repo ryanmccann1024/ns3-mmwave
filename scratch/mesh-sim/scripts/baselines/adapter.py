@@ -160,11 +160,11 @@ def build_records(nodes: list, cfg: config.BaselineConfig, mapping: config.Mappi
 
 
 def check_datum(records: tuple) -> None:
-    """Phase 1 accepts only z as height above flat ground at z = 0."""
+    """Accept only z as height above flat ground at z = 0."""
     for record in records:
         if record.z < 0:
             raise ConfigError(f"node '{record.id}' has z={record.z} below the declared "
-                              "ground datum; Phase 1 supports only z_is_agl_m with z >= 0")
+                              "ground datum; only z_is_agl_m with z >= 0 is supported")
 
 
 def check_radios(records: tuple, rf_summary: dict) -> None:

@@ -108,7 +108,7 @@ def test_negative_z_rejected(tmp_path):
     with pytest.raises(ConfigError) as err:
         adapter.check_datum(records)
     assert str(err.value) == ("node 'truck' has z=-0.5 below the declared ground datum; "
-                              "Phase 1 supports only z_is_agl_m with z >= 0")
+                              "only z_is_agl_m with z >= 0 is supported")
 
 
 def test_blos_and_unknown_radio_rejected(tmp_path):
