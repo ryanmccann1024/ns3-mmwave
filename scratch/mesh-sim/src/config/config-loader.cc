@@ -225,11 +225,27 @@ ConfigLoader::Load(const std::string& run_config_path,
     {
         // Auto-generate a timestamped output directory anchored to
         // scratch/mesh-sim/outputs/ regardless of cwd.
-        // base_dir points at the scenario dir (e.g. .../inputs/baselines/foo)
-        // so we go up three levels to reach scratch/mesh-sim/.
-        fs::path mesh_sim_dir = fs::path(base_dir).parent_path()  // baselines/
-                                                    .parent_path()  // inputs/
-                                                    .parent_path(); // mesh-sim/
+        // Scenarios can be nested at different depths under inputs/ (for
+        // example inputs/custom/calfex/06-24/1420-1430). Find the simulator
+        // root instead of assuming a fixed number of parent directories.
+        fs::path mesh_sim_dir;
+        for (fs::path candidate = fs::absolute(base_dir); !candidate.empty();
+             candidate = candidate.parent_path())
+        {
+            if (fs::exists(candidate / "sim.cc") && fs::is_directory(candidate / "inputs"))
+            {
+                mesh_sim_dir = candidate;
+                break;
+            }
+            if (candidate == candidate.root_path())
+            {
+                break;
+            }
+        }
+        if (mesh_sim_dir.empty())
+        {
+            throw std::runtime_error("Could not locate mesh-sim root for automatic output directory");
+        }
         std::time_t now = std::time(nullptr);
         std::tm* lt = std::localtime(&now);
 
