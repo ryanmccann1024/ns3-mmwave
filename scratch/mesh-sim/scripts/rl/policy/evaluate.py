@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import math
 import platform
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -21,7 +22,8 @@ _RETURN_TOL = 1e-9
 _DEMAND_EPS = 1e-9
 _MAX_ERROR_CHARS = 1000
 _METRIC_NAMES = ("delivery_ratio", "connectivity", "los_fraction",
-                 "unroutable_fraction", "first_all_los_decision")
+                 "unroutable_fraction", "first_all_los_decision",
+                 "travel_m_total", "displacement_m_final")
 
 
 class Policy(Protocol):
@@ -149,8 +151,16 @@ def _read_records(episode_dir: Path) -> list[dict]:
 
 def episode_metrics(episode_dir: Path, num_links: int) -> dict:
     """Delivery, connectivity, LOS, and routability from the per-decision window sums."""
-    records = _read_records(episode_dir)
+    path = episode_dir / TELEMETRY_FILE
     metrics = {name: None for name in _METRIC_NAMES}
+    if not path.is_file():
+        return metrics
+    lines = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    if len(lines) < 2:
+        return metrics
+    header = lines[0]
+    all_records = [line for line in lines[1:] if line.get("type") == "step"]
+    records = [r for r in all_records if int(r.get("decision", 0)) >= 1]
     if not records:
         return metrics
 
@@ -177,6 +187,24 @@ def episode_metrics(episode_dir: Path, num_links: int) -> dict:
         metrics["los_fraction"] = los / pairs
     if flow_ticks > 0:
         metrics["unroutable_fraction"] = unroutable / flow_ticks
+    if all_records and all_records[0]["decision"] == 0:
+        ids = header["contract"]["node_ids"]
+        initial = all_records[0]["facts"]["nodes"]
+        previous = initial
+        travel = {node_id: 0.0 for node_id in ids}
+        for record in records:
+            current = record["facts"]["nodes"]
+            for index, node_id in enumerate(ids):
+                travel[node_id] += math.hypot(current[index][0] - previous[index][0],
+                                              current[index][1] - previous[index][1])
+            previous = current
+        displacement = {node_id: math.hypot(previous[index][0] - initial[index][0],
+                                            previous[index][1] - initial[index][1])
+                        for index, node_id in enumerate(ids)}
+        metrics["travel_m_total"] = sum(travel.values())
+        metrics["displacement_m_final"] = sum(displacement.values())
+        metrics["per_node_travel_m"] = travel
+        metrics["per_node_displacement_m"] = displacement
     return metrics
 
 
@@ -272,11 +300,14 @@ def summarize(results: list[EpisodeResult], expected: int | None = None) -> dict
     """Per-policy aggregate; returns and counters cover completed episodes only."""
     done = [r for r in results if r.status == "completed"]
     returns = [r.total_return for r in done]
+    per_decision = [r.total_return / r.decisions for r in done if r.decisions > 0]
     return {
         "expected_episodes": len(results) if expected is None else int(expected),
         "mean_return": (sum(returns) / len(returns)) if returns else None,
         "min_return": min(returns) if returns else None,
         "max_return": max(returns) if returns else None,
+        "mean_reward_per_decision": (sum(per_decision) / len(per_decision))
+        if per_decision else None,
         "revalidated_slots_total": sum(r.revalidated_slots_total or 0 for r in done),
         "mask_violations_total": sum(r.mask_violations or 0 for r in done),
         "completed_episodes": len(done),

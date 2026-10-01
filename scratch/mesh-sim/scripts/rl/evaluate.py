@@ -9,6 +9,7 @@ from pathlib import Path
 
 from scripts.rl.cli_common import (MANIFEST_NAME, add_decision_record_arguments,
                                    add_scenario_arguments, add_selection_arguments,
+                                   automatic_output_root,
                                    decision_records_from_args, package_versions,
                                    selection_from_args, sha256_file)
 from scripts.rl.env.config import read_scenario_identity
@@ -136,8 +137,8 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="Training output directory holding train_manifest.json")
     p.add_argument("--model", default="final",
                    help="final, best, or checkpoints/<file>.zip inside --run-dir")
-    p.add_argument("--output-dir", required=True,
-                   help="Evaluation output root; must be outside --run-dir")
+    p.add_argument("--output-dir", default=None,
+                   help="Override the automatic timestamped evaluation output root")
     p.add_argument("--seeds", required=True,
                    help="Comma-separated distinct episode seeds; A-B is an inclusive range")
     p.add_argument("--label", default=None,
@@ -207,6 +208,9 @@ def _exit_code(manifest: dict, expected_episodes: int) -> int:
 
 def main(argv=None) -> int:
     args = _build_parser().parse_args(argv)
+    automatic = args.output_dir is None
+    if automatic:
+        args.output_dir = str(automatic_output_root("rl-evaluation"))
     try:
         seeds = parse_seed_spec(args.seeds)
         policies = _parse_policies(args.policies)
@@ -215,6 +219,9 @@ def main(argv=None) -> int:
     except ValueError as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
+
+    if automatic:
+        print(f"Evaluation output: {Path(args.output_dir).resolve()}", flush=True)
 
     try:
         bundle, run_config, band, selection = _resolve_run(args, policies)

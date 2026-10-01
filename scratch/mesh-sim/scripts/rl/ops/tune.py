@@ -12,7 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.rl.cli_common import (MANIFEST_NAME as TRAIN_MANIFEST_NAME, now_iso,
+from scripts.rl.cli_common import (MANIFEST_NAME as TRAIN_MANIFEST_NAME,
+                                   automatic_output_root, now_iso,
                                    package_versions, sha256_file, write_json)
 from scripts.rl.experiment import build_plan, load_matrix
 from scripts.sim_support import find_mesh_root
@@ -451,8 +452,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Optuna smoke over the wired PPO knobs for one matrix row and seed")
     p.add_argument("--study", required=True, help="Study spec JSON file")
-    p.add_argument("--output-root", required=True,
-                   help="Directory for the study manifest and per-trial records")
+    p.add_argument("--output-root", default=None,
+                   help="Override the automatic timestamped study output root")
     p.add_argument("--sim-binary", required=True, help="Path to mesh-sim executable")
     p.add_argument("--dry-run", action="store_true",
                    help="Print the startup parameter sets and commands; create nothing")
@@ -463,6 +464,10 @@ def main(argv=None, sampler=None, execute=None) -> int:
     args = _build_parser().parse_args(argv)
     try:
         spec = load_study(args.study)
+        if args.output_root is None:
+            args.output_root = str(automatic_output_root(spec["name"]))
+            if not args.dry_run:
+                print(f"Tuning output: {Path(args.output_root).resolve()}", flush=True)
         _check_output_root(args.output_root, args.dry_run)
         binary = _check_binary(args.sim_binary, args.dry_run)
         study = _open_study(spec, sampler)

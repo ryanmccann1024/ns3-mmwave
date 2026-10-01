@@ -4,10 +4,12 @@ import hashlib
 import importlib.metadata
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
 from scripts.rl.bootstrap_venv import DIRECT_DEPS
+from scripts.sim_support import find_mesh_root
 from scripts.rl.env.config import read_scenario_seed
 from scripts.rl.env.decisions import (OBS_VECTOR_MODES, PREFERENCE_MODES,
                                       DecisionRecordSettings, resolve_decision_records)
@@ -40,6 +42,21 @@ def make_out_dir(output_dir: str) -> str:
                                now.strftime("%d"), now.strftime("%H-%M-%S"))
     os.makedirs(out_dir, exist_ok=True)
     return out_dir
+
+
+def automatic_output_root(name: str) -> Path:
+    """Find a fresh path in the simulator's standard timestamped output tree."""
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name):
+        raise ValueError(f"automatic output name must be a lowercase slug, got {name!r}")
+    now = datetime.now()
+    parent = find_mesh_root() / "outputs" / now.strftime("%Y-%m") / now.strftime("%d")
+    stem = f"{now:%H-%M-%S}-{name}"
+    candidate = parent / stem
+    suffix = 2
+    while candidate.exists():
+        candidate = parent / f"{stem}-{suffix}"
+        suffix += 1
+    return candidate
 
 
 def has_previous_run(out_dir: str) -> str | None:

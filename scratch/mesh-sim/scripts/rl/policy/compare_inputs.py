@@ -16,10 +16,12 @@ METRICS = {"connectivity": (True, True), "delivery_ratio": (True, True),
            "unroutable_fraction": (False, True)}
 GROUP_METRICS = tuple(name for name, (_, shared) in METRICS.items() if shared)
 CSV_METRICS = ("delivery_ratio", "connectivity", "los_fraction",
-               "unroutable_fraction", "first_all_los_decision")
+               "unroutable_fraction", "first_all_los_decision",
+               "travel_m_total", "displacement_m_final")
 CSV_COLUMNS = ("label", "training_seed", "model_sha256", "eval_dir", "policy", "seed",
                "status", "decisions", "return", "delivery_ratio", "connectivity",
                "los_fraction", "unroutable_fraction", "first_all_los_decision",
+               "travel_m_total", "displacement_m_final",
                "mask_violations", "revalidated_slots_total", "actions_sha256",
                "held_out", "metric_source", "episode_dir", "summary_json", "error")
 
