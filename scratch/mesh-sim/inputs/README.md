@@ -28,7 +28,7 @@ defaults to `mmwave`.
 | `custom/sherpa/` | Local Spring Lake ARPO mmWave scenarios | Ignored, read-only; ask the project team or data owner for the data |
 | `calfex/` | Field-derived CalFEX sub-6 scenario configurations | Tracked |
 | `sweeps/` | Parameter-sweep configurations | Tracked |
-| `experiments/` | Named RL experiment matrices expanded by `scripts.rl.experiment` | Tracked |
+| `experiments/` | Named RL experiment matrices expanded by `scripts.rl.experiment`, plus the tuning study specs read by `scripts.rl.ops.tune` | Tracked |
 
 Sherpa and CalFEX are distinct field workflows, not two spellings of the same
 dataset: the Sherpa inputs describe ARPO mmWave trials, the CalFEX inputs
