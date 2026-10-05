@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Evaluate a saved policy and its baselines on mesh-sim scenarios."""
 
 import argparse
