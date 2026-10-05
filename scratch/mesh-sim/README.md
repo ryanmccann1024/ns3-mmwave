@@ -154,6 +154,25 @@ or `default`. `band` is a categorical switch over the interference path, not a
 value derived from `frequency_ghz`: `sub-6` is the only mode in which
 configured jammers contribute interference.
 
+### Placement baselines
+
+`scripts/baselines/` runs the supplied geometric and optimization placement
+planners once, before the simulation, selected by a `[baseline]` INI section
+or by the `geometric` and `optimization` evaluation policies. Install
+`requirements-baselines.txt` first. Standalone:
+
+```bash
+.venv/bin/python -m scripts.baselines.runner \
+  --sim-binary <BIN> --run-config <INI> --seeds 1,2
+```
+
+The [placement-baseline guide](scripts/baselines/README.md) covers the keys,
+the mapping file, the direct-run guard, outputs, the rectangle-only geofence
+limit, and which files may not be committed.
+
+`geometric` and `optimization` evaluation policies run `hold` on a layout
+planned once before the episodes. They are not in the default `--policies` list.
+
 ### Band in sweeps and validation batches
 
 The generic sweep matrix already covers `band` — no band-specific syntax:

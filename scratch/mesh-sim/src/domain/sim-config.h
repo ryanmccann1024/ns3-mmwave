@@ -113,6 +113,12 @@ struct RlConfig
     uint32_t num_ticks = 0;                     ///< Loop tick count for the resolved mode.
 };
 
+/// @brief `[baseline]` selector; the binary only guards on it and never plans placements.
+struct BaselineConfig
+{
+    std::string algorithm = "none";  ///< @c "none", @c "geometric", or @c "optimization".
+};
+
 /**
  * @brief Root simulation configuration aggregating all subsystem parameters.
  *
@@ -158,9 +164,12 @@ struct SimConfig
     RlConfig rl;  ///< Reinforcement-learning controller parameters.
                    ///<   Ignored when @c rl.enabled is @c false.
 
-    std::vector<NodeSpec>     nodes;      ///< All simulation nodes, in index order. Node indices
-                                           ///<   used by the traffic, link, routing, and RL layers
-                                           ///<   refer to positions in this vector.
+    BaselineConfig baseline;  ///< Placement-baseline selector (@c [baseline] algorithm).
+
+    std::vector<NodeSpec>     nodes;      ///< All simulation nodes, in index order.
+                                           ///<   Node IDs assigned by @ref TrafficMatrix
+                                           ///<   and the link evaluator are indices into
+                                           ///<   this vector.
     std::vector<BuildingSpec> buildings;  ///< Optional building obstacles used for
                                            ///<   deterministic LOS/NLOS classification.
                                            ///<   Empty when no @c buildings_file is set.

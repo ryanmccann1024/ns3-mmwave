@@ -8,7 +8,9 @@ import pytest
 
 from scripts import stats
 from scripts.rl import compare as compare_cli
-from scripts.rl.policy.compare import ACROSS_RUNS_KIND, CSV_COLUMNS, PAIRED_KIND
+from scripts.rl.policy import compare as policy_compare
+from scripts.rl.policy.compare import (ACROSS_RUNS_KIND, CSV_COLUMNS, PAIRED_KIND,
+                                       ComparisonError, build_comparison, load_evaluation)
 
 SEEDS = (11, 12, 13)
 
@@ -484,3 +486,68 @@ def test_plan_mode_counts_a_missing_evaluation(tmp_path):
     assert (group["runs_expected"], group["runs_used"]) == (2, 1)
     assert {"training_seed": 102, "reason": "missing"} in group["excluded_runs"]
     assert len(rows) == 4
+
+
+# 6. Placement provenance ----------------------------------------------------------
+
+_PLACEMENT_BASELINES = {"hold": {s: 0.6 for s in SEEDS},
+                        "geometric": {s: 0.65 for s in SEEDS}}
+
+
+def _with_placement(fingerprint: str):
+    def add(manifest):
+        manifest["policies"]["geometric"]["baseline"] = {"method": "geometric",
+                                                         "fingerprint": fingerprint}
+    return add
+
+
+def _placement_pair(tmp_path, first: str, second: str) -> list:
+    left = write_eval(tmp_path / "run-0", {s: 0.8 for s in SEEDS}, _PLACEMENT_BASELINES,
+                      label="a", mutate=_with_placement(first))
+    right = write_eval(tmp_path / "run-1", {s: 0.8 for s in SEEDS}, _PLACEMENT_BASELINES,
+                       label="a", training_seed=102, model_sha256="b" * 64,
+                       mutate=_with_placement(second))
+    return [left, right]
+
+
+def test_equal_placement_fingerprints_group_together(tmp_path):
+    out = tmp_path / "cmp"
+    assert _run(out, *_placement_pair(tmp_path, "f" * 64, "f" * 64)) == 0
+    group = _outputs(out)[0]["groups"][0]
+    assert (group["runs_expected"], group["runs_used"]) == (2, 2)
+    assert {c["baseline"] for c in group["comparisons"]} == {"geometric", "hold"}
+
+
+def test_differing_placement_fingerprints_are_refused(tmp_path, capsys):
+    eval_dirs = _placement_pair(tmp_path, "f" * 64, "e" * 64)
+    evaluations = [load_evaluation(eval_dir) for eval_dir in eval_dirs]
+    with pytest.raises(ComparisonError, match="baseline_geometric_fingerprint"):
+        build_comparison(evaluations)
+
+    out = tmp_path / "cmp"
+    assert _run(out, *eval_dirs) == 1
+    assert not out.exists()
+    assert "baseline_geometric_fingerprint" in capsys.readouterr().err
+
+
+def test_group_key_without_placement_blocks_is_unchanged(tmp_path):
+    plain = load_evaluation(write_eval(tmp_path / "plain", {s: 0.8 for s in SEEDS},
+                                       _PLACEMENT_BASELINES))
+    placed = load_evaluation(write_eval(tmp_path / "placed", {s: 0.8 for s in SEEDS},
+                                        _PLACEMENT_BASELINES,
+                                        mutate=_with_placement("f" * 64)))
+    shas = ("run_ini_sha256", "nodes_json_sha256", "buildings_json_sha256",
+            "jammers_json_sha256")
+    settings = ("total_timesteps", "n_steps", "gamma", "ent_coef", "eval_every_steps",
+                "eval_episodes")
+    expected = {"observation_preset", "reward_components", "reward_weights",
+                "observation_schema_sha256", "reward_schema_sha256", "band",
+                "model_selection", "seeds", "training_algorithm", "model_selection_seed",
+                *(f"scenario_{sha}" for sha in shas),
+                *(f"training_scenario_{sha}" for sha in shas),
+                *(f"training_{setting}" for setting in settings)}
+
+    plain_key = policy_compare._group_key(plain)
+    assert set(plain_key) == expected
+    assert policy_compare._group_key(placed) == {
+        **plain_key, "baseline_geometric_fingerprint": "f" * 64}

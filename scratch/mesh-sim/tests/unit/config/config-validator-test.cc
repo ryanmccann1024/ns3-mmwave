@@ -469,6 +469,54 @@ test_rl_valid_z_bounds()
     check(!hasError(r, "rl.z_min"), "valid rl z bounds accepted");
 }
 
+// ---- baseline selector tests ----
+
+static void
+test_baseline_default_is_none()
+{
+    auto cfg = makeValid();
+    check(cfg.baseline.algorithm == "none", "baseline.algorithm defaults to none");
+    auto r = ValidateConfig(cfg);
+    check(r.ok(), "default baseline.algorithm passes validation");
+}
+
+static void
+test_baseline_known_values_accepted()
+{
+    for (const std::string algo : {"none", "geometric", "optimization"})
+    {
+        for (bool rlEnabled : {false, true})
+        {
+            auto cfg = makeValid();
+            cfg.rl.enabled         = rlEnabled;
+            cfg.baseline.algorithm = algo;
+            auto r = ValidateConfig(cfg);
+            check(!hasError(r, "baseline.algorithm"),
+                  "baseline.algorithm '" + algo + "' accepted with rl.enabled=" +
+                      (rlEnabled ? "true" : "false"));
+            if (!rlEnabled)
+            {
+                check(r.ok(), "baseline.algorithm '" + algo + "' passes with RL disabled");
+            }
+        }
+    }
+}
+
+static void
+test_baseline_unknown_rejected()
+{
+    for (bool rlEnabled : {false, true})
+    {
+        auto cfg = makeValid();
+        cfg.rl.enabled         = rlEnabled;
+        cfg.baseline.algorithm = "annealing";
+        auto r = ValidateConfig(cfg);
+        check(!r.ok(), "unknown baseline.algorithm rejected");
+        check(hasError(r, "baseline.algorithm: unknown value 'annealing'"),
+              "unknown baseline.algorithm error names the field and value");
+    }
+}
+
 // ---- seed parsing tests ----
 
 static void
@@ -990,6 +1038,11 @@ main()
     // RL z bounds
     test_rl_inverted_z_bounds();
     test_rl_valid_z_bounds();
+
+    // Baseline selector
+    test_baseline_default_is_none();
+    test_baseline_known_values_accepted();
+    test_baseline_unknown_rejected();
 
     // RL centralized control resolution
     test_rl_disabled_is_legacy();

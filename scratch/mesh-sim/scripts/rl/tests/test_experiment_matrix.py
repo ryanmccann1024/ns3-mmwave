@@ -353,3 +353,37 @@ def test_run_reports_a_blocked_training_directory(tmp_path):
     assert blocked["id"] not in executor.executed
     assert "evaluate/row-a/train-seed-1" not in executor.executed
     assert "compare" in executor.executed
+
+
+def test_unknown_evaluation_policy_fails_at_plan_time(tmp_path, capsys):
+    data = _matrix_data(_run_ini(tmp_path))
+    data["evaluation"]["policies"] = ["model", "hold", "greedy"]
+    matrix_path = _write_matrix(tmp_path, data)
+    with pytest.raises(ValueError, match=r"unknown names \['greedy'\]"):
+        experiment.load_matrix(matrix_path)
+
+    root = tmp_path / "root"
+    assert experiment.main(["plan", "--matrix", matrix_path, "--output-root", str(root),
+                            "--sim-binary", SIM_BINARY]) == 1
+    assert "greedy" in capsys.readouterr().err
+    assert not (root / experiment.PLAN_NAME).exists()
+
+
+def test_every_evaluation_policy_name_is_accepted(tmp_path):
+    names = ["model", "hold", "random_valid", "geometric", "optimization"]
+    data = _matrix_data(_run_ini(tmp_path))
+    data["evaluation"]["policies"] = names
+    matrix = experiment.load_matrix(_write_matrix(tmp_path, data))
+    assert matrix["evaluation"]["policies"] == names
+
+    plan = experiment.build_plan(matrix, tmp_path / "root", SIM_BINARY)
+    evaluate = next(step for step in plan["steps"] if step["kind"] == "evaluate")
+    args = evaluate["args"]
+    assert args[args.index("--policies") + 1] == ",".join(names)
+
+
+def test_existing_matrices_keep_their_policies(tmp_path):
+    tracked = experiment.load_matrix(TRACKED_MATRIX)
+    assert tracked["evaluation"]["policies"] == ["model", "hold", "random_valid"]
+    stub = experiment.load_matrix(_stub_matrix(tmp_path))
+    assert stub["evaluation"]["policies"] == ["model", "hold"]
