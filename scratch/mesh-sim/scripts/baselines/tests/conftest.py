@@ -1,12 +1,11 @@
 """Hand-written synthetic scenario, mapping, and RF fixtures plus a stub planner."""
 
-from __future__ import annotations
-
 import json
 from pathlib import Path
 
 import pytest
 
+from scripts.baselines.adapter import PlanRequest, PlanResult
 
 # Axis-aligned area shared by the [rl] bounds and the rl_bounds geofence.
 AREA = {"x_min": 0.0, "x_max": 400.0, "y_min": 0.0, "y_max": 400.0}
@@ -175,8 +174,6 @@ def stub_positions(request: PlanRequest) -> dict:
 
 def stub_solve(request: PlanRequest, log) -> PlanResult:
     """Deterministic stand-in for arpo_solver.solve."""
-    from scripts.baselines.adapter import PlanResult
-
     log.write(f"stub planner: {request.method}/{request.objective}\n")
     return PlanResult(positions=stub_positions(request),
                       predictions={"stub": True, "method": request.method},
