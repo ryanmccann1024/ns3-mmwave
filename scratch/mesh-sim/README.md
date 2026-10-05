@@ -657,3 +657,7 @@ pages and the per-file API docs.
 @section about About
 
 This sim is being worked on by the University of Massachusetts's ACNL.
+
+### Experiment operations
+
+See [`scripts/rl/ops/README.md`](scripts/rl/ops/README.md) for the available task runner, benchmark, tuning, and cluster workflows.
