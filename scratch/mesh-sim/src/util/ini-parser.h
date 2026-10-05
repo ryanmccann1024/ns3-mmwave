@@ -6,6 +6,9 @@
  * Reads @c run.ini into an @ref mesh_sim::IniMap and offers lookup helpers with defaults.
  * Depends only on the standard library.
  *
+ * Reads @c run.ini into an @ref IniMap and offers lookup helpers with defaults.
+ * Depends only on the standard library.
+ *
  * **Format rules**
  * - Comments: everything from the first @c # or @c ; to the end of the line
  *   is stripped before processing.

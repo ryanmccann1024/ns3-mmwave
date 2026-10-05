@@ -25,6 +25,11 @@
  * component is non-zero, else @c ConstantPositionMobilityModel. Jammer
  * @c random_walk settings are not used here.
  *
+ * **Jammer mobility** (one ns-3 node per @c cfg.jammers entry, same order):
+ * waypoints if any, else @c ConstantVelocityMobilityModel if any velocity
+ * component is non-zero, else @c ConstantPositionMobilityModel. Jammer
+ * @c random_walk settings are not used here.
+ *
  * **Channel condition model selection**
  * When @c cfg.buildings is non-empty, or @c channel.condition_model is
  * @c "static_los", a @c BuildingsChannelConditionModel is installed, giving
