@@ -8,6 +8,10 @@ Tools around an existing `experiment_plan.json`. Create the plan before executin
 - `run_task.py`: execute one task or comparison
 - `benchmark.py`: measure one task and scale resource estimates
 - `tune.py`: Optuna smoke experiments
+- `slurm.py`: scheduler adapter
+- `receipts.py`: submission bookkeeping
+- `reconcile.py`: combine filesystem and scheduler state
+- `cluster.py`: SLURM operations CLI
 
 ## Task unit
 
@@ -307,4 +311,286 @@ carry a package no job imports. `tune.py` imports Optuna lazily; a missing
 install or a version other than the pin is a refusal naming both versions and
 the install command. Nothing else in this package imports Optuna, and no
 cluster job does.
+
+## Cluster runs
+
+For now, use one SLURM account per output root. Scheduler lookups use the
+current account, so a second operator may not see an existing job and could
+incorrectly abandon its receipt and submit a duplicate task. This is a known
+limitation, not a substitute for the planned code safeguard.
+
+### Commands
+
+```bash
+# on the cluster, after the human built the binary and prepared the venv
+<venv>/bin/python -m scripts.rl.experiment plan --matrix M --output-root R --sim-binary /abs/BIN
+<venv>/bin/python -m scripts.rl.ops.cluster plan   --output-root R --cluster-config C
+<venv>/bin/python -m scripts.rl.ops.cluster submit --output-root R --cluster-config C [--tasks 0] [--no-compare] [--dry-run]
+<venv>/bin/python -m scripts.rl.ops.cluster status --output-root R [--json]
+<venv>/bin/python -m scripts.rl.ops.cluster resume --output-root R --cluster-config C [--inactive-job ID] [--abandon-intent NNNN:tasks] [--dry-run]
+<venv>/bin/python -m scripts.rl.ops.cluster cancel --output-root R (--submission 0001 | --tasks 2,5) [--dry-run]
+<venv>/bin/python -m scripts.rl.ops.cluster compare --output-root R [--allow-incomplete]
+```
+
+`--inactive-job` and `--abandon-intent` are repeatable; each occurrence names
+one job id or one `NNNN:tasks` / `NNNN:compare` token. Exit 0 means the command
+did what was asked; exit 1 is a refusal or an error, with the reason on stderr.
+`status` exits 0 whenever it could render, including when tasks failed.
+
+- **plan** validates, writes `cluster/tasks.json`, prints the task table, and
+  prints the `sbatch` argv and rendered scripts with a clearly marked
+  provisional receipt number `NNNN` and a `meshops-<random>-tasks` placeholder
+  name. It submits nothing.
+- **submit** submits tasks whose state is `unsubmitted`, optionally narrowed by
+  `--tasks`; naming a task in any other state is refused and points at `resume`.
+- **resume** submits every `unsubmitted`, `failed`, or `canceled` task whose
+  remaining step directories are clean.
+- **cancel** requires exactly one of `--submission` or `--tasks`.
+- **compare** runs the compare step on the current host.
+
+Validation shared by `plan`, `submit`, and `resume`, all refusals: the plan's
+own root differs from `--output-root` (the plan was copied from another
+filesystem — regenerate it here instead); `sim_binary` is not absolute, missing,
+or not executable; a row's `run_config` is missing; the task count exceeds
+`max_array_size`; the config is invalid; and, for a non-dry-run `submit` or
+`resume`, `sbatch` is not on `PATH`.
+
+`--dry-run` on `submit`/`resume` prints the state table and, when something
+would be submitted, the provisional argv and scripts. It takes no lock, writes
+no receipt, script, or `tasks.json`, and **does not query the scheduler** — its
+state table is computed against an offline snapshot, so every receipt-covered
+task reads as `unknown` there.
+
+### Cluster config
+
+`cluster-config.example.json` is the schema. Every key is required and the key
+set is closed; there is no free-form `sbatch` option, because a value outside
+the schema could override the array id, log path, dependency, or the
+`--no-requeue` safety flag. A site-required option therefore needs a reviewed
+addition to the schema.
+
+```json
+{
+  "cluster_config_version": 1,
+  "name": "<REQUIRED label for receipts>",
+  "venv": "<REQUIRED absolute path to the prepared venv>",
+  "setup_lines": [],
+  "task":    {"partition": null, "account": null, "qos": null, "constraint": null,
+              "time": "<REQUIRED HH:MM:SS>", "mem": "<REQUIRED e.g. 4G>",
+              "cpus_per_task": "<REQUIRED integer>"},
+  "compare": {"time": "<REQUIRED HH:MM:SS>", "mem": "<REQUIRED>", "cpus_per_task": 1},
+  "max_array_size": "<REQUIRED integer: site MaxArraySize>",
+  "max_concurrent_tasks": null
+}
+```
+
+- `null` is accepted only for `partition`, `account`, `qos`, `constraint`, and
+  `max_concurrent_tasks`; it means "omit the flag and take the site default".
+- Any string starting with `<` is refused as a leftover placeholder, so the
+  example file cannot be used unedited.
+- `time` must match `[D-]H:MM:SS`, `mem` a digit string with an optional
+  `K`/`M`/`G`/`T` suffix, and `cpus_per_task` / `max_array_size` /
+  `max_concurrent_tasks` an integer ≥ 1.
+- `setup_lines` is a possibly empty list of shell lines, for example
+  `module load …`, emitted verbatim near the top of each job script.
+- `compare` inherits `partition`, `account`, `qos`, and `constraint` from
+  `task`; only its `time`, `mem`, and `cpus_per_task` are its own.
+- `venv` must be absolute and contain `bin/python`; prepare it with
+  `python3 scripts/rl/bootstrap_venv.py --venv <path>`.
+
+The validated config and its SHA-256 are copied into every receipt, so
+submissions may legitimately differ — for example more memory after an
+out-of-memory failure. The config is not part of the immutable plan.
+
+Job scripts run `set -euo pipefail`, the configured `setup_lines`, export
+`OMP_NUM_THREADS` and `MKL_NUM_THREADS` equal to `cpus_per_task` and an empty
+`CUDA_VISIBLE_DEVICES`, `cd` to the mesh root recorded at submit time, run
+`bootstrap_venv.py --venv <venv> --check` so a pin mismatch fails before any
+step starts, and then `exec` the runner. Every interpolated path is quoted with
+`shlex.quote`. Jobs are submitted with `--no-requeue`: a requeued task would
+restart into a dirty directory and be refused anyway, so a silent scheduler
+retry is worse than an explicit failure.
+
+### Layout under the output root
+
+```
+<root>/experiment_plan.json                    existing, immutable, never written here
+<root>/train/… <root>/eval/… <root>/comparison/ existing, guarded step directories
+<root>/cluster/tasks.json                      deterministic task table
+<root>/cluster/submit.lock                     present only during submit/resume
+<root>/cluster/receipts/0001.json
+<root>/cluster/scripts/0001-tasks.sh  0001-compare.sh
+<root>/cluster/logs/0001/slurm-%A_%a.out  compare-%j.out
+<root>/cluster/records/0001/task-0003.json  compare.json
+```
+
+`cluster/` sits outside every guarded step directory, so nothing written here
+can block a train or evaluate run. `cluster/tasks.json` is
+`{"tasks_version": 1, "plan_sha256", "tasks": [{index, id, train_id,
+evaluate_id}]}`; an existing file describing a different plan is refused rather
+than overwritten.
+
+### Receipts and the submission protocol
+
+One receipt per submission, `cluster/receipts/NNNN.json`:
+
+```json
+{"receipt_version": 1, "submission": "0001", "state": "submitting|submitted|submit_uncertain|abandoned",
+ "created_at": "...", "host": "...", "user": "...",
+ "job_name": "meshops-<32 hex chars>-tasks", "indices": [0, 1],
+ "array_spec": "0-1", "plan_sha256": "...", "cluster_config": {…},
+ "cluster_config_sha256": "...", "script": "...", "argv": [ … ],
+ "job_id": null, "compare": null, "cancel_requests": [], "human_assertions": []}
+```
+
+`compare`, when present, holds `{"job_name", "job_id", "state", "created_at",
+"script", "argv", "depends_on"}` with the same state values and its own random
+job name.
+
+`submit` and `resume` follow the same order:
+
+1. Create `cluster/submit.lock` with `O_CREAT|O_EXCL`. An existing lock is a
+   refusal that prints the holder's pid, host, and time; a stale lock is removed
+   by hand after confirming no submit is running. The lock is released in a
+   `finally` block.
+2. Recover any no-ID intents by exact job name, take a scheduler snapshot,
+   apply any `--inactive-job` / `--abandon-intent` assertions, reconcile, and
+   compute the indices. Nothing to submit prints the state table and exits 0.
+3. Allocate `NNNN` by exclusive creation of the receipt file, then write the
+   **intent** — including a random 128-bit job name
+   (`meshops-<token>-tasks`) — *before* `sbatch` runs, so an accepted job is
+   never nameless.
+4. Render the script, create the log and record directories, and run
+   `sbatch --parsable …`. A non-zero exit, an interruption, or an unparseable
+   response may still follow scheduler acceptance, so the receipt is left as a
+   `submit_uncertain` no-ID intent with a stderr excerpt and the command exits
+   1. **It is never retried automatically and never abandoned automatically.**
+   A parsed job id finalizes the receipt as `submitted`.
+5. Unless `--no-compare`, and only when every task is finished or covered by an
+   active job, queue the compare job (below). When some tasks are uncovered —
+   for example after a `--tasks 0` canary — the command says so and queues no
+   compare job. If the array was submitted but compare submission is refused
+   or its outcome is uncertain, a later `resume` with no tasks left to submit
+   does **not** queue compare by itself. Check `status` and the receipts first.
+   Once every evaluation is complete and no compare job can still write, use
+   `cluster compare` on a host where the site permits it. There is currently no
+   CLI command to submit a compare-only SLURM job; do not assume the comparison
+   will appear automatically.
+
+The `sbatch` argv is
+`sbatch --parsable --no-requeue --job-name=J [--array=SPEC] --output=<log pattern>
+[--dependency=…] [--partition=] [--account=] [--qos=] [--constraint=] --time= --mem=
+--cpus-per-task= <script>`, with each `null` config value omitting its flag.
+`SPEC` is the compressed index list (`0-7`, `1,3`) plus `%N` when
+`max_concurrent_tasks` is set.
+
+Recovery of a no-ID intent is by exact job name only: `squeue --name=…` and
+`sacct --name=…` are filtered for exact equality, and their matches are merged.
+An id is written back **only when exactly one job matches across the two
+queries** — one exact match is a positive observation even if the other query
+failed. Several matches are reported as too ambiguous and nothing is written.
+Zero matches leaves the intent unresolved, because an empty or failed query is
+*not* proof that `sbatch` failed; it keeps blocking resubmission.
+
+Two human assertions can clear that, both recorded in the receipt with the
+asserting account and time:
+
+- `resume --inactive-job <job id>` asserts that a known-id job is no longer
+  active. It is refused when no receipt holds that id or when the scheduler
+  still shows the job active.
+- `resume --abandon-intent NNNN:tasks` (or `NNNN:compare`) asserts that a no-ID
+  submission never reached SLURM. It is refused when that element is not an
+  unresolved no-ID intent, or when the job name still matches a job.
+
+Neither assertion can bypass a positive active-job observation or a populated
+step directory; the filesystem rules still apply afterwards. `status` never
+writes anything.
+
+### Reported states
+
+Eight states, first match wins. `unsubmitted` is separate from `pending` so
+"never submitted" and "queued" are not the same word.
+
+| State | Rule |
+|---|---|
+| `pending` | a covering receipt's element is `PENDING`, `CONFIGURING`, or `REQUEUED` |
+| `running` | a covering receipt's element is in another active state (`RUNNING`, `COMPLETING`, `SUSPENDED`, `RESIZING`, `SIGNALING`, `STAGE_OUT`) |
+| `completed` | train `done` and evaluate `done` |
+| `partial` | train `done` and evaluate `partial` |
+| `unknown` | a receipt covers the task and the queue query failed; or an unresolved no-ID intent covers it; or a submitted element is absent from the queue and accounting holds no terminal record for it; or accounting says `COMPLETED` while the filesystem is incomplete; or no receipt covers the task and its train manifest says `running` |
+| `canceled` | the latest covering receipt's element is `CANCELLED` in accounting; or accounting is unavailable, the queue query succeeded without the element, and the receipt records a cancellation covering it |
+| `failed` | the latest covering receipt's element has an explicit terminal failure in accounting; or no receipt covers the task and a step directory is `blocked`; or every known job id of an otherwise-`unknown` task carries a recorded `--inactive-job` assertion (the row then also reports `asserted_inactive: true`) |
+| `unsubmitted` | no receipt covers the task and both step directories are `pending` |
+
+Each row carries a `detail` — the scheduler state and reason, the blocked
+directory's `move or delete <dir> to retry` message, or why it is unknown — and
+a queued row adds the scheduler's own estimated start when it is not `N/A`.
+A parent-array accounting row is not evidence that each element finished:
+elements are reconciled by exact `<array_job_id>_<index>` records, or left
+`unknown`.
+
+The compare row uses the same active/terminal logic over the latest compare job
+plus the state inside `comparison.json`: `complete` maps to `completed`,
+`incomplete` to `partial`, and absent with no compare job to `unsubmitted`.
+
+### Resume rules
+
+A task is resubmitted only when its state is `unsubmitted`, `failed`, or
+`canceled`, **and** no element of it is active in any receipt, **and** every
+step the runner would execute is `pending` on disk. Train `done` plus evaluate
+`pending` qualifies, because the runner skips the finished train.
+
+A task blocked by a dirty directory is listed as not submitted with
+`move or delete <dir> to retry`; nothing is ever deleted or renamed by this
+tool. `unknown` is never resubmitted without one of the recorded human
+assertions above.
+
+### Cancellation
+
+`cancel --tasks 2,5` resolves the selection to exact
+`<array_job_id>_<index>` element ids taken from the receipts and never passes a
+parent array id, so sibling tasks are untouched. `cancel --submission 0001`
+deliberately targets that receipt's whole active array plus its compare job.
+Jobs absent from the receipts are never selected. `--dry-run` prints the
+`scancel` argv and cancels nothing. A failed `scancel` is reported on stderr
+with exit 1 and **no cancellation is recorded**; only a successful call appends
+to `cancel_requests`. A failed queue query is a refusal with exit 1 — including
+under `--dry-run` — because active elements cannot be resolved without it;
+nothing is cancelled and nothing is recorded.
+
+### Only one writer of `comparison.json`
+
+If a compare submission is lost after the array is queued, the same safety
+checks can prevent another automatic submission. Inspect the compare receipt
+and scheduler state before using `cluster compare`; an unresolved no-ID intent
+or a job that may still be active blocks it. The deferred compare-only
+submission path is tracked in `TODO-RL-OPS-2`.
+
+Before queuing a new compare job, an earlier compare job that is still active is
+cancelled, the `scancel` call must have succeeded, and a fresh queue snapshot
+must show no remaining blocker; otherwise the new compare job is refused rather
+than risking two writers. `cluster compare` applies the same check.
+
+A compare job blocks both of them while it is active, while it is an unresolved
+no-ID intent, or — for any non-abandoned compare job carrying a job id — while
+nothing has been observed that proves it can no longer write. Evidence of
+termination is a non-active state in the queue snapshot, a non-active accounting
+state, a recorded cancel request naming that job id (recorded only after a
+verified `scancel`), or a recorded `resume --inactive-job <compare job id>`
+assertion. A failed queue query blocks on its own once any compare element
+exists. The consequence: where `sacct` accounting is unavailable, a compare job
+that has simply left the queue keeps blocking until the human asserts it
+inactive.
+
+### `cluster compare` versus `fetch`
+
+`cluster compare` computes statistics **where the plan lives**: it runs the
+compare step in-process on the current host, and transfers nothing. With every
+evaluation done it may simply run; otherwise it needs `--allow-incomplete`, and
+even then refuses while any task is `pending`, `running`, or `unknown`. It
+prints one line from the comparison outcome plus the raw exit code:
+`complete` (0), `complete with health counters or seed overlap` (2), or
+`incomplete` (1).
+
+`fetch` copies files **to another machine** and computes nothing.
 
