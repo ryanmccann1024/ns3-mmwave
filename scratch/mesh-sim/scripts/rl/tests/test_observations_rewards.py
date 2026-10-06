@@ -10,7 +10,8 @@ from scripts.rl.env.observations import (
     SchemaMismatchError, canonical_json, check_schema, get_preset,
     observation_schema,
 )
-from scripts.rl.env.rewards import RewardComposer, get_component, reward_schema
+from scripts.rl.env.rewards import (RewardComposer, get_component, position_context,
+                                    reward_schema)
 from scripts.rl.env.selection import resolve_selection
 from scripts.rl.env.telemetry import (
     StepRecorder, make_header, make_record, replay_file,
@@ -97,6 +98,41 @@ def test_local_links_v1_padded_slot_is_zero():
     assert not obs[24:].any()
 
 
+@pytest.mark.parametrize("name,active_width", [
+    ("geometry_v1", 9), ("service_v1", 17), ("full_facts_v1", 32),
+])
+def test_new_presets_have_named_bounded_features_and_zero_padding(name, active_width):
+    preset = get_preset(name)
+    obs = preset.build(FACTS, CONTRACT)
+    assert obs.dtype == np.float32
+    assert obs.shape == (active_width * 3,)
+    assert len(preset.feature_names(CONTRACT)) == obs.size
+    assert preset.space(CONTRACT).contains(obs)
+    assert not obs[active_width * 2:].any()
+
+
+def test_geometry_is_relative_and_service_uses_completed_window():
+    geometry = get_preset("geometry_v1").build(FACTS, CONTRACT)
+    # Slot 0 drives node-b at (100,0); peer 0 is node-a at (50,20).
+    np.testing.assert_allclose(geometry[:6], [1, 1, -1 / 3, 1, -0.5, 20 / 150],
+                               rtol=0, atol=1e-6)
+    service = get_preset("service_v1").build(FACTS, CONTRACT)
+    np.testing.assert_allclose(service[12:17],
+                               [math.log10(31) / 4, math.log10(25) / 4,
+                                0.8, 0.8, 0.0],
+                               rtol=0, atol=1e-6)
+
+
+def test_full_facts_relative_velocity_and_gap_are_not_future_values():
+    obs = get_preset("full_facts_v1").build(FACTS, CONTRACT)
+    # node-a relative to controlled node-b; x/y/z then vx/vy/vz.
+    np.testing.assert_allclose(obs[17:23],
+                               [-0.5, 20 / 150, 0, 1.2 / 40, 9.1 / 40, 0],
+                               rtol=0, atol=1e-6)
+    assert obs[23] == 1.0
+    assert obs[31] == pytest.approx(math.log10(1 + 6) / 4, abs=1e-6)
+
+
 @pytest.mark.parametrize("sinr,capacity,valid", [
     (-999.0, 0.0, 0.0),
     (-200.0, 1e6, 1.0),
@@ -177,6 +213,26 @@ def test_delivery_ratio_masks_zero_demand():
     assert valid and value == pytest.approx(0.8)
 
 
+def test_delivery_binary_rewards_any_delivery_and_penalizes_none():
+    component = get_component("delivery_binary")
+    assert component.value(ZERO_WINDOW, 0.0, CONTRACT) == (0.0, False)
+    no_delivery = dict(FACTS["window"], delivered_mbps_sum=0.0)
+    assert component.value(no_delivery, 0.0, CONTRACT) == (-1.0, True)
+    some_delivery = dict(FACTS["window"], delivered_mbps_sum=0.01)
+    assert component.value(some_delivery, 0.0, CONTRACT) == (1.0, True)
+
+
+@pytest.mark.parametrize("delivered,expected", [
+    (0.0, -1.0), (120.0, 0.6), (150.0, 1.0), (300.0, 1.0),
+])
+def test_signed_delivery_ratio_is_symmetric_and_clipped(delivered, expected):
+    component = get_component("signed_delivery_ratio")
+    window = dict(FACTS["window"], delivered_mbps_sum=delivered)
+    value, valid = component.value(window, 0.0, CONTRACT)
+    assert valid and value == pytest.approx(expected)
+    assert component.value(ZERO_WINDOW, 0.0, CONTRACT) == (0.0, False)
+
+
 @pytest.mark.parametrize("name,expected", [
     ("connectivity", 12.0 / 15.0),
     ("throughput_mbps", 24.0),
@@ -205,6 +261,72 @@ def test_legacy_component_reproduces_cpp_reward():
     assert breakdown.total == pytest.approx(1.0)
 
 
+def test_static_service_success_and_failure_asymmetry():
+    success = dict(FACTS["window"], delivered_mbps_sum=150.0)
+    failure = dict(FACTS["window"], delivered_mbps_sum=0.0,
+                   unroutable_flow_ticks=15)
+    symmetric = RewardComposer(["service_success"], [1.0])
+    asymmetric = RewardComposer(["service_success", "service_failure"], [1.0, -1.0])
+    assert symmetric.compose(success, 0.0, CONTRACT).total == 1.0
+    assert symmetric.compose(failure, 0.0, CONTRACT).total == -1.0
+    assert asymmetric.compose(success, 0.0, CONTRACT).total == 1.0
+    assert asymmetric.compose(failure, 0.0, CONTRACT).total == -2.0
+    assert symmetric.compose(ZERO_WINDOW, 0.0, CONTRACT).total == -1.0
+
+
+def test_motion_cost_uses_actual_xy_positions_and_speed():
+    previous = [list(row) for row in FACTS["nodes"]]
+    current = dict(FACTS, nodes=[list(row) for row in FACTS["nodes"]])
+    current["nodes"][1][0] -= 2.5
+    current["nodes"][2][1] += 5.0
+    context = position_context(current, previous, previous, CONTRACT)
+    assert context["travel_fraction"] == pytest.approx((0.5 + 1.0) / 2)
+    diagonal = math.hypot(100, 150)
+    assert context["origin_fraction"] == pytest.approx((2.5 + 5.0) / (2 * diagonal))
+    assert context["sinr_quality"] == pytest.approx(
+        sum(sinr_n(link[0]) for link in FACTS["links"]) / 3)
+    breakdown = RewardComposer(["travel_fraction", "origin_fraction"],
+                               [-0.02, -0.01]).compose(FACTS["window"], 0.0,
+                                                       CONTRACT, context)
+    assert breakdown.total < 0
+
+
+def test_signed_delivery_with_movement_penalty():
+    context = {"travel_fraction": 0.75}
+    breakdown = RewardComposer(
+        ["signed_delivery_ratio", "travel_fraction"], [1.0, -0.01]
+    ).compose(FACTS["window"], 0.0, CONTRACT, context)
+    assert breakdown.total == pytest.approx(0.6 - 0.01 * 0.75)
+
+
+def test_motion_cost_uses_short_terminal_window_duration():
+    previous = [list(row) for row in FACTS["nodes"]]
+    current = dict(FACTS, nodes=[list(row) for row in FACTS["nodes"]],
+                   window=dict(FACTS["window"], ticks=2))
+    current["nodes"][1][0] -= 2.0
+    context = position_context(current, previous, previous, CONTRACT)
+    assert context["travel_fraction"] == pytest.approx(0.5)
+
+
+def test_sinr_shaping_uses_only_present_link_facts():
+    context = position_context(FACTS, FACTS["nodes"], FACTS["nodes"], CONTRACT)
+    breakdown = RewardComposer(["sinr_quality"], [0.2]).compose(
+        FACTS["window"], 0.0, CONTRACT, context)
+    assert breakdown.total == pytest.approx(0.2 * context["sinr_quality"])
+    invalid = facts_with_link(-999.0, 0.0)
+    assert position_context(invalid, FACTS["nodes"], FACTS["nodes"], CONTRACT)[
+        "sinr_quality"] == 0.0
+
+
+def test_unmet_sinr_shaping_turns_off_at_service_threshold():
+    context = position_context(FACTS, FACTS["nodes"], FACTS["nodes"], CONTRACT)
+    component = get_component("unmet_sinr_quality")
+    value, valid = component.value(FACTS["window"], 0.0, CONTRACT, context)
+    assert valid and value == pytest.approx(context["sinr_quality"] * (0.95 - 0.8) / 0.95)
+    healthy = dict(FACTS["window"], delivered_mbps_sum=150.0)
+    assert component.value(healthy, 0.0, CONTRACT, context) == (0.0, True)
+
+
 @pytest.mark.parametrize("components,weights", [
     (["delivery_ratio", "delivery_ratio"], [1.0, 1.0]),
     (["delivery_ratio"], [1.0, 1.0]),
@@ -227,6 +349,13 @@ def test_reward_schema_authorities():
     assert cpp_schema["authority"] == "cpp" and cpp_schema["reward_type"] == "all_links_los"
     assert "Infinity" not in canonical_json(
         reward_schema(["throughput_mbps"], [1.0], reward_type="x", reward_window="mean"))
+
+    delivery_schema = reward_schema(
+        ["delivery_binary", "signed_delivery_ratio"], [1.0, 1.0],
+        reward_type="throughput", reward_window="mean")
+    assert "delivery_binary_rule" in delivery_schema
+    assert "signed_delivery_ratio_rule" in delivery_schema
+
 
 
 CENTRALIZED_INI = """[scenario]

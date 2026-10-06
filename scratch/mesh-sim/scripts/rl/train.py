@@ -40,7 +40,6 @@ class Cadence:
 
 
 def mask_fn(env):
-    """Action-mask accessor used by ActionMasker."""
     return env.unwrapped.action_masks()
 
 

@@ -221,7 +221,13 @@ def plot_latency_timeseries(agg_df: pd.DataFrame,
 def plot_derived_geometry(positions_df: pd.DataFrame,
                           node_pairs: list[tuple[int, int]] | None = None,
                           title: str | None = None) -> plt.Figure:
-    """Elevation angle and azimuth vs time, derived from node positions."""
+    """Elevation angle and azimuth vs time, derived from node positions.
+
+    *positions_df* should be raw (non-aggregated) from a single seed's
+    positions.csv, or concatenated across seeds (will be averaged).
+
+    *node_pairs*: list of (node_a, node_b) to plot. If None, plots all pairs.
+    """
     df = positions_df.copy()
     df["time_s"] = df["time_s"].round(3)
 

@@ -106,6 +106,13 @@ def test_tracked_matrix_expands_to_full_step_list(tmp_path):
     assert plan["rows_filter"] is None
 
 
+def test_automatic_one_row_name_identifies_matrix_scene_and_row(tmp_path):
+    matrix = experiment.load_matrix(_stub_matrix(tmp_path))
+    assert experiment.automatic_run_label(matrix, None) == "stub-matrix"
+    scene = tmp_path.name.replace("_", "-")
+    assert experiment.automatic_run_label(matrix, ["row-a"]) == f"stub-matrix-{scene}-row-a"
+
+
 def test_train_and_evaluate_arguments_follow_the_cli_shape(tmp_path):
     matrix = experiment.load_matrix(TRACKED_MATRIX)
     plan = experiment.build_plan(matrix, tmp_path / "root", SIM_BINARY)

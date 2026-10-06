@@ -87,7 +87,8 @@ def test_unattended_launchers_close_stdin_and_clean_loader_paths(tmp_path, monke
             monkeypatch.setenv(var, existing)
     calls = []
 
-    ## @brief Stand-in for `subprocess.run` that asserts the launcher contract and records the command.
+    ## @fn fake_run
+    # @brief Stand-in for `subprocess.run` that asserts the launcher contract and records the command.
     # @param cmd     Command list the launcher tried to run.
     # @param kwargs  Keyword args passed to `subprocess.run`; needs `stdin` and `env`.
     # @return `CompletedProcess` with return code 0.

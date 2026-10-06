@@ -1,10 +1,7 @@
 /* -*- Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
 /**
  * @file ini-parser.h
- * @brief Minimal INI-file parser used by @ref mesh_sim::ConfigLoader.
- *
- * Reads @c run.ini into an @ref mesh_sim::IniMap and offers lookup helpers with defaults.
- * Depends only on the standard library.
+ * @brief Minimal INI-file parser used by @ref ConfigLoader.
  *
  * Reads @c run.ini into an @ref IniMap and offers lookup helpers with defaults.
  * Depends only on the standard library.

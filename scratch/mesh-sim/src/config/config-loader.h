@@ -2,10 +2,10 @@
 /**
  * @file config-loader.h
  * @brief Parses @c run.ini and the JSON files it references into a fully
- *        populated @ref mesh_sim::SimConfig.
+ *        populated @ref SimConfig.
  *
  * No ns-3 headers. Missing keys take the defaults listed below; the loader
- * does not range-check values (see @ref mesh_sim::ValidateConfig).
+ * does not range-check values (see @ref ValidateConfig).
  *
  * **run.ini keys (section: key = default)**
  *

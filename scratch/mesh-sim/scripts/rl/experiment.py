@@ -8,7 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.rl.cli_common import MANIFEST_NAME, sha256_file, write_json
+from scripts.rl.cli_common import (MANIFEST_NAME, automatic_output_root,
+                                   sha256_file, write_json)
 from scripts.rl.env.config import read_action_profile
 from scripts.rl.env.selection import resolve_selection
 from scripts.rl.evaluate import POLICY_NAMES
@@ -419,6 +420,17 @@ def _parse_rows(raw: str | None) -> list[str] | None:
     return names
 
 
+def automatic_run_label(matrix: dict, rows: list[str] | None) -> str:
+    """Make a one-row output identify both its matrix and physical scene."""
+    if rows is None or len(rows) != 1:
+        return matrix["name"]
+    row = next((entry for entry in matrix["rows"] if entry["name"] == rows[0]), None)
+    if row is None:
+        raise ValueError(f"--rows name not in matrix: {rows[0]}")
+    scene = re.sub(r"[^a-z0-9-]+", "-", Path(row["run_config"]).parent.name.lower()).strip("-")
+    return f"{matrix['name']}-{scene}-{row['name']}"
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Expand and run an RL experiment matrix")
     sub = p.add_subparsers(dest="command", required=True)
@@ -426,8 +438,8 @@ def _build_parser() -> argparse.ArgumentParser:
                             ("run", "Write the plan, then run its pending steps")):
         cmd = sub.add_parser(name, help=help_text)
         cmd.add_argument("--matrix", required=True, help="Matrix JSON file")
-        cmd.add_argument("--output-root", required=True,
-                         help="Directory holding the plan, runs, and comparison")
+        cmd.add_argument("--output-root", default=None,
+                         help="Override the automatic timestamped output root")
         cmd.add_argument("--sim-binary", required=True, help="Path to mesh-sim executable")
         cmd.add_argument("--rows", default=None,
                          help="Comma-separated row names; omitted -> every row")
@@ -443,9 +455,13 @@ def main(argv=None) -> int:
             plan = load_plan(args.output_root)
         else:
             matrix = load_matrix(args.matrix)
-            plan = build_plan(matrix, args.output_root, args.sim_binary,
-                              _parse_rows(args.rows))
-            _write_plan(plan, args.output_root)
+            selected_rows = _parse_rows(args.rows)
+            root = args.output_root or str(automatic_output_root(
+                automatic_run_label(matrix, selected_rows)))
+            plan = build_plan(matrix, root, args.sim_binary, selected_rows)
+            _write_plan(plan, root)
+            if args.output_root is None:
+                print(f"Experiment output: {Path(root).resolve()}", flush=True)
     except (ValueError, OSError) as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return 1

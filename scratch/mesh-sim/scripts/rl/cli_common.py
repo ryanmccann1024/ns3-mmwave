@@ -4,10 +4,12 @@ import hashlib
 import importlib.metadata
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
 from scripts.rl.bootstrap_venv import DIRECT_DEPS
+from scripts.sim_support import find_mesh_root
 from scripts.rl.env.config import read_scenario_seed
 from scripts.rl.env.decisions import (OBS_VECTOR_MODES, PREFERENCE_MODES,
                                       DecisionRecordSettings, resolve_decision_records)
@@ -18,12 +20,10 @@ MODEL_BASENAME = "maskable_ppo_mesh"
 
 
 def now_iso() -> str:
-    """Current UTC time as an ISO-8601 string."""
     return datetime.now(timezone.utc).isoformat()
 
 
 def package_versions() -> dict:
-    """Installed version of each direct dependency; None if missing."""
     versions = {}
     for mod, distribution in DIRECT_DEPS.items():
         try:
@@ -34,7 +34,6 @@ def package_versions() -> dict:
 
 
 def make_out_dir(output_dir: str) -> str:
-    """Create and return the output dir; default is outputs/YYYY-MM/DD/HH-MM-SS."""
     if output_dir:
         out_dir = output_dir
     else:
@@ -45,8 +44,22 @@ def make_out_dir(output_dir: str) -> str:
     return out_dir
 
 
+def automatic_output_root(name: str) -> Path:
+    """Find a fresh path in the simulator's standard timestamped output tree."""
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name):
+        raise ValueError(f"automatic output name must be a lowercase slug, got {name!r}")
+    now = datetime.now()
+    parent = find_mesh_root() / "outputs" / now.strftime("%Y-%m") / now.strftime("%d")
+    stem = f"{now:%H-%M-%S}-{name}"
+    candidate = parent / stem
+    suffix = 2
+    while candidate.exists():
+        candidate = parent / f"{stem}-{suffix}"
+        suffix += 1
+    return candidate
+
+
 def has_previous_run(out_dir: str) -> str | None:
-    """Name of the first manifest or model file already in out_dir, else None."""
     for name in (MANIFEST_NAME, f"{MODEL_BASENAME}.zip"):
         if os.path.exists(os.path.join(out_dir, name)):
             return name
@@ -54,7 +67,6 @@ def has_previous_run(out_dir: str) -> str | None:
 
 
 def sha256_file(path) -> str:
-    """Hex SHA-256 of a file's bytes."""
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 

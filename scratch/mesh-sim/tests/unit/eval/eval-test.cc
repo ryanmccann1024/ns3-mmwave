@@ -3,7 +3,7 @@
  * Unit tests for SinrToCapacity and LinkTable.
  * Standalone binary -- no ns-3 dependency.
  *
- * Build:  make   (in this directory)
+ * Build:  make -f Makefile.eval
  * Run:    ./eval-test
  */
 

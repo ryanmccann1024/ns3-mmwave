@@ -189,19 +189,20 @@ class EpisodeSession:
         if self._recorder is not None and self._recorder.should_save(
                 msg["decision"], msg["done"]):
             self._append_record(msg, breakdown if breakdown is not None else reward,
-                                (detail or {}).get("obs"))
+                                (detail or {}).get("obs"),
+                                (detail or {}).get("reward_context"))
         self._write_manifest()
         pre = (detail or {}).get("decision")
         if self._decisions is not None and pre is not None:
             self._guard(self._decisions.record_decision, msg, pre,
                         breakdown if breakdown is not None else reward, previous_steps_saved)
 
-    def _append_record(self, msg: dict, reward, obs) -> None:
+    def _append_record(self, msg: dict, reward, obs, reward_context=None) -> None:
         assert self._recorder is not None
         self._recorder.append(make_record(
             msg["decision"], msg["tick"], msg["time_s"], msg["ticks_in_step"],
             self._last_action, msg["mask"], msg["revalidated_slots"], msg["facts"],
-            msg["reward"], reward, obs))
+            msg["reward"], reward, obs, reward_context))
         self._steps_saved_decision = msg["decision"]
         if self._manifest is not None and self._manifest.get("telemetry"):
             self._manifest["telemetry"]["records"] = self._recorder.records

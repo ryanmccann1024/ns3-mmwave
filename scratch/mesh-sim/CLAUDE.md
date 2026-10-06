@@ -49,13 +49,19 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
 - Group changes into logical commits -- one concern per commit. Prefer many focused commits over one monolithic commit.
 - Types: `feat` (new functionality), `fix` (bug fix), `refactor` (restructure, no behavior change), `docs` (docs only), `chore`/`build` (tooling/CI/build).
 - Scope should reflect the module being changed (e.g. `mesh-sim`, `link-evaluator`, `mesh-router`).
-- Never add `Co-Authored-By` or `Signed-off-by` lines.
+- Use the human's configured Git author/committer identity. Never add
+  `Co-Authored-By`, `Signed-off-by`, or AI-generated attribution to commits or
+  PR text; verify the final message before publishing.
 
 ## Code guidelines
 
 - **File scope awareness**: Understand what each directory owns before editing.
   Don't pile unrelated logic into one file. Most subdirectories have a CLAUDE.md
   or README.md describing their scope -- read it first.
+- **Module boundaries**: Before substantially extending a script, check whether
+  the new behavior belongs to an existing module or a cohesive extraction.
+  File size is a review signal, not a quota; avoid both monoliths and tiny
+  wrappers created only to lower a line count.
 - **Comment discipline**: Only comment when something isn't obvious. Keep
   comments short and descriptive. Don't restate what the code already says.
   - Docstrings: one line. No multi-paragraph docstrings, no "Args/Returns"
@@ -65,6 +71,8 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
     the commit message, not the source.
   - No multi-line block comments above functions. If the *why* truly
     needs more than one line, two lines max.
+  - Put protocol narratives and examples in the relevant module README. Avoid
+    section banners, agent notes, and Doxygen-style `@brief` in Python scripts.
 - When adding new source files, update `CMakeLists.txt`'s source list.
 - New C++ unit test suites: follow `tests/CLAUDE.md` (add to `UNIT_DIRS`).
 - Before changing a user-visible behavior (`run.ini`/CLI option, RL
@@ -72,6 +80,28 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
   the "update together" table in `CONTRIBUTING.md`. Bump the relevant
   `manifest_version` when a saved JSON schema changes; change the RL `contract`
   name (`mesh_move_2d_v1`) only for incompatible protocol changes.
+
+## Documentation review guidelines
+
+- Scope documentation work to `scratch/mesh-sim/`. Treat the rest of
+  ns3-mmwave as an external dependency unless a task explicitly says otherwise.
+- Preserve useful existing documentation and author intent. Do not rewrite text
+  merely for tone, style, or uniformity.
+- Add documentation only when it helps a new contributor answer one of these:
+  what owns this behavior, how data moves through it, how to run or verify it,
+  or which constraint is easy to violate.
+- Prefer the narrowest durable home for an explanation: a source comment for a
+  local invariant, a module README for a module contract, and the top-level
+  README for setup, navigation, and the end-to-end path.
+- Verify every command, path, option, default, and architectural claim against
+  the current repository. If verification is not possible, label the claim or
+  leave it out.
+- No documentation quotas. A review may conclude that a file or module already
+  has the right amount of documentation.
+- Do not regenerate or commit Doxygen HTML/LaTeX output. Treat Doxygen warnings
+  as evidence to assess, not a mandate to annotate every symbol.
+- Documentation-only work must not change runtime behavior. Record discovered
+  defects and code risks for a separately approved task.
 
 ## Architecture
 
@@ -105,7 +135,7 @@ Band resolves as `--band` > `[channel] band` in `run.ini` > default `mmwave`.
 domain  <--  config, cli, eval, io, jammer, routing, rl, setup, traffic, util
 util    <--  config, io
 jammer  <--  eval, setup
-config  <--  sim.cc, setup
+config  <--  setup, sim.cc
 cli     <--  sim.cc
 setup   <--  sim.cc
 eval    <--  sim.cc, rl (link-table)

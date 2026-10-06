@@ -3,12 +3,12 @@
  * @file mesh-router.h
  * @brief Flow-level routing over the mesh link graph.
  *
- * @ref mesh_sim::MeshRouter takes the current @ref mesh_sim::LinkTable and a list of active
- * @ref mesh_sim::Flow objects, finds a path for each flow using the configured
+ * @ref MeshRouter takes the current @ref LinkTable and a list of active
+ * @ref Flow objects, finds a path for each flow using the configured
  * algorithm, then applies proportional-fairness congestion scaling to
- * produce a @ref mesh_sim::FlowResult for every flow.
+ * produce a @ref FlowResult for every flow.
  *
- * **Routing algorithms** (selected by @ref mesh_sim::RoutingConfig::algorithm)
+ * **Routing algorithms** (selected by @ref RoutingConfig::algorithm)
  *
  * | Algorithm          | Strategy                                                         | Data structure |
  * |--------------------|------------------------------------------------------------------|----------------|

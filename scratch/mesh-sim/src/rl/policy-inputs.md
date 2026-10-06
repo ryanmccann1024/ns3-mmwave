@@ -7,7 +7,7 @@ traffic, and per-tick reward in C++; every decision message includes those raw
 measurements as `facts`. Python's `selection.py` chooses what the policy sees,
 what reward Gymnasium returns, and whether to save decision records. The
 simulator's physics and action masks do not change when these options change.
-For actions and timing, see the [bridge contract](@ref src_rl); for the Python modules, see the [environment README](@ref scripts_rl_env).
+For actions and timing, see the [bridge contract](README.md); for the Python modules, see the [environment README](../../scripts/rl/env/README.md).
 
 ## Try one selection
 
@@ -22,7 +22,7 @@ telemetry = steps
 telemetry_every = 2
 ```
 
-Then run the training command in the [RL guide](@ref scripts_rl_selection_keys).
+Then run the training command in the [RL setup guide](../../README.md#selecting-observations-rewards-and-telemetry).
 Its five matching CLI flags can override these keys independently; resolution
 is CLI > `run.ini` > default. The resolved values and their sources go into
 `train_manifest.json` and each `episode-NNNN/rl_episode.json`. Omitting
@@ -154,9 +154,96 @@ head -n 2 outputs/rl-multi-custom/episode-0000/steps.jsonl
 Replay rebuilds saved observations and Python-composed rewards from each
 record's raw facts and checks for mismatches. It does not rerun radio physics,
 verify unsaved decisions, or recheck a C++-authored reward. See the
-[test map](@ref src_rl_policy_input_tests) for
+[test map](policy-input-tests.md) for
 the small fake-simulator and real-binary checks behind this contract.
 
 Decision records are a separate opt-in (`--decision-records` on `train.py` and
 `evaluate.py`) that joins each action to the preceding `steps.jsonl` record and
 its outcome window; see [decision records](decision-records.md).
+
+## Reading an RL output directory
+
+Start with the [output-location table](../../README.md#where-output-lands),
+then read these files in order. The ordinary simulator CSV columns are covered
+by the [I/O guide](../io/README.md) and are separate from the RL policy input.
+
+| File | First question it answers |
+| --- | --- |
+| `train_manifest.json` or `eval_manifest.json` | Which scenario, seed roles, model, observation/reward selection, and schema did this run use? Did the run complete? |
+| `maskable_ppo_mesh.zip`, `best_model.zip`, or `checkpoints/*.zip` (when produced) | Which policy artifact was saved? Use the manifest's path and digest to identify the intended file. |
+| `episode-NNNN/rl_episode.json` | Did this particular episode complete, how many policy steps occurred, and what was its cumulative reward? Filter incomplete or zero-step episodes before aggregating results. |
+| `episode-NNNN/steps.jsonl` (when telemetry is enabled) | What raw facts, action, mask, and reward were recorded at each saved decision? |
+| `episode-NNNN/run.log`, `inputs/`, and `seed-N/` | What resolved simulator configuration and archived inputs produced the raw CSV outputs? |
+| `episode-NNNN/sim_stderr.log` | What did the simulator report on stderr, including launch or runtime diagnostics? |
+
+### Decode the trace header before reading a step
+
+The header's `contract.obs_dim` is the length of the **raw C++ `obs` message**.
+The header's `observation_schema.obs_dim` is the length of the **selected vector
+passed to the policy** after Python builds it from `facts`. These can differ:
+with three mesh nodes (`N=3`) and three control slots (`M=3`), the raw
+`raw_links_v1` layout has `M × [4 + 2(N-1)] = 24` values, while
+`local_links_v1` has `M × [4 + 4(N-1)] = 36`. A `local_links_v1` policy sees
+36 values even if the same header says `contract.obs_dim: 24`. Changing the
+selected preset, `N`, or `M` can change the policy dimension; changing the
+positions or seed does not. `slot_node_ids` maps slots to real nodes, with
+`null` for padding; it does not shorten the vector.
+
+Within `observation_schema`, `feature_names[i]`, `low[i]`, and `high[i]`
+describe the name and declared Gymnasium `Box` bounds of policy feature `i`.
+Those bounds are **not** observed minima/maxima and do not themselves perform
+normalization. They are saved with the preset, normalization settings, physical
+movement `bounds`, and a schema fingerprint so a saved run remains
+interpretable and incompatible model inputs can be detected. The raw preset
+records unbounded Box entries as JSON `null`. For `local_links_v1`:
+
+| Feature | How Python derives it from raw facts | Declared range |
+| --- | --- | --- |
+| `active`, `present`, `sinr_valid` | 0/1 indicators for slot occupancy, peer presence, and usable SINR/capacity | `[0,1]` |
+| `x_n`, `y_n`, `z_n` | `clamp(2 × (position - axis_min) / (axis_max - axis_min) - 1, -1, 1)` using header `bounds` in metres | `[-1,1]` |
+| `sinr_n` | `clamp((SINR_dB + 20) / 60, 0, 1)` for a valid link | `[0,1]` |
+| `cap_n` | `clamp(log10(1 + capacity_Mbps) / 4, 0, 1)` for a valid link | `[0,1]` |
+
+`sinr_clip_db: [-20, 40]` names the **raw dB endpoints** used in that SINR
+formula: -20 dB becomes 0, 10 dB becomes 0.5, and 40 dB or higher becomes 1.
+It does not clamp simulator physics, raw `facts.links`, or the C++ reward.
+Invalid links have `sinr_valid=0` and zero normalized SINR/capacity. An unused
+slot is all zeros. The `normalization` object records which conversions were
+selected; changing the formulas requires changing the preset/schema, not just
+the displayed `low`/`high` arrays.
+
+### Decode the raw facts and decision records
+
+`facts` is **source data**, not the policy vector. The header's
+`contract.facts_columns` gives the row order. `facts.nodes` has one row per
+`node_ids` entry, in `nodes.json` order:
+`[x, y, z, vx, vy, vz, slot]`, with positions in metres, velocities in m/s,
+and `slot=-1` for an uncontrolled node. `facts.links` has one row for each
+unordered mesh-node pair in `i<j` order (first index outer):
+`[sinr_db, capacity_mbps, is_los]`. With nodes A, B, C the three rows are
+`(A,B)`, `(A,C)`, `(B,C)`; `is_los` is 0/1. Jammers are not mesh-node rows.
+
+For a concrete decoding example, suppose the header maps slot 0 to node B and
+sets x bounds `0..100`, y bounds `-50..100`, and z bounds `0..50`. A node-B row
+`[100,-5,10,0,-10,0,0]` means position `(100,-5,10)` m, y velocity -10 m/s,
+and control slot 0. Its policy position is `(x_n,y_n,z_n)=(1,-0.4,-0.6)`.
+If the `(A,B)` link row is `[40.62,5397.59,1]`, the raw SINR is 40.62 dB,
+capacity is 5397.59 Mbps, and the path is LOS. The corresponding local policy
+features are `present=1`, `sinr_valid=1`, `sinr_n=1` (clipped at 40 dB), and
+`cap_n≈0.933`. The actual observation vector is not copied into each trace
+record: `obs_sha256` fingerprints it, and replay reconstructs it from facts.
+
+`facts.window` is different from the instantaneous node/link tables: it sums
+measurements over the ticks since the previous decision. For example,
+`ticks=5` and `connected_pairs_sum=15` means three connected pairs in each of
+five ticks, **not** 15 distinct links. Demand/delivery sums have units of
+Mbps·tick, not transferred bytes; the reward formulas above use these sums.
+
+Decision 0 is the reset observation. No action was sent yet, so
+`action_sent=null` and the **policy** `reward=null`. A nonzero `legacy_reward`
+there is the C++ tick-0 diagnostic, not training reward. Decision 1 records
+the action sent after reset and the reward for the resulting window; its action
+has one entry per control slot, including a padded slot's required hold (`4`).
+Training may first reset solely to learn the simulator-dependent spaces before
+PPO starts; that probe can be saved as `episode-0000` with `status=interrupted`,
+`stop_reason=reset`, and zero policy steps. It is not a lost training action.
