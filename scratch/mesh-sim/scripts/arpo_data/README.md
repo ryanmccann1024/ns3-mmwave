@@ -51,6 +51,8 @@ python -m scripts.arpo_data.cli plot --all                     # every scenario 
 python -m scripts.arpo_data.cli plot --nodes [--day YYYY-MM-DD] # per-day GPS + RF plots, one subdir per day
 ```
 
+`plot --scenario` / `--all` currently fail with a `TypeError` on Silvus data; only `plot --nodes` works (see `CLAUDE.md`, Known issues).
+
 `plot` takes `-i/--input` (CSV root, default `data/arpo_extracted/csv`) and
 `-o/--output` (default `data/arpo_extracted/_plots/per_day`). Run `extract` first.
 
@@ -74,6 +76,7 @@ python -m scripts.arpo_data.multiday_variance [--metric snr|rcpi|mcs|per|through
 python -m scripts.arpo_data.topology_audit
 ```
 
+- `multi-day` only matches `bh2_*` trace names, so it finds nothing in the `IH_*` output of the current Silvus flow.
 - `multiday_variance` reads the `_pairwise_ks.csv` that `multi-day` writes, so run `multi-day` first.
 - `topology_audit` takes no flags and reads the extracted `bh2.csv` files.
 

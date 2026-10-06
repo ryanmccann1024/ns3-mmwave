@@ -45,7 +45,7 @@ Run the sweep:
 |------|---------|
 | `--config` | Required. Path to the sweep INI. |
 | `--dry-run` | Print the sweep matrix and exit. |
-| `--resume` | Skip points whose `seed-<N>/summary.json` files all exist. |
+| `--resume` | Skip points whose `seed-<N>/summary.json` files all exist. Each run writes a new timestamped folder, so in practice nothing is skipped (see `CLAUDE.md`, Known issues). |
 | `--sim-binary` | Simulator binary. Default: first `ns3*-sim-*` under `<ns3>/build/scratch/mesh-sim/`. |
 
 ## Sweep INI

@@ -56,7 +56,7 @@ changed matrix, binary, or `--rows` needs a new `--output-root`.
 | [`bootstrap_venv.py`](bootstrap_venv.py) | Creates `.venv` from `requirements.txt` and checks pins; does not build the simulator |
 | [`cli_common.py`](cli_common.py) | Shared CLI options, atomic JSON writes, hashes, package versions |
 | [`validate_config.py`](validate_config.py) | Pre-flight scenario check |
-| [`train.py`](train.py) | MaskablePPO training CLI |
+| [`train.py`](train.py) | MaskablePPO training CLI; requires the `m-ppo` subcommand (`qr-dqn` is disabled and exits 1) |
 | [`inspect_model.py`](inspect_model.py) | Training-run summary |
 | [`evaluate.py`](evaluate.py) | Policy and baseline evaluation CLI |
 | [`compare.py`](compare.py) | Paired comparison CLI |

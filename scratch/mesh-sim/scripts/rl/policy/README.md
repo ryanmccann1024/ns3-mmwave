@@ -63,13 +63,14 @@ A passing report still carries the note that matching checks do not imply transf
 
 ## Evaluation
 
-`evaluate.py` offers three policies:
+`scripts/rl/evaluate.py` offers these policies (default: `model`, `hold`, `random_valid`):
 
 | Policy | Behavior |
 | --- | --- |
 | `hold` | Every slot takes the hold action. |
 | `random_valid` | Uniform choice among valid actions, reseeded per episode. |
 | `model` | Deterministic MaskablePPO prediction under the live mask. |
+| `geometric`, `optimization` | Placement baselines: the plan is prepared first by `scripts.baselines.adapter`, then every slot holds. See [baselines README](../../baselines/README.md). |
 
 Each policy gets its own environment and runs every seed. `eval_selection` forces
 `telemetry=steps` so metrics come from the per-decision telemetry file.
