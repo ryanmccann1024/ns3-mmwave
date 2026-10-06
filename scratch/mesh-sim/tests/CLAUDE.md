@@ -38,10 +38,11 @@ MESH_SIM_BIN=<BIN> make integration
   `ns3-random-stub.h`). Suite Makefiles symlink them into a local, gitignored
   `ns3/` dir so `#include "ns3/..."` resolves. `traffic/` has its own
   `ns3-traffic-stub.h`; `config/` needs no stubs.
-- `integration/cli-integration-test.sh` -- Tests 1-9 against a real binary
+- `integration/cli-integration-test.sh` -- Tests 1-19 against a real binary
   (`$MESH_SIM_BIN`, else the argument, else the single
-  `build/scratch/mesh-sim/ns3*-sim-*` match). Tests 4-9 use `inputs/baselines`
-  fixtures; Test 9 checks the legacy RL stream shape.
+  `build/scratch/mesh-sim/ns3*-sim-*` match). Tests 4-19 use `inputs/baselines`
+  fixtures; Test 9 checks the legacy RL stream shape, Tests 13-19 the
+  `--channel-query` worker.
 - `fixtures/regression/p0/` -- only `manifest.json` is tracked. The reference
   `*.json` snapshots are external (gitignored); never recapture them from
   changed code. Used by `scripts/validation/regression_check.py`.

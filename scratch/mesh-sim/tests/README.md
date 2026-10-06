@@ -33,8 +33,8 @@ those test their own algorithms, not the new RL output layout. See
 
 [`cli-integration-test.sh`](integration/cli-integration-test.sh) needs a built
 simulator binary. It uses the two small smoke scenarios and deletes its
-temporary output directory afterward. Its lasting output is nine console
-`PASS`/`FAIL` lines and a final count.
+temporary output directory afterward. Its lasting output is one console
+`PASS`/`FAIL` line per check (Tests 1-19) and a final count.
 
 | Test | Purpose | Expected input → output |
 | --- | --- | --- |
@@ -47,6 +47,16 @@ temporary output directory afterward. Its lasting output is nine console
 | 7: CLI band override | Precedence | `--band=sub-6` → `run.log` records band and `band_source=cli`. |
 | 8: jammer across bands | Interference switch | Same jammer input under `sub-6`/`mmwave` → matching link rows, at least one different SINR; jammer-path flag true/false. |
 | 9: legacy RL stream | Protocol compatibility | Single-node smoke with closed stdin → five `step` lines, no `init`. |
+| 10: active baseline, no `--rl-mode` | Baseline guard | Active baseline algorithm on a direct run → refused. |
+| 11: baseline `none` | Baseline default | `algorithm = none` → runs as before. |
+| 12: active baseline with `--rl-mode` | Baseline opt-in | Active baseline with explicit `--rl-mode` → runs with a notice. |
+| 13: channel-query init | Query worker handshake | `--channel-query` on the jammer smoke, `sub-6` → `init` line. |
+| 14: one-layout query | Query result | One layout → 3 links in i<j order, `connected` matches the SINR threshold; EOF exits 0. |
+| 15: query errors | Worker resilience | Malformed/unknown request → `error` replies, worker keeps serving until `shutdown`. |
+| 16: query seeds | Seed validation | `--seeds=1,2` with `--channel-query` → exit 1, one-seed error, empty stdout. |
+| 17: out-of-bounds layout | Per-layout error | Random-walk layout outside bounds → error for that layout only; next layout scored. |
+| 18: large probe response | Pipe drain | Response larger than pipe capacity → completes without deadlock. |
+| 19: worker termination | Cleanup | SIGTERM to a busy worker → no query child left behind. |
 
 ## Python RL contract tests
 
