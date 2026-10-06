@@ -79,6 +79,7 @@ Key flags:
 | @c --output-dir | Where results are written. |
 | @c --rl-mode | Enable the RL bridge. |
 | @c --debug-links | Verbose per-link (and per-jammer) log output. |
+| @c --channel-query | Serve candidate-layout channel queries on stdin/stdout for the placement baselines ([contract](src/query/README.md)); needs exactly one seed and writes no outputs. |
 
 Output lands under @c --output-dir: a @c run.log (resolved config summary), the
 archived input files, and @c seed-<N>/ metric folders. Always check @c run.log 's
@@ -412,7 +413,9 @@ policy contract.
 `geometric` and `optimization` are placement baselines: `hold` on a layout
 planned once before any episode runs (see
 [Placement baselines](#placement-baselines)). They are not in the default
-`--policies` list.
+`--policies` list, and they require `[baseline] movable_nodes` and `[rl]
+controlled_nodes` to name the same nodes (or both `all`), so no RL slot outside
+the plan is frozen; otherwise preparation fails and no episode runs.
 
 `--model` selects `final` (default), `best`, or `checkpoints/<file>.zip`. With
 `--run-dir` the run config, band, and selection come from the training manifest;
@@ -656,19 +659,24 @@ categories `not_fetched` rather than missing:
 
 ### Placement baselines
 
-`scripts/baselines/` runs the supplied geometric and optimization placement
-planners once, before the simulation, selected by a `[baseline]` INI section
-or by the `geometric` and `optimization` evaluation policies. Install
-`requirements-baselines.txt` first. Standalone:
+`scripts/baselines/` plans the gateway-free geometric (greedy) and
+optimization (annealing) placement baselines once, before the simulation,
+selected by a `[baseline]` INI section or by the `geometric` and
+`optimization` evaluation policies. Every candidate layout is scored by the
+same binary's `--channel-query` mode, so planning uses the scenario's own
+band, gains, buildings and jammers; no extra Python packages are needed.
+Standalone:
 
 ```bash
 .venv/bin/python -m scripts.baselines.runner \
   --sim-binary <BIN> --run-config <INI> --seeds 1,2
 ```
 
-The [placement-baseline guide](scripts/baselines/README.md) covers the keys,
-the mapping file, the direct-run guard, outputs, the rectangle-only geofence
-limit, and which files may not be committed.
+The [placement-baseline guide](scripts/baselines/README.md) covers the keys
+(including movement penalties in m²), the optional mapping file, the objective,
+the evaluation ownership rule, the direct-run guard, outputs, migration from
+the gateway/RF-file version, the rectangle-only geofence limit, and which files
+may not be committed.
 
 ### Band in sweeps and validation batches
 

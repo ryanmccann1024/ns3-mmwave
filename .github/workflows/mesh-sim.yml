@@ -32,9 +32,6 @@ jobs:
       - name: Prepare Python environment
         working-directory: scratch/mesh-sim
         run: python3 scripts/rl/bootstrap_venv.py
-      - name: Install placement-baseline dependencies
-        working-directory: scratch/mesh-sim
-        run: .venv/bin/python -m pip install -r requirements-baselines.txt
       - name: Python contracts
         working-directory: scratch/mesh-sim
         run: .venv/bin/python -m pytest scripts/rl/tests scripts/validation/tests scripts/baselines/tests -q

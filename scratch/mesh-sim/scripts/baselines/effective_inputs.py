@@ -17,7 +17,8 @@ RUN_INI = "run.ini"
 NODES_JSON = "nodes.json"
 DEFAULT_NODES_FILE = "nodes.json"
 _ASSET_KEYS = (("scenario", "buildings_file"), ("scenario", "jammers_file"),
-               ("baseline", "mapping_file"), ("baseline", "rf_config"))
+               ("baseline", "mapping_file"))
+STAGING_DIR = EFFECTIVE_DIR + ".partial"
 
 
 class InputError(ValueError):
@@ -33,11 +34,10 @@ class ScenarioFiles:
     buildings: Path | None
     jammers: Path | None
     mapping: Path | None
-    rf: Path | None
 
     def assets(self) -> dict:
         """Referenced files other than nodes, keyed by (section, key)."""
-        values = (self.buildings, self.jammers, self.mapping, self.rf)
+        values = (self.buildings, self.jammers, self.mapping)
         return {key: path for key, path in zip(_ASSET_KEYS, values) if path is not None}
 
 
@@ -59,7 +59,6 @@ def scenario_files(ini: configparser.ConfigParser, cfg: BaselineConfig) -> Scena
         "buildings": scenario_file(ini, run_config, "buildings_file"),
         "jammers": scenario_file(ini, run_config, "jammers_file"),
         "mapping": cfg.mapping_file,
-        "rf": cfg.rf_config,
     }
     for label, path in found.items():
         if path is not None and not path.is_file():
@@ -93,7 +92,7 @@ def snapshot_sources(files: ScenarioFiles, run_root: str | Path) -> dict:
     copies = {}
     for label, path in (("run", files.run_config), ("nodes", files.nodes),
                         ("buildings", files.buildings), ("jammers", files.jammers),
-                        ("mapping", files.mapping), ("rf", files.rf)):
+                        ("mapping", files.mapping)):
         if path is not None:
             copies[label] = dest / path.name
             shutil.copyfile(path, copies[label])
@@ -220,12 +219,11 @@ def rewrite_nodes(nodes: list, moved: dict, waypoint_policy: str) -> list:
     return out
 
 
-def write_effective_inputs(files: ScenarioFiles, run_root: str | Path, mode: str,
-                           nodes: list | None, plan: dict) -> dict:
-    """Write effective-inputs/ as one directory rename; `nodes` None copies nodes.json bytes."""
+def stage_effective_inputs(files: ScenarioFiles, run_root: str | Path, mode: str) -> Path:
+    """Write effective-inputs.partial/ with the edited INI, assets and source nodes.json."""
     run_root = Path(run_root)
     final = run_root / EFFECTIVE_DIR
-    staging = run_root / (EFFECTIVE_DIR + ".partial")
+    staging = run_root / STAGING_DIR
     if final.exists() or staging.exists():
         raise InputError(f"{final} already exists; effective inputs are written once")
     staging.mkdir()
@@ -237,13 +235,34 @@ def write_effective_inputs(files: ScenarioFiles, run_root: str | Path, mode: str
             read_ini(staging / RUN_INI)
         except ConfigError as exc:
             raise InputError(f"effective run.ini is not valid: {exc}") from exc
-        if nodes is None:
-            shutil.copyfile(files.nodes, staging / NODES_JSON)
-        else:
-            (staging / NODES_JSON).write_text(json.dumps(nodes, indent=2) + "\n",
-                                              encoding="utf-8")
+        shutil.copyfile(files.nodes, staging / NODES_JSON)
         for path in files.assets().values():
             shutil.copyfile(path, staging / path.name)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    return staging / RUN_INI
+
+
+def discard_staged_inputs(run_root: str | Path) -> None:
+    """Remove an unfinished effective-inputs.partial/, if any."""
+    shutil.rmtree(Path(run_root) / STAGING_DIR, ignore_errors=True)
+
+
+def finish_effective_inputs(files: ScenarioFiles, run_root: str | Path, nodes: list | None,
+                            plan: dict) -> dict:
+    """Rewrite nodes (None keeps the source bytes), add the plan, rename once, hash."""
+    run_root = Path(run_root)
+    final = run_root / EFFECTIVE_DIR
+    staging = run_root / STAGING_DIR
+    if not staging.is_dir():
+        raise InputError(f"{staging} was not staged")
+    try:
+        if final.exists():
+            raise InputError(f"{final} already exists; effective inputs are written once")
+        if nodes is not None:
+            (staging / NODES_JSON).write_text(json.dumps(nodes, indent=2) + "\n",
+                                              encoding="utf-8")
         write_plan(staging / PLAN_NAME, plan)
         staging.rename(final)
     except BaseException:

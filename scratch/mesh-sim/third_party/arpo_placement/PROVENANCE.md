@@ -13,9 +13,8 @@ archives, or any other file from the supplied bundle, none of which are copied
 here. No license designation was supplied, and none is claimed.
 
 The files are byte-for-byte copies. No imports, algorithms, or other content
-were edited. `scripts/baselines/arpo_solver.py` loads them unmodified through a
-scoped `sys.path` shim, because they use top-level imports such as
-`from models import ...` and `from core.context import ...`.
+were edited. They are kept as an unused reference copy for audits; nothing in
+mesh-sim imports or runs them (see Adaptation below).
 
 | File | SHA-256 |
 | --- | --- |
@@ -29,5 +28,48 @@ scoped `sys.path` shim, because they use top-level imports such as
 | `planners/geometric.py` | `ee757cc5ce6e4cdf94d86149f335bcf07214f89f738965de3b85f8a96a280966` |
 | `planners/optimization.py` | `24ef728dfeaf77aacd3d3c62d4f5381634d07c850c1eaf2be1171515ffc1db8c` |
 
-Runtime dependencies are pinned in `requirements-baselines.txt`; `numpy` is
-pinned by `requirements.txt`.
+## Adaptation
+
+The committed reference files above are unchanged and unused at runtime;
+`scripts/baselines/tests/test_provenance.py` checks the hashes in this table and
+that no adapted module refers to this directory. The placement baselines run
+adapted ports that depend only on `numpy` (pinned by `requirements.txt`), with
+no pydantic, shapely, pyproj, PyYAML, lat/lon frame or RF YAML. Their identity
+is the aggregate `planner_code_sha256` in `baseline_manifest.json`, not these
+hashes. The adapted algorithms are described in
+[`scripts/baselines/planners/README.md`](../../scripts/baselines/planners/README.md).
+
+| Reference | Adapted into |
+| --- | --- |
+| `core/rf.py` `MovementCost` (`cost`, `within_cap`) | `scripts/baselines/planners/objective.py` `MovementCost` |
+| `core/geometry.py` `grid_points_in` (rectangle case) | `objective.py` `rectangle_grid` |
+| `core/context.py` `adjacency`, `connected_to_gateway`, `coverage_mask`, `survives_single_loss`, `controlled_mesh_survives_single_loss`; `planners/base.py` `_diagnose`; `planners/optimization.py` `_Evaluator.score` | `objective.py` components/core, coverage union, vulnerability pairs, `score`, `diagnose` |
+| `planners/geometric.py` `GeometricModel` (`_order_movable`, `_candidates`, `_greedy_place`, `_feasible`, `_connected_set`) | `scripts/baselines/planners/geometric.py` |
+| `planners/optimization.py` `OptimizationModel` (`solve`, `_propose`, `_clamp`) and the `core/rf.py` `OptimizerConfig` constants | `scripts/baselines/planners/optimization.py` |
+
+Deviations from the reference:
+
+- Gateway-free: no C2, gateway, fixed-anchor or relay role. The connected core
+  is the largest connected component of all mesh nodes (ties: smallest roster
+  index), and greedy anchors are unselected peers in that core plus previously
+  placed selected peers, recomputed after each choice; an empty pool allows a
+  zero-anchor bootstrap, including when every node is movable.
+- Links and coverage are scored by the simulator channel (`--channel-query`,
+  `scripts/baselines/planners/channel.py`) instead of the Friis `RFEngine`.
+  Coverage is the clipped-cell area of probe receivers on a grid covered by any
+  core node, not a ground-footprint radius.
+- Resilience counts vulnerability pairs: for each selected core victim, the
+  unordered core pairs it disconnects. This replaces the (victim, orphan)
+  count rooted at the gateway.
+- The optimizer's `swap` move exchanges x/y only (each node keeps its z), and
+  the `altitude` move is removed; nudge/teleport/swap weights are renormalized
+  (0.55/0.20/0.10 divided by 0.85). Placement is 2-D at each node's own z.
+- Selected nodes are processed in roster order, not the reference's
+  movable-C2-first, longest-radio-range-first order.
+- The RF YAML and its optimizer section are retired: termination is
+  `[baseline] max_iterations` only (no time budget), and the seed is
+  `[baseline] seed`.
+- Movement penalties and caps come from the `[baseline]` `*_fixed_cost_m2`,
+  `*_cost_m2_per_m` and `*_max_displacement_m` keys (reference defaults
+  150000 / 500 aerial / 100 ground, no cap), not from `movement_cost` in the RF
+  file.

@@ -76,6 +76,36 @@ manifests under pytest's temporary directory.
 | `test_close_mid_episode_is_interrupted` | Close after one decision → interrupted manifest, no child/reader leak. |
 | `test_partial_windows_clipping_and_reward_mean` | Same scripted path at coarse/fine cadence → clipped trajectory, final short window, coarse reward equals mean of fine tick rewards (excluding reset). |
 
+## Placement baselines on the real simulator
+
+`scripts/baselines/tests/test_real_binary.py` holds the placement-baseline rows
+that reach `scripts.rl.evaluate` or the RL bridge. Every row writes a synthetic
+scenario under pytest's temporary directory and needs `MESH_SIM_BIN`; without
+it each row is skipped with a reason starting `BLOCKED:`, which is missing
+evidence, not a pass. The file's R1-R4 rows cover the direct-binary guard and
+the runner's `none` path; the placement contract is in
+[scripts/baselines/README.md](../../baselines/README.md).
+
+```bash
+MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary .venv/bin/python -m pytest scripts/baselines/tests/test_real_binary.py -q
+```
+
+| Row | Test | Input → expected output |
+| --- | --- | --- |
+| R5 | `test_r5_runner_places_selected_nodes` | Standalone runner, both methods, two of four `[rl]` nodes movable, small grids → version 2 manifest and plan, standalone ownership, selected nodes start at the plan on both seeds, others at their source start. |
+| R6 | `test_r6_evaluation_suite_with_placement_policies` | `--policies hold,random_valid,geometric,optimization`, `movable_nodes` equal to a reordered `controlled_nodes` → decision-0 positions match each plan or the source, and RL slots are exactly the placed nodes in `controlled_nodes` order. |
+| R6 | `test_r6_evaluation_refuses_unequal_rosters` | `movable_nodes` a strict subset of `controlled_nodes` → exit 1 naming both differences and the fix; no episode and no `eval_manifest.json`. |
+| R7 | `test_r7_query_matches_direct_first_tick` | Standalone `--channel-query` with and without probes vs the first-tick `links.csv` of a direct run → equal SINR, capacity and LOS. |
+| R8 | `test_r8_evaluation_query_matches_rl_reset_links` | `--channel-query --rl-mode` with and without probes vs `facts.links` of the RL reset message on the same INI and seed → equal SINR, capacity and LOS. |
+| R9 | `test_r9_query_is_repeatable_and_leaves_runs_unchanged` | Layouts A,B,A then B,A in two worker lifetimes → equal results; ordinary runs before and after the queries are identical. |
+| R10 | `test_r10_*` | NYU with shadowing → R7 and R9 hold; another planning seed changes the draws. |
+| R11 | `test_r11_*` | Building blockage and sub-6 jammer fixtures → LOS/NLOS differences, run-equivalent jammer seed, SINR clamp and probe thresholds. |
+| R12 | `test_r12_all_movable_standalone` | Three all-movable nodes, no mapping file, each method standalone → plans applied at the first tick; reference costs keep every node put. |
+| R12 | `test_r12_zero_cost_moves_a_node_reference_cost_keeps` | Same scenario, geometric, reference vs all-zero movement costs → some node moves only under zero cost. |
+| R12 | `test_r12_all_movable_evaluation_suite` | Same scenario with `controlled_nodes = all`, `--policies hold,random_valid,geometric,optimization` → every episode completes; decision-0 positions match each plan and slot i is node i. |
+| R12 | `test_r12_partial_selection_standalone_keeps_unselected_traces` | Only a fixed node moves; constant-velocity, waypoint and random-walk nodes unselected → their `positions.csv` rows equal a direct run of the same scenario with `algorithm = none`. |
+| R12 | `test_r12_partial_selection_evaluation_keeps_unselected_traces` | Same selection in evaluation (both methods) → unselected rows equal a direct `--rl-mode` run on the source INI. |
+
 ## C++ configuration and CLI
 
 `tests/unit/config/config-validator-test.cc` uses in-memory configurations

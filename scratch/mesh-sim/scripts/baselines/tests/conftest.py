@@ -1,11 +1,13 @@
-"""Hand-written synthetic scenario, mapping, and RF fixtures plus a stub planner."""
+"""Hand-written synthetic scenario and mapping fixtures, a stub planner, and fake binaries."""
 
 import json
+import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
-from scripts.baselines.adapter import PlanRequest, PlanResult
+from scripts.baselines.solver import PlanRequest, PlanResult
 
 # Axis-aligned area shared by the [rl] bounds and the rl_bounds geofence.
 AREA = {"x_min": 0.0, "x_max": 400.0, "y_min": 0.0, "y_max": 400.0}
@@ -37,16 +39,14 @@ z_max = 100.0
 BASELINE_DEFAULTS = {
     "algorithm": "geometric",
     "objective": "coverage",
-    "gateway_node_id": "gw",
     "movable_nodes": "uav-a, uav-c",
     "seed": "7",
     "max_iterations": "60",
     "mapping_file": "mapping.json",
-    "rf_config": "rf.yaml",
 }
 
-# uav-b has both `position` and `waypoints`; they differ on purpose. The default movable
-# nodes share z because the supplied optimizer's swap move exchanges altitudes.
+# uav-b has both `position` and `waypoints`; they differ on purpose. "gw" is an ordinary
+# peer id; nothing is a gateway.
 NODES = [
     {"id": "gw", "role": "peer", "mobility": "fixed", "node_type": "vehicle",
      "position": {"x": 200.0, "y": 200.0, "z": 2.0}},
@@ -70,63 +70,15 @@ NODES = [
 ]
 
 MAPPING = {
-    "baseline_mapping_version": 1,
-    "origin": {"lat": 10.0, "lon": 20.0, "synthetic": True},
-    "ground_datum": "z_is_agl_m",
+    "baseline_mapping_version": 2,
     "geofence": {"source": "rl_bounds"},
-    "radios": {"default": ["meshradio"]},
     "platforms": {"nodes": {}},
 }
 
-RF_YAML = """radios:
-  meshradio:
-    frequency_ghz: 5.8
-    tx_power_dbm: 20
-    tx_gain_dbi: 3
-    rx_gain_dbi: 3
-    rx_sensitivity_dbm: -80
-  satlink:
-    blos: true
-fade_margin_db: 10
-range_safety_factor: 0.9
-reference_receiver:
-  radio_type: meshradio
-  height_agl_m: 1.5
-  antenna_gain_dbi: 0
-  rx_sensitivity_dbm: -75
-altitude_defaults:
-  ground: {min_agl_m: 0, max_agl_m: 3}
-  aerial: {min_agl_m: 10, max_agl_m: 60}
-terrain_elevation_m: 0
-balanced_core_fraction: 0.5
-movement_cost:
-  aerial: {fixed_cost_m2: 0, cost_m2_per_m: 0, max_displacement_m: 500}
-  ground: {fixed_cost_m2: 0, cost_m2_per_m: 0, max_displacement_m: 300}
-optimizer:
-  budget_s_per_coa: 1.0
-coverage_grid: {target_cells: 400, min_resolution_m: 5}
-candidate_grid: {target_cells: 400, min_resolution_m: 5}
-"""
-
-# What inspect_rf returns for RF_YAML, without loading the planner.
-STUB_RF_SUMMARY = {
-    "radios": {
-        "meshradio": {"radio_type": "meshradio", "frequency_hz": 5.8e9, "tx_power_dbm": 20.0,
-                      "tx_gain_dbi": 3.0, "rx_gain_dbi": 3.0, "rx_sensitivity_dbm": -80.0,
-                      "blos": False},
-        "satlink": {"radio_type": "satlink", "frequency_hz": 0.0, "tx_power_dbm": 0.0,
-                    "tx_gain_dbi": 0.0, "rx_gain_dbi": 0.0, "rx_sensitivity_dbm": 0.0,
-                    "blos": True},
-    },
-    "movement_cost": {
-        "aerial": {"fixed_cost_m2": 0.0, "cost_m2_per_m": 0.0, "max_displacement_m": 500.0},
-        "ground": {"fixed_cost_m2": 0.0, "cost_m2_per_m": 0.0, "max_displacement_m": 300.0},
-    },
-    "fade_margin_db": 10.0,
-    "range_safety_factor": 0.9,
-    "reference_receiver": {"radio_type": "meshradio", "height_agl_m": 1.5,
-                           "antenna_gain_dbi": 0.0, "rx_sensitivity_dbm": -75.0},
-}
+CHANNEL_FACTS = {"contract": "mesh_channel_query_v1", "isolation": "fork_per_layout",
+                 "sinr_threshold_db": -6.7, "probe_rx_gain_dbi": 12.0}
+STUB_QUERY_STATS = {"requests": 1, "layouts": 2, "links": 30, "probe_links": 0,
+                    "wall_s": 0.0}
 
 
 def baseline_section(overrides: dict | None = None, drop: tuple = ()) -> str:
@@ -145,8 +97,8 @@ def scenario_ini(overrides: dict | None = None, drop: tuple = (), extra: str = "
 
 def write_scenario(root: str | Path, *, overrides: dict | None = None, drop: tuple = (),
                    ini_text: str | None = None, nodes: list | None = None,
-                   mapping: dict | None = None, rf_text: str | None = None) -> Path:
-    """Write run.ini, nodes.json, mapping.json, and rf.yaml into root; return the INI path."""
+                   mapping: dict | None = None) -> Path:
+    """Write run.ini, nodes.json, and mapping.json into root; return the INI path."""
     root = Path(root)
     root.mkdir(parents=True, exist_ok=True)
     run_ini = root / "run.ini"
@@ -155,7 +107,6 @@ def write_scenario(root: str | Path, *, overrides: dict | None = None, drop: tup
                                                 indent=2) + "\n")
     (root / "mapping.json").write_text(json.dumps(MAPPING if mapping is None else mapping,
                                                   indent=2) + "\n")
-    (root / "rf.yaml").write_text(RF_YAML if rf_text is None else rf_text)
     return run_ini
 
 
@@ -173,27 +124,50 @@ def stub_positions(request: PlanRequest) -> dict:
 
 
 def stub_solve(request: PlanRequest, log) -> PlanResult:
-    """Deterministic stand-in for arpo_solver.solve."""
+    """Deterministic stand-in for solver.solve; starts no channel-query worker."""
     log.write(f"stub planner: {request.method}/{request.objective}\n")
     return PlanResult(positions=stub_positions(request),
                       predictions={"stub": True, "method": request.method},
-                      planner_wall_s=0.0)
-
-
-def stub_inspect_rf(rf_path, source_dir) -> dict:
-    """Stand-in for arpo_solver.inspect_rf that matches RF_YAML."""
-    return json.loads(json.dumps(STUB_RF_SUMMARY))
+                      planner_wall_s=0.0, query_stats=dict(STUB_QUERY_STATS),
+                      planner_settings={"stub": True},
+                      channel={**CHANNEL_FACTS, "band": request.band or "mmwave"})
 
 
 def install_stub_planner(monkeypatch) -> None:
-    """Replace the solver and RF inspection so no planner module is imported."""
-    monkeypatch.setattr("scripts.baselines.arpo_solver.solve", stub_solve)
-    monkeypatch.setattr("scripts.baselines.arpo_solver.inspect_rf", stub_inspect_rf)
+    """Replace solver.solve so no planner or channel-query worker runs."""
+    monkeypatch.setattr("scripts.baselines.solver.solve", stub_solve)
 
 
 @pytest.fixture
 def stub_planner(monkeypatch):
     install_stub_planner(monkeypatch)
+
+
+class StubStrategy:
+    """Planner strategy stand-in: scores start and stub layouts, returns the stub layout."""
+
+    def __init__(self, positions=stub_positions):
+        self.positions = positions
+        self.scored = []
+
+    def solve(self, request: PlanRequest, scorer, log):
+        start = np.array([(r.x, r.y, r.z) for r in request.nodes])
+        chosen = self.positions(request)
+        layout = np.array([chosen[r.id] for r in request.nodes])
+        self.scored = scorer.evaluate([start, layout])
+        log.write("stub strategy scored 2 layouts\n")
+        return layout, {"stub_strategy": True, "connected_pairs": int(
+            self.scored[1].connected.sum() // 2)}, ["stub note"]
+
+    def settings(self, request: PlanRequest) -> dict:
+        return {"strategy": "stub", "method": request.method}
+
+
+def install_stub_strategy(monkeypatch, strategy: StubStrategy | None = None) -> StubStrategy:
+    """Keep solver.solve and the real channel scorer; replace only the search strategy."""
+    strategy = strategy or StubStrategy()
+    monkeypatch.setattr("scripts.baselines.solver._strategy", lambda method: strategy)
+    return strategy
 
 
 @pytest.fixture
@@ -203,20 +177,33 @@ def scenario(tmp_path: Path) -> Path:
 
 
 FAKE_CHILD = Path(__file__).with_name("fake_child.py")
+FAKE_QUERY = Path(__file__).with_name("fake_query.py")
+
+
+def _shim(directory: str | Path, script: Path) -> Path:
+    path = Path(directory) / "fake-mesh-sim"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"#!{sys.executable}\nimport runpy\n"
+                    f"runpy.run_path({str(script)!r}, run_name='__main__')\n")
+    path.chmod(0o755)
+    return path
 
 
 def fake_child_binary(directory: str | Path) -> Path:
     """Executable shim that runs fake_child.py with this interpreter; never a real simulator."""
-    import sys
+    return _shim(directory, FAKE_CHILD)
 
-    path = Path(directory) / "fake-mesh-sim"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"#!{sys.executable}\nimport runpy\n"
-                    f"runpy.run_path({str(FAKE_CHILD)!r}, run_name='__main__')\n")
-    path.chmod(0o755)
-    return path
+
+def fake_query_binary(directory: str | Path) -> Path:
+    """Executable shim that serves fake_query.py's channel query; never a real simulator."""
+    return _shim(directory, FAKE_QUERY)
 
 
 @pytest.fixture
 def fake_child(tmp_path: Path) -> Path:
     return fake_child_binary(tmp_path / "bin")
+
+
+@pytest.fixture
+def fake_query(tmp_path: Path) -> Path:
+    return fake_query_binary(tmp_path / "query-bin")

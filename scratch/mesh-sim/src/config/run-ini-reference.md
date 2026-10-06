@@ -5,7 +5,8 @@ read by Python. Omitted keys use the defaults below; unknown keys are silently
 ignored. Input-file paths are relative to `run.ini`. For action and reward
 behavior, see the [RL bridge](../rl/README.md); for `jammers.json`, see the
 [jammer model](../jammer/README.md). Command-line overrides are listed in the
-[CLI guide](../cli/README.md).
+[CLI guide](../cli/README.md). `--channel-query` mode reads the same file and
+keys as a run (no query-specific keys); see the [query contract](../query/README.md).
 
 ## `[scenario]` and `[output]`
 
@@ -133,10 +134,21 @@ and rejects unknown keys and values; the binary ignores keys other than
 | `algorithm` | `none` | `none`, `geometric`, or `optimization`; an absent section or key means `none`, and the binary also treats a blank value as `none`. |
 | `objective` | none | `coverage`, `balanced`, or `resilience`; required when active. |
 | `application` | `initial_positions` | Only `initial_positions` is accepted. |
-| `gateway_node_id` | none | Existing node ID kept fixed as the planner gateway; required when active and not in `movable_nodes`. |
-| `movable_nodes` | none | Distinct, non-empty comma-separated node IDs the planner may move; `all` is not accepted. Required when active. |
-| `seed` | none | Planner seed (integer ≥ 0), required for `optimization`; independent of the simulation seed. |
+| `movable_nodes` | none | Distinct, non-empty comma-separated node IDs the planner may move, or `all`. Required when active. |
+| `seed` | none | Optimizer seed (integer ≥ 0), required for `optimization`; independent of the simulation and planning seeds. |
 | `max_iterations` | none | Optimizer iterations (integer > 0), required for `optimization`. |
 | `waypoint_policy` | `reject` | `reject` or `translate` for selected waypoint nodes. |
-| `mapping_file` | none | Baseline mapping JSON; required when active. Relative paths resolve from `run.ini`. |
-| `rf_config` | none | Planner RF configuration file; required when active. Relative paths resolve from `run.ini`. |
+| `mapping_file` | none | Optional baseline mapping JSON (version 2); absent means the `[rl]` bounds geofence and platforms by `node_type`. Relative paths resolve from `run.ini`. |
+| `aerial_fixed_cost_m2`, `ground_fixed_cost_m2` | `150000` | Coverage-equivalent m² charged for moving a node of that platform at all (≥ 0). |
+| `aerial_cost_m2_per_m`, `ground_cost_m2_per_m` | `500` / `100` | Additional m² per metre moved (≥ 0). |
+| `aerial_max_displacement_m`, `ground_max_displacement_m` | none | Hard displacement cap in metres (> 0); absent means unlimited. |
+| `candidate_grid_cells`, `coverage_grid_cells` | `400` | Target cell counts (integer ≥ 1) for candidate positions and coverage probes. |
+| `grid_min_resolution_m` | `5.0` | Smallest grid cell edge in metres (> 0). |
+| `coverage_probe_height_m` | `1.5` | Coverage probe receiver height in metres (≥ 0). |
+| `coverage_probe_rx_gain_dbi` | `[channel] rx_array_gain_dbi` | Coverage probe receive gain (finite, ≥ 0). |
+| `coverage_sinr_db` | `-6.7` | SINR at which a probe counts as covered. |
+| `balanced_core_fraction` | `0.5` | Share of selected nodes that need two anchor links under `balanced` ([0, 1]). |
+
+`gateway_node_id` and `rf_config` are no longer accepted: baselines are
+gateway-free and candidates are scored by the simulator channel (see
+[`scripts/baselines/README.md`](../../scripts/baselines/README.md)).

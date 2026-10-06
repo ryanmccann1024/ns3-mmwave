@@ -15,6 +15,7 @@ import pytest
 
 from scripts.baselines import artifacts, runner
 from scripts.baselines.tests.conftest import fake_child_binary, write_scenario
+from scripts.sim_support import stop_process
 
 MESH_ROOT = Path(__file__).resolve().parents[3]
 BUILD_LIB = MESH_ROOT.parent.parent / "build" / "lib"
@@ -62,7 +63,10 @@ def test_argv_environment_and_complete_run(tmp_path, fake_child, record, stub_pl
         {"seed": 1, "status": "complete", "summary": "seed-1/summary.json"},
         {"seed": 2, "status": "complete", "summary": "seed-2/summary.json"}]
     assert manifest["sim_binary_sha256"] == artifacts.sha256_file(fake_child)
-    assert manifest["rf"]["simulator_channel"]["band"] == "sub-6"
+    assert manifest["baseline_manifest_version"] == 2
+    assert (manifest["channel_scoring"]["band"],
+            manifest["channel_scoring"]["band_source"]) == ("sub-6", "cli")
+    assert manifest["channel_scoring"]["planning_seed"] == 1
     assert manifest["error"] is None and manifest["ended_at"] is not None
     assert "fake_child: mode=ok" in (out / "sim.log").read_text()
     assert {"baseline_manifest.json", "planner.log", "sim.log", "source-inputs",
@@ -88,7 +92,7 @@ def test_ini_seed_and_algorithm_override(tmp_path, fake_child, record):
         f"--run-config={run}/effective-inputs/run.ini", f"--output-dir={run}"]
     manifest = _manifest(out)
     assert (manifest["method"], manifest["requested_algorithm"]) == ("none", "geometric")
-    assert manifest["planner_source"] is None
+    assert manifest["channel_scoring"] is None
     assert manifest["simulation_seeds"] == [1]
     assert manifest["seeds"] == [{"seed": 1, "status": "complete",
                                   "summary": "seed-1/summary.json"}]
@@ -211,12 +215,31 @@ def test_none_imports_no_planner_module(tmp_path):
         from scripts.baselines import runner
         code = runner.main(["--sim-binary", {str(binary)!r}, "--run-config", {str(ini)!r},
                             "--output-dir", {str(tmp_path / 'run')!r}])
-        loaded = sorted(m for m in sys.modules if m.split('.')[0] in
-                        ('models', 'core', 'planners', 'pydantic', 'shapely', 'pyproj',
-                         'yaml') or m == 'scripts.baselines.arpo_solver')
+        loaded = sorted(m for m in sys.modules if m == 'scripts.baselines.solver'
+                        or m.startswith('scripts.baselines.planners'))
         print(code, loaded)
     """)
     assert result.stdout.strip().splitlines()[-1] == "0 []"
+
+
+def test_planner_source_option_is_gone(tmp_path, fake_child, capsys):
+    ini = write_scenario(tmp_path / "s", overrides={"algorithm": "none"})
+    with pytest.raises(SystemExit) as exit_info:
+        _main(fake_child, ini, tmp_path / "run", "--planner-source", str(tmp_path))
+    assert exit_info.value.code == 2
+    assert "unrecognized arguments: --planner-source" in capsys.readouterr().err
+    assert not (tmp_path / "run").exists()
+
+
+def test_seed_resolution(tmp_path):
+    ini = write_scenario(tmp_path / "s")
+    assert runner.resolve_seeds(None, ini) == [1]
+    assert runner.resolve_seeds("3-4", ini) == [3, 4]
+    bare = write_scenario(tmp_path / "b", ini_text="[scenario]\nname = x\n")
+    assert runner.resolve_seeds(None, bare) == [runner.DEFAULT_SCENARIO_SEED] == [42]
+    bad = write_scenario(tmp_path / "c", ini_text="[scenario]\nseed = -1\n")
+    with pytest.raises(ValueError, match="seed"):
+        runner.resolve_seeds(None, bad)
 
 
 def test_runner_import_loads_no_rl_or_ml_stack():
@@ -297,6 +320,134 @@ def test_stop_child_terminates_then_kills_and_reaps(tmp_path, monkeypatch, mode,
         runner.stop_child(proc, wait_s=0.5)
         assert proc.returncode == expected
         assert time.monotonic() - started < 10
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+
+
+@pytest.mark.parametrize("mode,expected", [("hang", -signal.SIGTERM),
+                                           ("hang-ignore-term", -signal.SIGKILL)])
+def test_stop_process_escalates_and_reaps(tmp_path, monkeypatch, mode, expected):
+    ini = write_scenario(tmp_path / "s", overrides={"algorithm": "none"})
+    pid_file = tmp_path / "child.pid"
+    monkeypatch.setenv("FAKE_CHILD_MODE", mode)
+    monkeypatch.setenv("FAKE_CHILD_PID_FILE", str(pid_file))
+    out = tmp_path / "out"
+    out.mkdir()
+    proc = subprocess.Popen([str(fake_child_binary(tmp_path / "bin")),
+                             f"--run-config={ini}", f"--output-dir={out}"],
+                            stdin=subprocess.DEVNULL)
+    try:
+        _wait_for(pid_file)
+        started = time.monotonic()
+        stop_process(proc, 0.5)
+        assert proc.returncode == expected
+        assert time.monotonic() - started < 10
+        stop_process(proc, 0.5)
+        assert proc.returncode == expected
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+
+
+GROUP_LEADER = """
+import signal, subprocess, sys, time
+child = subprocess.Popen([sys.executable, "-c",
+    "import signal, time\\nsignal.signal(signal.SIGTERM, signal.SIG_IGN)\\n"
+    "while True: time.sleep(0.1)"])
+open(sys.argv[1], "w").write(str(child.pid))
+while True:
+    time.sleep(0.1)
+"""
+
+
+@pytest.mark.parametrize("process_group", [False, True])
+def test_stop_process_group_mode_reaches_grandchildren(tmp_path, process_group):
+    pid_file = tmp_path / "grandchild.pid"
+    proc = subprocess.Popen([sys.executable, "-c", GROUP_LEADER, str(pid_file)],
+                            stdin=subprocess.DEVNULL, start_new_session=True)
+    try:
+        grandchild = int(_wait_for(pid_file))
+        stop_process(proc, 0.5, process_group=process_group)
+        assert proc.returncode == -signal.SIGTERM
+        deadline = time.monotonic() + 10
+        while not _gone(grandchild) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        # Default mode signals only the direct child, as runner.stop_child always has.
+        assert _gone(grandchild) is process_group
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+EXITING_LEADER = """
+import subprocess, sys
+if sys.argv[1] == "orphan":
+    child = subprocess.Popen([sys.executable, "-c",
+        "import signal, time\\nsignal.signal(signal.SIGTERM, signal.SIG_IGN)\\n"
+        "while True: time.sleep(0.1)"])
+    open(sys.argv[2], "w").write(str(child.pid))
+"""
+
+
+def _wait_for_zombie(pid: int, timeout_s: float = 10.0) -> None:
+    """Wait until pid has exited but is not reaped (ps state Z) without calling wait()."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True,
+                               text=True).stdout.strip()
+        if state.startswith("Z"):
+            return
+        time.sleep(0.05)
+    raise AssertionError(f"process {pid} did not exit within {timeout_s}s")
+
+
+@pytest.mark.parametrize("case", ["zombie", "reaped", "orphan"])
+def test_stop_process_group_mode_after_the_leader_exited(tmp_path, case):
+    pid_file = tmp_path / "orphan.pid"
+    proc = subprocess.Popen([sys.executable, "-c", EXITING_LEADER, case, str(pid_file)],
+                            stdin=subprocess.DEVNULL, start_new_session=True)
+    orphan = None
+    try:
+        if case == "orphan":
+            orphan = int(_wait_for(pid_file))
+        if case == "reaped":
+            proc.wait(timeout=10)
+        else:
+            _wait_for_zombie(proc.pid)
+        started = time.monotonic()
+        stop_process(proc, 0.5, process_group=True)
+        assert proc.returncode == 0
+        assert time.monotonic() - started < 10
+        if orphan is not None:
+            deadline = time.monotonic() + 10
+            while not _gone(orphan) and time.monotonic() < deadline:
+                time.sleep(0.05)
+            assert _gone(orphan)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+        if orphan is not None and not _gone(orphan):
+            os.kill(orphan, signal.SIGKILL)
+
+
+def test_stop_process_group_mode_falls_back_when_killpg_is_refused(tmp_path, monkeypatch):
+    def refused(pgid, signum):
+        raise PermissionError(1, "Operation not permitted")
+
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"],
+                            stdin=subprocess.DEVNULL, start_new_session=True)
+    try:
+        monkeypatch.setattr("scripts.sim_support.os.killpg", refused)
+        stop_process(proc, 5.0, process_group=True)
+        assert proc.returncode == -signal.SIGTERM
     finally:
         if proc.poll() is None:
             proc.kill()
