@@ -132,15 +132,15 @@ Band resolves as `--band` > `[channel] band` in `run.ini` > default `mmwave`.
 ## Dependency layers
 
 ```
-domain  <--  config, cli, eval, io, jammer, query, routing, rl, setup, traffic, util
-util    <--  config, io
-jammer  <--  eval, setup
+domain  <--  config, cli, eval, io, jammer, query, routing, rl, setup, traffic
+jammer  <--  domain (sim-config.h holds JammerSpec), eval
+util    <--  cli, config, io
+cli     <--  io, query, sim.cc
 config  <--  query, setup, sim.cc
-cli     <--  query, sim.cc
 setup   <--  query, sim.cc
-eval    <--  query, sim.cc, rl (link-table)
-traffic <--  sim.cc
-routing <--  sim.cc, rl
+eval    <--  io, query, routing, rl (link-table), sim.cc
+traffic <--  routing, sim.cc
+routing <--  io, rl, sim.cc
 io      <--  sim.cc
 rl      <--  sim.cc
 query   <--  sim.cc
