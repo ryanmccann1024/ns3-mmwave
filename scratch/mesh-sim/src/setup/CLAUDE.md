@@ -5,11 +5,14 @@ The only layer that creates ns-3 objects: nodes, mobility models, buildings, and
 propagation and channel-condition models. No EPC, RRC, MAC, or protocol stack.
 
 ## Files
-- **topology-builder.h/cc** -- `TopologyBuilder(cfg)`, `Build()`, `GetMobilityModels()`, `GetJammerMobilityModels()`, `GetPropagationModel()`, `GetConditionModel()`. Header tables map mobility strings and channel/scenario pairs to ns-3 classes.
+- **topology-builder.h/cc** -- `TopologyBuilder(cfg)`, `SetProbes()`, `Build()`, `GetMobilityModels()`, `GetJammerMobilityModels()`, `GetProbeMobilityModels()`, `GetPropagationModel()`, `GetConditionModel()`. Header tables map mobility strings and channel/scenario pairs to ns-3 classes.
 
 ## Behavior to preserve
-- `Build()` order is nodes, jammers, buildings, propagation. Jammers get their own ns-3 nodes in
-  the same container as mesh nodes.
+- `Build()` order is nodes, jammers, probes, buildings, propagation. Jammers and probes get their
+  own ns-3 nodes in the same container as mesh nodes, so buildings apply to them too.
+- Probes (channel query only) must stay RNG-free: create `Node` and `ConstantPositionMobilityModel`
+  directly, never via `MobilityHelper` (its constructor allocates random variables and shifts
+  automatic stream indices). Without probes `Build()` is unchanged.
 - `GetMobilityModels()` follows `cfg.nodes` order and `GetJammerMobilityModels()` follows
   `cfg.jammers` order. `JammerModel::Configure` asserts equal lengths.
 - In centralized RL mode, nodes in `cfg.rl.controlled_indices` get a `ConstantVelocityMobilityModel`
@@ -29,4 +32,4 @@ for 3GPP, but the builder throws for it. There is no unit-test suite because it 
 
 ## Dependencies
 - Depends on: `domain/`, `config/rl-control.h` (`ControlledStartPosition`), ns-3 modules (mobility, propagation, buildings, mmwave)
-- Depended on by: `sim.cc`
+- Depended on by: `sim.cc`, `query/`

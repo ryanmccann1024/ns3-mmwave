@@ -57,6 +57,8 @@ struct CliArgs
     std::string band;                     ///< Radio band override: @c "mmwave" or @c "sub-6".
                                           ///<   Empty means no CLI override, so @c [channel] band
                                           ///<   from @c run.ini decides.
+    bool        channel_query   = false;  ///< Serve @c mesh_channel_query_v1 on stdin/stdout instead
+                                          ///<   of running (see @c src/query/README.md).
 };
 
 
@@ -77,10 +79,13 @@ struct CliArgs
  * | @c --rl-mode            | bool   | no       | Enable RL stdin/stdout JSON exchange.        |
  * | @c --band               | string | no       | Optional band override @c 'mmwave' or        |
  * |                         |        |          | @c 'sub-6'; empty means run.ini decides.     |
+ * | @c --channel-query      | bool   | no       | Serve candidate-layout channel queries on    |
+ * |                         |        |          | stdin/stdout; no outputs are written.        |
  *
- * Flags are written @c --name=value. The two bool flags may be given bare
+ * Flags are written @c --name=value. The three bool flags may be given bare
  * (e.g. @c --rl-mode) and default to @c false. @c --help is handled by
- * @c ns3::CommandLine.
+ * @c ns3::CommandLine. With @c --channel-query a non-empty @c --output-dir
+ * is ignored with a note on @c stderr.
  *
  * @param argc  Argument count from @c main.
  * @param argv  Argument vector from @c main.
@@ -120,6 +125,18 @@ CliArgs ParseCommandLine(int argc, char* argv[]);
  * ignored when @c --seeds is given.
  */
 std::vector<uint32_t> ResolveSeeds(const CliArgs& args, const SimConfig& cfg);
+
+/**
+ * @fn ResolveQuerySeed
+ * @brief Return the single planning seed for @c --channel-query.
+ *
+ * @param args  Parsed CLI arguments.
+ * @param cfg   Loaded config (only @c cfg.seed is read, via @ref ResolveSeeds).
+ * @return The one seed @ref ResolveSeeds resolves.
+ * @throws Never throws; prints @c "Error: --channel-query needs exactly one seed"
+ *         and calls @c std::exit(1) when more than one seed resolves.
+ */
+uint32_t ResolveQuerySeed(const CliArgs& args, const SimConfig& cfg);
 
 /**
  * @fn ArchiveScenarioInputs

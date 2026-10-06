@@ -43,8 +43,9 @@ and exits with code 1 before anything else runs.
 | `--positions-override=<path>` | no | none | JSON file that patches node positions after `nodes.json` is loaded. Must exist if given. Used by the RL controller. |
 | `--debug-links` | no | `false` | Verbose per-link evaluation logging. |
 | `--rl-mode` | no | `false` | Enables the RL bridge (observations and actions as JSON on stdin/stdout). |
+| `--channel-query` | no | `false` | Serves candidate-layout channel queries on stdin/stdout instead of running ([contract](../query/README.md)). Seeds must resolve to exactly one; `--output-dir` is ignored with a note; no output directory, archive, or `run.log` is written. |
 
-`--debug-links` and `--rl-mode` can be given with no value.
+`--debug-links`, `--rl-mode` and `--channel-query` can be given with no value.
 
 Seed order of precedence: `--seeds`, then `--seed`, then `run.ini`. Empty
 items in `--seeds` are skipped; a non-numeric item is an error.
@@ -53,7 +54,7 @@ items in `--seeds` are skipped; a non-numeric item is an error.
 
 | File | Role |
 |------|------|
-| @ref cli-parser.h "cli-parser.h" | `CliArgs` struct and declarations of the three public functions, with full Doxygen docs. |
+| @ref cli-parser.h "cli-parser.h" | `CliArgs` struct and declarations of the public functions (including `ResolveQuerySeed` for `--channel-query`), with full Doxygen docs. |
 | @ref cli-parser.cc "cli-parser.cc" | Implementations. The only file in `src/` that includes `ns3/command-line.h`. |
 | `CLAUDE.md` | Scope and dependency notes for AI assistants. |
 | `README.md` | This page. |
@@ -94,6 +95,9 @@ Re-running with the archived `inputs/` reproduces the original scenario.
   `cfg.output_dir`, and `inputs/` is created under the replaced path.
 - **Band resolution** is `--band` > `[channel] band` > `mmwave`. The
   resolution itself happens in `sim.cc`; this module only validates the value.
+- **`--channel-query` seed check needs the config.** More than one resolved
+  seed is rejected by `ResolveQuerySeed` (`Error: --channel-query needs exactly
+  one seed`, exit 1), which `src/query/` calls after the config is loaded.
 
 ## Dependencies
 
@@ -101,4 +105,4 @@ Re-running with the archived `inputs/` reproduces the original scenario.
 - `src/domain/sim-config.h` (`SimConfig`, read for `cfg.seed`).
 - `src/util/string-utils.h` (`parseSeedList`).
 - C++17 `<filesystem>`.
-- Depended on by: `sim.cc`.
+- Depended on by: `sim.cc`, `src/query/` (`ResolveQuerySeed`).

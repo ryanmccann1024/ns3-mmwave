@@ -25,6 +25,11 @@
  * component is non-zero, else @c ConstantPositionMobilityModel. Jammer
  * @c random_walk settings are not used here.
  *
+ * **Probes** (optional, channel query only; see @ref SetProbes): one ns-3 node
+ * with a directly created @c ConstantPositionMobilityModel per probe point,
+ * appended after the jammers so mesh and jammer node IDs are unchanged.
+ * Probe creation draws no random variables.
+ *
  * **Channel condition model selection**
  * When @c cfg.buildings is non-empty, or @c channel.condition_model is
  * @c "static_los", a @c BuildingsChannelConditionModel is installed, giving
@@ -49,6 +54,7 @@
  */
 #pragma once
 
+#include "src/domain/probe-spec.h"
 #include "src/domain/sim-config.h"
 
 #include "ns3/channel-condition-model.h"
@@ -85,14 +91,27 @@ class TopologyBuilder
     explicit TopologyBuilder(const SimConfig& cfg);
 
     /**
+     * @fn TopologyBuilder::SetProbes
+     * @brief Request receive-only probe nodes; call before @ref Build.
+     *
+     * Each point keeps its x/y/z. Live runs never call this, so their
+     * topology is unchanged.
+     *
+     * @param probes  Probe grid copied into the builder.
+     */
+    void SetProbes(const ProbeGrid& probes);
+
+    /**
      * @fn TopologyBuilder::Build
      * @brief Create all ns-3 topology objects in the required order.
      *
-     * Executes four steps in sequence:
+     * Executes these steps in sequence:
      * -# @ref CreateNodesAndMobility — one ns-3 node per @ref NodeSpec,
      *    with the appropriate mobility model installed.
      * -# @ref CreateJammersAndMobility — one ns-3 node and mobility model per
      *    @ref JammerSpec, appended to the same node container.
+     * -# @ref CreateProbes — one node per probe from @ref SetProbes, appended
+     *    to the same container; a no-op without probes.
      * -# @ref CreateBuildings — ns-3 @c Building objects plus
      *    @c BuildingsHelper::Install; skipped when @c cfg.buildings is empty
      *    and @c condition_model is not @c "static_los".
@@ -154,6 +173,14 @@ class TopologyBuilder
      */
     std::vector<ns3::Ptr<ns3::MobilityModel>> GetJammerMobilityModels() const;
 
+    /**
+     * @fn TopologyBuilder::GetProbeMobilityModels
+     * @brief Return the probe mobility models in @ref ProbeGrid::points order.
+     *
+     * @return One pointer per probe; empty without probes or before @ref Build.
+     */
+    std::vector<ns3::Ptr<ns3::MobilityModel>> GetProbeMobilityModels() const;
+
   private:
     const SimConfig& m_cfg;  ///< Simulation configuration (const reference; not owned).
 
@@ -186,6 +213,18 @@ class TopologyBuilder
     void CreateJammersAndMobility(); 
     
     std::vector<ns3::Ptr<ns3::MobilityModel>> m_jammerMobilityModels;	
+
+    ProbeGrid                                 m_probes;               ///< Set by @ref SetProbes.
+    std::vector<ns3::Ptr<ns3::MobilityModel>> m_probeMobilityModels;  ///< One per probe point.
+
+    /**
+     * @brief Create one node and @c ConstantPositionMobilityModel per probe.
+     *
+     * Objects are created and aggregated directly: @c MobilityHelper's
+     * constructor allocates random position allocators, which would consume
+     * automatic RNG streams and shift the propagation model's draws.
+     */
+    void CreateProbes();
     
     /**
      * @brief Create ns-3 @c Building objects from @c cfg.buildings.

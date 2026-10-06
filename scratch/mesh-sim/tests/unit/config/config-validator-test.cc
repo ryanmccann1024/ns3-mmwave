@@ -9,6 +9,7 @@
 
 #include "src/config/config-loader.h"
 #include "src/config/config-validator.h"
+#include "src/config/layout-override.h"
 #include "src/config/rl-control.h"
 #include "src/util/string-utils.h"
 
@@ -994,6 +995,152 @@ test_apply_rl_control()
     check(threw, "ApplyRlControl throws on a resolution with errors");
 }
 
+// ---- layout override tests ----
+
+static bool
+hasErr(const std::vector<std::string>& errors, const std::string& needle)
+{
+    for (const auto& e : errors)
+    {
+        if (e.find(needle) != std::string::npos)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void
+test_layout_override_sizes()
+{
+    auto cfg = makeValid();
+    cfg.nodes[0].position = {1.0, 2.0, 10.0};
+    cfg.nodes[1].position = {3.0, 4.0, 20.0};
+
+    auto errs = ApplyLayout(cfg, {{5.0, 6.0, 10.0}});
+    check(hasErr(errs, "layout has 1 positions, expected 2"), "short layout rejected");
+    errs = ApplyLayout(cfg, {{5.0, 6.0, 10.0}, {7.0, 8.0, 20.0}, {0.0, 0.0, 0.0}});
+    check(hasErr(errs, "layout has 3 positions, expected 2"), "long layout rejected");
+    check(cfg.nodes[0].position.x == 1.0 && cfg.nodes[1].position.y == 4.0,
+          "size errors leave positions unchanged");
+
+    errs = ApplyLayout(cfg, {{5.0, 6.0, 10.0}, {7.0, 8.0, 20.0}});
+    check(errs.empty(), "matching layout applies");
+    check(cfg.nodes[0].position.x == 5.0 && cfg.nodes[0].position.y == 6.0 &&
+              cfg.nodes[0].position.z == 10.0,
+          "fixed node x/y set, z kept");
+    check(cfg.nodes[1].position.x == 7.0 && cfg.nodes[1].position.y == 8.0,
+          "second node x/y set");
+
+    errs = ApplyLayout(cfg, {{5.0, 6.0, 10.5}, {7.0, 8.0, 20.0}});
+    check(hasErr(errs, "node 'node0': z 10.5 differs from start z 10"), "changed z rejected");
+    errs = ApplyLayout(cfg, {{9.0, 9.0, 10.0 + 5e-7}, {7.0, 8.0, 20.0}});
+    check(errs.empty() && cfg.nodes[0].position.z == 10.0,
+          "z within 1e-6 accepted and the original z kept");
+}
+
+static void
+test_layout_override_waypoint_shift()
+{
+    auto cfg = makeValid();
+    auto& wn = cfg.nodes[1];
+    wn.mobility = "waypoint";
+    wn.position = {1.0, 2.0, 7.0};
+    wn.waypoints = {{0.0, 10.0, 20.0, 5.0}, {5.0, 30.0, 45.0, 6.0}};
+    cfg.nodes[0].position = {0.0, 0.0, 3.0};
+    JammerSpec j;
+    j.id = "jam-1";
+    j.position = {50.0, 60.0, 9.0};
+    cfg.jammers.push_back(j);
+
+    // Start z is the first waypoint's z, not position.z.
+    auto errs = ApplyLayout(cfg, {{0.0, 0.0, 3.0}, {110.0, 220.0, 7.0}});
+    check(hasErr(errs, "node 'node1': z 7 differs from start z 5"),
+          "waypoint z is checked against the first waypoint");
+
+    errs = ApplyLayout(cfg, {{0.0, 0.0, 3.0}, {110.0, 220.0, 5.0}});
+    check(errs.empty(), "waypoint layout applies");
+    check(wn.waypoints[0].x == 110.0 && wn.waypoints[0].y == 220.0 &&
+              wn.waypoints[0].z == 5.0 && wn.waypoints[0].t == 0.0,
+          "first waypoint moved to the target with z/t kept");
+    check(wn.waypoints[1].x == 130.0 && wn.waypoints[1].y == 245.0 &&
+              wn.waypoints[1].z == 6.0 && wn.waypoints[1].t == 5.0,
+          "later waypoints shifted by the same delta with z/t kept");
+    check(wn.position.x == 110.0 && wn.position.y == 220.0 && wn.position.z == 7.0,
+          "waypoint position x/y follow the target, z kept");
+    check(ControlledStartPosition(wn).x == 110.0 && ControlledStartPosition(wn).y == 220.0,
+          "start position follows the layout");
+    check(cfg.jammers[0].position.x == 50.0 && cfg.jammers[0].position.y == 60.0,
+          "jammers untouched");
+
+    // Transactional: a bad entry later in the layout leaves the waypoint node unchanged.
+    errs = ApplyLayout(cfg, {{0.0, 0.0, 99.0}, {0.0, 0.0, 5.0}});
+    check(!errs.empty(), "layout with a bad node rejected");
+    check(wn.waypoints[0].x == 110.0 && wn.waypoints[1].y == 245.0,
+          "rejected layout does not shift waypoints");
+
+    wn.waypoints.clear();
+    errs = ApplyLayout(cfg, {{0.0, 0.0, 3.0}, {0.0, 0.0, 5.0}});
+    check(hasErr(errs, "waypoint mobility without waypoints"),
+          "waypoint node without waypoints rejected without throwing");
+}
+
+static void
+test_layout_override_random_walk_bounds_inclusive()
+{
+    auto cfg = makeValid();
+    auto& rn = cfg.nodes[1];
+    rn.mobility = "random_walk";
+    rn.position = {10.0, 0.0, 1.5};
+    rn.random_walk.x_min = 0.0;
+    rn.random_walk.x_max = 100.0;
+    rn.random_walk.y_min = -50.0;
+    rn.random_walk.y_max = 50.0;
+
+    auto errs = ApplyLayout(cfg, {{0.0, 0.0, 0.0}, {100.0, -50.0, 1.5}});
+    check(errs.empty() && rn.position.x == 100.0 && rn.position.y == -50.0,
+          "random walk start on the bound corner accepted");
+    errs = ApplyLayout(cfg, {{0.0, 0.0, 0.0}, {0.0, 50.0, 1.5}});
+    check(errs.empty(), "random walk start on the opposite corner accepted");
+    errs = ApplyLayout(cfg, {{0.0, 0.0, 0.0}, {100.001, 0.0, 1.5}});
+    check(hasErr(errs, "outside its random_walk bounds"), "random walk x outside rejected");
+    errs = ApplyLayout(cfg, {{0.0, 0.0, 0.0}, {50.0, -50.5, 1.5}});
+    check(hasErr(errs, "outside its random_walk bounds"), "random walk y outside rejected");
+    check(rn.position.x == 0.0 && rn.position.y == 50.0, "rejected walk start leaves position");
+
+    // A centrally controlled slot runs ConstantVelocity, so walk bounds do not apply.
+    cfg.rl.enabled = true;
+    cfg.rl.control_mode = "centralized";
+    cfg.rl.controlled_indices = {1};
+    errs = ApplyLayout(cfg, {{0.0, 0.0, 0.0}, {500.0, 0.0, 1.5}});
+    check(errs.empty() && rn.position.x == 500.0,
+          "controlled random-walk node may start outside its walk bounds");
+    cfg.rl.controlled_indices = {0};
+    errs = ApplyLayout(cfg, {{0.0, 0.0, 0.0}, {600.0, 0.0, 1.5}});
+    check(hasErr(errs, "outside its random_walk bounds"),
+          "uncontrolled random-walk node still bounded in centralized mode");
+}
+
+static void
+test_layout_override_non_finite()
+{
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double inf = std::numeric_limits<double>::infinity();
+    auto cfg = makeValid();
+    cfg.nodes[0].position = {1.0, 2.0, 0.0};
+    cfg.nodes[1].position = {3.0, 4.0, 0.0};
+
+    auto errs = ApplyLayout(cfg, {{nan, 0.0, 0.0}, {0.0, inf, 0.0}});
+    check(hasErr(errs, "node 'node0': non-finite position") &&
+              hasErr(errs, "node 'node1': non-finite position"),
+          "every non-finite node reported");
+    errs = ApplyLayout(cfg, {{5.0, 5.0, 0.0}, {0.0, 0.0, -inf}});
+    check(errs.size() == 1 && hasErr(errs, "node 'node1': non-finite position"),
+          "non-finite z rejected");
+    check(cfg.nodes[0].position.x == 1.0 && cfg.nodes[1].position.x == 3.0,
+          "non-finite layout leaves every node unchanged");
+}
+
 // ---- main ----
 
 int
@@ -1068,6 +1215,12 @@ main()
     test_rl_safety_cases();
     test_controlled_start_position();
     test_apply_rl_control();
+
+    // Layout override
+    test_layout_override_sizes();
+    test_layout_override_waypoint_shift();
+    test_layout_override_random_walk_bounds_inclusive();
+    test_layout_override_non_finite();
 
     // Seed parsing
     test_seed_single();

@@ -35,6 +35,15 @@ auto loss     = tb.GetPropagationModel();
 auto cond     = tb.GetConditionModel();
 ```
 
+The channel query (`src/query/`) also calls `tb.SetProbes(grid)` before
+`Build()` and reads `tb.GetProbeMobilityModels()`. Probe nodes are appended
+after the jammers (mesh and jammer node IDs are unchanged), get a directly
+created `ConstantPositionMobilityModel`, and are included in
+`BuildingsHelper::Install`. They are created without `MobilityHelper`, whose
+constructor allocates random position allocators and would consume automatic
+RNG stream indices before the propagation model is created. Live runs never
+set probes.
+
 ## Output
 
 | Step | Where |
@@ -52,4 +61,5 @@ auto cond     = tb.GetConditionModel();
 
 - `src/domain/` (`SimConfig`, `NodeSpec`, `JammerSpec`, `BuildingSpec`).
 - `src/config/rl-control.h` for `ControlledStartPosition`.
+- `src/domain/probe-spec.h` (`ProbeGrid`) for optional query probes.
 - ns-3 modules: core, mobility, propagation, buildings, and the NYU propagation models from ns3-mmwave.

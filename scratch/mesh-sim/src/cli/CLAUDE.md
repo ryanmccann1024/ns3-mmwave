@@ -6,7 +6,7 @@ Does not touch ns-3 simulation APIs beyond `ns3::CommandLine`; `cli-parser.cc` i
 the only file in `src/` that includes `ns3/command-line.h`.
 
 ## Files
-- **cli-parser.h/cc** -- `CliArgs` struct, `ParseCommandLine()`, `ResolveSeeds()`, `ArchiveScenarioInputs()`
+- **cli-parser.h/cc** -- `CliArgs` struct, `ParseCommandLine()`, `ResolveSeeds()`, `ResolveQuerySeed()`, `ArchiveScenarioInputs()`
 
 ## Behavior to preserve
 - This module only parses and validates flags. `sim.cc` applies the overrides
@@ -19,6 +19,8 @@ the only file in `src/` that includes `ns3/command-line.h`.
   `--seed` / `--run-id`.
 - Seed precedence: `--seeds` > `--seed` > `run.ini`. `parseSeedList`
   (`util/`) handles invalid tokens.
+- `--channel-query` dispatches in `sim.cc` after `ApplyRlControl` and before
+  the baseline guard, archiving and `run.log`; it must resolve to exactly one seed.
 
 ## Adding or changing a flag
 Update together: `CliArgs` + `ParseCommandLine` (validation), the override
@@ -30,4 +32,4 @@ binary.
 
 ## Dependencies
 - Depends on: `domain/`, `util/` (`string-utils.h`), ns-3 core (`CommandLine`)
-- Depended on by: `sim.cc`
+- Depended on by: `sim.cc`, `query/` (`ResolveQuerySeed`)

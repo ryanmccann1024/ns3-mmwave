@@ -105,7 +105,7 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
 
 ## Architecture
 
-- `src/` is split by concern: cli, config, domain, eval, io, jammer, routing, rl, setup, traffic, util
+- `src/` is split by concern: cli, config, domain, eval, io, jammer, query, routing, rl, setup, traffic, util
 - `domain/` types are pure POD with no ns-3 dependency -- everything else depends on them
 - `eval/` wraps ns-3 propagation models to compute per-link SINR and capacity
 - `jammer/` adds jammer received power to the SINR denominator; active only when `band == sub-6` and `jammers.json` defines jammers
@@ -132,17 +132,18 @@ Band resolves as `--band` > `[channel] band` in `run.ini` > default `mmwave`.
 ## Dependency layers
 
 ```
-domain  <--  config, cli, eval, io, jammer, routing, rl, setup, traffic, util
+domain  <--  config, cli, eval, io, jammer, query, routing, rl, setup, traffic, util
 util    <--  config, io
 jammer  <--  eval, setup
-config  <--  setup, sim.cc
-cli     <--  sim.cc
-setup   <--  sim.cc
-eval    <--  sim.cc, rl (link-table)
+config  <--  query, setup, sim.cc
+cli     <--  query, sim.cc
+setup   <--  query, sim.cc
+eval    <--  query, sim.cc, rl (link-table)
 traffic <--  sim.cc
 routing <--  sim.cc, rl
 io      <--  sim.cc
 rl      <--  sim.cc
+query   <--  sim.cc
 ```
 
 ## Python side (`scripts/`)

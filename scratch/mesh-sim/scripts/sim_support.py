@@ -3,6 +3,8 @@
 from collections import deque
 import os
 from pathlib import Path
+import signal
+import subprocess
 
 
 ## @fn find_mesh_root
@@ -108,3 +110,40 @@ def tail_lines(path: str | Path, count: int = 40) -> str:
     """Read only the trailing lines into memory for failure diagnostics."""
     with open(path, encoding="utf-8", errors="replace") as handle:
         return "\n".join(line.rstrip("\r\n") for line in deque(handle, maxlen=count))
+
+
+def _signal_group(proc: subprocess.Popen, signum: int) -> None:
+    """Signal the process group led by proc; fall back to proc alone if that fails."""
+    # macOS raises EPERM, not ESRCH, for a group whose only member is an exited leader.
+    try:
+        os.killpg(proc.pid, signum)
+        return
+    except (ProcessLookupError, PermissionError):
+        pass
+    try:
+        proc.send_signal(signum)  # Popen skips a proc that has already exited
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def stop_process(proc: subprocess.Popen, wait_s: float, process_group: bool = False) -> None:
+    """Terminate, kill after `wait_s`, and always reap; optionally the whole process group."""
+    if not process_group:
+        if proc.poll() is not None:
+            return
+        proc.terminate()
+        try:
+            proc.wait(timeout=wait_s)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        return
+    # Group mode: proc must lead its group (start_new_session=True). The final SIGKILL
+    # also reaches descendants that outlived or ignored SIGTERM after the leader exited.
+    _signal_group(proc, signal.SIGTERM)
+    try:
+        proc.wait(timeout=wait_s)
+    except subprocess.TimeoutExpired:
+        pass
+    _signal_group(proc, signal.SIGKILL)
+    proc.wait()

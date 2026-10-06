@@ -12,6 +12,7 @@ set(MESH_SIM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/config/config-loader.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/config/config-validator.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/config/rl-control.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/config/layout-override.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/util/string-utils.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/util/ini-parser.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cli/cli-parser.cc
@@ -24,6 +25,7 @@ set(MESH_SIM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/metrics-writer.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/rl/rl-bridge.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/jammer/jammer-model.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/query/channel-query.cc
 )
 
 # Target name must match the ns3 script convention:

@@ -9,6 +9,7 @@ and tested standalone.
 - **config-loader.h/cc** -- `ConfigLoader::Load(run_ini, positions_override="")`. Header holds the full run.ini key/default table and JSON field table.
 - **config-validator.h/cc** -- `ValidationResult`, `ValidateConfig()`.
 - **rl-control.h/cc** -- `ResolveRlControl()`, `ApplyRlControl()`, `ComputeTickCount()`, `ControlledStartPosition()`.
+- **layout-override.h/cc** -- `ApplyLayout()`: candidate start layout for `--channel-query`.
 
 ## Behavior to preserve
 - The validator collects all errors instead of failing fast; new rules must only `push_back`.
@@ -23,6 +24,10 @@ and tested standalone.
 - Empty `[output] dir` derives the timestamped path from the run.ini location (three levels
   below the mesh-sim root).
 - `[rl] reward_type = mean_sinr` is rewritten to `all_links_los`, old name kept in `reward_type_alias`.
+- `ApplyLayout` validates the whole layout before mutating anything. Waypoint nodes shift every
+  waypoint by the start delta exactly like `scripts/baselines/effective_inputs.py`
+  (`rewrite_nodes`); keep the two in step. Random-walk bounds apply only to nodes that are not
+  centrally RL-controlled (those run `ConstantVelocity`).
 
 ## Adding a run.ini key
 Update together: the `SimConfig` field in `domain/`, the read in `Load`, a rule in
@@ -35,4 +40,4 @@ Update together: the `SimConfig` field in `domain/`, the read in `Load`, a rule 
 
 ## Dependencies
 - Depends on: `domain/`, `util/` (`ini-parser.h`, `string-utils.h`), `third_party/json.hpp`
-- Depended on by: `sim.cc`, `setup/` (`rl-control.h`), `tests/unit/config`
+- Depended on by: `sim.cc`, `setup/` (`rl-control.h`), `query/` (`layout-override.h`, `rl-control.h`), `tests/unit/config`

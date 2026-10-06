@@ -23,6 +23,7 @@ explains `jammers.json`.
 | @ref config-validator.cc "config-validator.cc" | The checks; every rule runs even after an earlier failure. |
 | @ref rl-control.h "rl-control.h" | `ResolveRlControl()`, `ApplyRlControl()`, `ComputeTickCount()`, `ControlledStartPosition()`. |
 | @ref rl-control.cc "rl-control.cc" | Selector, slot-count, cadence, and start-position resolution. |
+| @ref layout-override.h "layout-override.h" / `.cc` | `ApplyLayout()`: moves node start x/y to a candidate layout for `--channel-query` (validated as a whole first; z, jammers and mobility kinds unchanged). |
 | `CLAUDE.md` | Scope and change notes for AI assistants. |
 
 ## Setup
@@ -37,7 +38,7 @@ There is no executable here. Run the unit suite from `scratch/mesh-sim/`:
 make -C tests/unit/config test
 ```
 
-The suite compiles these three files plus `src/util/` with plain `g++`. Do not
+The suite compiles these four files plus `src/util/` with plain `g++`. Do not
 use the top-level `make test` on Linux (its lint step needs macOS `xcrun`).
 
 ## Input Files
@@ -59,6 +60,7 @@ Paths inside `run.ini` are resolved against the `run.ini` directory.
 | `ConfigLoader::Load` | Returns a `SimConfig`; throws `std::runtime_error` for a bad `channel_model` or an unopenable file. Creates no files. |
 | `ValidateConfig` | Returns a `ValidationResult`; `errors` holds one string per problem. |
 | `ResolveRlControl` | Returns an `RlControlResolution`; `ApplyRlControl` copies it into `cfg.rl`. |
+| `ApplyLayout` | Returns one string per problem; on an empty result `cfg.nodes` start positions were rewritten. |
 
 ## Conventions
 

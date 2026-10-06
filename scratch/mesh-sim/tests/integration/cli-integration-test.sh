@@ -309,6 +309,266 @@ else
     fail "--rl-mode run with an active baseline should exit 0"
 fi
 
+# --- Channel query (--channel-query, contract mesh_channel_query_v1) ---
+# JSON checks use python3's standard library; any assertion message is printed on failure.
+RWALK="$MESH_SIM_DIR/inputs/baselines/16-random-walk-urban"
+for required in "$RWALK/run.ini" "$RWALK/nodes.json" "$RWALK/buildings.json"; do
+    if [[ ! -f "$required" ]]; then
+        echo "Error: missing required fixture: $required"
+        exit 1
+    fi
+done
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "Error: python3 is required for the channel query tests"
+    exit 1
+fi
+
+JAMMER_START='[[0.0, 0.0, 10.0], [100.0, 0.0, 10.0], [50.0, 50.0, 10.0]]'
+
+# run_bounded <seconds> <stdin> <stdout> <stderr> <cmd...>: the command's status,
+# or 124 after terminating (then killing) a command that overran the bound.
+run_bounded() {
+    local limit="$1" in="$2" out="$3" err="$4"
+    shift 4
+    "$@" <"$in" >"$out" 2>"$err" &
+    local pid=$! ticks=0 rc=0
+    while kill -0 "$pid" 2>/dev/null; do
+        if [[ $ticks -ge $((limit * 10)) ]]; then
+            kill -TERM "$pid" 2>/dev/null || true
+            sleep 1
+            kill -KILL "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+            return 124
+        fi
+        sleep 0.1
+        ticks=$((ticks + 1))
+    done
+    wait "$pid" || rc=$?
+    return "$rc"
+}
+
+# --- Test 13: init line on p0-jammer-smoke with --band=sub-6 ---
+echo "Test 13: channel query init line"
+rc=0
+run_bounded 60 /dev/null "$TMP/q13.out" "$TMP/q13.err" \
+    "$BIN" --run-config="$JAMMER/run.ini" --band=sub-6 --channel-query --seed=3 \
+    --output-dir="$TMP/q13-out" || rc=$?
+if [[ $rc -ne 0 ]]; then
+    fail "query worker with empty stdin should exit 0 (got $rc)"
+elif [[ -e "$TMP/q13-out" ]]; then
+    fail "query mode must not create the output directory"
+elif ! grep -qF -- "--output-dir is ignored with --channel-query" "$TMP/q13.err"; then
+    fail "stderr lacks the --output-dir note"
+elif msg=$(python3 - "$TMP/q13.out" "$JAMMER_START" 2>&1 <<'PY'
+import json, sys
+lines = open(sys.argv[1]).read().splitlines()
+assert len(lines) == 1, f"expected only the init line, got {len(lines)} lines"
+m = json.loads(lines[0])
+expect = {"type": "init", "contract": "mesh_channel_query_v1", "isolation": "fork_per_layout",
+          "node_ids": ["node-a", "node-b", "relay"], "band": "sub-6", "band_source": "cli",
+          "seed": 3, "run_id": 1, "jammer_seed": 3, "sinr_threshold_db": -6.7,
+          "jammer_path_enabled": True, "num_buildings": 0, "rl_enabled": False,
+          "controlled_indices": [], "time_s": 0.0}
+for key, value in expect.items():
+    assert m.get(key) == value, f"{key}: {m.get(key)!r} != {value!r}"
+assert m["start_positions"] == json.loads(sys.argv[2]), m["start_positions"]
+assert m["limits"]["max_layouts"] == 1024 and m["limits"]["max_probes"] == 10000, m["limits"]
+assert m["channel"]["frequency_ghz"] == 2.4 and m["channel"]["condition_model"] == "static_los"
+PY
+); then
+    pass "init line carries the contract, roster, seeds, band and limits"
+else
+    fail "init line check failed: $msg"
+fi
+
+# --- Test 14: one layout returns 3 links; EOF exits 0 ---
+echo "Test 14: one-layout channel query"
+printf '{"type":"evaluate","request_id":11,"layouts":[%s]}\n' "$JAMMER_START" > "$TMP/q14.in"
+rc=0
+run_bounded 60 "$TMP/q14.in" "$TMP/q14.out" "$TMP/q14.err" \
+    "$BIN" --run-config="$JAMMER/run.ini" --band=sub-6 --channel-query --seed=1 || rc=$?
+if [[ $rc -ne 0 ]]; then
+    fail "query worker should exit 0 at EOF (got $rc)"
+elif msg=$(python3 - "$TMP/q14.out" 2>&1 <<'PY'
+import json, math, sys
+lines = [json.loads(l) for l in open(sys.argv[1]).read().splitlines()]
+assert len(lines) == 2, f"expected init + 1 result, got {len(lines)} lines"
+r = lines[1]
+assert r["type"] == "result" and r["request_id"] == 11, r
+assert len(r["layouts"]) == 1, r
+L = r["layouts"][0]
+assert "error" not in L, L
+assert L["coverage"] is None, L["coverage"]
+links = L["links"]
+assert [row[:2] for row in links] == [[0, 1], [0, 2], [1, 2]], links
+for i, j, sinr, cap, los, connected in links:
+    assert math.isfinite(sinr) and math.isfinite(cap), (sinr, cap)
+    assert isinstance(los, bool) and connected == (sinr >= -6.7), (sinr, connected)
+assert L["wall_s"] >= 0 and r["wall_s"] >= 0
+PY
+); then
+    pass "3 links in i<j order with connected == (sinr_db >= -6.7); EOF exits 0"
+else
+    fail "one-layout result check failed: $msg"
+fi
+
+# --- Test 15: request errors keep the worker serving; shutdown stops it ---
+echo "Test 15: malformed request then valid request"
+{
+    echo '{"type":"evaluate","layouts":[[[0,0,10]'
+    echo '{"type":"bogus","request_id":5}'
+    printf '{"type":"evaluate","request_id":6,"layouts":[%s]}\n' "$JAMMER_START"
+    echo '{"type":"shutdown"}'
+    printf '{"type":"evaluate","request_id":7,"layouts":[%s]}\n' "$JAMMER_START"
+} > "$TMP/q15.in"
+rc=0
+run_bounded 60 "$TMP/q15.in" "$TMP/q15.out" "$TMP/q15.err" \
+    "$BIN" --run-config="$JAMMER/run.ini" --band=sub-6 --channel-query --seed=1 || rc=$?
+if [[ $rc -ne 0 ]]; then
+    fail "query worker should exit 0 on shutdown (got $rc)"
+elif msg=$(python3 - "$TMP/q15.out" 2>&1 <<'PY'
+import json, sys
+lines = [json.loads(l) for l in open(sys.argv[1]).read().splitlines()]
+types = [(m["type"], m.get("request_id")) for m in lines]
+assert types == [("init", None), ("error", None), ("error", 5), ("result", 6)], types
+assert "malformed" in lines[1]["message"] and "bogus" in lines[2]["message"], lines[1:3]
+assert "error" not in lines[3]["layouts"][0], lines[3]
+PY
+); then
+    pass "malformed and unknown requests answered with errors; worker kept serving until shutdown"
+else
+    fail "error/serving check failed: $msg"
+fi
+
+# --- Test 16: query mode needs exactly one seed ---
+echo "Test 16: --channel-query with two seeds"
+rc=0
+run_bounded 60 /dev/null "$TMP/q16.out" "$TMP/q16.err" \
+    "$BIN" --run-config="$JAMMER/run.ini" --channel-query --seeds=1,2 || rc=$?
+if [[ $rc -ne 1 ]]; then
+    fail "two seeds should exit 1 (got $rc)"
+elif ! grep -qF "Error: --channel-query needs exactly one seed" "$TMP/q16.err"; then
+    fail "stderr lacks the one-seed error"
+elif [[ -s "$TMP/q16.out" ]]; then
+    fail "stdout should be empty when the seed check fails"
+else
+    pass "two seeds rejected with the one-seed error"
+fi
+
+# --- Test 17: a layout outside random-walk bounds is a layout error, not an abort ---
+echo "Test 17: random-walk layout outside bounds"
+printf '%s\n' '{"type":"evaluate","request_id":1,"layouts":[[[150,0,30],[500,50,1.5],[250,-30,1.5]],[[150,0,30],[50,50,1.5],[250,-30,1.5]]]}' \
+    > "$TMP/q17.in"
+rc=0
+run_bounded 60 "$TMP/q17.in" "$TMP/q17.out" "$TMP/q17.err" \
+    "$BIN" --run-config="$RWALK/run.ini" --channel-query || rc=$?
+if [[ $rc -ne 0 ]]; then
+    fail "query worker should exit 0 (got $rc)"
+elif msg=$(python3 - "$TMP/q17.out" 2>&1 <<'PY'
+import json, sys
+lines = [json.loads(l) for l in open(sys.argv[1]).read().splitlines()]
+assert len(lines) == 2 and lines[1]["type"] == "result", lines
+bad, good = lines[1]["layouts"]
+assert "random_walk bounds" in bad.get("error", ""), bad
+assert "error" not in good and len(good["links"]) == 3, good
+PY
+); then
+    pass "outside-bounds layout reported per layout; the next layout still scored"
+else
+    fail "random-walk layout check failed: $msg"
+fi
+
+# --- Test 18: a response larger than the pipe capacity drains without deadlock ---
+echo "Test 18: large probe response"
+python3 - "$JAMMER_START" > "$TMP/q18.in" <<'PY'
+import json, sys
+points = [[float(x), float(y)] for x in range(100) for y in range(-50, 50)]
+print(json.dumps({"type": "evaluate", "request_id": 18, "layouts": [json.loads(sys.argv[1])],
+                  "probes": {"height_m": 1.5, "rx_gain_dbi": 12.0, "sinr_db": -6.7,
+                             "points": points}}))
+PY
+rc=0
+run_bounded 300 "$TMP/q18.in" "$TMP/q18.out" "$TMP/q18.err" \
+    "$BIN" --run-config="$JAMMER/run.ini" --band=sub-6 --channel-query --seed=1 || rc=$?
+if [[ $rc -eq 124 ]]; then
+    fail "large probe request did not finish within 300 s"
+elif [[ $rc -ne 0 ]]; then
+    fail "query worker should exit 0 (got $rc)"
+elif msg=$(python3 - "$TMP/q18.out" 2>&1 <<'PY'
+import json, sys
+lines = open(sys.argv[1]).read().splitlines()
+assert len(lines) == 2, f"expected init + 1 result, got {len(lines)} lines"
+r = json.loads(lines[1])
+L = r["layouts"][0]
+assert "error" not in L, L
+assert len(L["coverage"]) == 3, L["coverage"]
+for covered in L["coverage"]:
+    assert covered == sorted(set(covered)) and all(0 <= k < 10000 for k in covered)
+assert len(lines[1]) > 65536, f"response is only {len(lines[1])} bytes"
+PY
+); then
+    pass "response over 64 KiB drained and parsed"
+else
+    fail "large response check failed: $msg"
+fi
+
+# --- Test 19: SIGTERM to a busy worker leaves no query child behind ---
+# Only the worker's own PID, its children and (with job control) its process group are inspected.
+echo "Test 19: worker termination cleans up its child"
+python3 - "$JAMMER_START" > "$TMP/q19.in" <<'PY'
+import json, sys
+points = [[float(x), float(y)] for x in range(100) for y in range(-50, 50)]
+layout = json.loads(sys.argv[1])
+print(json.dumps({"type": "evaluate", "request_id": 19, "layouts": [layout] * 1024,
+                  "probes": {"height_m": 1.5, "rx_gain_dbi": 12.0, "sinr_db": -6.7,
+                             "points": points}}))
+PY
+set -m
+"$BIN" --run-config="$JAMMER/run.ini" --band=sub-6 --channel-query --seed=1 \
+    <"$TMP/q19.in" >"$TMP/q19.out" 2>"$TMP/q19.err" &
+qpid=$!
+set +m
+qpgid=$(ps -o pgid= -p "$qpid" 2>/dev/null | tr -d ' ' || true)
+child=""
+for _ in $(seq 1 200); do
+    child=$(pgrep -P "$qpid" 2>/dev/null | head -n 1 || true)
+    [[ -n "$child" ]] && break
+    sleep 0.1
+done
+# Re-read the active child: layouts run one child at a time.
+active=$(pgrep -P "$qpid" 2>/dev/null | head -n 1 || true)
+[[ -n "$active" ]] && child="$active"
+kill -TERM "$qpid" 2>/dev/null || true
+for _ in $(seq 1 100); do
+    kill -0 "$qpid" 2>/dev/null || break
+    sleep 0.1
+done
+kill -KILL "$qpid" 2>/dev/null || true
+wait "$qpid" 2>/dev/null || true
+leftover=""
+for _ in $(seq 1 50); do
+    leftover=""
+    if [[ -n "$child" ]]; then
+        st=$(ps -o stat= -p "$child" 2>/dev/null || true)
+        [[ -n "$st" && "$st" != *Z* ]] && leftover="child $child"
+    fi
+    if [[ "$qpgid" == "$qpid" ]]; then
+        group=$(pgrep -g "$qpid" 2>/dev/null | tr '\n' ' ' || true)
+        [[ -n "$group" ]] && leftover="$leftover group: $group"
+    fi
+    [[ -z "$leftover" ]] && break
+    sleep 0.1
+done
+if [[ -z "$child" ]]; then
+    fail "no query child appeared within 20 s"
+elif [[ -n "$leftover" ]]; then
+    fail "processes remain after terminating the worker: $leftover"
+    [[ "$qpgid" == "$qpid" ]] && kill -KILL -- "-$qpid" 2>/dev/null || true
+    kill -KILL "$child" 2>/dev/null || true
+else
+    pass "SIGTERM to the worker also removed its active child"
+fi
+
 # --- Summary ---
 echo ""
 echo "Results: $PASS passed, $FAIL failed."
