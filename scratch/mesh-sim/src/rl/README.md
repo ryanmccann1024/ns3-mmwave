@@ -2,42 +2,61 @@
 
 @brief Wire contract for the stdin/stdout JSON bridge between the C++ simulator and the Python Gymnasium environment.
 
+## Module Layout
 
-## RL bridge contract
+| File | Role |
+|------|------|
+| `rl-bridge.h` / `rl-bridge.cc` | `RlBridge`: writes `init` and `step` messages, reads actions, builds masks, clamps velocity each tick. |
+| `rl-agent.h` | Unused no-op placeholder; nothing includes it. |
+| `README.md` | This page: the message, mode, and action contract. |
+| @ref src_rl_policy_inputs "policy-inputs.md" | Observation presets, reward components, telemetry. |
+| @ref src_rl_decision_records "decision-records.md" | Opt-in per-episode decision records. |
+| @ref src_rl_policy_input_tests "policy-input-tests.md" | Test map for centralized RL and policy inputs. |
+| @ref src_rl_policy_lifecycle_tests "policy-lifecycle-tests.md" | Test map for the validate, train, inspect, evaluate lifecycle. |
+| @ref src_rl_policy_comparison_tests "policy-comparison-tests.md" | Test map for policy comparison and experiment matrices. |
+
+## Overview
 
 At each decision, the simulator sends Python what the policy can see (`obs`),
 which moves are allowed (`mask`), its reward, and raw measurements (`facts`).
 The Gymnasium environment validates that message, selects the configured
 observation and reward, and passes them to MaskablePPO. The chosen joint action
 returns through the bridge; the simulator applies it until the next decision.
-A decision window is the simulator ticks between those chances to change
-direction. Each tick still updates movement, links, traffic, and reward.
 
-C++ owns movement limits, action validity, and base reward accumulation. Python
-converts and validates messages; it never re-derives masks or clamps.
-For a code walkthrough, start with the tick loop in `sim.cc`, then
-`src/config/rl-control.cc` for the selected nodes and timing, then
-`src/rl/rl-bridge.cc` for the messages, actions, and tick reward. Follow one
-`step` into `scripts/rl/env/mesh_env.py` to see what Gymnasium returns.
+- A decision window is the simulator ticks between two chances to change
+  direction. Each tick still updates movement, links, traffic, and reward.
+- C++ owns movement limits, action validity, and base reward accumulation.
+  Python converts and validates messages; it never re-derives masks or clamps.
 
-The Python side is documented in [`scripts/rl/README.md`](../../scripts/rl/README.md),
-[`scripts/rl/env/README.md`](../../scripts/rl/env/README.md),
-[`scripts/rl/policy/README.md`](../../scripts/rl/policy/README.md), and
-[`scripts/rl/tests/README.md`](../../scripts/rl/tests/README.md). In short,
-`scripts/rl/env/mesh_env.py` owns the Gymnasium API,
-`protocol.py` validates actions and messages, and `episode.py` owns the
-simulator process, episode directories, diagnostics, and manifest.
-`selection.py` resolves the observation/reward/telemetry selection and its
-precedence, and validates it. `observations.py` owns the named observation
-presets and their schema identity. `rewards.py` owns the reward components and
-the composer. `telemetry.py` owns `steps.jsonl` records and their replay.
-`decisions.py` writes the opt-in [decision records](decision-records.md).
-For training, follow [`train.py`](../../scripts/rl/train.py) (CLI and model
-output) into [`agents/mask_ppo.py`](../../scripts/rl/agents/mask_ppo.py)
-(MaskablePPO setup), then into the environment. Within `env/`, `config.py`
-reads the seed and movement bounds.
+## Code Walkthrough
+
+1. The tick loop in `sim.cc`.
+2. `src/config/rl-control.cc`: selected nodes and timing.
+3. `src/rl/rl-bridge.cc`: messages, actions, and tick reward.
+4. `scripts/rl/env/mesh_env.py`: what Gymnasium returns for one `step`.
+
+## Python Side
+
+Documented in [`scripts/rl/README.md`](@ref scripts_rl),
+[`scripts/rl/env/README.md`](@ref scripts_rl_env),
+[`scripts/rl/policy/README.md`](@ref scripts_rl_policy), and
+[`scripts/rl/tests/README.md`](@ref scripts_rl_tests).
+
+| Python file | Owns |
+|-------------|------|
+| `env/mesh_env.py` | The Gymnasium API. |
+| `env/protocol.py` | Action and message validation. |
+| `env/episode.py` | Simulator process, episode directories, diagnostics, manifest. |
+| `env/selection.py` | Observation, reward, and telemetry selection, precedence, validation. |
+| `env/observations.py` | Named observation presets and schema identity. |
+| `env/rewards.py` | Reward components and the composer. |
+| `env/telemetry.py` | `steps.jsonl` records and their replay. |
+| `env/decisions.py` | The opt-in [decision records](@ref src_rl_decision_records). |
+| `env/config.py` | Seed and movement bounds. |
+| `train.py`, `agents/mask_ppo.py` | Training CLI and model output, then MaskablePPO setup. |
+
 For a worked configuration, formulas, normalization, and trace inspection, see
-the [policy-input guide](policy-inputs.md).
+the [policy-input guide](@ref src_rl_policy_inputs).
 
 ## Modes
 
@@ -50,7 +69,7 @@ the [policy-input guide](policy-inputs.md).
 automatic migration: legacy action `4` is `-Z`, centralized action `4` is hold.
 `action_set` and `dimensions` are not configuration keys.
 
-## Centralized contract (`mesh_move_2d_v1`)
+## Centralized contract (mesh_move_2d_v1)
 
 Here, **contract** means the agreed C++/Python message and action format—not a
 radio link or a training objective. `mesh_move_2d_v1` identifies the current
@@ -207,7 +226,7 @@ Legacy `step` remains unchanged: `type`, `tick`, `time_s`,
 `time_s` is simulated time, never wall clock, so identical inputs give identical
 stdout.
 
-## Per-decision facts (`mesh_facts_v1`)
+## Per-decision facts (mesh_facts_v1)
 
 Every centralized `step` carries a `facts` object of raw simulator values; C++
 does no clipping, scaling, or feature selection. Legacy mode emits no facts and
@@ -297,7 +316,7 @@ resets stay deterministic, but that alone does not make an RL-versus-baseline
 comparison fair: confirm uncontrolled and jammer randomness is paired before any
 such campaign.
 
-## Saved scenario identity
+## Saved scenario identity {#src_rl_saved_scenario_identity}
 
 Training writes `scenario_identity` in `train_manifest.json` with five fields
 (`read_scenario_identity` in `scripts/rl/env/config.py`): `run_config` is the
@@ -314,4 +333,4 @@ proof that a model transfers. The selected node order and protocol settings are
 saved separately in the manifest's `contract` field.
 
 For the checklist when changing the protocol or saved-file format, see
-[`CONTRIBUTING.md`](../../CONTRIBUTING.md).
+[`CONTRIBUTING.md`](@ref Contributing).

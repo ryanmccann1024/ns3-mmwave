@@ -1,14 +1,16 @@
-# `run.ini` settings
+@page src_config_run_ini_reference src/config/run-ini-reference
+
+@brief Every run.ini key the simulator reads, with defaults and units.
 
 These are the keys read by the simulator, plus the five `[rl]` selection keys
 read by Python. Omitted keys use the defaults below; unknown keys are silently
 ignored. Input-file paths are relative to `run.ini`. For action and reward
-behavior, see the [RL bridge](../rl/README.md); for `jammers.json`, see the
-[jammer model](../jammer/README.md). Command-line overrides are listed in the
-[CLI guide](../cli/README.md). `--channel-query` mode reads the same file and
-keys as a run (no query-specific keys); see the [query contract](../query/README.md).
+behavior, see the [RL bridge](@ref src_rl); for `jammers.json`, see the
+[jammer model](@ref src_jammer). Command-line overrides are listed in the
+[CLI guide](@ref src_cli). `--channel-query` mode reads the same file and
+keys as a run (no query-specific keys); see the [query contract](@ref src_query).
 
-## `[scenario]` and `[output]`
+## [scenario] and [output]
 
 | Key | Default | Controls |
 | --- | --- | --- |
@@ -24,7 +26,7 @@ keys as a run (no query-specific keys); see the [query contract](../query/README
 | `[output] dir` | timestamped `outputs/` path | Output root; a relative value resolves from `run.ini`. CLI `--output-dir` overrides it. |
 | `[output] viz_tick_ms` | `100` | Milliseconds between visualization CSV snapshots. |
 
-## `[channel]`
+## [channel]
 
 `band` chooses a simulator mode; it is not inferred from `frequency_ghz`.
 Jammers contribute interference only in `sub-6` mode. The jammer's
@@ -46,7 +48,7 @@ Jammers contribute interference only in `sub-6` mode. The jammer's
 | `tx_array_gain_dbi` | `12` | Default mesh-node transmit antenna gain in dBi. |
 | `rx_array_gain_dbi` | `12` | Default mesh-node receive antenna gain in dBi. |
 
-## `[nyu_channel]`
+## [nyu_channel]
 
 These settings matter only when `[channel] channel_model = nyu`, except
 `rf_bandwidth_mhz`, which is currently parsed but not applied.
@@ -64,13 +66,13 @@ These settings matter only when `[channel] channel_model = nyu`, except
 | `foliage_loss_db_m` | `0.4` | Foliage loss per metre. |
 | `o2i_loss_type` | `Low Loss` | Outdoor-to-indoor loss class (`Low Loss` or `High Loss`). |
 
-## `[traffic]` and `[routing]`
+## [traffic] and [routing]
 
 Traffic is flow-level demand, not packets. `constant` keeps flows active,
 `poisson` starts flows randomly, and `on_off` alternates sending and silence.
 `all_pairs` connects every pair, `random_pairs` samples pairs, and `gateway`
-connects each other node to one gateway. See the [traffic](../traffic/README.md)
-and [routing](../routing/README.md) modules for the code that owns them.
+connects each other node to one gateway. See the [traffic](@ref src_traffic)
+and [routing](@ref src_routing) modules for the code that owns them.
 
 | Key | Default | Controls |
 | --- | --- | --- |
@@ -85,7 +87,7 @@ and [routing](../routing/README.md) modules for the code that owns them.
 | `[routing] algorithm` | `shortest_path` | Inverse-capacity shortest path, widest-capacity path (`max_throughput`), or fewest hops (`min_hop`). |
 | `max_hops` | `5` | Maximum hops per route; `0` means unlimited. |
 
-## `[rl]`
+## [rl]
 
 With `enabled = false`, the remaining C++ RL keys do not control the run. The
 jammer-only smoke scenario uses this setting: its `[rl]` block is inert in the
@@ -109,7 +111,7 @@ regression run. CLI `--rl-mode` turns RL on even if the file says `false`.
 
 The next five keys are read by Python's centralized RL environment, **not** by
 the C++ simulator. Each also has a training CLI override; see the [RL setup
-guide](../../README.md#selecting-observations-rewards-and-telemetry).
+guide](@ref readme_selecting_observations).
 
 | Key | Default | Controls |
 | --- | --- | --- |
@@ -119,7 +121,7 @@ guide](../../README.md#selecting-observations-rewards-and-telemetry).
 | `telemetry` | `none` | `none` or `steps` decision-level records. |
 | `telemetry_every` | `1` | Record every Nth decision when `telemetry = steps`. |
 
-## `[baseline]`
+## [baseline]
 
 Selects a placement baseline. The C++ simulator reads only `algorithm`, and
 never plans placements: a direct run with `geometric` or `optimization` exits
@@ -151,4 +153,4 @@ and rejects unknown keys and values; the binary ignores keys other than
 
 `gateway_node_id` and `rf_config` are no longer accepted: baselines are
 gateway-free and candidates are scored by the simulator channel (see
-[`scripts/baselines/README.md`](../../scripts/baselines/README.md)).
+[`scripts/baselines/README.md`](@ref scripts_baselines)).

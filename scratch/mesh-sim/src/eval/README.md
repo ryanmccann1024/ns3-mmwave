@@ -61,7 +61,7 @@ No files are written. Two in-memory structures are produced each tick.
 - **Free-space floor.** Path loss is never below free-space path loss at `max(distance, 1 m)`. This removes SINR spikes at short range and at `d = 0`.
 - **Jammer handling.** Uses the larger of the jammer power at the RX and TX ends. When any jammer power is present, SINR is clamped to a minimum of 0 dB.
 
-### Capacity models (`[channel] amc_model`)
+### Capacity models ([channel] amc_model)
 - `shannon`: `B·log2(1+SINR)`.
 - `table`: CQI spectral efficiency times bandwidth (16 entries, indices 0–15).
 - `silvus`: Silvus single-stream MCS 0–6, scaled from 20 MHz to the configured bandwidth.

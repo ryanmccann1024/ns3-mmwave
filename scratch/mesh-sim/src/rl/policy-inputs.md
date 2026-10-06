@@ -7,7 +7,7 @@ traffic, and per-tick reward in C++; every decision message includes those raw
 measurements as `facts`. Python's `selection.py` chooses what the policy sees,
 what reward Gymnasium returns, and whether to save decision records. The
 simulator's physics and action masks do not change when these options change.
-For actions and timing, see the [bridge contract](README.md); for the Python modules, see the [environment README](../../scripts/rl/env/README.md).
+For actions and timing, see the [bridge contract](@ref src_rl); for the Python modules, see the [environment README](@ref scripts_rl_env).
 
 ## Try one selection
 
@@ -22,7 +22,7 @@ telemetry = steps
 telemetry_every = 2
 ```
 
-Then run the training command in the [RL setup guide](../../README.md#selecting-observations-rewards-and-telemetry).
+Then run the training command in the [RL setup guide](@ref readme_selecting_observations).
 Its five matching CLI flags can override these keys independently; resolution
 is CLI > `run.ini` > default. The resolved values and their sources go into
 `train_manifest.json` and each `episode-NNNN/rl_episode.json`. Omitting
@@ -154,18 +154,18 @@ head -n 2 outputs/rl-multi-custom/episode-0000/steps.jsonl
 Replay rebuilds saved observations and Python-composed rewards from each
 record's raw facts and checks for mismatches. It does not rerun radio physics,
 verify unsaved decisions, or recheck a C++-authored reward. See the
-[test map](policy-input-tests.md) for
+[test map](@ref src_rl_policy_input_tests) for
 the small fake-simulator and real-binary checks behind this contract.
 
 Decision records are a separate opt-in (`--decision-records` on `train.py` and
 `evaluate.py`) that joins each action to the preceding `steps.jsonl` record and
-its outcome window; see [decision records](decision-records.md).
+its outcome window; see [decision records](@ref src_rl_decision_records).
 
-## Reading an RL output directory
+## Reading an RL output directory {#src_rl_reading_output}
 
-Start with the [output-location table](../../README.md#where-output-lands),
+Start with the [output-location table](@ref readme_where_output_lands),
 then read these files in order. The ordinary simulator CSV columns are covered
-by the [I/O guide](../io/README.md) and are separate from the RL policy input.
+by the [I/O guide](@ref src_io) and are separate from the RL policy input.
 
 | File | First question it answers |
 | --- | --- |

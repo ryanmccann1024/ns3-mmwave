@@ -9,8 +9,8 @@ all three at startup; you only edit this directory to add or change a
 `run.ini` key or a validation rule.
 
 For every supported `run.ini` key, its default, and what it controls, see the
-[run.ini settings reference](run-ini-reference.md). The [RL bridge](../rl/README.md)
-explains action and reward behavior; the [jammer model](../jammer/README.md)
+[run.ini settings reference](@ref src_config_run_ini_reference). The [RL bridge](@ref src_rl)
+explains action and reward behavior; the [jammer model](@ref src_jammer)
 explains `jammers.json`.
 
 ## Module Layout
