@@ -14,7 +14,7 @@ specified in `src/rl/policy-inputs.md`. Read those before changing anything here
   (they come from the simulator's `init` / first `step`). A later reset whose
   contract signature differs is a protocol error, and the original spaces stay.
 - `episode.py` -- `EpisodeSession`: one simulator subprocess per `reset`
-  (`--rl-mode --seed --output-dir=<root>/episode-NNN`), a stderr tail, a stdout
+  (`--rl-mode --seed --output-dir=<root>/episode-NNNN`), a stderr tail, a stdout
   drain thread on close, and ownership of `rl_episode.json` (status
   `completed` / `interrupted` / `failed`). Every exit path must leave no child
   process or reader thread; tests assert this.
