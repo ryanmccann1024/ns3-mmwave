@@ -1,6 +1,7 @@
 /* -*- Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
-/*
- * RL bridge: stdin/stdout JSON IPC between the C++ sim and a Python RL agent.
+/**
+ * @file rl-bridge.h
+ * @brief RL bridge: stdin/stdout JSON IPC between the C++ sim and a Python RL agent.
  *
  * Legacy mode (one controlled node, Discrete(7)) writes one message per tick.
  * Centralized mode (`rl.controlled_nodes`) writes an `init` line once, then one

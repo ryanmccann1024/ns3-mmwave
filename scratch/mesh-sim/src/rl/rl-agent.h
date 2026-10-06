@@ -1,6 +1,7 @@
 /* -*- Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
-/*
- * Unused no-op placeholder; nothing includes it. The live agent path is rl-bridge.h.
+/**
+ * @file rl-agent.h
+ * @brief Unused no-op placeholder; nothing includes it. The live agent path is rl-bridge.h.
  */
 #pragma once
 

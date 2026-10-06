@@ -13,7 +13,7 @@ simulator; you only edit it to add or change a flag.
 Shortest run (the user builds the binary; do not build from here):
 
 ```bash
-./ns3 run scratch/mesh-sim/sim -- --run-config=scratch/mesh-sim/inputs/calfex/06-25/1227-1413/run.ini
+./ns3 run scratch/mesh-sim/sim -- --run-config=scratch/mesh-sim/inputs/baselines/p0-smoke/run.ini
 ```
 
 ## Run / how to access the files
