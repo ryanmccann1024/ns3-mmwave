@@ -72,7 +72,11 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
   - No multi-line block comments above functions. If the *why* truly
     needs more than one line, two lines max.
   - Put protocol narratives and examples in the relevant module README. Avoid
-    section banners, agent notes, and Doxygen-style `@brief` in Python scripts.
+    section banners and agent notes.
+  - Doxygen `##` / `@fn` / `@brief` blocks are allowed in Python. Where a
+    package already uses them (`arpo_data`, `validation`, `sweep`,
+    `plotting`), follow its CLAUDE.md; the block-length rule above does not
+    apply to them.
 - When adding new source files, update `CMakeLists.txt`'s source list.
 - New C++ unit test suites: follow `tests/CLAUDE.md` (add to `UNIT_DIRS`).
 - Before changing a user-visible behavior (`run.ini`/CLI option, RL
