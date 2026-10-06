@@ -1,9 +1,11 @@
-@page inputs inputs
+@page Inputs Inputs
 
 @brief Scenario definitions (`run.ini` + JSON files) that drive mesh-sim runs, plus RL experiment and sweep specs.
 
 Each scenario is a directory holding the files that drive one simulation run.
 Scenarios only describe inputs; run products go to `outputs/`.
+Per-scenario details live in @ref inputs_baselines; `run.ini` keys live in the
+[run.ini reference](@ref src_config_run_ini_reference).
 
 ## Module Layout
 
@@ -22,8 +24,8 @@ mmWave trials, the CalFEX inputs describe sub-6 field scenarios.
 
 | File | Required | Role |
 |---|---|---|
-| `run.ini` | yes | Simulation parameters. Keys and defaults: [run.ini reference](../src/config/run-ini-reference.md) |
-| `nodes.json` | yes (path from `nodes_file`) | Node positions and mobility; IDs unique, all `role: "peer"` |
+| `run.ini` | yes | Simulation parameters. Keys and defaults: [run.ini reference](@ref src_config_run_ini_reference) |
+| `nodes.json` | yes (path from `nodes_file`, default `nodes.json`) | Node positions and mobility; IDs unique, all `role: "peer"` |
 | `buildings.json` | no (`buildings_file`) | Building geometry |
 | `jammers.json` | no (`jammers_file`) | Jammers; only active when the band is `sub-6` |
 
@@ -34,6 +36,17 @@ File paths inside `run.ini` are relative to the `run.ini` file.
 The band resolves as `--band` > `[channel] band` in `run.ini` > default `mmwave`.
 The `calfex/` scenarios do not set `band`, so pass `--band sub-6` for their
 jammers to take effect.
+
+## Setup
+
+Scenarios need no setup beyond a built simulator binary. Only `calfex/` must be
+generated, from `scratch/mesh-sim/`:
+
+```bash
+python -m scripts.validation.build_config_files --help
+```
+
+The Python tools (sweeps, experiments) need the venv, see the top-level README.
 
 ## Run
 
@@ -53,6 +66,21 @@ python -m scripts.rl.experiment --help
 python -m scripts.rl.ops.tune --help
 ```
 
+## Output
+
+| Step | Where |
+|---|---|
+| Simulator run | `outputs/YYYY-MM/DD/HH-MM-SS/seed-N/` (override with `--output-dir`); scenario inputs are archived there |
+| Sweep, experiment, tuning | Written by the Python tool; see its README |
+
+Nothing is written into `inputs/`.
+
+## Conventions
+
+- Numbered baselines change exactly one knob from scenario 01, so you can diff back to see what changed. See [Baseline Scenarios](@ref inputs_baselines) for the full table and how to read the output graphs.
+- Scenario data (`run.ini` values, JSON) defines scenario identity; do not edit it for documentation work.
+- Every `run.ini` starts with a header comment explaining the scenario.
+
 ## Related Directories
 
 - `data/`: local raw and derived field telemetry, read-only input to the
@@ -61,9 +89,8 @@ python -m scripts.rl.ops.tune --help
 - `tests/fixtures/regression/p0/`: regression reference snapshots, external and
   untracked except `manifest.json`; never recapture them from changed code.
 
-## Design philosophy
+## Dependencies
 
-The numbered baselines are ordered by complexity.  Each one changes **exactly one
-knob** from scenario 01, so you can always diff back to understand what
-changed.  See [Baseline Scenarios](@ref inputs_baselines) for the full table
-and a guide to interpreting the output graphs.
+- A built mesh-sim binary (built by the user with ns-3; not covered here).
+- Python 3 with the project venv for `scripts.sweep.cli`, `scripts.rl.experiment` and `scripts.rl.ops.tune` (tuning also needs `requirements-tuning.txt`).
+- `calfex/` needs field data under `data/` to regenerate.
