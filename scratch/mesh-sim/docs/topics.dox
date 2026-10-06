@@ -1,4 +1,17 @@
 /**
+* @page overview Overview
+*
+*/
+
+
+/**
+ * @page inputs_topic Inputs Topic
+ * Scenario definitions and sweep/experiment specs.
+ *
+ * - @subpage Inputs
+ */
+
+/**
  * @page scripts Scripts
  * Field data processing and simulation validation pipelines.
  *
@@ -7,6 +20,8 @@
  * - @subpage scripts_validation
  * - @subpage scripts_sweep
  * - @subpage scripts_plotting
+ * - @subpage scripts_baselines
+ * - @subpage scripts_baselines_planners
  * ## RL Packages   
  * - @subpage scripts_rl
 	* - @subpage scripts_rl_env
@@ -23,6 +38,7 @@
  * ## Simulation Modules   
  * - @subpage src_domain
  * - @subpage src_config
+	* - @subpage src_config_run_ini_reference
  * - @subpage src_eval
  * - @subpage src_routing
  * - @subpage src_jammer
@@ -38,4 +54,12 @@
 	* - @subpage src_rl_policy_input_tests
 	* - @subpage src_rl_policy_lifecycle_tests
 	* - @subpage src_rl_policy_comparison_tests
+ 	* - @subpage src_rl_decision_records
+*/
+
+/**
+ * @page tests_topic Tests Topic
+ * C++ unit tests, CLI integration checks, and regression fixtures.
+ *
+ * - @subpage tests
  */

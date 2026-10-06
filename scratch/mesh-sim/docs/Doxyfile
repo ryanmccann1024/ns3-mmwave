@@ -872,6 +872,7 @@ INPUT                  = ../scripts \
                          ../CONTRIBUTING.md \
                          ../inputs/README.md \
                          ../inputs/baselines/README.md \
+                         ../tests/README.md \
                          topics.dox
 
 
