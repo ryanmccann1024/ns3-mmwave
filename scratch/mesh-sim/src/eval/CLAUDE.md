@@ -6,7 +6,7 @@ propagation models; no cellular stack. Only `sinr-capacity.h` and `link-table.*`
 are ns-3-free.
 
 ## Files
-- **link-evaluator.h/cc** -- `LinkEvaluator` (`Configure`, `Evaluate`, `EvaluateAll`); owns a `JammerModel`.
+- **link-evaluator.h/cc** -- `LinkEvaluator` (`Configure`, `Evaluate`, `EvaluateAll`, `EvaluateProbe`); owns a `JammerModel`.
 - **sinr-capacity.h** -- header-only `SINR_MIN_DB`, `MCS_TABLE`, `SILVUS_MCS_TABLE`, `SinrToMcsIndex`, `SinrToSilvusMcsIndex`, `SinrToCapacity`.
 - **link-table.h/cc** -- `LinkTable` symmetric N×N matrix: `Update`, `Get`, `MaxCapacity`, `ConnectedLinkCount`, `IsConnected`.
 
@@ -18,6 +18,9 @@ are ns-3-free.
 - Path loss is floored at free-space loss (distance floored at 1 m).
 - Jammer power counts only when `band == "sub-6"` and jammers exist, using the max
   of RX-end and TX-end power. Nonzero jammer power clamps SINR to >= 0 dB; otherwise SINR is plain SNR.
+- `Evaluate` and `EvaluateProbe` share one private body (`EvaluateLink`); change physics there
+  once. Each call may draw from the condition/propagation model streams, so call order is part
+  of the realization (`query/` relies on `EvaluateAll` running first).
 - `-999` sentinel comes only from a default `LinkResult` (e.g. `LinkTable` diagonal);
   the evaluator never writes it. Consumers filter on `sinr_db > -900`.
 - The `-6.7` default in `LinkTable` and `SINR_MIN_DB` are separate literals; keep them equal.
@@ -32,4 +35,4 @@ throws), `domain/link-result.h`, and the consumers (`io/`, `routing/`, `rl/`). U
 
 ## Dependencies
 - Depends on: `domain/`, `jammer/`, ns-3 (propagation, mobility, channel condition)
-- Depended on by: `sim.cc`, `routing/` (link-table), `io/` (link-table, sinr-capacity), `rl/` (link-table)
+- Depended on by: `sim.cc`, `query/`, `routing/` (link-table), `io/` (link-table, sinr-capacity), `rl/` (link-table)

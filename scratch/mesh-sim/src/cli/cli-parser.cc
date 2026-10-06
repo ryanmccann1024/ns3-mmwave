@@ -53,6 +53,10 @@ ParseCommandLine(int argc, char* argv[])
                  "Override [channel] band from run.ini: 'mmwave' (jammer interference "
                  "disabled) or 'sub-6' (jammer interference enabled).",
                  args.band);
+    cmd.AddValue("channel-query",
+                 "Serve candidate-layout channel queries (mesh_channel_query_v1 NDJSON) on "
+                 "stdin/stdout instead of running; writes no output files.",
+                 args.channel_query);
     cmd.Parse(argc, argv);
 
     //Makes config path required
@@ -84,6 +88,11 @@ ParseCommandLine(int argc, char* argv[])
         std::exit(1);
     }
 
+    if (args.channel_query && !args.output_dir.empty())
+    {
+        std::cerr << "Note: --output-dir is ignored with --channel-query.\n";
+    }
+
     return args;
 }
 
@@ -113,6 +122,18 @@ ResolveSeeds(const CliArgs& args, const SimConfig& cfg)
     }
 
     return seeds;
+}
+
+uint32_t
+ResolveQuerySeed(const CliArgs& args, const SimConfig& cfg)
+{
+    const auto seeds = ResolveSeeds(args, cfg);
+    if (seeds.size() != 1)
+    {
+        std::cerr << "Error: --channel-query needs exactly one seed\n";
+        std::exit(1);
+    }
+    return seeds.front();
 }
 
 void

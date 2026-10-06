@@ -10,6 +10,7 @@ Header-only POD config and result types. No ns-3 includes and no logic beyond
 - **channel-config.h** -- `ChannelConfig`, `NyuChannelConfig`
 - **mesh-config.h** -- `MeshConfig`, `TrafficConfig`, `RoutingConfig`
 - **link-result.h** -- `LinkResult` (one per node pair per tick)
+- **probe-spec.h** -- `ProbeGrid` (channel-query coverage probes)
 
 ## Behavior to preserve
 - Defaults in the structs must match the fallbacks in `ConfigLoader::Load` and

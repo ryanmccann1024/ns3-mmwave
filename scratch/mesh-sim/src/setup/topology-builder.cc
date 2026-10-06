@@ -65,10 +65,17 @@ TopologyBuilder::TopologyBuilder(const SimConfig& cfg)
 }
 
 void
+TopologyBuilder::SetProbes(const ProbeGrid& probes)
+{
+    m_probes = probes;
+}
+
+void
 TopologyBuilder::Build()
 {
     CreateNodesAndMobility();
     CreateJammersAndMobility();
+    CreateProbes();
     CreateBuildings();
     ConfigurePropagationModel();
 }
@@ -87,6 +94,12 @@ std::vector<Ptr<MobilityModel>>
 TopologyBuilder::GetJammerMobilityModels() const
 {
     return m_jammerMobilityModels;
+}
+
+std::vector<Ptr<MobilityModel>>
+TopologyBuilder::GetProbeMobilityModels() const
+{
+    return m_probeMobilityModels;
 }
 
 Ptr<PropagationLossModel>
@@ -208,6 +221,20 @@ TopologyBuilder::CreateJammersAndMobility()
         }
 
         m_jammerMobilityModels.push_back(node->GetObject<MobilityModel>());
+    }
+}
+
+void
+TopologyBuilder::CreateProbes()
+{
+    for (const auto& p : m_probes.points)
+    {
+        Ptr<Node> node = CreateObject<Node>();
+        Ptr<ConstantPositionMobilityModel> mm = CreateObject<ConstantPositionMobilityModel>();
+        mm->SetPosition(Vector(p.x, p.y, p.z));
+        node->AggregateObject(mm);
+        m_nodes.Add(node);
+        m_probeMobilityModels.push_back(mm);
     }
 }
 

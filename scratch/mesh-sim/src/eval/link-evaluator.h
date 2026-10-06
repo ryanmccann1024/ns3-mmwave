@@ -23,6 +23,8 @@
 #include "ns3/mobility-model.h"
 #include "ns3/propagation-loss-model.h"
 
+#include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -122,7 +124,39 @@ class LinkEvaluator
         const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs,
        	double nowS = 0.0) const;
 
+    /// @c LinkResult::rx_id written for a probe link.
+    static constexpr uint32_t kProbeRxId = std::numeric_limits<uint32_t>::max();
+
+    /**
+     * @fn LinkEvaluator::EvaluateProbe
+     * @brief Evaluate a mesh node → probe receiver link through the same path as @ref Evaluate.
+     *
+     * @param txMob           Mobility model of the transmitting mesh node.
+     * @param probeMob        Mobility model of the probe receiver.
+     * @param txIdx           Transmitter index in @ref SimConfig::nodes (selects its TX gain).
+     * @param probeRxGainDbi  RX array gain at the probe (dBi), replacing a node's RX gain.
+     * @param nowS            Simulation time in seconds, used only for jammer gating.
+     * @return @ref LinkResult with @c rx_id = @ref kProbeRxId.
+     * @throws std::runtime_error as @ref Evaluate.
+     *
+     * Path loss floors, the jammer path (larger of probe-end and TX-end power)
+     * and the jammed-SINR clamp are identical to @ref Evaluate.
+     */
+    LinkResult EvaluateProbe(ns3::Ptr<ns3::MobilityModel> txMob,
+                             ns3::Ptr<ns3::MobilityModel> probeMob,
+                             uint32_t txIdx,
+                             double probeRxGainDbi,
+                             double nowS = 0.0) const;
+
   private:
+    /// Shared body of @ref Evaluate and @ref EvaluateProbe; only the RX gain source differs.
+    LinkResult EvaluateLink(ns3::Ptr<ns3::MobilityModel> txMob,
+                            ns3::Ptr<ns3::MobilityModel> rxMob,
+                            uint32_t txIdx,
+                            uint32_t rxIdx,
+                            double rxGainDbi,
+                            double nowS) const;
+
     double      m_txPowerDbm       = 30.0;    ///< TX power in dBm (from @ref ChannelConfig).
     double      m_noiseFloorDbm    = -174.0;  ///< Thermal noise floor in dBm; computed by
                                                ///<   @ref Configure from bandwidth and noise figure.

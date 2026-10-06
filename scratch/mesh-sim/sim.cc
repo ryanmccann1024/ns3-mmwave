@@ -12,6 +12,7 @@
 #include "src/io/progress-logger.h"
 #include "src/io/run-logger.h"
 #include "src/io/viz-writer.h"
+#include "src/query/channel-query.h"
 #include "src/rl/rl-bridge.h"
 #include "src/routing/mesh-router.h"
 #include "src/setup/topology-builder.h"
@@ -97,7 +98,7 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
 
     // Only the explicit --rl-mode flag acknowledges an active baseline; [rl] enabled alone does not.
     const bool baselineActive = (cfg.baseline.algorithm != "none");
-    if (baselineActive && !args.rl_mode)
+    if (baselineActive && !args.rl_mode && !args.channel_query)
     {
         std::cerr << "baseline.algorithm '" << cfg.baseline.algorithm
                   << "' is active but this is a direct simulator run; the binary never plans"
@@ -119,6 +120,11 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
         return 1;
     }
     mesh_sim::ApplyRlControl(cfg, ctl);
+
+    if (args.channel_query)
+    {
+        return mesh_sim::RunChannelQuery(cfg, args, std::cin, std::cout);
+    }
 
     if (cfg.rl.reward_type_alias == "mean_sinr")
     {

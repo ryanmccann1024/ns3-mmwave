@@ -2,7 +2,7 @@
 
 /**
  * @file link-evaluator.cc
- * @brief Implements @ref mesh_sim::LinkEvaluator (Configure, Evaluate, EvaluateAll); see link-evaluator.h.
+ * @brief Implements @ref mesh_sim::LinkEvaluator (Configure, Evaluate, EvaluateProbe, EvaluateAll); see link-evaluator.h.
  */
 
 #include "src/eval/link-evaluator.h"
@@ -108,6 +108,27 @@ LinkEvaluator::Evaluate(ns3::Ptr<ns3::MobilityModel> txMob,
                         uint32_t rxIdx,
                         double nowS) const
 {
+    return EvaluateLink(txMob, rxMob, txIdx, rxIdx, m_rxGainDbi[rxIdx], nowS);
+}
+
+LinkResult
+LinkEvaluator::EvaluateProbe(ns3::Ptr<ns3::MobilityModel> txMob,
+                             ns3::Ptr<ns3::MobilityModel> probeMob,
+                             uint32_t txIdx,
+                             double probeRxGainDbi,
+                             double nowS) const
+{
+    return EvaluateLink(txMob, probeMob, txIdx, kProbeRxId, probeRxGainDbi, nowS);
+}
+
+LinkResult
+LinkEvaluator::EvaluateLink(ns3::Ptr<ns3::MobilityModel> txMob,
+                            ns3::Ptr<ns3::MobilityModel> rxMob,
+                            uint32_t txIdx,
+                            uint32_t rxIdx,
+                            double rxGainDbi,
+                            double nowS) const
+{
     LinkResult r;
     r.tx_id = txIdx;
     r.rx_id = rxIdx;
@@ -116,7 +137,7 @@ LinkEvaluator::Evaluate(ns3::Ptr<ns3::MobilityModel> txMob,
 
     // Per-link beamforming gain: tx end's array + rx end's array. Either side
     // may be a per-node override from nodes.json; otherwise the channel default.
-    const double bfGainDb = m_txGainDbi[txIdx] + m_rxGainDbi[rxIdx];
+    const double bfGainDb = m_txGainDbi[txIdx] + rxGainDbi;
 
     // LOS / NLOS determination.
     auto cond = m_condModel->GetChannelCondition(txMob, rxMob);

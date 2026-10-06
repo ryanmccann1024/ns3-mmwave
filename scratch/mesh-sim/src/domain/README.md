@@ -16,6 +16,7 @@ Units are in each field's `///<` comment (dB, dBm, metres, seconds, MHz, Mbps).
 | @ref mesh-config.h "mesh-config.h" | `TrafficConfig` (flow demand model and topology) and `RoutingConfig`. |
 | @ref node-spec.h "node-spec.h" | `NodeSpec`, mobility parameters, `BuildingSpec`, `MaxSpeedForType()`. |
 | @ref link-result.h "link-result.h" | `LinkResult`: distance, LOS, path loss, power, SINR, capacity, MCS. |
+| @ref probe-spec.h "probe-spec.h" | `ProbeGrid`: receive-only coverage probe points for the channel query. |
 
 ## Run
 

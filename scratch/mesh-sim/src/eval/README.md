@@ -12,7 +12,7 @@ layers. In the sub-6 band it also adds jammer power (see @ref src_jammer).
 
 | File | Role |
 |------|------|
-| `link-evaluator.h` / `.cc` | `LinkEvaluator`: `Configure`, `Evaluate` (one link), `EvaluateAll` (all pairs). Wraps ns-3 propagation and channel-condition models. |
+| `link-evaluator.h` / `.cc` | `LinkEvaluator`: `Configure`, `Evaluate` (one link), `EvaluateAll` (all pairs), `EvaluateProbe` (mesh node to query probe). Wraps ns-3 propagation and channel-condition models. |
 | `sinr-capacity.h` | Header-only, no ns-3: MCS tables (3GPP-style and Silvus), `SinrToMcsIndex`, `SinrToSilvusMcsIndex`, `SinrToCapacity`. |
 | `link-table.h` / `.cc` | `LinkTable`: symmetric N×N matrix with `Update`, `Get`, `MaxCapacity`, `ConnectedLinkCount`, `IsConnected`. |
 | `CLAUDE.md` | Scope notes and invariants for contributors. |
@@ -72,8 +72,11 @@ No files are written. Two in-memory structures are produced each tick.
 - `LinkTable::IsConnected` and `ConnectedLinkCount` default to `sinr_db >= -6.7`, a literal that matches `SINR_MIN_DB`.
 - `metrics-writer.cc` skips links with `sinr_db <= -900` as invalid (the `-999` sentinel).
 
+### Probe links
+- `EvaluateProbe` (used only by `src/query/`) runs the same private body as `Evaluate`; only the RX gain comes from the request instead of a node's gain, and `rx_id` is `LinkEvaluator::kProbeRxId`. Floors, jammer path (larger of probe-end and TX-end power) and the jammed-SINR clamp are identical.
+
 ### Call order
-- `LinkEvaluator::Configure` must run before `Evaluate` or `EvaluateAll`. It throws `std::runtime_error` on a null model pointer.
+- `LinkEvaluator::Configure` must run before `Evaluate`, `EvaluateProbe` or `EvaluateAll`. It throws `std::runtime_error` on a null model pointer.
 - `EvaluateAll` evaluates only i < j; `LinkTable::Update` mirrors each result and throws `std::runtime_error` if the result count is not N·(N−1)/2.
 
 ## Dependencies
