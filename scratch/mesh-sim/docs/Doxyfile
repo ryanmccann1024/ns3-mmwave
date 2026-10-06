@@ -869,6 +869,9 @@ INPUT                  = ../scripts \
 			             ../scripts/validation/ \
 			             ../src/ \
                          ../README.md \
+                         ../CONTRIBUTING.md \
+                         ../inputs/README.md \
+                         ../inputs/baselines/README.md \
                          topics.dox
 
 
