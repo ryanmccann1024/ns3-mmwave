@@ -32,7 +32,8 @@ those test their own algorithms, not the new RL output layout. See
 ## Real-binary CLI integration
 
 [`cli-integration-test.sh`](integration/cli-integration-test.sh) needs a built
-simulator binary. It uses the two small smoke scenarios and deletes its
+simulator binary. It uses the two small smoke scenarios (plus
+`16-random-walk-urban` for Test 17); Tests 13-19 also need `python3`. It deletes its
 temporary output directory afterward. Its lasting output is one console
 `PASS`/`FAIL` line per check (Tests 1-19) and a final count.
 
