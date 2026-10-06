@@ -233,6 +233,20 @@ def _trace_duration_s(trace_fp: Path) -> float | None:
 ## @brief Write ``run.ini`` to @p output_path using the provided parameters.
 #
 # @param output_path  Existing directory that receives ``run.ini``.
+# @param scenario_name  Value written to ``[scenario] name``.
+# @param sim_duration   Simulated duration, seconds.
+# @param band           Radio band written to ``[channel] band``.
+# @param freq_ghz       Carrier frequency, GHz.
+# @param amc_model      Adaptive modulation and coding model name.
+# @param bw_mhz         Bandwidth, MHz.
+# @param power_dbm      Transmit power, dBm.
+# @param ticks          Tick length, seconds.
+# @param demand_mbps    Per-flow traffic demand, Mbit/s.
+# @param noise_figure   Receiver noise figure, dB.
+# @param tx_gain_dbi    Transmit antenna gain, dBi.
+# @param rx_gain_dbi    Receive antenna gain, dBi.
+# @param condition_model  Channel condition model name.
+# @param channel_scenario Channel scenario name.
 # @param gateway_id   Gateway node id; ``None`` selects the ``all_pairs`` traffic topology.
 # @param rl           Optional ``[rl]`` overrides; missing keys fall back to the ``_RL_*`` defaults.
 #

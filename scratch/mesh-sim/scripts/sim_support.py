@@ -126,6 +126,17 @@ def _signal_group(proc: subprocess.Popen, signum: int) -> None:
         pass
 
 
+## @fn stop_process
+# @brief Stop a child process: SIGTERM, then SIGKILL after a grace period, then reap it.
+#
+# @param proc           Child process to stop.
+# @param wait_s         Seconds to wait after SIGTERM before killing.
+# @param process_group  If True, signal the whole process group (`proc` must lead it,
+#                       i.e. be started with `start_new_session=True`).
+# @return None.
+#
+# Plain mode does nothing if the child already exited. Group mode always sends
+# SIGKILL to the group afterwards, so descendants that ignored SIGTERM are also reaped.
 def stop_process(proc: subprocess.Popen, wait_s: float, process_group: bool = False) -> None:
     """Terminate, kill after `wait_s`, and always reap; optionally the whole process group."""
     if not process_group:
