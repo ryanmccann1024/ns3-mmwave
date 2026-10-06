@@ -63,10 +63,10 @@ pipeline, validation, jammer-generation, and sweep commands run from
 
 ```bash
 ./ns3 run scratch/mesh-sim/sim -- \
-  --run-config=scratch/mesh-sim/inputs/calfex/06-25/1227-1413/run.ini \
+  --run-config=scratch/mesh-sim/inputs/calfex/1602-1605/run.ini \
   --band=sub-6 \
   --seeds=1,2,5,6,8,10 \
-  --output-dir=scratch/mesh-sim/outputs/calfex/06-25/1227-1413
+  --output-dir=scratch/mesh-sim/outputs/calfex/1602-1605
 ```
 
 Key flags:
@@ -127,7 +127,7 @@ python -m scripts.validation.validate_days \
 @subsection run_jammer Jammer / interference model (optional)
 
 Run a scenario with field-logged electronic-warfare (jamming) events. See
-@ref src/jammer for the full workflow; in brief:
+@ref src_jammer for the full workflow; in brief:
 
 ```bash
 python -m scripts.validation.make_jammers \

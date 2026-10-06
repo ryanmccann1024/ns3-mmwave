@@ -1,6 +1,13 @@
 /* -*- Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
-/** @file sim
-*/
+/**
+ * @file sim.cc
+ * @brief Simulator entry point: loads a scenario, then runs the per-seed, per-tick
+ *        loop (links, traffic, routing, metrics, optional RL bridge).
+ *
+ * This is the only file that owns the tick loop; each stage lives in `src/`
+ * (see the dependency layers in CLAUDE.md). `--channel-query` returns early
+ * and serves placement-baseline queries instead of simulating.
+ */
 
 #include "src/cli/cli-parser.h"
 #include "src/config/config-loader.h"
@@ -31,11 +38,22 @@ namespace fs = std::filesystem;
 
 NS_LOG_COMPONENT_DEFINE("MeshSim");
 
-/// @brief Entry point: loads config, builds topology, runs the per-tick
-///        simulation loop for each seed, and writes metrics/run logs.
-/// @param argc CLI argument count.
-/// @param argv CLI argument values.
-/// @return 0 on success, 1 on config/load/output error.
+/**
+ * @fn main
+ * @brief Entry point: loads config, builds topology, runs the per-tick
+ *        simulation loop for each seed, and writes metrics/run logs.
+ *
+ * @param argc CLI argument count.
+ * @param argv CLI argument values (see README.md for the flags).
+ * @return 0 on success; 1 on config load/validation, RL-control resolution,
+ *         input archiving, or output-directory errors, or when an active
+ *         `[baseline]` is used in a direct run. With `--channel-query`, the
+ *         return value of `RunChannelQuery`.
+ *
+ * Each seed writes into `<output-dir>/seed-<N>/`. The loop runs ticks
+ * `0..numTicks` inclusive; `numTicks` is `cfg.rl.num_ticks` in RL mode,
+ * otherwise `duration_s / tick_s` (truncated).
+ */
 int
 main(int argc, char* argv[]) ///< Takes params for cli at start
 {
