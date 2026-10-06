@@ -8,7 +8,7 @@ supports an optional reinforcement-learning bridge and an optional jammer /
 interference model.
 
 For changes to configuration, the RL protocol, or saved results, see the
-[contributor checklist](CONTRIBUTING.md).
+[contributor checklist](@ref Contributing).
 
 @section build Build
 
@@ -26,7 +26,7 @@ If @c "./ns3 clean" doesn't clear the cache fully, remove it manually first:
 rm -rf cmake-cache build
 ```
 
-## Python environment
+## Python environment {#readme_python_environment}
 
 The simulator itself needs no Python. The RL, sweep, validation, and plotting
 scripts do. One command from `scratch/mesh-sim/` creates `.venv` and installs
@@ -75,16 +75,16 @@ Key flags:
 |------|---------|
 | @c --run-config | Path to the scenario's @c run.ini (the file, not the dir). |
 | @c --band | @c sub-6 or @c mmwave. Interference/jammers only apply on @c sub-6. |
-| @c --seeds | Comma-separated seeds; each gets its own @c seed-<N>/ output subdir. |
+| @c --seeds | Comma-separated seeds; each gets its own `seed-<N>/` output subdir. |
 | @c --output-dir | Where results are written. |
 | @c --rl-mode | Enable the RL bridge. |
 | @c --seed / @c --run-id | Override the single seed or the run id from @c run.ini (@c --seeds takes precedence for multi-seed runs). |
 | @c --positions-override | Optional JSON file overriding node start positions. |
 | @c --debug-links | Verbose per-link (and per-jammer) log output. |
-| @c --channel-query | Serve candidate-layout channel queries on stdin/stdout for the placement baselines ([contract](src/query/README.md)); needs exactly one seed and writes no outputs. |
+| @c --channel-query | Serve candidate-layout channel queries on stdin/stdout for the placement baselines ([contract](@ref src_query)); needs exactly one seed and writes no outputs. |
 
 Output lands under @c --output-dir: a @c run.log (resolved config summary), the
-archived input files, and @c seed-<N>/ metric folders. Always check @c run.log 's
+archived input files, and `seed-<N>/` metric folders. Always check @c run.log 's
 "Resolved config" block shows the values you expect (frequency, duration,
 bandwidth) before trusting a run.
 
@@ -178,11 +178,11 @@ warning on stderr, and is recorded in `run.log` as `rl.reward_alias`.
 can instead compose the reward from named components — see
 [Selecting observations, rewards, and telemetry](#selecting-observations-rewards-and-telemetry).
 
-### MaskablePPO smoke run
+### MaskablePPO smoke run {#readme_maskableppo_smoke_run}
 
 Run from `scratch/mesh-sim/`, with global options before the `m-ppo`
 subcommand. For a quick tour of the RL files, see the
-[RL code map](scripts/rl/README.md).
+[RL code map](@ref scripts_rl).
 
 ```bash
 .venv/bin/python -m scripts.rl.train \
@@ -198,7 +198,7 @@ seed (a multi-seed training policy is a later TODO). Training refuses to start
 if the output directory already contains `train_manifest.json` or
 `maskable_ppo_mesh.zip`.
 
-### Centralized multi-node control
+### Centralized multi-node control {#readme_centralized_control}
 
 Setting `[rl] controlled_nodes` switches the bridge from the legacy
 single-node mode to centralized mode, where one MaskablePPO policy moves a
@@ -239,7 +239,7 @@ Training on the bundled centralized fixture:
   m-ppo --total-timesteps 16 --n-steps 16 --seed 1
 ```
 
-#### Selecting observations, rewards, and telemetry
+#### Selecting observations, rewards, and telemetry {#readme_selecting_observations}
 
 These `[rl]` keys are *read by the Python env and `train.py`; the simulator
 ignores them*. They apply to centralized mode only.
@@ -322,7 +322,7 @@ rejected before training starts.
 
 The full contract — slot order, action meanings, mask layout, decision cadence,
 reward window, wall clipping, speed caps, and the `init`/`step`/action schemas —
-lives in [`src/rl/README.md`](src/rl/README.md).
+lives in [`src/rl/README.md`](@ref src_rl).
 
 C++ owns the simulation because ns-3 mobility, propagation, link evaluation,
 and routing already live there and must stay deterministic and testable without
@@ -333,13 +333,13 @@ In centralized mode, movement limits and action validity are therefore decided
 once, in C++, and Python never re-derives them. (Legacy single-node mode builds
 its `Discrete(7)` mask in Python from the `[rl]` bounds.)
 
-#### Model lifecycle
+#### Model lifecycle {#readme_model_lifecycle}
 
 Four commands cover a centralized run from configuration to evaluation. Run
 them from `scratch/mesh-sim/`. All but `inspect_model` need a built simulator binary.
 Validation checks the proposed run; training saves a model and its manifest;
 inspection checks those saved files; evaluation loads the model and runs new
-episodes. The [lifecycle test map](src/rl/policy-lifecycle-tests.md) gives the
+episodes. The [lifecycle test map](@ref src_rl_policy_lifecycle_tests) gives the
 purpose and expected result of each focused check.
 
 Check a configuration before spending simulator time. Without `--launch` every
@@ -371,7 +371,7 @@ Train with bounded checkpoints and a masked during-training evaluation:
 `--keep-checkpoints` (default 3) prunes the oldest checkpoints. `--eval-seed`
 defaults to the training seed + 1. The units are SB3 timesteps, which equal
 policy decisions here because training uses one environment.
-[`callbacks.py`](scripts/rl/agents/callbacks.py) wires SB3's checkpoint
+[`callbacks.py`](@ref scripts/rl/agents/callbacks.py) wires SB3's checkpoint
 callback (with bounded retention) and `MaskableEvalCallback` (masked,
 deterministic evaluation on a separate environment and seed). The latter saves
 `best_model.zip` when mean evaluation reward improves; neither callback
@@ -406,11 +406,11 @@ Evaluate a saved model against the `hold` and seeded `random_valid` baselines:
 `model` uses deterministic MaskablePPO predictions under the live action mask;
 `hold` stops every controlled node; `random_valid` chooses uniformly among
 each position's valid actions, restarting its random generator from each
-episode seed. [`bundle.py`](scripts/rl/policy/bundle.py) treats the training
+episode seed. [`bundle.py`](@ref scripts/rl/policy/bundle.py) treats the training
 manifest plus a chosen final, best, or checkpoint ZIP as a saved model bundle,
 not a new archive.
 It checks run status and the selected ZIP's recorded digest before loading;
-[`compat.py`](scripts/rl/policy/compat.py) then checks the live scenario and
+[`compat.py`](@ref scripts/rl/policy/compat.py) then checks the live scenario and
 policy contract.
 `geometric` and `optimization` are placement baselines: `hold` on a layout
 planned once before any episode runs (see
@@ -494,7 +494,7 @@ the building also reaches LOS once x < 90. Its `run.ini` header records the
 geometry and the expected hold and north-moving numbers. It is a smoke fixture
 for the lifecycle tools, not a benchmark or a training campaign.
 
-#### Comparing policies and running an experiment matrix
+#### Comparing policies and running an experiment matrix {#readme_comparing_policies}
 
 `scripts.rl.compare` turns finished evaluations into paired
 model-minus-baseline statistics, and `scripts.rl.experiment` expands a named
@@ -586,7 +586,7 @@ seeds they are approximate, not exact.
 four explicit rows around one anchor on the bypass fixture with smoke-sized
 budgets. It exercises the harness; it is not evidence that a policy learns.
 For the purpose, input, and expected output of each comparison and matrix test,
-see [Policy comparison tests](src/rl/policy-comparison-tests.md).
+see [Policy comparison tests](@ref src_rl_policy_comparison_tests).
 
 #### Benchmarking, tuning smoke, and cluster runs
 
@@ -594,7 +594,7 @@ see [Policy comparison tests](src/rl/policy-comparison-tests.md).
 `(row, training seed)` task, searches the PPO knobs that are already wired,
 submits the plan as a SLURM array plus one comparison job, and copies results
 back. Every schema, state, and refusal is documented in
-[`scripts/rl/ops/README.md`](scripts/rl/ops/README.md); the cluster commands are
+[`scripts/rl/ops/README.md`](@ref scripts_rl_ops); the cluster commands are
 validated against a fake scheduler only, and `fetch` against a fake `rsync`.
 
 Benchmarking is a timed dress rehearsal: `run` actually trains and evaluates
@@ -647,7 +647,7 @@ and `status` only reads:
 The `submit` line previews without submitting; remove `--dry-run` only after
 checking the task table and rendered script. Add `--tasks 0` to start with a
 single array task, or `--json` to `status` for machine-readable state. The
-cluster [operations guide](scripts/rl/ops/README.md#cluster-runs) explains
+cluster [operations guide](@ref scripts_rl_ops_cluster_runs) explains
 receipts, recovery, cancellation, and each command's refusal rules.
 
 Copy selected results from the run to this machine. Nothing local is ever
@@ -674,7 +674,7 @@ Standalone:
   --sim-binary <BIN> --run-config <INI> --seeds 1,2
 ```
 
-The [placement-baseline guide](scripts/baselines/README.md) covers the keys
+The [placement-baseline guide](@ref scripts_baselines) covers the keys
 (including movement penalties in m²), the optional mapping file, the objective,
 the evaluation ownership rule, the direct-run guard, outputs, migration from
 the gateway/RF-file version, the rectangle-only geofence limit, and which files
@@ -697,7 +697,7 @@ python -m scripts.sweep.cli --config <sweep.ini>
 python -m scripts.validation.run_batch ... [--band sub-6]
 ```
 
-## Where output lands
+## Where output lands {#readme_where_output_lands}
 
 | Invocation | Location and contents |
 |---|---|
@@ -711,10 +711,10 @@ With no `[output] dir`, the simulator auto-generates
 
 For a file-by-file reading path through RL manifests, `steps.jsonl`, raw
 `facts`, observation normalization, and the two different `obs_dim` fields,
-see [Reading an RL output directory](src/rl/policy-inputs.md#reading-an-rl-output-directory).
-For the direct-run CSV columns, see the [I/O guide](src/io/README.md#output).
+see [Reading an RL output directory](@ref src_rl_reading_output).
+For the direct-run CSV columns, see the [I/O guide](@ref src_io_output).
 
-## Verify
+## Verify {#readme_verify}
 
 From `scratch/mesh-sim/tests/`:
 
@@ -726,7 +726,7 @@ MESH_SIM_BIN=<BIN> make integration         # 19 real-binary CLI checks (see tes
 `make test` stops at the first failing suite. To inspect every suite despite a
 failure, run `make -C unit/config test`, `make -C unit/eval test`,
 `make -C unit/routing test`, and `make -C unit/traffic test` separately.
-The [RL test map](scripts/rl/tests/README.md) lists each centralized-control
+The [RL test map](@ref scripts_rl_tests) lists each centralized-control
 test, its input, and its expected output.
 
 For a quick check without cloud reference data, run two tiny synthetic
@@ -753,7 +753,7 @@ python3 -m scripts.validation.regression_check verify-suite \
   --out outputs/baseline-regression/<name>
 ```
 
-See [`scripts/validation/README.md`](scripts/validation/README.md) for the
+See [`scripts/validation/README.md`](@ref scripts_validation) for the
 suite's cases, skip behavior, and exit codes.
 
 @section docs Accessing the documentation
@@ -782,7 +782,7 @@ brew install doxygen graphviz         # macOS
 
 @subsection docs_open Opening the site
 
-Open the generated entry page in any browser — it's a @c file:// URL, no server
+Open the generated entry page in any browser — it opens as a local file, no server
 needed:
 
 ```bash
@@ -795,7 +795,7 @@ start scratch/mesh-sim/docs/html/index.html
 ```
 
 Or paste the absolute path into the browser's address bar, e.g.
-@c <tt>file:///home/[USER]/ns3-mmwave/scratch/mesh-sim/docs/html/index.html</tt>
+`/home/<USER>/ns3-mmwave/scratch/mesh-sim/docs/html/index.html`
 (replace @c USER and the repo path with yours). This @c index.html is this
 Overview page; use the navigation tree / search at the top to reach the module
 pages and the per-file API docs.
