@@ -101,7 +101,12 @@ struct NodeSpec
 };
 
 /**
+ * @fn MaxSpeedForType
  * @brief Return the maximum speed (m/s) allowed for a given node type.
+ *
+ * @param node_type  Node type string from @ref mesh_sim::NodeSpec::node_type; any
+ *                   unrecognised value gets the drone limit.
+ * @return Maximum speed in metres per second.
  *
  * Used by the RL bridge to cap each controlled node's speed
  * (@c min(step_size_m / tick_s, MaxSpeedForType)).
@@ -112,9 +117,6 @@ struct NodeSpec
  * | @c "pedestrian"| 1.5 m/s   |
  * | @c "drone" (default) | 20.0 m/s |
  *
- * @param node_type  Node type string from @ref NodeSpec::node_type; any
- *                   unrecognised value gets the drone limit.
- * @return Maximum speed in metres per second.
  */
 inline double MaxSpeedForType(const std::string& node_type)
 {

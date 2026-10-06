@@ -1,4 +1,8 @@
 /* -*- Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
+/**
+ * @file rl-bridge.cc
+ * @brief Implements RlBridge: JSON message writing, action parsing, masks, and per-tick velocity control.
+ */
 
 #include "src/rl/rl-bridge.h"
 #include "third_party/json.hpp"
