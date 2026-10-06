@@ -3,7 +3,7 @@
 
 Usage:
     python -m scripts.plotting.cli --config scripts/plotting/plot.example.ini
-    python scripts/plotting/cli.py --config path/to/plot.ini
+    python -m scripts.plotting.cli --config path/to/plot.ini
 """
 
 import argparse
