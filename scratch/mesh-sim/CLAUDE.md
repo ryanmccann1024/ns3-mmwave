@@ -40,7 +40,7 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
 - `requirements-tuning.txt` (Optuna) is deliberately separate from
   `requirements.txt`, whose contents are recorded in every RL manifest.
 - Simulator CLI: `--run-config=<run.ini>` (the file, not the dir), `--band`,
-  `--seeds=1,2,...`, `--output-dir`, `--rl-mode`, `--debug-links`. See `README.md`.
+  `--seeds=1,2,...`, `--output-dir`, `--rl-mode`, `--debug-links`, `--channel-query`. See `README.md`.
 
 ## Commit guidelines
 
@@ -153,6 +153,8 @@ query   <--  sim.cc
   compares sim vs field distributions; also the baseline regression and smoke checks
 - `sweep/` -- parameter sweeps driven by a `sweep.ini`
 - `rl/` -- Gymnasium env, training (MaskablePPO), evaluation, experiment/ops tooling
+- `baselines/` -- gateway-free `geometric` / `optimization` placement planners; score candidate
+  layouts through the binary's `--channel-query` worker (`src/query/`); see its README
 - `plotting/` -- post-sim plots
 - `sim_support.py` -- shared simulator launcher helpers
 
