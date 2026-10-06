@@ -1,10 +1,11 @@
 /* -*- Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
-/*
- * Unit tests for config validation and seed parsing.
- * Standalone binary -- no ns-3 dependency.
+/**
+ * @file config-validator-test.cc
+ * @brief Unit tests for config validation, band/reward/baseline selectors,
+ *        RL control resolution, layout override, and seed parsing.
  *
- * Build:  see mesh-sim-config-test target in CMakeLists.txt
- * Run:    ./mesh-sim-config-test
+ * Standalone binary, no ns-3 dependency.
+ * Build and run: `make -C tests/unit/config test`.
  */
 
 #include "src/config/config-loader.h"
@@ -1143,6 +1144,15 @@ test_layout_override_non_finite()
 
 // ---- main ----
 
+/**
+ * @fn main
+ * @brief Run every config test and print a pass/fail count.
+ *
+ * @return 0 if all checks passed, 1 if any failed.
+ *
+ * Calls each test_* function in order; failures print "FAIL: <name>" to
+ * stderr. A new test function must be added to this list to run.
+ */
 int
 main()
 {
