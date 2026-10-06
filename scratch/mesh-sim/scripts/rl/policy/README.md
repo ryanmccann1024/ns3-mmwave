@@ -1,20 +1,20 @@
 @page scripts_rl_policy scripts/rl/policy
 @brief Library behind `evaluate.py` and `compare.py`: verify a saved training run, run policies, compute paired statistics.
 
-This package holds the logic. The two command-line programs, [`../evaluate.py`](../evaluate.py)
-and [`../compare.py`](../compare.py), own argument parsing, printing, and process exit codes.
-For the wider RL code map see [`../README.md`](../README.md); for the four-command
-walkthrough see [Model lifecycle](../../../README.md#model-lifecycle).
+This package holds the logic. The two command-line programs, [`../evaluate.py`](@ref scripts/rl/evaluate.py)
+and [`../compare.py`](@ref scripts/rl/compare.py), own argument parsing, printing, and process exit codes.
+For the wider RL code map see [scripts/rl README](@ref scripts_rl); for the four-command
+walkthrough see [Model lifecycle](@ref readme_model_lifecycle).
 
 ## Module Layout
 
 | File | Role |
 | --- | --- |
-| [`bundle.py`](bundle.py) | Reads `train_manifest.json` and the model file, verifies both, and rebuilds the saved observation/reward selection. |
-| [`compat.py`](compat.py) | Ordered checks that a saved model fits the live environment; defines the error types. |
-| [`evaluate.py`](evaluate.py) | Baseline and model policies, the per-episode loop, per-episode metrics, and `eval_manifest.json` writing. |
-| [`compare_inputs.py`](compare_inputs.py) | Loads `eval_manifest.json` files and flattens them into per-episode rows. |
-| [`compare.py`](compare.py) | Paired model-minus-baseline statistics, run grouping, and `exit_code`. |
+| [`bundle.py`](@ref scripts/rl/policy/bundle.py) | Reads `train_manifest.json` and the model file, verifies both, and rebuilds the saved observation/reward selection. |
+| [`compat.py`](@ref scripts/rl/policy/compat.py) | Ordered checks that a saved model fits the live environment; defines the error types. |
+| [`evaluate.py`](@ref scripts/rl/policy/evaluate.py) | Baseline and model policies, the per-episode loop, per-episode metrics, and `eval_manifest.json` writing. |
+| [`compare_inputs.py`](@ref scripts/rl/policy/compare_inputs.py) | Loads `eval_manifest.json` files and flattens them into per-episode rows. |
+| [`compare.py`](@ref scripts/rl/policy/compare.py) | Paired model-minus-baseline statistics, run grouping, and `exit_code`. |
 
 ## Lifecycle
 
@@ -26,8 +26,8 @@ Train, evaluate, and compare are three separate commands. This package serves th
 3. Comparison reads one or more `eval_manifest.json` files and writes `episodes.csv` and
    `comparison.json`.
 
-Test maps: [lifecycle](../../../src/rl/policy-lifecycle-tests.md) and
-[comparison](../../../src/rl/policy-comparison-tests.md).
+Test maps: [lifecycle](@ref src_rl_policy_lifecycle_tests) and
+[comparison](@ref src_rl_policy_comparison_tests).
 
 ## Bundle Verification
 
@@ -70,7 +70,7 @@ A passing report still carries the note that matching checks do not imply transf
 | `hold` | Every slot takes the hold action. |
 | `random_valid` | Uniform choice among valid actions, reseeded per episode. |
 | `model` | Deterministic MaskablePPO prediction under the live mask. |
-| `geometric`, `optimization` | Placement baselines: the plan is prepared first by `scripts.baselines.adapter`, then every slot holds. See [baselines README](../../baselines/README.md). |
+| `geometric`, `optimization` | Placement baselines: the plan is prepared first by `scripts.baselines.adapter`, then every slot holds. See [baselines README](@ref scripts_baselines). |
 
 Each policy gets its own environment and runs every seed. `eval_selection` forces
 `telemetry=steps` so metrics come from the per-decision telemetry file.
@@ -119,7 +119,7 @@ computes `model - baseline` differences.
 
 ## Dependencies
 
-- `numpy`; MaskablePPO (via [`../agents/mask_ppo.py`](../agents/mask_ppo.py)) only when loading a model.
+- `numpy`; MaskablePPO (via [`../agents/mask_ppo.py`](@ref scripts/rl/agents/mask_ppo.py)) only when loading a model.
 - `../cli_common.py`, `../env/`, and `scripts/stats.py` (`t_critical_95`) from this repository.
 - Run the CLIs as `python -m scripts.rl.evaluate` / `python -m scripts.rl.compare` from
   `scratch/mesh-sim/`; evaluation needs a built simulator binary.

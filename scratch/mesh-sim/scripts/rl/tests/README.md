@@ -1,5 +1,7 @@
 @page scripts_rl_tests scripts/rl/tests
 
+@brief Map of the RL, ops, and placement-baseline Python tests and their helpers.
+
 ## RL control test map
 
 Run these from `scratch/mesh-sim/`. The tests use temporary output directories;
@@ -7,7 +9,7 @@ they do not write to scenario inputs. `fake_sim.py` supplies protocol messages
 for Python tests and does not model radio propagation. Set `MESH_SIM_BIN` to a
 freshly built simulator for the real-binary tests; without it, that module
 skips. Install the Python requirements first as described in the [main
-README](../../../README.md#python-environment).
+README](@ref readme_python_environment).
 
 ```bash
 .venv/bin/python -m pytest scripts/rl/tests/test_mesh_env.py -q
@@ -28,12 +30,12 @@ MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary make -C tests integration
 
 | Modules | Map |
 | --- | --- |
-| `test_observations_rewards.py` and policy-input cases in `test_mesh_env.py` / `test_real_binary.py` | [policy-input-tests.md](../../../src/rl/policy-input-tests.md) |
-| `test_lifecycle_cli.py`, `test_policy_lifecycle.py` | [policy-lifecycle-tests.md](../../../src/rl/policy-lifecycle-tests.md) |
-| `test_evaluation_pipeline.py`, `test_experiment_matrix.py`, `test_policy_comparison.py` | [policy-comparison-tests.md](../../../src/rl/policy-comparison-tests.md) |
-| `test_decision_records.py` and `test_decision_records_join_real_steps` in `test_real_binary.py` | [decision-records.md](../../../src/rl/decision-records.md) |
+| `test_observations_rewards.py` and policy-input cases in `test_mesh_env.py` / `test_real_binary.py` | [policy-input-tests.md](@ref src_rl_policy_input_tests) |
+| `test_lifecycle_cli.py`, `test_policy_lifecycle.py` | [policy-lifecycle-tests.md](@ref src_rl_policy_lifecycle_tests) |
+| `test_evaluation_pipeline.py`, `test_experiment_matrix.py`, `test_policy_comparison.py` | [policy-comparison-tests.md](@ref src_rl_policy_comparison_tests) |
+| `test_decision_records.py` and `test_decision_records_join_real_steps` in `test_real_binary.py` | [decision-records.md](@ref src_rl_decision_records) |
 
-## Python adapter: `test_mesh_env.py`
+## Python adapter: test_mesh_env.py
 
 Unless noted, input is an in-process scenario with `fake_sim.py`; expected
 output is the stated Gymnasium result or error plus a correctly finalized
@@ -59,7 +61,7 @@ output is the stated Gymnasium result or error plus a correctly finalized
 | `test_training_failure_closes_the_environment` | Fake simulator exits with error → failed manifest and no leaked process; skipped without `sb3_contrib`. |
 | `test_episode_allocation_scans_existing_directories_once` | Existing episode directories → next two names allocated with one directory scan. |
 
-## Real simulator: `test_real_binary.py`
+## Real simulator: test_real_binary.py
 
 Input is `inputs/baselines/p1-multi-smoke/` unless the test creates a small
 temporary variant. Outputs are parsed simulator messages, metrics, and episode
@@ -84,7 +86,7 @@ scenario under pytest's temporary directory and needs `MESH_SIM_BIN`; without
 it each row is skipped with a reason starting `BLOCKED:`, which is missing
 evidence, not a pass. The file's R1-R4 rows cover the direct-binary guard and
 the runner's `none` path; the placement contract is in
-[scripts/baselines/README.md](../../baselines/README.md).
+[scripts/baselines/README.md](@ref scripts_baselines).
 
 ```bash
 MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary .venv/bin/python -m pytest scripts/baselines/tests/test_real_binary.py -q
@@ -140,15 +142,15 @@ and checks accepted values or precise errors; it writes no simulation output.
 `tests/integration/cli-integration-test.sh` Test 9 runs the legacy smoke
 scenario with closed stdin. It expects five `step` lines, no `init`, and a
 `controlled_pos` observation on the first line; other CLI checks are described
-in the [main verification section](../../../README.md#verify).
+in the [main verification section](@ref readme_verify).
 
 ## Ops and tooling tests
 
 These use stub executors, `fake_slurm.py`, or a fake `rsync`; no cluster or
-simulator is needed. Behavior is specified in `scripts/rl/ops/README.md`.
+simulator is needed. Behavior is specified in [scripts/rl/ops](@ref scripts_rl_ops).
 Parametrized tests cover several inputs each; only the pattern is listed.
 
-### `test_ops_tasks.py`
+### test_ops_tasks.py
 
 | Test | Input → expected output |
 | --- | --- |
@@ -165,7 +167,7 @@ Parametrized tests cover several inputs each; only the pattern is listed.
 | `test_compare_*` (five tests) | Unfinished evaluations → refused unless incomplete is allowed; tolerated compare exit is not a failure; exactly one selector required. |
 | `test_comparison_outcome_reads_the_comparison_status` | `comparison.json` status → outcome string. |
 
-### `test_ops_benchmark.py`
+### test_ops_benchmark.py
 
 | Test | Input → expected output |
 | --- | --- |
@@ -185,7 +187,7 @@ Parametrized tests cover several inputs each; only the pattern is listed.
 | `test_estimate_writes_a_file_and_records_the_benchmark_hash` | Estimate run → estimate file with benchmark hash. |
 | `test_a_missing_safety_factor_is_an_argparse_error`, `test_a_non_positive_safety_factor_is_refused` | Missing or non-positive safety factor → error. |
 
-### `test_ops_cluster.py`
+### test_ops_cluster.py
 
 | Test | Input → expected output |
 | --- | --- |
@@ -205,7 +207,7 @@ Parametrized tests cover several inputs each; only the pattern is listed.
 | `test_manual_compare_*`, `test_evidence_that_a_compare_job_ended_*`, `test_a_compare_job_without_*` | Manual compare reports each outcome and is refused while tasks or compare jobs are active or unresolved. |
 | `test_a_new_compare_job_cancels_and_verifies_the_earlier_one`, `test_a_failed_cancellation_blocks_a_second_compare_job` | Resubmitted compare → earlier job cancelled first; failed cancel blocks it. |
 
-### `test_ops_fetch.py`
+### test_ops_fetch.py
 
 | Test | Input → expected output |
 | --- | --- |
@@ -220,7 +222,7 @@ Parametrized tests cover several inputs each; only the pattern is listed.
 | `test_the_manifest_records_remote_argv_and_file_digests`, `test_update_keeps_the_earlier_manifest` | Fetch → provenance manifest with argv and digests; update keeps the earlier one. |
 | `test_a_failed_rsync_writes_no_manifest`, `test_dry_run_prints_the_argv_and_writes_nothing` | Failed rsync or dry run → no manifest. |
 
-### `test_ops_tune.py`
+### test_ops_tune.py
 
 | Test | Input → expected output |
 | --- | --- |
@@ -236,7 +238,7 @@ Parametrized tests cover several inputs each; only the pattern is listed.
 | `test_the_install_hint_names_the_pin_file`, `test_the_pin_file_holds_one_exact_optuna_pin`, `test_a_version_other_than_the_pin_is_refused` | Optuna missing or wrong version → refusal naming the pin file. |
 | `test_the_seeded_sampler_matches_its_dry_run_preview`, `test_two_runs_with_the_same_sampler_seed_agree` | Same sampler seed → same trials as the preview and across runs. |
 
-### `test_bootstrap_venv.py`
+### test_bootstrap_venv.py
 
 | Test | Input → expected output |
 | --- | --- |

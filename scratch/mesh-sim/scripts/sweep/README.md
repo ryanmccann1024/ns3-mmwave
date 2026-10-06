@@ -68,7 +68,7 @@ channel.frequency_ghz = 28.0, 39.0, 60.0
 channel.tx_power_dbm  = 20.0, 25.0, 30.0
 ```
 
-### `[sweep.meta]`
+### [sweep.meta]
 
 | Key | Default | Meaning |
 |-----|---------|---------|
@@ -78,7 +78,7 @@ channel.tx_power_dbm  = 20.0, 25.0, 30.0
 | `plot_config` | empty | Plot INI relative to the mesh-sim root; empty uses default plots. |
 | `label` | `sweep` | Used in each point's `[scenario] name` (`<label>_point-NNN`) and the console summary. |
 
-### `[sweep.override]` and `[sweep]`
+### [sweep.override] and [sweep]
 
 - `[sweep.override]` (optional): `section.key = value` constants applied to every point.
 - `[sweep]` (required): `section.key = v1, v2, ...`. Every key is a `run.ini` section and key.
