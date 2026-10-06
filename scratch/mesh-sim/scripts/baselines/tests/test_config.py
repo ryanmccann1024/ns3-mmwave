@@ -7,8 +7,8 @@ import pytest
 
 from scripts.baselines import config
 from scripts.baselines.config import ConfigError
-from scripts.baselines.tests.conftest import (MAPPING, SCENARIO_SECTIONS, baseline_section,
-                                              scenario_ini, write_scenario)
+from scripts.baselines.tests.conftest import (AREA, MAPPING, SCENARIO_SECTIONS,
+                                              baseline_section, scenario_ini, write_scenario)
 
 
 def _ini(tmp_path, text):
@@ -37,7 +37,6 @@ def test_methods_and_objectives(tmp_path, method, objective):
     cfg = config.load_baseline(ini)
     config.require_method(cfg, method)
     assert (cfg.algorithm, cfg.objective) == (method, objective)
-    assert cfg.gateway_node_id == "gw"
     assert cfg.movable_nodes == ("uav-a", "uav-c")
     assert (cfg.seed, cfg.max_iterations) == (7, 60)
     assert cfg.application == "initial_positions"
@@ -109,22 +108,84 @@ def test_default_section_is_ordinary(tmp_path):
     assert cfg.algorithm == "geometric"
 
 
-@pytest.mark.parametrize("value", ["all", "uav-a,,uav-c", "uav-a, uav-a", " , "])
+@pytest.mark.parametrize("value", ["uav-a,,uav-c", "uav-a, uav-a", " , ", "all, uav-a",
+                                   "uav-a, all"])
 def test_bad_movable_ids(tmp_path, value):
     ini = write_scenario(tmp_path, overrides={"movable_nodes": value})
     with pytest.raises(ConfigError, match="movable_nodes"):
         config.load_baseline(ini)
 
 
-def test_gateway_in_movable_list(tmp_path):
-    ini = write_scenario(tmp_path, overrides={"movable_nodes": "uav-a, gw"})
-    with pytest.raises(ConfigError, match="must not appear"):
+@pytest.mark.parametrize("value", ["all", " all ", "all # every node"])
+def test_movable_all(tmp_path, value):
+    cfg = config.load_baseline(write_scenario(tmp_path, overrides={"movable_nodes": value}))
+    assert cfg.movable_nodes == ("all",) and cfg.movable_all
+
+
+@pytest.mark.parametrize("key,hint", [
+    ("gateway_node_id", "removed: baselines are gateway-free"),
+    ("rf_config", "removed: candidates are scored by the simulator channel"),
+])
+def test_removed_keys_name_a_migration_hint(tmp_path, key, hint):
+    ini = write_scenario(tmp_path, overrides={key: "gw"})
+    with pytest.raises(ConfigError) as err:
+        config.load_baseline(ini)
+    assert f"unknown [baseline] key(s): {key} ({hint}" in str(err.value)
+
+
+def test_traffic_gateway_key_is_unrelated(tmp_path):
+    ini = write_scenario(tmp_path, ini_text=scenario_ini(extra="\n[traffic]\n"
+                                                         "gateway_node_id = gw\n"))
+    assert config.load_baseline(ini).algorithm == "geometric"
+
+
+def test_numeric_defaults(tmp_path):
+    cfg = config.load_baseline(write_scenario(tmp_path))
+    assert (cfg.aerial_fixed_cost_m2, cfg.ground_fixed_cost_m2) == (150000.0, 150000.0)
+    assert (cfg.aerial_cost_m2_per_m, cfg.ground_cost_m2_per_m) == (500.0, 100.0)
+    assert (cfg.aerial_max_displacement_m, cfg.ground_max_displacement_m) == (None, None)
+    assert (cfg.candidate_grid_cells, cfg.coverage_grid_cells) == (400, 400)
+    assert cfg.grid_min_resolution_m == 5.0
+    assert (cfg.coverage_probe_height_m, cfg.coverage_probe_rx_gain_dbi) == (1.5, None)
+    assert (cfg.coverage_sinr_db, cfg.balanced_core_fraction) == (-6.7, 0.5)
+
+
+@pytest.mark.parametrize("key,value,expected", [
+    ("aerial_fixed_cost_m2", "0", 0.0), ("ground_fixed_cost_m2", "1.5e5", 150000.0),
+    ("aerial_cost_m2_per_m", "0.0", 0.0), ("ground_cost_m2_per_m", "250", 250.0),
+    ("aerial_max_displacement_m", "0.5", 0.5), ("ground_max_displacement_m", "300", 300.0),
+    ("candidate_grid_cells", "1", 1), ("coverage_grid_cells", "900", 900),
+    ("grid_min_resolution_m", "0.25", 0.25), ("coverage_probe_height_m", "0", 0.0),
+    ("coverage_probe_rx_gain_dbi", "0", 0.0), ("coverage_probe_rx_gain_dbi", "7.5", 7.5),
+    ("coverage_sinr_db", "-10", -10.0), ("coverage_sinr_db", "+3.5", 3.5),
+    ("balanced_core_fraction", "0", 0.0), ("balanced_core_fraction", "1", 1.0),
+])
+def test_numeric_key_bounds_accept(tmp_path, key, value, expected):
+    cfg = config.load_baseline(write_scenario(tmp_path, overrides={key: value}))
+    assert getattr(cfg, key) == expected
+    assert type(getattr(cfg, key)) is type(expected)
+
+
+@pytest.mark.parametrize("key,value", [
+    ("aerial_fixed_cost_m2", "-1"), ("ground_fixed_cost_m2", "inf"),
+    ("aerial_cost_m2_per_m", "-0.5"), ("ground_cost_m2_per_m", "nan"),
+    ("aerial_max_displacement_m", "0"), ("ground_max_displacement_m", "-5"),
+    ("candidate_grid_cells", "0"), ("coverage_grid_cells", "2.5"),
+    ("candidate_grid_cells", "-3"), ("grid_min_resolution_m", "0"),
+    ("coverage_probe_height_m", "-0.1"), ("coverage_probe_rx_gain_dbi", "-1"),
+    ("coverage_probe_rx_gain_dbi", "inf"), ("coverage_sinr_db", "nan"),
+    ("coverage_sinr_db", "1_0"), ("balanced_core_fraction", "1.01"),
+    ("balanced_core_fraction", "-0.1"), ("aerial_fixed_cost_m2", "lots"),
+])
+def test_numeric_key_bounds_reject(tmp_path, key, value):
+    ini = write_scenario(tmp_path, overrides={key: value})
+    with pytest.raises(ConfigError, match=f"baseline.{key}"):
         config.load_baseline(ini)
 
 
-def test_gateway_id_all_rejected(tmp_path):
-    ini = write_scenario(tmp_path, overrides={"gateway_node_id": "all"})
-    with pytest.raises(ConfigError, match="gateway_node_id"):
+def test_zero_cap_is_rejected_with_hint(tmp_path):
+    ini = write_scenario(tmp_path, overrides={"aerial_max_displacement_m": "0"})
+    with pytest.raises(ConfigError, match="omit the key for no cap"):
         config.load_baseline(ini)
 
 
@@ -137,12 +198,17 @@ def test_optimization_requires_seed_and_iterations(tmp_path, missing):
     config.require_method(cfg, "geometric")
 
 
-@pytest.mark.parametrize("missing", ["objective", "gateway_node_id", "movable_nodes",
-                                     "mapping_file", "rf_config"])
+@pytest.mark.parametrize("missing", ["objective", "movable_nodes"])
 def test_active_method_required_keys(tmp_path, missing):
     cfg = config.load_baseline(write_scenario(tmp_path, drop=(missing,)))
     with pytest.raises(ConfigError, match=missing):
         config.require_method(cfg, "geometric")
+
+
+def test_mapping_file_is_optional(tmp_path):
+    cfg = config.load_baseline(write_scenario(tmp_path, drop=("mapping_file",)))
+    config.require_method(cfg, "geometric")
+    assert cfg.mapping_file is None
 
 
 def test_required_keys_follow_effective_method(tmp_path):
@@ -155,22 +221,21 @@ def test_required_keys_follow_effective_method(tmp_path):
 
 def test_relative_paths_resolve_against_ini(tmp_path):
     ini = write_scenario(tmp_path / "scenario",
-                         overrides={"mapping_file": "../shared/map.json",
-                                    "rf_config": "rf.yaml"})
+                         overrides={"mapping_file": "../shared/map.json"})
     cfg = config.load_baseline(ini)
     assert cfg.mapping_file == ini.resolve().parent / "../shared/map.json"
-    assert cfg.rf_config == ini.resolve().parent / "rf.yaml"
 
 
 def test_path_with_spaces_and_absolute_path(tmp_path):
-    absolute = tmp_path / "abs dir" / "rf.yaml"
     ini = write_scenario(tmp_path / "scenario",
-                         overrides={"mapping_file": "my maps/mapping file.json",
-                                    "rf_config": str(absolute)})
+                         overrides={"mapping_file": "my maps/mapping file.json"})
     cfg = config.load_baseline(ini)
     assert cfg.mapping_file.name == "mapping file.json"
     assert cfg.mapping_file.parent.name == "my maps"
-    assert cfg.rf_config == absolute
+    absolute = tmp_path / "abs dir" / "map.json"
+    cfg = config.load_baseline(write_scenario(tmp_path / "other",
+                                              overrides={"mapping_file": str(absolute)}))
+    assert cfg.mapping_file == absolute
 
 
 def test_inline_comments_stripped(tmp_path):
@@ -202,10 +267,52 @@ def _mapping(tmp_path, payload, ini_text=None):
 
 def test_mapping_valid(tmp_path):
     mapping = config.load_mapping(*_mapping(tmp_path, MAPPING))
-    assert mapping.origin == {"lat": 10.0, "lon": 20.0, "synthetic": True}
     assert mapping.geofence == {"source": "rl_bounds", "x_min": 0.0, "x_max": 400.0,
                                 "y_min": 0.0, "y_max": 400.0}
-    assert mapping.radios_default == ("meshradio",)
+    assert mapping.platforms == {}
+
+
+def test_mapping_platforms(tmp_path):
+    payload = copy.deepcopy(MAPPING)
+    payload["platforms"] = {"nodes": {"walker": "aerial", "uav-a": "ground"}}
+    mapping = config.load_mapping(*_mapping(tmp_path, payload))
+    assert mapping.platforms == {"walker": "aerial", "uav-a": "ground"}
+    del payload["platforms"]
+    assert config.load_mapping(*_mapping(tmp_path / "b", payload)).platforms == {}
+
+
+def test_absent_mapping_defaults_to_rl_bounds(tmp_path):
+    ini = config.read_ini(write_scenario(tmp_path))
+    mapping = config.load_mapping(None, ini)
+    assert mapping.path is None and mapping.platforms == {}
+    assert mapping.geofence == {"source": "rl_bounds", **AREA}
+    partial = config.read_ini(write_scenario(
+        tmp_path / "p", ini_text=scenario_ini().replace("y_min = 0.0\n", "")))
+    with pytest.raises(ConfigError, match="y_min.*loader defaults are not used"):
+        config.load_mapping(None, partial)
+
+
+def test_mapping_v1_gets_a_migration_message(tmp_path):
+    payload = {"baseline_mapping_version": 1,
+               "origin": {"lat": 10.0, "lon": 20.0, "synthetic": True},
+               "ground_datum": "z_is_agl_m", "geofence": {"source": "rl_bounds"},
+               "radios": {"default": ["meshradio"]}}
+    with pytest.raises(ConfigError) as err:
+        config.load_mapping(*_mapping(tmp_path, payload))
+    message = str(err.value)
+    assert "baseline_mapping_version 1 is no longer read; migrate to version 2" in message
+    assert "delete origin, ground_datum and radios" in message
+
+
+@pytest.mark.parametrize("key,value", [
+    ("origin", {"lat": 0.0, "lon": 0.0, "synthetic": True}),
+    ("ground_datum", "z_is_agl_m"),
+    ("radios", {"default": ["meshradio"]}),
+])
+def test_mapping_v2_rejects_retired_keys(tmp_path, key, value):
+    payload = {**copy.deepcopy(MAPPING), key: value}
+    with pytest.raises(ConfigError, match=f"{key} removed in mapping version 2"):
+        config.load_mapping(*_mapping(tmp_path, payload))
 
 
 def test_mapping_rectangle(tmp_path):
@@ -243,23 +350,19 @@ def test_polygon_geofence_rejected_with_rectangle_limit(tmp_path, geofence):
 
 
 @pytest.mark.parametrize("mutate,match", [
-    (lambda m: m.update(baseline_mapping_version=2), "baseline_mapping_version"),
+    (lambda m: m.update(baseline_mapping_version=3), "baseline_mapping_version must be 2"),
+    (lambda m: m.update(baseline_mapping_version=True), "baseline_mapping_version must be 2"),
+    (lambda m: m.pop("baseline_mapping_version"), "baseline_mapping_version must be 2"),
     (lambda m: m.update(extra=1), "unknown key"),
-    (lambda m: m.pop("origin"), "missing key"),
-    (lambda m: m["origin"].update(lat=85.0), "origin.lat"),
-    (lambda m: m["origin"].update(lon=float("nan")), "origin.lon"),
-    (lambda m: m["origin"].pop("synthetic"), "missing key"),
-    (lambda m: m["origin"].update(synthetic="yes"), "synthetic"),
-    (lambda m: m.update(ground_datum="z_is_msl_m"), "ground_datum"),
+    (lambda m: m.pop("geofence"), "missing key"),
     (lambda m: m.update(geofence={"source": "circle"}), "geofence.source"),
     (lambda m: m.update(geofence={"source": "rectangle_xy_m", "x_min": 5, "x_max": 5,
                                   "y_min": 0, "y_max": 1}), "x_min < x_max"),
     (lambda m: m.update(geofence={"source": "rectangle_xy_m", "x_min": 0}), "missing key"),
     (lambda m: m.update(geofence={"source": "rl_bounds", "x_min": 0}), "unknown key"),
-    (lambda m: m.update(radios={"default": []}), "radios.default"),
-    (lambda m: m.update(radios={"default": ["a", "a"]}), "more than once"),
-    (lambda m: m.update(radios={"nodes": {"gw": "meshradio"}}), "radios.nodes.gw"),
     (lambda m: m.update(platforms={"nodes": {"gw": "sea"}}), "platforms.nodes.gw"),
+    (lambda m: m.update(platforms={"nodes": ["gw"]}), "platforms.nodes must be an object"),
+    (lambda m: m.update(platforms={"default": "aerial"}), "unknown key"),
 ])
 def test_mapping_invalid(tmp_path, mutate, match):
     payload = copy.deepcopy(MAPPING)
@@ -276,3 +379,7 @@ def test_mapping_missing_or_malformed(tmp_path):
     bad.write_text("{not json")
     with pytest.raises(ConfigError, match="not valid JSON"):
         config.load_mapping(bad, ini)
+    listing = tmp_path / "list.json"
+    listing.write_text("[]")
+    with pytest.raises(ConfigError, match="must be a JSON object"):
+        config.load_mapping(listing, ini)

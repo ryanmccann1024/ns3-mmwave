@@ -10,11 +10,11 @@ from datetime import datetime
 from pathlib import Path
 
 from scripts.baselines import adapter, artifacts, config
-from scripts.sim_support import find_mesh_root, parse_seed_spec, simulator_env, tail_lines
+from scripts.sim_support import (find_mesh_root, parse_seed_spec, simulator_env,
+                                 stop_process, tail_lines)
 
 OUTPUT_LABEL = "baseline"
-# Mirrors the [scenario] seed default in src/config/config-loader.cc.
-DEFAULT_SCENARIO_SEED = 42
+DEFAULT_SCENARIO_SEED = config.DEFAULT_SCENARIO_SEED
 TERMINATE_WAIT_S = 10.0
 SIM_LOG_TAIL_LINES = 40
 _SIGNALS = (signal.SIGINT, signal.SIGTERM)
@@ -49,13 +49,11 @@ def resolve_seeds(raw: str | None, run_config: str | Path) -> list[int]:
     """--seeds when given, otherwise the INI's [scenario] seed (or the simulator default)."""
     if raw is not None:
         return parse_seed_spec(raw)
-    value = config.ini_value(config.read_ini(run_config), "scenario", "seed")
-    if value is None:
-        return [DEFAULT_SCENARIO_SEED]
-    if not value.isdigit():
-        raise ValueError(f"[scenario] seed in {run_config} is not a non-negative integer: "
-                         f"{value!r}")
-    return [int(value)]
+    try:
+        return [config.scenario_int(config.read_ini(run_config), "seed",
+                                    DEFAULT_SCENARIO_SEED)]
+    except config.ConfigError as exc:
+        raise ValueError(f"{run_config}: {exc}") from exc
 
 
 def _check_inputs(args) -> tuple[str, Path]:
@@ -97,14 +95,7 @@ def seed_records(run_dir: Path, seeds: list[int], absent: str) -> list[dict]:
 
 def stop_child(proc: subprocess.Popen, wait_s: float = TERMINATE_WAIT_S) -> None:
     """Terminate, kill after `wait_s`, and always reap."""
-    if proc.poll() is not None:
-        return
-    proc.terminate()
-    try:
-        proc.wait(timeout=wait_s)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait()
+    stop_process(proc, wait_s)
 
 
 def _exit_status(returncode: int) -> int:
@@ -150,8 +141,8 @@ def run(args, binary: str, seeds: list[int], run_dir: Path) -> int:
     try:
         try:
             prepared = adapter.prepare(args.run_config, args.algorithm, run_dir,
-                                       mode="standalone", planner_source=args.planner_source,
-                                       band=args.band, simulation_seeds=seeds,
+                                       mode="standalone", band=args.band,
+                                       simulation_seeds=seeds,
                                        sim_binary=binary)
         except adapter.BaselinePreparationError as exc:
             print(f"Baseline preparation failed: {exc}", file=sys.stderr)
@@ -199,9 +190,6 @@ def _build_parser() -> argparse.ArgumentParser:
                         "outputs/YYYY-MM/DD/HH-MM-SS-baseline")
     p.add_argument("--band", choices=["mmwave", "sub-6"], default=None,
                    help="Override the scenario band; omitted -> scenario decides")
-    p.add_argument("--planner-source", default=None,
-                   help="Planner source directory; omitted -> $MESH_SIM_ARPO_PATH, then "
-                        "third_party/arpo_placement")
     return p
 
 

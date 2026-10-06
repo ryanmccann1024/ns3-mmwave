@@ -125,8 +125,10 @@ def test_experiment_run_groups_two_training_runs(sim_binary, multi_run_config, t
 def _placement_run_config(tmp_path, monkeypatch, **overrides) -> str:
     """Synthetic baseline scenario with the stub planner installed."""
     install_stub_planner(monkeypatch)
-    monkeypatch.delenv("MESH_SIM_ARPO_PATH", raising=False)
-    return str(write_scenario(tmp_path / "placement-scenario", **overrides))
+    ini = write_scenario(tmp_path / "placement-scenario", **overrides)
+    ini.write_text(ini.read_text().replace("controlled_nodes = uav-a, uav-b, uav-c, walker",
+                                           "controlled_nodes = uav-a, uav-c"))
+    return str(ini)
 
 
 def _record_manifest_writes(monkeypatch) -> list:
