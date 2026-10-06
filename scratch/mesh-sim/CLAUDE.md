@@ -73,10 +73,12 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
     needs more than one line, two lines max.
   - Put protocol narratives and examples in the relevant module README. Avoid
     section banners and agent notes.
-  - Doxygen `##` / `@fn` / `@brief` blocks are allowed in Python. Where a
-    package already uses them (`arpo_data`, `validation`, `sweep`,
-    `plotting`), follow its CLAUDE.md; the block-length rule above does not
-    apply to them.
+  - Doxygen blocks are allowed in Python (`##` with `@fn` / `@brief` /
+    `@param` / `@return` / `@throws`, plus a 1-5 line module docstring) and in
+    C++ (`/** @file ... @brief */` and `/** ... */` per public function). Where
+    a package already uses them (`arpo_data`, `validation`, `sweep`,
+    `plotting`), follow its CLAUDE.md; the one-line docstring, "Args/Returns",
+    and block-length rules above do not apply to them.
 - When adding new source files, update `CMakeLists.txt`'s source list.
 - New C++ unit test suites: follow `tests/CLAUDE.md` (add to `UNIT_DIRS`).
 - Before changing a user-visible behavior (`run.ini`/CLI option, RL
@@ -102,8 +104,11 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
   leave it out.
 - No documentation quotas. A review may conclude that a file or module already
   has the right amount of documentation.
-- Do not regenerate or commit Doxygen HTML/LaTeX output. Treat Doxygen warnings
-  as evidence to assess, not a mandate to annotate every symbol.
+- Doxygen may be generated into `docs/`, which must contain a `Doxyfile`. The
+  generated output is ignored by the repo-root `.gitignore`
+  (`scratch/mesh-sim/docs/html/*`, `scratch/mesh-sim/docs/latex/*`); keep it
+  out of commits. Treat Doxygen warnings as evidence to assess, not a mandate
+  to annotate every symbol.
 - Documentation-only work must not change runtime behavior. Record discovered
   defects and code risks for a separately approved task.
 
