@@ -23,9 +23,11 @@ action meaning. Change it for incompatible protocol semantics or layout, not
 for a refactor that preserves behavior. A saved JSON `manifest_version`
 describes a file's schema: increment the *relevant* version when fields or
 their meanings change, then update writers, readers, examples, and tests.
-Currently `train_manifest.json` uses version 2;
-`rl_episode.json` uses version 1 for legacy control and version 2 for
-centralized control; `baseline_manifest.json` and `baseline-plan.json` use
+Currently `train_manifest.json` uses version 4;
+`rl_episode.json` uses version 1 for legacy control, version 2 for
+centralized control, and version 3 once the policy selection and schema
+digests are recorded; `eval_manifest.json` uses version 2 and
+`comparison.json` version 1; `baseline_manifest.json` and `baseline-plan.json` use
 version 2 (the `baseline` block in `eval_manifest.json` carries
 `baseline_manifest_version`, while `eval_manifest_version` stays 2). Versions do not increment for each run. The SHA-256
 fields in `scenario_identity` are file fingerprints, not schema versions;

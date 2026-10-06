@@ -78,6 +78,8 @@ Key flags:
 | @c --seeds | Comma-separated seeds; each gets its own @c seed-<N>/ output subdir. |
 | @c --output-dir | Where results are written. |
 | @c --rl-mode | Enable the RL bridge. |
+| @c --seed / @c --run-id | Override the single seed or the run id from @c run.ini (@c --seeds takes precedence for multi-seed runs). |
+| @c --positions-override | Optional JSON file overriding node start positions. |
 | @c --debug-links | Verbose per-link (and per-jammer) log output. |
 | @c --channel-query | Serve candidate-layout channel queries on stdin/stdout for the placement baselines ([contract](src/query/README.md)); needs exactly one seed and writes no outputs. |
 
@@ -718,7 +720,7 @@ From `scratch/mesh-sim/tests/`:
 
 ```bash
 make test                                   # standalone unit tests
-MESH_SIM_BIN=<BIN> make integration         # 9 real-binary CLI contracts
+MESH_SIM_BIN=<BIN> make integration         # 19 real-binary CLI checks (see tests/README.md)
 ```
 
 `make test` stops at the first failing suite. To inspect every suite despite a
