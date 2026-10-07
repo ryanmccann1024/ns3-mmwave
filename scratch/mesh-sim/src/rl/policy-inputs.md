@@ -22,8 +22,8 @@ telemetry = steps
 telemetry_every = 2
 ```
 
-Then run the training command in the [RL setup guide](@ref readme_selecting_observations).
-Its five matching CLI flags can override these keys independently; resolution
+Then train as shown in [Selection keys and flags](@ref src_rl_policy_inputs_selection).
+Five matching CLI flags can override these keys independently; resolution
 is CLI > `run.ini` > default. The resolved values and their sources go into
 `train_manifest.json` and each `episode-NNNN/rl_episode.json`. Omitting
 `reward_components` returns the C++ reward; omitting `telemetry` writes no
@@ -44,7 +44,61 @@ sim.cc tick loop -> rl-bridge.cc step {obs, mask, reward, facts}
 components and combines them; `telemetry.py` writes and replays optional
 decision records. `mesh_env.py` connects those modules to Gymnasium.
 
-## What the observation contains
+## Selection keys and flags {#src_rl_policy_inputs_selection}
+
+These `[rl]` keys are read by the Python env and `train.py`; the simulator
+ignores them. They apply to centralized mode only.
+
+| Key | CLI flag | Type | Default | Meaning |
+|---|---|---|---|---|
+| `observation_preset` | `--observation-preset` | preset name | `raw_links_v1` | Which observation the policy sees. |
+| `reward_components` | `--reward-components` | comma-separated names | absent (the C++ reward) | Components Python composes into the returned reward. |
+| `reward_weights` | `--reward-weights` | comma-separated floats | `1.0` per component | One weight per component, in the same order. |
+| `telemetry` | `--telemetry` | `none` or `steps` | `none` | `steps` writes `<episode-dir>/steps.jsonl`. |
+| `telemetry_every` | `--telemetry-every` | positive int | `1` | Save every kth policy decision (requires `telemetry = steps`). |
+
+Run from `scratch/mesh-sim/`. The flags go before the `m-ppo` subcommand:
+
+```bash
+.venv/bin/python -m scripts.rl.train \
+  --sim-binary <BIN> \
+  --run-config inputs/baselines/centralized-multi-smoke/run.ini \
+  --output-dir outputs/rl-multi-custom \
+  --observation-preset local_links_v1 \
+  --reward-components delivery_ratio,connectivity \
+  --telemetry steps --telemetry-every 2 \
+  m-ppo --total-timesteps 16 --n-steps 16 --seed 1
+```
+
+Each key resolves independently (CLI > `run.ini` > default), and both manifests
+record the resolved value and its source. An unknown preset or component, a
+weight count that does not match the components, or any non-default value of
+these keys in legacy mode fails before the simulator starts. Centralized runs
+need a simulator binary that exports per-decision facts: an `init` without
+`facts_schema` is rejected before training starts.
+
+### Observation presets and reward components
+
+- `raw_links_v1` and `local_links_v1` are described in
+  [What the observation contains](@ref src_rl_policy_inputs_observation).
+- `delivery_ratio`, `connectivity`, `throughput_mbps`, and `legacy` are defined
+  in [One action, several ticks, one reward](@ref src_rl_policy_inputs_reward).
+  `throughput_mbps` is unnormalized: its scale grows with node count and demand.
+- Naming any component makes Python the reward authority: `step()` returns the
+  weighted total, `info["reward"]` holds the per-component values, validity, and
+  weights, and the C++ value stays available as `info["reward"]["legacy"]`.
+
+### Schema fingerprints
+
+Both manifests carry SHA-256 fingerprints of the observation and reward schema
+descriptions. They let a loader detect changed declared layouts, normalization,
+components, or weights. They do not detect every code or physics change and are
+not evidence that a policy transfers between scenarios. A compiled-binary hash,
+when recorded during verification, answers a different question: which
+executable was tested. `manifest_version` labels the saved JSON format, not the
+model or simulator version.
+
+## What the observation contains {#src_rl_policy_inputs_observation}
 
 An observation is the numeric vector passed to the policy. Both presets make
 one block per `max_controlled_nodes` position; a padded position is all zeros
@@ -88,7 +142,7 @@ the manifest helps reject a saved policy whose input layout changed. For the
 local preset, changing movement bounds also changes the interpretation of
 coordinates and fails the structural compatibility check.
 
-## One action, several ticks, one reward
+## One action, several ticks, one reward {#src_rl_policy_inputs_reward}
 
 If `tick_s = 0.1` and `decision_interval_s = 0.5`, the agent chooses an action
 at tick 0 and the simulator runs ticks 1–5 with it. At tick 5 the agent sees
@@ -143,6 +197,12 @@ observation fingerprint. `telemetry_every = 2` saves reset (decision 0), every
 second policy decision, and the terminal decision even if it falls between
 samples. Unsaved decisions still affect training, `rl_episode.json` totals,
 and the final outcome; this option only reduces the detailed trace.
+`rl_episode.json` is updated every decision regardless of `telemetry_every`.
+
+Records are buffered and flushed every 32 records and on stop, so a hard kill
+can lose up to 32 records. On the `centralized-multi-smoke` fixture a record is
+about 0.9 KB and the header about 3.5 KB (measured by an earlier pass; not
+re-measured here).
 
 From the mesh-sim directory, inspect or replay one episode with:
 
@@ -163,7 +223,7 @@ its outcome window; see [decision records](@ref src_rl_decision_records).
 
 ## Reading an RL output directory {#src_rl_reading_output}
 
-Start with the [output-location table](@ref readme_where_output_lands),
+Start with the [output-location table](@ref scripts_rl_output),
 then read these files in order. The ordinary simulator CSV columns are covered
 by the [I/O guide](@ref src_io) and are separate from the RL policy input.
 

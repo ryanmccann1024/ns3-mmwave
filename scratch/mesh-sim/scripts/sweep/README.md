@@ -84,6 +84,21 @@ channel.tx_power_dbm  = 20.0, 25.0, 30.0
 - `[sweep]` (required): `section.key = v1, v2, ...`. Every key is a `run.ini` section and key.
 - Sweep values win over overrides, and overrides win over the base `run.ini`.
 
+### Sweeping the band
+
+`band` needs no special syntax; it is an ordinary `run.ini` key. Interference
+from jammers applies only to `sub-6` points.
+
+```ini
+[sweep]
+channel.band = mmwave, sub-6
+```
+
+Use `channel.band = sub-6` under `[sweep.override]` to pin every point instead.
+
+The validation batch runner takes the same override as a flag:
+`python -m scripts.validation.run_batch ... [--band sub-6]`.
+
 ## Output
 
 | Step | Where |

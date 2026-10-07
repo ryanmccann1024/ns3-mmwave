@@ -32,6 +32,10 @@ keys as a run (no query-specific keys); see the [query contract](@ref src_query)
 Jammers contribute interference only in `sub-6` mode. The jammer's
 `target_freq` then filters the carrier frequency.
 
+The band resolves as `--band` on the command line, then `[channel] band`, then
+the default `mmwave`. `run.log` records the result as `band` and `band_source`
+(`cli`, `run.ini`, or `default`).
+
 | Key | Default | Controls |
 | --- | --- | --- |
 | `band` | `mmwave` | `mmwave` or `sub-6`; CLI `--band` overrides it. |
@@ -98,20 +102,24 @@ regression run. CLI `--rl-mode` turns RL on even if the file says `false`.
 | `enabled` | `false` | Enable the simulator's action/observation bridge. |
 | `controlled_node_id` | blank | Legacy single-node selector; blank selects the last mesh node. |
 | `controlled_nodes` | absent | Centralized selector: `all` or comma-separated node IDs. Its presence selects centralized mode; cannot coexist with `controlled_node_id`. |
-| `max_controlled_nodes` | `0` | Centralized action positions; `0` sizes to the selected nodes. |
+| `max_controlled_nodes` | `0` | Centralized action positions; `0` sizes to the selected nodes. Maximum `64`. |
 | `action_type` | `discrete` | Legacy: `discrete` or `continuous`; centralized requires `discrete`. |
 | `action_profile` | `move_2d` | Centralized movement profile; only `move_2d` is implemented. |
 | `decision_interval_s` | `0` | Seconds between centralized decisions; `0` means `tick_s`, otherwise an integer multiple of it. |
-| `reward_type` | `throughput` | C++ reward: `throughput` or `all_links_los`; `mean_sinr` is a deprecated alias for the latter. |
+| `reward_type` | `throughput` | C++ reward: `throughput` or `all_links_los`; `mean_sinr` is a deprecated alias for the latter: it still runs, prints a warning on stderr, and `run.log` records it as `rl.reward_alias`. |
 | `step_size_m` | `50` | Nominal discrete move per simulation tick, capped by node speed in centralized mode. |
 | `arrival_threshold_m` | `1` | Legacy continuous-target arrival distance, in metres. |
-| `x_min`, `x_max` | `-1000`, `2000` | Allowed east/west movement bounds, in metres. |
+| `x_min`, `x_max` | `-1000`, `2000` | Allowed east/west movement bounds, in metres. Each min must be below its max (same for y and z). |
 | `y_min`, `y_max` | `-1000`, `1000` | Allowed north/south movement bounds, in metres. |
 | `z_min`, `z_max` | `0`, `100` | Allowed height bounds, in metres; centralized `move_2d` does not change height. |
 
+In centralized mode `all_links_los` is true only when every controlled node
+has at least one peer link and all of them are line-of-sight. `action_set` and
+`dimensions` are not keys; the loader ignores unknown keys silently.
+
 The next five keys are read by Python's centralized RL environment, **not** by
-the C++ simulator. Each also has a training CLI override; see the [RL setup
-guide](@ref readme_selecting_observations).
+the C++ simulator. Each also has a training CLI override; see
+[Selecting observations, rewards, and telemetry](@ref src_rl_policy_inputs_selection).
 
 | Key | Default | Controls |
 | --- | --- | --- |

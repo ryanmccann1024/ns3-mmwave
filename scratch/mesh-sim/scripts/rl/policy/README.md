@@ -4,7 +4,7 @@
 This package holds the logic. The two command-line programs, [`../evaluate.py`](@ref scripts/rl/evaluate.py)
 and [`../compare.py`](@ref scripts/rl/compare.py), own argument parsing, printing, and process exit codes.
 For the wider RL code map see [scripts/rl README](@ref scripts_rl); for the four-command
-walkthrough see [Model lifecycle](@ref readme_model_lifecycle).
+walkthrough see [Model lifecycle](@ref scripts_rl_model_lifecycle).
 
 ## Module Layout
 
@@ -95,13 +95,47 @@ computes `model - baseline` differences.
   training runs. Runs whose settings or scenario digests differ raise `ComparisonError`.
   Runs with seed overlap or no usable pairs are excluded from the group.
 
+### Two kinds of interval
+
+They never share a label.
+
+- **Across evaluation seeds, one saved model.** The model and a baseline are
+  paired seed by seed inside one evaluation. The interval shows how the paired
+  difference varies over held-out scenario seeds with the model fixed.
+- **Across independently trained models.** Evaluations sharing a `--label`
+  contribute one mean difference each, over the seeds common to all of them. The
+  interval shows run-to-run variation. The training seed currently sets both the
+  PPO initialization and the training scenario seed, so the two cannot be
+  separated (TODO-RL-SEEDS-1).
+
+A single evaluation seed or a single training run yields a value and no
+interval; `interval_omitted` says why. The intervals are t intervals that assume
+approximately normal paired differences, so on a bounded ratio with few seeds
+they are approximate.
+
+### Reading the output
+
+- Every comparison reports `n_expected` (requested seeds) beside `n_used` (pairs
+  both policies completed), and lists each dropped seed with a reason per side,
+  such as `model:failed`, `hold:metric_null`, or `random_valid:not_run`.
+- A `null` metric is never read as zero. `zero_variance` marks a zero-width
+  interval so a deterministic scenario is not mistaken for certainty.
+- Metrics after `delivery_ratio`: `connectivity`, `los_fraction`,
+  `unroutable_fraction`. `return` is compared only inside one evaluation, where
+  every policy shares one reward definition, and is flagged
+  `comparable_across_reward_definitions: false`.
+- All statistics come from the RL telemetry window, stated as `metric_source`.
+  Nothing is read from a run's `summary.json`, because that file excludes warmup
+  ticks while the RL window does not. Mixing them would be wrong whenever
+  `warmup_s > 0` (see the RL-reward warmup entry in `TODO.md`).
+
 `exit_code` returns:
 
 | Code | Meaning |
 | --- | --- |
-| 0 | Comparison is complete and clean. |
-| 1 | Comparison is incomplete, or inputs were refused (`ComparisonError`). |
-| 2 | Some evaluation overlapped a training or model-selection seed, or a policy has non-zero `mask_violations` or `revalidated_slots`. |
+| 0 | Comparison is complete and clean: every expected evaluation found, complete, held out, and free of health counters. |
+| 1 | Comparison is incomplete (outputs are still written) or was refused (nothing is written; `ComparisonError`). |
+| 2 | Outputs are complete, but an evaluation overlapped a training or model-selection seed (not held out), or a policy has non-zero `mask_violations` or `revalidated_slots`. |
 
 ## Output
 

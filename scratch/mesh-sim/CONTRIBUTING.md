@@ -11,9 +11,9 @@ Before changing a user-visible behavior, check the affected layers:
 
 | Change | Update together |
 | --- | --- |
-| `run.ini` or CLI option | Loader, resolution/validation, [documented options](@ref readme_centralized_control), example, and one valid/invalid configuration check. |
+| `run.ini` or CLI option | Loader, resolution/validation, [documented options](@ref src_config_run_ini_reference), example, and one valid/invalid configuration check. |
 | RL action, observation, mask, cadence, or reward semantics | C++ bridge and simulator loop, Python protocol/environment, [contract](@ref src_rl), focused fake-simulator and real-binary checks. |
-| Training or episode output | Writer, any reader, [output layout](@ref readme_where_output_lands), and a test of the changed fields. |
+| Training or episode output | Writer, any reader, [output layout](@ref scripts_rl_output), and a test of the changed fields. |
 | Channel query wire (`mesh_channel_query_v1`) | `src/query/channel-query.cc`, `scripts/baselines/planners/channel.py`, the fake worker `scripts/baselines/tests/fake_query.py`, the [contract](@ref src_query), and the CLI integration query tests. Rename the contract for incompatible changes. |
 | Placement baseline manifest, plan, or fingerprint | `scripts/baselines/artifacts.py` (`MANIFEST_VERSION`, `PLAN_VERSION`, `fingerprint`, `eval_metadata`), the adapter that fills them, the reader `scripts/rl/policy/compare.py` (groups by `baseline.fingerprint`), the [outputs description](@ref scripts_baselines_outputs), and `scripts/baselines/tests`. |
 | Scenario identity | `read_scenario_identity` in `scripts/rl/env/config.py`, saved training manifest, relevant tests, and the [identity description](@ref src_rl_saved_scenario_identity). |
