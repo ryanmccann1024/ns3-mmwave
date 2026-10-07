@@ -62,23 +62,8 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
   the new behavior belongs to an existing module or a cohesive extraction.
   File size is a review signal, not a quota; avoid both monoliths and tiny
   wrappers created only to lower a line count.
-- **Comment discipline**: Only comment when something isn't obvious. Keep
-  comments short and descriptive. Don't restate what the code already says.
-  - Docstrings: one line. No multi-paragraph docstrings, no "Args/Returns"
-    blocks, no usage examples -- types and names already convey those.
-  - No history in comments: don't narrate abandoned approaches, prior
-    attempts, or "earlier code did X, then we learned Y." That belongs in
-    the commit message, not the source.
-  - No multi-line block comments above functions. If the *why* truly
-    needs more than one line, two lines max.
-  - Put protocol narratives and examples in the relevant module README. Avoid
-    section banners and agent notes.
-  - Doxygen blocks are allowed in Python (`##` with `@fn` / `@brief` /
-    `@param` / `@return` / `@throws`, plus a 1-5 line module docstring) and in
-    C++ (`/** @file ... @brief */` and `/** ... */` per public function). Where
-    a package already uses them (`arpo_data`, `validation`, `sweep`,
-    `plotting`), follow its CLAUDE.md; the one-line docstring, "Args/Returns",
-    and block-length rules above do not apply to them.
+- Comments, Doxygen blocks, and README/doc pages follow the documenter agent's rules
+  (`~/.claude/agents/documenter.md`); use that agent for documentation work.
 - When adding new source files, update `CMakeLists.txt`'s source list.
 - New C++ unit test suites: follow `tests/CLAUDE.md` (add to `UNIT_DIRS`).
 - Before changing a user-visible behavior (`run.ini`/CLI option, RL
@@ -86,31 +71,6 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
   the "update together" table in `CONTRIBUTING.md`. Bump the relevant
   `manifest_version` when a saved JSON schema changes; change the RL `contract`
   name (`mesh_move_2d_v1`) only for incompatible protocol changes.
-
-## Documentation review guidelines
-
-- Scope documentation work to `scratch/mesh-sim/`. Treat the rest of
-  ns3-mmwave as an external dependency unless a task explicitly says otherwise.
-- Preserve useful existing documentation and author intent. Do not rewrite text
-  merely for tone, style, or uniformity.
-- Add documentation only when it helps a new contributor answer one of these:
-  what owns this behavior, how data moves through it, how to run or verify it,
-  or which constraint is easy to violate.
-- Prefer the narrowest durable home for an explanation: a source comment for a
-  local invariant, a module README for a module contract, and the top-level
-  README for setup, navigation, and the end-to-end path.
-- Verify every command, path, option, default, and architectural claim against
-  the current repository. If verification is not possible, label the claim or
-  leave it out.
-- No documentation quotas. A review may conclude that a file or module already
-  has the right amount of documentation.
-- Doxygen may be generated into `docs/`, which must contain a `Doxyfile`. The
-  generated output is ignored by the repo-root `.gitignore`
-  (`scratch/mesh-sim/docs/html/*`, `scratch/mesh-sim/docs/latex/*`); keep it
-  out of commits. Treat Doxygen warnings as evidence to assess, not a mandate
-  to annotate every symbol.
-- Documentation-only work must not change runtime behavior. Record discovered
-  defects and code risks for a separately approved task.
 
 ## Architecture
 

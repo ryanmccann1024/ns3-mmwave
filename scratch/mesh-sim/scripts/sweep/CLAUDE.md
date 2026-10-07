@@ -53,8 +53,6 @@ calls `ini_writer.write_point_ini` + `copy_scenario_files`, then launches
 
 ## Conventions
 
-- Doxygen `##` / `@fn` / `@brief` blocks above each function (the one-line
-  docstrings are kept too).
 - Config errors print to stderr and `sys.exit(1)`. A bad `seeds` value raises
   an uncaught `ValueError`.
 
