@@ -102,7 +102,7 @@ Band resolves as `--band` > `[channel] band` in `run.ini` > default `mmwave`.
 
 ```
 domain  <--  config, cli, eval, io, jammer, query, routing, rl, setup, traffic
-jammer  <--  domain (sim-config.h holds JammerSpec), eval
+jammer  <--  domain (sim-config.h includes jammer-spec.h), eval
 util    <--  cli, config, io
 cli     <--  io, query, sim.cc
 config  <--  query, setup, sim.cc
@@ -126,6 +126,7 @@ query   <--  sim.cc
   layouts through the binary's `--channel-query` worker (`src/query/`); see its README
 - `plotting/` -- post-sim plots
 - `sim_support.py` -- shared simulator launcher helpers
+- `stats.py` -- shared sample statistics (t critical values for 95% CIs)
 
 ## Input/output conventions
 
