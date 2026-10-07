@@ -1,4 +1,4 @@
-@page tests tests
+@page tests Tests
 
 @brief C++ unit tests that build without ns-3, a CLI integration script, and regression fixtures.
 

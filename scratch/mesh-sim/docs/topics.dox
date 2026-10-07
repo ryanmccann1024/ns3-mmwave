@@ -1,15 +1,4 @@
-/**
-* @page overview Overview
-*
-*/
-
-
-/**
- * @page inputs_topic Inputs Topic
- * Scenario definitions and sweep/experiment specs.
- *
- * - @subpage Inputs
- */
+- @subpage Inputs
 
 /**
  * @page scripts Scripts
@@ -57,9 +46,4 @@
  	* - @subpage src_rl_decision_records
 */
 
-/**
- * @page tests_topic Tests Topic
- * C++ unit tests, CLI integration checks, and regression fixtures.
- *
  * - @subpage tests
- */
