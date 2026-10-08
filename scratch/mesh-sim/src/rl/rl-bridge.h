@@ -19,6 +19,7 @@
 #include "ns3/constant-velocity-mobility-model.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -168,11 +169,14 @@ class RlBridge
     double                   m_warmupS = 0.0;
     bool                     m_jammerPathEnabled = false;
 
-    // Last action received from Python
-    int    m_lastDiscreteAction = 0;
-    double m_lastTargetX = 0.0;
-    double m_lastTargetY = 0.0;
-    double m_lastTargetZ = 0.0;
+    // Last action received from Python. An empty continuous target coordinate
+    // keeps the node's current value (Stay, or z of a 2-D target).
+    int                   m_lastDiscreteAction = 0;
+    std::optional<double> m_lastTargetX;
+    std::optional<double> m_lastTargetY;
+    std::optional<double> m_lastTargetZ;
+
+    void HoldLegacy();
 
     double ComputeRewardTick(const LinkTable& linkTable,
                              const std::vector<FlowResult>& flows) const;
