@@ -13,10 +13,11 @@ read it before editing there.
 | `validation/` | field traces -> scenarios, batch runs, sim-vs-field comparison, regression and smoke checks |
 | `sweep/` | one sim run per point of a `run.ini` grid |
 | `rl/` | Gymnasium env, training, evaluation, experiments, cluster ops |
+| `baselines/` | placement planners (`geometric`, `optimization`) scored by the simulator's `--channel-query` worker; see its `README.md` |
 | `plotting/` | post-sim figures from finished `seed-N/` folders |
 
 Data flow: `arpo_data` -> `validation` (build scenarios, run, compare);
-`sweep`, `validation`, and `rl` launch the simulator; `plotting` reads its
+`sweep`, `validation`, `rl`, and `baselines` launch the simulator; `plotting` reads its
 outputs.
 
 ## Commands
@@ -30,7 +31,7 @@ python3 scripts/rl/bootstrap_venv.py              # creates .venv
 .venv/bin/python -m pytest scripts/rl/tests scripts/validation/tests -q   # what CI runs
 ```
 
-Only `rl/` and `validation/` have test suites; `sweep` launcher behavior is
+`rl/`, `validation/` and `baselines/` have test suites (`scripts/baselines/tests`); `sweep` launcher behavior is
 covered in `validation/tests`, and `plotting` by one test in
 `rl/tests/test_policy_comparison.py`.
 
@@ -41,7 +42,8 @@ Reuse these instead of re-implementing them in a subpackage:
 - `sim_support.py` -- `find_mesh_root` (ancestor containing `sim.cc`),
   `find_sim_binary` (`<ns3>/build/scratch/mesh-sim/ns3*-sim-*`),
   `simulator_env` (prepends `<ns3>/build/lib` to `LD_LIBRARY_PATH` /
-  `DYLD_LIBRARY_PATH`), `parse_seed_spec` (`1,3,5-7`), `strip_inline_comment`
+  `DYLD_LIBRARY_PATH`), `parse_seed_spec` (`1,3,5-7`), `parse_ini` (whole INI file,
+  matching the C++ `parseIni`), `strip_inline_comment`
   (INI values, matching the C++ loader), `tail_lines`, `stop_process`
   (terminate, kill, reap; optionally the child's whole process group).
 - `stats.py` -- `sample_stats` and `t_critical_95` for 95% CIs. The t table

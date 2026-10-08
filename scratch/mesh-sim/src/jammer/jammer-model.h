@@ -4,12 +4,12 @@
  * @brief Per-receiver jammer interference power for the sub-6 band.
  *
  * @ref mesh_sim::JammerModel sums the received power (watts) of every enabled
- * @ref JammerSpec that passes the time, random-burst, frequency, range and
- * beam gates. @ref LinkEvaluator::Evaluate adds the result to the SINR
- * denominator when @c band is @c "sub-6" and @ref JammerModel::HasJammers is true.
+ * @ref mesh_sim::JammerSpec that passes the time, random-burst, frequency, range and
+ * beam gates. @ref mesh_sim::LinkEvaluator::Evaluate adds the result to the SINR
+ * denominator when @c band is @c "sub-6" and @ref mesh_sim::JammerModel::HasJammers is true.
  *
  * Path loss uses the same ns-3 @c PropagationLossModel as mesh links.
- * The model is separate from @ref LinkEvaluator so it can be tested or
+ * The model is separate from @ref mesh_sim::LinkEvaluator so it can be tested or
  * extended without touching the core SINR code.
  */
 #pragma once
@@ -53,7 +53,8 @@ class JammerModel
      *
      * Replaces any previously loaded jammers. Specs with @c enabled == false
      * are dropped here and never reach the per-tick sum. Copies each spec.
-     * Not called by @ref LinkEvaluator::Configure when @c cfg.jammers is empty.
+     * Not called by @ref LinkEvaluator::Configure when @c cfg.jammers is empty;
+     * that call resets the model instead.
      */
     void Configure(const std::vector<JammerSpec>& jammers,
                    ns3::Ptr<ns3::PropagationLossModel> plModel,

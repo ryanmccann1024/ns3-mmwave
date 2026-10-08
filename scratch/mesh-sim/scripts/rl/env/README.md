@@ -5,25 +5,25 @@
 `MeshRlEnv` starts one simulator process per episode, validates every message
 it sends back, and turns the reply into a Gymnasium observation, reward, and
 `info` dict. It also writes the per-episode manifest and optional step
-telemetry. The wire contract lives in [`src/rl/README.md`](../../../src/rl/README.md);
+telemetry. The wire contract lives in [`src/rl/README.md`](@ref src_rl);
 observation presets and reward components are specified in
-[`src/rl/policy-inputs.md`](../../../src/rl/policy-inputs.md). This page does
+[`src/rl/policy-inputs.md`](@ref src_rl_policy_inputs). This page does
 not repeat them.
 
 ## Module Layout
 
 | File | Role |
 | --- | --- |
-| [`mesh_env.py`](mesh_env.py) | `MeshRlEnv`, the Gymnasium environment; owns reset/step flow, spaces, and action masks. |
-| [`episode.py`](episode.py) | `EpisodeSession`: simulator subprocess, stderr tail, cleanup, and `rl_episode.json`. |
-| [`protocol.py`](protocol.py) | `CentralizedProtocol` and `LegacyProtocol`: message validation and joint-action checks; raises `ProtocolError`. |
-| [`observations.py`](observations.py) | Observation presets (`raw_links_v1`, `local_links_v1`), observation schema, and schema hashing/compatibility check. |
-| [`rewards.py`](rewards.py) | Reward components (`delivery_ratio`, `connectivity`, `throughput_mbps`, `legacy`), `RewardComposer`, and reward schema. |
-| [`selection.py`](selection.py) | `RlSelection`: preset, reward, and telemetry choices resolved as CLI > `run.ini [rl]` > default. |
-| [`telemetry.py`](telemetry.py) | Optional `steps.jsonl` writer and offline replay. |
-| [`decisions.py`](decisions.py) | Opt-in per-decision record writer (`policy_decisions.jsonl` + manifest); see [`src/rl/decision-records.md`](../../../src/rl/decision-records.md). |
-| [`config.py`](config.py) | `run.ini` readers: seed, movement bounds, action profile, control mode, scenario file hashes. |
-| [`__init__.py`](__init__.py) | Re-exports `MeshRlEnv`. |
+| [`mesh_env.py`](@ref scripts/rl/env/mesh_env.py) | `MeshRlEnv`, the Gymnasium environment; owns reset/step flow, spaces, and action masks. |
+| [`episode.py`](@ref scripts/rl/env/episode.py) | `EpisodeSession`: simulator subprocess, stderr tail, cleanup, and `rl_episode.json`. |
+| [`protocol.py`](@ref scripts/rl/env/protocol.py) | `CentralizedProtocol` and `LegacyProtocol`: message validation and joint-action checks; raises `ProtocolError`. |
+| [`observations.py`](@ref scripts/rl/env/observations.py) | Observation presets (`raw_links_v1`, `local_links_v1`), observation schema, and schema hashing/compatibility check. |
+| [`rewards.py`](@ref scripts/rl/env/rewards.py) | Reward components (`delivery_ratio`, `connectivity`, `throughput_mbps`, `legacy`), `RewardComposer`, and reward schema. |
+| [`selection.py`](@ref scripts/rl/env/selection.py) | `RlSelection`: preset, reward, and telemetry choices resolved as CLI > `run.ini [rl]` > default. |
+| [`telemetry.py`](@ref scripts/rl/env/telemetry.py) | Optional `steps.jsonl` writer and offline replay. |
+| [`decisions.py`](@ref scripts/rl/env/decisions.py) | Opt-in per-decision record writer (`policy_decisions.jsonl` + manifest); see [`src/rl/decision-records.md`](@ref src_rl_decision_records). |
+| [`config.py`](@ref scripts/rl/env/config.py) | `run.ini` readers: seed, movement bounds, action profile, control mode, scenario file hashes. |
+| `__init__.py` | Re-exports `MeshRlEnv`. |
 
 ## How One Episode Flows
 
@@ -98,7 +98,7 @@ Written under `<output_dir>/episode-NNNN/`, one directory per reset.
 ## Dependencies
 
 - Python packages: `gymnasium` and `numpy`; install as described in the
-  [main README](../../../README.md#python-environment).
+  [main README](@ref readme_python_environment).
 - `scripts/sim_support.py` for the simulator environment and helpers.
 - A built simulator binary passed as `sim_binary`; this package does not build it.
-- Tests: [`../tests/README.md`](../tests/README.md).
+- Tests: @ref scripts_rl_tests.

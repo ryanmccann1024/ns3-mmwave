@@ -87,11 +87,6 @@ def emit(line: str) -> None:
     sys.stdout.flush()
 
 
-# --------------------------------------------------------------------------
-# Centralized mode
-# --------------------------------------------------------------------------
-
-
 def _bounds(ini: configparser.ConfigParser) -> dict:
     ranges = {}
     for axis, (low, high) in BOUND_DEFAULTS.items():

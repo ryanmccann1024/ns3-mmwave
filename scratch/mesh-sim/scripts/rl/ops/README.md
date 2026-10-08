@@ -1,5 +1,7 @@
 @page scripts_rl_ops scripts/rl/ops
 
+@brief Operations wrappers around an experiment plan: task runner, SLURM submission, benchmark, tuning, and fetch.
+
 Operations plumbing *around* an existing `experiment_plan.json`: run one array
 task, measure one task's cost, search the already-wired PPO knobs, submit the
 plan to SLURM, and copy results to another machine.
@@ -10,7 +12,7 @@ Create an experiment plan before benchmarking or submitting cluster tasks;
 tuning reads a study spec directly, and fetch copies an existing run. For a
 resource estimate, start at [Benchmark](#benchmark); for a small search, see
 [Tuning smoke](#tuning-smoke); for job submission and recovery, see
-[Cluster runs](#cluster-runs); for copying results home, see [Fetch](#fetch).
+[Cluster runs](@ref scripts_rl_ops_cluster_runs); for copying results home, see [Fetch](#fetch).
 The [module map](#module-map) below tells contributors which file owns each
 part. The cluster guide documents the current CLI, but live SLURM and real
 `rsync` behavior still need validation on the target site.
@@ -83,7 +85,7 @@ An evaluation needs only its own training run, and evaluation seeds cannot be
 split across tasks (`scripts.rl.compare` requires one manifest per label with
 sorted seeds), so one element per pair keeps each task self-contained.
 
-### Why the compare job depends with `afterany`
+### Why the compare job depends with afterany
 
 The comparison is one separate job submitted with
 `--dependency=afterany:<every active array job id>`. Correctness comes from a
@@ -93,7 +95,7 @@ after that element is resubmitted as part of a later array. `afterany` only
 orders the jobs; `compare_prerequisites` decides whether a comparison may be
 written at all.
 
-## Runner: `run_task.py`
+## Runner: run_task.py
 
 ```bash
 .venv/bin/python -m scripts.rl.ops.run_task --output-root R --task-index I [--record PATH]
@@ -128,7 +130,7 @@ back from `comparison.json`.
 A tolerated `2` therefore makes the runner exit 0, so `sacct` does not show a
 healthy task as FAILED, while the raw code survives in the record.
 
-### Record schema (`--record`)
+### Record schema (--record)
 
 ```json
 {"record_version": 1, "mode": "task|compare", "task_index": 0, "task_id": "row/train-seed-101",
@@ -141,7 +143,7 @@ healthy task as FAILED, while the raw code survives in the record.
 `task_index` and `task_id` are `null` in compare mode. A skipped step records
 `exit_code: null` and `tolerated: null`.
 
-## Cluster runs
+## Cluster runs {#scripts_rl_ops_cluster_runs}
 
 For now, use one SLURM account per output root. Scheduler lookups use the
 current account, so a second operator may not see an existing job and could
@@ -306,10 +308,14 @@ job name.
    CLI command to submit a compare-only SLURM job; do not assume the comparison
    will appear automatically.
 
-The `sbatch` argv is
-`sbatch --parsable --no-requeue --job-name=J [--array=SPEC] --output=<log pattern>
-[--dependency=…] [--partition=] [--account=] [--qos=] [--constraint=] --time= --mem=
---cpus-per-task= <script>`, with each `null` config value omitting its flag.
+The `sbatch` argv is below, with each `null` config value omitting its flag:
+
+```
+sbatch --parsable --no-requeue --job-name=J [--array=SPEC] --output=<log pattern>
+  [--dependency=…] [--partition=] [--account=] [--qos=] [--constraint=] --time= --mem=
+  --cpus-per-task= <script>
+```
+
 `SPEC` is the compressed index list (`0-7`, `1,3`) plus `%N` when
 `max_concurrent_tasks` is set.
 
@@ -387,7 +393,7 @@ to `cancel_requests`. A failed queue query is a refusal with exit 1 — includin
 under `--dry-run` — because active elements cannot be resolved without it;
 nothing is cancelled and nothing is recorded.
 
-### Only one writer of `comparison.json`
+### Only one writer of comparison.json
 
 If a compare submission is lost after the array is queued, the same safety
 checks can prevent another automatic submission. Inspect the compare receipt
@@ -411,7 +417,7 @@ exists. The consequence: where `sacct` accounting is unavailable, a compare job
 that has simply left the queue keeps blocking until the human asserts it
 inactive.
 
-### `cluster compare` versus `fetch`
+### cluster compare versus fetch
 
 `cluster compare` computes statistics **where the plan lives**: it runs the
 compare step in-process on the current host, and transfers nothing. With every
@@ -448,8 +454,14 @@ Always included: `experiment_plan.json`, `cluster/tasks.json`, and
 | `episode-data` | `train/**/episode-*/**`, `eval/**/episode-*/**` (whole trees; potentially large, explicit opt-in) |
 | `logs` | `cluster/logs/**` |
 
-The argv is `rsync -a --prune-empty-dirs --ignore-existing --include=… --include='*/'
---exclude='*' <remote>/ <dest>/`. `--ignore-existing` is always present, so a
+The argv is:
+
+```
+rsync -a --prune-empty-dirs --ignore-existing --include=… --include='*/'
+  --exclude='*' <remote>/ <dest>/
+```
+
+`--ignore-existing` is always present, so a
 local file is never overwritten. A non-empty destination is refused unless
 `--update`, which only adds files that are absent locally and keeps an earlier
 manifest as `fetch_manifest.<n>.json`. The destination is also refused when it

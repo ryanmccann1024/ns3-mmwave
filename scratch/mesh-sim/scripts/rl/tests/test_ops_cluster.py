@@ -131,8 +131,6 @@ def _tree(path: Path) -> dict:
             for item in sorted(path.rglob("*"))}
 
 
-# --- cluster config -------------------------------------------------------
-
 def test_the_example_config_is_refused_unedited():
     with pytest.raises(ValueError, match="placeholder"):
         slurm.load_cluster_config(EXAMPLE_CONFIG)
@@ -196,8 +194,6 @@ def test_a_valid_config_keeps_every_value(tmp_path, venv):
         "partition": None, "account": None, "qos": None, "constraint": None,
         "time": "00:30:00", "mem": "2G", "cpus_per_task": 1}
 
-
-# --- argv and job scripts -------------------------------------------------
 
 ARRAY_SPECS = [([0], None, "0"), ([0, 1, 2, 3, 4, 5, 6, 7], None, "0-7"),
                ([1, 3], None, "1,3"), ([0, 1, 2, 5, 6], None, "0-2,5-6"),
@@ -263,8 +259,6 @@ def test_the_job_script_quotes_paths_and_exports_threads(tmp_path, venv):
     assert "compare.json" in compare
 
 
-# --- parsers --------------------------------------------------------------
-
 def test_parse_squeue_expands_collapsed_array_elements():
     text = ("123_[2-5]|PENDING|Priority|2026-01-01T09:00:00\n"
             "123_7|RUNNING|None|N/A\n"
@@ -306,8 +300,6 @@ def test_a_missing_scheduler_binary_is_reported_not_raised(tmp_path, monkeypatch
     assert snapshot["queue"]["ok"] is False and snapshot["accounting"]["ok"] is False
     assert snapshot["queue"]["jobs"] == {}
 
-
-# --- reconciliation table -------------------------------------------------
 
 def _snapshot(queue=None, accounting=None, queue_ok=True, accounting_ok=True) -> dict:
     return {"queue": {"ok": queue_ok, "jobs": queue or {},
@@ -435,8 +427,6 @@ def test_the_compare_row_is_pending_while_its_job_is_queued(env):
                                          "start": "N/A"}})
     assert reconcile.compare_row(plan, entries, snapshot)["state"] == "pending"
 
-
-# --- CLI integration ------------------------------------------------------
 
 def test_plan_writes_the_task_table_and_submits_nothing(env, capsys):
     assert _run(env, "plan") == 0
@@ -792,8 +782,6 @@ def test_ops_never_writes_the_plan_or_a_step_directory(env):
     assert sorted(item.name for item in env.root.iterdir()) == [
         "cluster", experiment.PLAN_NAME]
 
-
-# --- manual comparison ----------------------------------------------------
 
 class _CompareStub:
     """Writes comparison.json like compare.py would and reports a raw exit code."""

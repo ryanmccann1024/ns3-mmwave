@@ -5,7 +5,7 @@
  *        run's channel path, one forked child per layout.
  *
  * The wire contract (@c mesh_channel_query_v1), isolation guarantee, limits
- * and error semantics are documented in @c src/query/README.md.
+ * and error semantics are documented in @ref src_query.
  */
 #pragma once
 

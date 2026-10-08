@@ -1,4 +1,8 @@
 /* -*- Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
+/**
+ * @file rl-bridge.cc
+ * @brief Implements RlBridge: JSON message writing, action parsing, masks, and per-tick velocity control.
+ */
 
 #include "src/rl/rl-bridge.h"
 #include "third_party/json.hpp"
@@ -18,6 +22,23 @@ namespace
 {
 constexpr double kWallEps = 1e-6;
 constexpr int    kHold = 4;
+
+// True when j is an integer in [0, maxAction]. Compares before narrowing to
+// int, so a value such as 2^32 cannot wrap into range.
+bool
+IsActionIndex(const json& j, int maxAction)
+{
+    if (j.is_number_unsigned())
+    {
+        return j.get<uint64_t>() <= static_cast<uint64_t>(maxAction);
+    }
+    if (j.is_number_integer())
+    {
+        const int64_t v = j.get<int64_t>();
+        return v >= 0 && v <= maxAction;
+    }
+    return false;
+}
 }  // namespace
 
 RlBridge::RlBridge(const SimConfig& cfg)
@@ -390,6 +411,15 @@ RlBridge::WriteStep(uint32_t tick, double time_s,
 // ---------------------------------------------------------------------------
 
 void
+RlBridge::HoldLegacy()
+{
+    m_lastDiscreteAction = 6;
+    m_lastTargetX.reset();
+    m_lastTargetY.reset();
+    m_lastTargetZ.reset();
+}
+
+void
 RlBridge::ReadAction()
 {
     // One warning per process; rl-bridge.h carries no state for this.
@@ -399,7 +429,7 @@ RlBridge::ReadAction()
     if (!std::getline(std::cin, line))
     {
         // stdin closed — hold position
-        m_lastDiscreteAction = 6;
+        HoldLegacy();
         if (!warned)
         {
             warned = true;
@@ -411,7 +441,7 @@ RlBridge::ReadAction()
     auto j = json::parse(line, nullptr, false);
     if (j.is_discarded())
     {
-        m_lastDiscreteAction = 6;
+        HoldLegacy();
         if (!warned)
         {
             warned = true;
@@ -420,13 +450,26 @@ RlBridge::ReadAction()
         return;
     }
 
-    // A non-object line or a non-integer "action" (e.g. a joint-action list) is
-    // malformed for the legacy encoding; it must not abort the run.
-    if (!j.is_object() ||
-        (m_rl.action_type != "continuous" && j.contains("action") &&
-         !j["action"].is_number_integer()))
+    // A non-object line, a missing "action", or an "action" of the wrong shape
+    // (a non-integer discrete action, or a continuous target that is not 2 or 3
+    // numbers) is malformed for the legacy encoding; it must not abort the run.
+    bool malformed = !j.is_object() || !j.contains("action");
+    if (!malformed && m_rl.action_type == "continuous")
     {
-        m_lastDiscreteAction = 6;
+        const auto& a = j["action"];
+        malformed = !a.is_array() || a.size() < 2 || a.size() > 3;
+        for (std::size_t i = 0; !malformed && i < a.size(); ++i)
+        {
+            malformed = !a[i].is_number();
+        }
+    }
+    else if (!malformed)
+    {
+        malformed = !j["action"].is_number_integer();
+    }
+    if (malformed)
+    {
+        HoldLegacy();
         if (!warned)
         {
             warned = true;
@@ -441,11 +484,14 @@ RlBridge::ReadAction()
         m_lastTargetX = a[0].get<double>();
         m_lastTargetY = a[1].get<double>();
         // Optional third component for 3-D continuous control; keep current z if absent.
-        m_lastTargetZ = (a.size() > 2) ? a[2].get<double>() : m_lastTargetZ;
+        m_lastTargetZ = (a.size() > 2) ? std::optional<double>(a[2].get<double>())
+                                       : std::nullopt;
     }
     else
     {
-        m_lastDiscreteAction = j.value("action", 0);
+        // Any integer outside 0..6 is Stay, matching the ApplyAction default.
+        const auto& a = j["action"];
+        m_lastDiscreteAction = IsActionIndex(a, 6) ? a.get<int>() : 6;
     }
 }
 
@@ -485,18 +531,12 @@ RlBridge::ReadJointAction()
     {
         for (const auto& entry : j["action"])
         {
-            if (!entry.is_number_integer())
+            if (!IsActionIndex(entry, kHold))
             {
                 structural = false;
                 break;
             }
-            const int a = entry.get<int>();
-            if (a < 0 || a > kHold)
-            {
-                structural = false;
-                break;
-            }
-            proposed.push_back(a);
+            proposed.push_back(entry.get<int>());
         }
     }
 
@@ -665,9 +705,9 @@ RlBridge::ApplyAction(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs)
 
     if (m_rl.action_type == "continuous")
     {
-        desiredX = m_lastTargetX;
-        desiredY = m_lastTargetY;
-        desiredZ = m_lastTargetZ;
+        desiredX = m_lastTargetX.value_or(pos.x);
+        desiredY = m_lastTargetY.value_or(pos.y);
+        desiredZ = m_lastTargetZ.value_or(pos.z);
     }
     else
     {

@@ -1,4 +1,6 @@
-# Gateway-free placement planners
+@page scripts_baselines_planners scripts/baselines/planners
+
+@brief The geometric and optimization placement planners and their shared objective and channel scorer.
 
 The two placement baselines, `geometric` (sequential greedy) and
 `optimization` (simulated annealing), adapted from the Desktop reference copy
@@ -80,7 +82,7 @@ Anchor links only filter candidates. Whether the result survives a node loss
 is decided by the vulnerability term and `diagnose`, not by link counts.
 Results are cached by exact layout bytes; there are no partial or
 changed-pairs-only queries, because sampled draws depend on evaluation order
-(see `src/query/README.md`).
+(see [src/query](@ref src_query)).
 
 ## Optimization: keep-best annealing
 

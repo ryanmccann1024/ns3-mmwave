@@ -68,9 +68,8 @@ validate_days = sim_to_traces + compare + scenario_fidelity per day, then compar
 
 ## Conventions
 
-- Public functions use Doxygen `##` / `@fn` / `@brief` comment blocks above the
-  `def` (see `compare.py`). `smoke_check.py`'s module docstring doubles as its
-  argparse description, so extra header text goes in `#` comments there.
+- `smoke_check.py`'s module docstring doubles as its argparse description, so
+  editing it changes `--help` output.
 - Comparisons are distributional (no time alignment); histograms are
   density-normalized with a KDE overlay and K-S D statistic only (no p-value).
 - MCS is clipped at 12 on both sides before comparison.

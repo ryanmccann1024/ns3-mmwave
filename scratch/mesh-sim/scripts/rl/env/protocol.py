@@ -491,7 +491,11 @@ class CentralizedProtocol:
             )
         joint = []
         for slot, value in enumerate(values):
-            if isinstance(value, bool) or int(value) != value:
+            try:
+                is_integer = not isinstance(value, bool) and int(value) == value
+            except (TypeError, ValueError, OverflowError):
+                is_integer = False
+            if not is_integer:
                 raise ValueError(f"slot {slot} action must be an integer, got {value!r}")
             index = int(value)
             if not 0 <= index < SLOT_ACTIONS:
@@ -542,13 +546,15 @@ class LegacyProtocol:
             _fail(
                 f"tick {msg['tick']} does not advance past {self._last_tick}"
             )
-        if not first and self.obs_width is not None:
-            width = len(pos) + 2 * len(sinrs)
-            if width != self.obs_width:
-                _fail(
-                    f"legacy observation width {width} != "
-                    f"{self.obs_width}"
-                )
+        width = len(pos) + 2 * len(sinrs)
+        if not first and self.obs_width is not None and width != self.obs_width:
+            _fail(
+                f"legacy observation width {width} != "
+                f"{self.obs_width}"
+            )
+        if self.obs_width is None:
+            # First episode: step 0 fixes the width every later step must keep.
+            self.obs_width = width
         self._last_tick = msg["tick"]
 
     @staticmethod

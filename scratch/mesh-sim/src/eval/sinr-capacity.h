@@ -15,7 +15,7 @@
  * | @c "silvus"   | Silvus radio's native single-stream MCS table (MCS 0–6).        |
  * |               | Throughputs are the radio's published spec-sheet numbers; the   |
  * |               | SINR thresholds are calculated by matching each level to the    |
- * |               | nearest 3GPP CQI entry (see @ref SilvusMcsEntry). The 2-stream  |
+ * |               | nearest 3GPP CQI entry (see @ref mesh_sim::SilvusMcsEntry). The 2-stream  |
  * |               | MIMO levels (MCS 8–14) are never selected (no MIMO model).      |
  *
  * The MCS table is derived from 3GPP TS 38.214 Table 5.1.3.1-1 and uses
@@ -36,7 +36,7 @@ namespace mesh_sim
 /**
  * @brief Minimum SINR in dB required for any data transmission (CQI 0).
  *
- * Corresponds to the lowest entry in @ref MCS_TABLE (QPSK, lowest code
+ * Corresponds to the lowest entry in @c MCS_TABLE (QPSK, lowest code
  * rate). Links with SINR below this threshold return 0 Mbps capacity and
  * MCS index 0. Also used as the default connectivity threshold in
  * @ref LinkTable::ConnectedLinkCount and @ref LinkTable::IsConnected.
@@ -100,7 +100,7 @@ static const McsEntry MCS_TABLE[] = {
     { 25.0, 6.23},  // CQI 15
 };
 
-/// Number of entries in @ref MCS_TABLE.
+/// Number of entries in @c MCS_TABLE.
 static constexpr uint32_t MCS_TABLE_SIZE = 16;
 
 /**
@@ -109,10 +109,10 @@ static constexpr uint32_t MCS_TABLE_SIZE = 16;
  * The Silvus manual (Table 5) publishes MCS, streams, constellation, FEC
  * rate, and PHY throughput — but NO SINR column. @c sinr_min_db is therefore
  * a CALCULATED approximation, not a spec-sheet or field-measured value: each
- * single-stream level is matched to the 3GPP TS 38.214 CQI entry (@ref
+ * single-stream level is matched to the 3GPP TS 38.214 CQI entry (@c
  * MCS_TABLE) with the nearest spectral efficiency, and that entry's ~10%-BLER
  * SINR threshold is used. This grounds the ladder in the same link-level
- * curve as the rest of the sim. See @ref SILVUS_MCS_TABLE for the per-level
+ * curve as the rest of the sim. See @c SILVUS_MCS_TABLE for the per-level
  * derivation and its limitations.
  */
 struct SilvusMcsEntry
@@ -132,8 +132,8 @@ struct SilvusMcsEntry
  * verbatim from the manual. The SINR column is NOT in the manual — it is
  * CALCULATED by matching each single-stream level's spectral efficiency
  * (bits/symbol × code rate) to the nearest 3GPP TS 38.214 CQI entry
- * (@ref MCS_TABLE) and taking that entry's ~10%-BLER SINR threshold. MCS 0
- * is pinned to @ref SINR_MIN_DB as the minimum-viable level.
+ * (@c MCS_TABLE) and taking that entry's ~10%-BLER SINR threshold. MCS 0
+ * is pinned to @c SINR_MIN_DB as the minimum-viable level.
  *
  * | MCS | Str | Const. | FEC | PHY Mbps (20 MHz) | spec.eff | SINR thr (dB) |
  * |-----|-----|--------|-----|-------------------|----------|---------------|
@@ -180,7 +180,7 @@ static const SilvusMcsEntry SILVUS_MCS_TABLE[] = {
     {18.7, 2, "64QAM",  "3/4", 117.0},  // MCS 14
 };
 
-/// Number of entries in @ref SILVUS_MCS_TABLE.
+/// Number of entries in @c SILVUS_MCS_TABLE.
 static constexpr uint32_t SILVUS_MCS_TABLE_SIZE = 14;
 
 /**
@@ -193,7 +193,7 @@ static constexpr uint32_t SILVUS_MCS_TABLE_SIZE = 14;
  *         @p mcs_index is 7 or out of range [0, 14].
  * @throws Nothing.
  *
- * Maps the native index to a position in @ref SILVUS_MCS_TABLE (index 7 is
+ * Maps the native index to a position in @c SILVUS_MCS_TABLE (index 7 is
  * skipped because the radio has no MCS 7).
  */
 inline const SilvusMcsEntry*
@@ -215,12 +215,12 @@ SilvusMcsLookup(uint32_t mcs_index)
  * @fn SinrToMcsIndex
  * @brief Map a SINR value to the highest supportable MCS / CQI index.
  *
- * Walks @ref MCS_TABLE from the lowest entry upward and returns the index
+ * Walks @c MCS_TABLE from the lowest entry upward and returns the index
  * of the last entry whose @c sinr_min_db threshold is met.
  *
  * @param sinr_db  Received SINR in dB.
  * @return CQI index in [0, 15]. Returns 0 for any SINR below
- *         @ref SINR_MIN_DB (the link is at minimum viable throughput,
+ *         @c SINR_MIN_DB (the link is at minimum viable throughput,
  *         not disconnected — use @ref SinrToCapacity to get 0 Mbps
  *         for truly unusable links).
  * @throws Nothing.
@@ -252,7 +252,7 @@ SinrToMcsIndex(double sinr_db)
  * @brief Map a SINR value to the highest supportable single-stream Silvus
  * MCS index (0–6).
  *
- * Walks the single-stream rows of @ref SILVUS_MCS_TABLE (positions 0–6) and
+ * Walks the single-stream rows of @c SILVUS_MCS_TABLE (positions 0–6) and
  * returns the index of the last entry whose calculated @c sinr_min_db
  * threshold is met. The thresholds are the single source of truth for both
  * this function and the @c "silvus" branch of @ref SinrToCapacity, so the
@@ -260,11 +260,11 @@ SinrToMcsIndex(double sinr_db)
  *
  * NOTE: this returns the highest SINR-supportable level (a capability
  * ceiling under load), NOT the field's traffic-driven selection — see the
- * accuracy caveats on @ref SILVUS_MCS_TABLE.
+ * accuracy caveats on @c SILVUS_MCS_TABLE.
  *
  * @param sinr_db  Received SINR in dB.
  * @return Silvus MCS index in [0, 6]. Returns 0 for any SINR below
- *         @ref SINR_MIN_DB.
+ *         @c SINR_MIN_DB.
  * @throws Nothing.
  */
 inline uint32_t
@@ -294,14 +294,14 @@ SinrToSilvusMcsIndex(double sinr_db)
  * @fn SinrToCapacity
  * @brief Compute link capacity in Mbps from SINR and bandwidth.
  *
- * Returns @c 0.0 for any SINR below @ref SINR_MIN_DB, regardless of model.
+ * Returns @c 0.0 for any SINR below @c SINR_MIN_DB, regardless of model.
  *
  * @param sinr_db       Received SINR in dB.
  * @param bandwidth_hz  System bandwidth in Hz (e.g. 400e6 for 400 MHz).
  * @param amc_model     Capacity model: @c "shannon", @c "table", or @c "silvus".
- * @return Capacity in Mbps, or @c 0.0 if @c sinr_db < @ref SINR_MIN_DB.
+ * @return Capacity in Mbps, or @c 0.0 if @c sinr_db < @c SINR_MIN_DB.
  * @throws std::runtime_error if @c amc_model is none of the three above
- *         (only reached when @p sinr_db >= @ref SINR_MIN_DB; the message is
+ *         (only reached when @p sinr_db >= @c SINR_MIN_DB; the message is
  *         prefixed "[LinkEvaluator]").
  *
  * The @c "shannon" model is B·log2(1+SINR). The @c "table" model is the CQI

@@ -1,21 +1,23 @@
-# `run.ini` settings
+@page src_config_run_ini_reference src/config/run-ini-reference
+
+@brief Every run.ini key the simulator reads, with defaults and units.
 
 These are the keys read by the simulator, plus the five `[rl]` selection keys
 read by Python. Omitted keys use the defaults below; unknown keys are silently
 ignored. Input-file paths are relative to `run.ini`. For action and reward
-behavior, see the [RL bridge](../rl/README.md); for `jammers.json`, see the
-[jammer model](../jammer/README.md). Command-line overrides are listed in the
-[CLI guide](../cli/README.md). `--channel-query` mode reads the same file and
-keys as a run (no query-specific keys); see the [query contract](../query/README.md).
+behavior, see the [RL bridge](@ref src_rl); for `jammers.json`, see the
+[jammer model](@ref src_jammer). Command-line overrides are listed in the
+[CLI guide](@ref src_cli). `--channel-query` mode reads the same file and
+keys as a run (no query-specific keys); see the [query contract](@ref src_query).
 
-## `[scenario]` and `[output]`
+## [scenario] and [output]
 
 | Key | Default | Controls |
 | --- | --- | --- |
 | `name` | `unnamed` | Scenario label. |
 | `seed` | `42` | Simulation random seed; CLI `--seed`/`--seeds` can override it. |
 | `run_id` | `1` | Run identifier; CLI `--run-id` can override it. |
-| `duration_s` | `10` | Simulated duration in seconds. |
+| `duration_s` | `10` | Simulated duration in seconds; must be finite and > 0. |
 | `warmup_s` | `0` | Initial seconds excluded from output metrics, not from RL rewards. |
 | `tick_s` | `0.1` | Simulation time advanced per tick, in seconds. |
 | `nodes_file` | `nodes.json` | Mesh-node input file. |
@@ -24,11 +26,15 @@ keys as a run (no query-specific keys); see the [query contract](../query/README
 | `[output] dir` | timestamped `outputs/` path | Output root; a relative value resolves from `run.ini`. CLI `--output-dir` overrides it. |
 | `[output] viz_tick_ms` | `100` | Milliseconds between visualization CSV snapshots. |
 
-## `[channel]`
+## [channel]
 
 `band` chooses a simulator mode; it is not inferred from `frequency_ghz`.
 Jammers contribute interference only in `sub-6` mode. The jammer's
 `target_freq` then filters the carrier frequency.
+
+The band resolves as `--band` on the command line, then `[channel] band`, then
+the default `mmwave`. `run.log` records the result as `band` and `band_source`
+(`cli`, `run.ini`, or `default`).
 
 | Key | Default | Controls |
 | --- | --- | --- |
@@ -46,7 +52,7 @@ Jammers contribute interference only in `sub-6` mode. The jammer's
 | `tx_array_gain_dbi` | `12` | Default mesh-node transmit antenna gain in dBi. |
 | `rx_array_gain_dbi` | `12` | Default mesh-node receive antenna gain in dBi. |
 
-## `[nyu_channel]`
+## [nyu_channel]
 
 These settings matter only when `[channel] channel_model = nyu`, except
 `rf_bandwidth_mhz`, which is currently parsed but not applied.
@@ -64,20 +70,20 @@ These settings matter only when `[channel] channel_model = nyu`, except
 | `foliage_loss_db_m` | `0.4` | Foliage loss per metre. |
 | `o2i_loss_type` | `Low Loss` | Outdoor-to-indoor loss class (`Low Loss` or `High Loss`). |
 
-## `[traffic]` and `[routing]`
+## [traffic] and [routing]
 
 Traffic is flow-level demand, not packets. `constant` keeps flows active,
 `poisson` starts flows randomly, and `on_off` alternates sending and silence.
 `all_pairs` connects every pair, `random_pairs` samples pairs, and `gateway`
-connects each other node to one gateway. See the [traffic](../traffic/README.md)
-and [routing](../routing/README.md) modules for the code that owns them.
+connects each other node to one gateway. See the [traffic](@ref src_traffic)
+and [routing](@ref src_routing) modules for the code that owns them.
 
 | Key | Default | Controls |
 | --- | --- | --- |
 | `[traffic] model` | `constant` | `constant`, `poisson`, or `on_off` demand. |
 | `demand_mbps` | `10` | Requested rate per active flow. |
 | `arrival_rate_hz` | `1` | New flows per second in `poisson` mode. |
-| `on_time_s`, `off_time_s` | `1`, `1` | Mean on/off phase lengths in `on_off` mode. |
+| `on_time_s`, `off_time_s` | `1`, `1` | Mean on/off phase lengths in `on_off` mode; both must be > 0. |
 | `holding_time_s` | `0` | Flow lifetime in seconds; `0` means no expiry. |
 | `flow_topology` | `all_pairs` | `all_pairs`, `random_pairs`, or `gateway`. |
 | `random_pair_count` | `3` | Number of flows with `random_pairs` topology. |
@@ -85,7 +91,7 @@ and [routing](../routing/README.md) modules for the code that owns them.
 | `[routing] algorithm` | `shortest_path` | Inverse-capacity shortest path, widest-capacity path (`max_throughput`), or fewest hops (`min_hop`). |
 | `max_hops` | `5` | Maximum hops per route; `0` means unlimited. |
 
-## `[rl]`
+## [rl]
 
 With `enabled = false`, the remaining C++ RL keys do not control the run. The
 jammer-only smoke scenario uses this setting: its `[rl]` block is inert in the
@@ -96,20 +102,24 @@ regression run. CLI `--rl-mode` turns RL on even if the file says `false`.
 | `enabled` | `false` | Enable the simulator's action/observation bridge. |
 | `controlled_node_id` | blank | Legacy single-node selector; blank selects the last mesh node. |
 | `controlled_nodes` | absent | Centralized selector: `all` or comma-separated node IDs. Its presence selects centralized mode; cannot coexist with `controlled_node_id`. |
-| `max_controlled_nodes` | `0` | Centralized action positions; `0` sizes to the selected nodes. |
+| `max_controlled_nodes` | `0` | Centralized action positions; `0` sizes to the selected nodes. Maximum `64`. |
 | `action_type` | `discrete` | Legacy: `discrete` or `continuous`; centralized requires `discrete`. |
 | `action_profile` | `move_2d` | Centralized movement profile; only `move_2d` is implemented. |
 | `decision_interval_s` | `0` | Seconds between centralized decisions; `0` means `tick_s`, otherwise an integer multiple of it. |
-| `reward_type` | `throughput` | C++ reward: `throughput` or `all_links_los`; `mean_sinr` is a deprecated alias for the latter. |
+| `reward_type` | `throughput` | C++ reward: `throughput` or `all_links_los`; `mean_sinr` is a deprecated alias for the latter: it still runs, prints a warning on stderr, and `run.log` records it as `rl.reward_alias`. |
 | `step_size_m` | `50` | Nominal discrete move per simulation tick, capped by node speed in centralized mode. |
 | `arrival_threshold_m` | `1` | Legacy continuous-target arrival distance, in metres. |
-| `x_min`, `x_max` | `-1000`, `2000` | Allowed east/west movement bounds, in metres. |
+| `x_min`, `x_max` | `-1000`, `2000` | Allowed east/west movement bounds, in metres. Each min must be below its max (same for y and z). |
 | `y_min`, `y_max` | `-1000`, `1000` | Allowed north/south movement bounds, in metres. |
 | `z_min`, `z_max` | `0`, `100` | Allowed height bounds, in metres; centralized `move_2d` does not change height. |
 
+In centralized mode `all_links_los` is true only when every controlled node
+has at least one peer link and all of them are line-of-sight. `action_set` and
+`dimensions` are not keys; the loader ignores unknown keys silently.
+
 The next five keys are read by Python's centralized RL environment, **not** by
-the C++ simulator. Each also has a training CLI override; see the [RL setup
-guide](../../README.md#selecting-observations-rewards-and-telemetry).
+the C++ simulator. Each also has a training CLI override; see
+[Selecting observations, rewards, and telemetry](@ref src_rl_policy_inputs_selection).
 
 | Key | Default | Controls |
 | --- | --- | --- |
@@ -119,7 +129,7 @@ guide](../../README.md#selecting-observations-rewards-and-telemetry).
 | `telemetry` | `none` | `none` or `steps` decision-level records. |
 | `telemetry_every` | `1` | Record every Nth decision when `telemetry = steps`. |
 
-## `[baseline]`
+## [baseline]
 
 Selects a placement baseline. The C++ simulator reads only `algorithm`, and
 never plans placements: a direct run with `geometric` or `optimization` exits
@@ -151,4 +161,4 @@ and rejects unknown keys and values; the binary ignores keys other than
 
 `gateway_node_id` and `rf_config` are no longer accepted: baselines are
 gateway-free and candidates are scored by the simulator channel (see
-[`scripts/baselines/README.md`](../../scripts/baselines/README.md)).
+[`scripts/baselines/README.md`](@ref scripts_baselines)).

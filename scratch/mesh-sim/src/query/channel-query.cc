@@ -1,7 +1,7 @@
 /* -*- Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
 /**
  * @file channel-query.cc
- * @brief Implements @ref mesh_sim::RunChannelQuery; contract in src/query/README.md.
+ * @brief Implements @ref mesh_sim::RunChannelQuery; contract in @ref src_query.
  */
 
 #include "src/query/channel-query.h"

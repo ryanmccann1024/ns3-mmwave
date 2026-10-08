@@ -55,5 +55,4 @@ test touching this package is
   `data_dir` with no `seed-N/` folders (exit 1).
 - SINR / Rx power values at or below -900 are sim placeholders and are
   dropped before plotting.
-- Doxygen `##` / `@fn` / `@brief` blocks above functions.
 - Dependencies: `pandas`, `numpy`, `matplotlib`; no ns-3.

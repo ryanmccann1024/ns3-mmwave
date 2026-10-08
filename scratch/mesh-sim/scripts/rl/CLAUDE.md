@@ -110,8 +110,6 @@ model-minus-baseline stats (`policy/compare.py`, primary metric
   `EVAL_MANIFEST_VERSION`, mirrored as `REQUIRED_MANIFEST_VERSION` in
   `compare_inputs.py`; `PLAN_VERSION`, `COMPARISON_VERSION`, ops versions).
   Bump the relevant one and update its reader when fields change.
-  `CONTRIBUTING.md` still says `train_manifest.json` is version 2; the code is
-  at 4.
 - `requirements.txt` direct deps (`bootstrap_venv.DIRECT_DEPS`) are recorded
   in every manifest. Keep Optuna in `requirements-tuning.txt` only;
   `ops/tune.py` imports it lazily and checks the pin.

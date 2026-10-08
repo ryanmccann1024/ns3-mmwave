@@ -40,7 +40,7 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
 - `requirements-tuning.txt` (Optuna) is deliberately separate from
   `requirements.txt`, whose contents are recorded in every RL manifest.
 - Simulator CLI: `--run-config=<run.ini>` (the file, not the dir), `--band`,
-  `--seeds=1,2,...`, `--output-dir`, `--rl-mode`, `--debug-links`. See `README.md`.
+  `--seeds=1,2,...`, `--output-dir`, `--rl-mode`, `--debug-links`, `--channel-query`. See `README.md`.
 
 ## Commit guidelines
 
@@ -62,17 +62,8 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
   the new behavior belongs to an existing module or a cohesive extraction.
   File size is a review signal, not a quota; avoid both monoliths and tiny
   wrappers created only to lower a line count.
-- **Comment discipline**: Only comment when something isn't obvious. Keep
-  comments short and descriptive. Don't restate what the code already says.
-  - Docstrings: one line. No multi-paragraph docstrings, no "Args/Returns"
-    blocks, no usage examples -- types and names already convey those.
-  - No history in comments: don't narrate abandoned approaches, prior
-    attempts, or "earlier code did X, then we learned Y." That belongs in
-    the commit message, not the source.
-  - No multi-line block comments above functions. If the *why* truly
-    needs more than one line, two lines max.
-  - Put protocol narratives and examples in the relevant module README. Avoid
-    section banners, agent notes, and Doxygen-style `@brief` in Python scripts.
+- Comments, Doxygen blocks, and README/doc pages follow the documenter agent's rules
+  (`~/.claude/agents/documenter.md`); use that agent for documentation work.
 - When adding new source files, update `CMakeLists.txt`'s source list.
 - New C++ unit test suites: follow `tests/CLAUDE.md` (add to `UNIT_DIRS`).
 - Before changing a user-visible behavior (`run.ini`/CLI option, RL
@@ -80,28 +71,6 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
   the "update together" table in `CONTRIBUTING.md`. Bump the relevant
   `manifest_version` when a saved JSON schema changes; change the RL `contract`
   name (`mesh_move_2d_v1`) only for incompatible protocol changes.
-
-## Documentation review guidelines
-
-- Scope documentation work to `scratch/mesh-sim/`. Treat the rest of
-  ns3-mmwave as an external dependency unless a task explicitly says otherwise.
-- Preserve useful existing documentation and author intent. Do not rewrite text
-  merely for tone, style, or uniformity.
-- Add documentation only when it helps a new contributor answer one of these:
-  what owns this behavior, how data moves through it, how to run or verify it,
-  or which constraint is easy to violate.
-- Prefer the narrowest durable home for an explanation: a source comment for a
-  local invariant, a module README for a module contract, and the top-level
-  README for setup, navigation, and the end-to-end path.
-- Verify every command, path, option, default, and architectural claim against
-  the current repository. If verification is not possible, label the claim or
-  leave it out.
-- No documentation quotas. A review may conclude that a file or module already
-  has the right amount of documentation.
-- Do not regenerate or commit Doxygen HTML/LaTeX output. Treat Doxygen warnings
-  as evidence to assess, not a mandate to annotate every symbol.
-- Documentation-only work must not change runtime behavior. Record discovered
-  defects and code risks for a separately approved task.
 
 ## Architecture
 
@@ -132,15 +101,15 @@ Band resolves as `--band` > `[channel] band` in `run.ini` > default `mmwave`.
 ## Dependency layers
 
 ```
-domain  <--  config, cli, eval, io, jammer, query, routing, rl, setup, traffic, util
-util    <--  config, io
-jammer  <--  eval, setup
+domain  <--  config, cli, eval, io, jammer, query, routing, rl, setup, traffic
+jammer  <--  domain (sim-config.h includes jammer-spec.h), eval
+util    <--  cli, config, io
+cli     <--  io, query, sim.cc
 config  <--  query, setup, sim.cc
-cli     <--  query, sim.cc
 setup   <--  query, sim.cc
-eval    <--  query, sim.cc, rl (link-table)
-traffic <--  sim.cc
-routing <--  sim.cc, rl
+eval    <--  io, query, routing, rl (link-table), sim.cc
+traffic <--  routing, sim.cc
+routing <--  io, rl, sim.cc
 io      <--  sim.cc
 rl      <--  sim.cc
 query   <--  sim.cc
@@ -153,8 +122,11 @@ query   <--  sim.cc
   compares sim vs field distributions; also the baseline regression and smoke checks
 - `sweep/` -- parameter sweeps driven by a `sweep.ini`
 - `rl/` -- Gymnasium env, training (MaskablePPO), evaluation, experiment/ops tooling
+- `baselines/` -- gateway-free `geometric` / `optimization` placement planners; score candidate
+  layouts through the binary's `--channel-query` worker (`src/query/`); see its README
 - `plotting/` -- post-sim plots
 - `sim_support.py` -- shared simulator launcher helpers
+- `stats.py` -- shared sample statistics (t critical values for 95% CIs)
 
 ## Input/output conventions
 

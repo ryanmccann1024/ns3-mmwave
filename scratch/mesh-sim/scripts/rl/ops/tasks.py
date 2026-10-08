@@ -76,9 +76,10 @@ def tolerated(kind: str, code: int) -> bool:
 def _manifest_status(step: dict) -> str | None:
     path = Path(step["output_dir"]) / step["manifest"]
     try:
-        status = json.loads(path.read_text()).get("status")
+        data = json.loads(path.read_text())
     except (OSError, ValueError):
         return None
+    status = data.get("status") if isinstance(data, dict) else None
     return status if isinstance(status, str) else None
 
 
@@ -109,8 +110,9 @@ def comparison_outcome(plan: dict) -> dict:
     if not path.is_file():
         return {"state": "absent", "path": str(path)}
     try:
-        status = json.loads(path.read_text()).get("status")
+        data = json.loads(path.read_text())
     except (OSError, ValueError):
         return {"state": "unreadable", "path": str(path)}
+    status = data.get("status") if isinstance(data, dict) else None
     state = status if status in _OUTCOMES else "unreadable"
     return {"state": state, "path": str(path)}

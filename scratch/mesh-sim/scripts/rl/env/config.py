@@ -1,10 +1,9 @@
 """Read RL seed and movement bounds using the simulator's INI conventions."""
 
-import configparser
 import hashlib
 from pathlib import Path
 
-from scripts.sim_support import strip_inline_comment
+from scripts.sim_support import parse_ini
 
 # Fallbacks mirror RlConfig; explicit endpoints override them independently.
 _BOUND_DEFAULTS = ((-1000.0, 2000.0), (-1000.0, 1000.0), (0.0, 100.0))
@@ -24,18 +23,24 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _read_ini(run_config: str) -> configparser.ConfigParser:
-    ini = configparser.ConfigParser(interpolation=None)
-    ini.read(run_config)
-    return ini
+def _read_ini(run_config: str) -> dict[str, dict[str, str]]:
+    """Parse with the simulator's rules; an unreadable file reads as empty."""
+    try:
+        return parse_ini(run_config)
+    except OSError:
+        return {}
+
+
+def _get(ini: dict, section: str, key: str, fallback: str | None = None) -> str | None:
+    return ini.get(section, {}).get(key, fallback)
 
 
 def read_scenario_seed(run_config: str) -> int | None:
     """Return [scenario] seed, or None when missing or invalid."""
-    ini = _read_ini(run_config)
-    if ini.has_option("scenario", "seed"):
+    raw = _get(_read_ini(run_config), "scenario", "seed")
+    if raw is not None:
         try:
-            return int(strip_inline_comment(ini.get("scenario", "seed")))
+            return int(raw)
         except ValueError:
             pass
     return None
@@ -48,16 +53,19 @@ def read_rl_bounds(run_config: str) -> tuple[tuple[float, float], ...]:
     for axis, defaults in zip("xyz", _BOUND_DEFAULTS):
         endpoints = []
         for suffix, default in zip(("min", "max"), defaults):
-            raw = ini.get("rl", f"{axis}_{suffix}", fallback=str(default))
-            endpoints.append(float(strip_inline_comment(raw)))
+            raw = _get(ini, "rl", f"{axis}_{suffix}", str(default))
+            if "_" in raw:
+                # float() accepts digit separators; std::stod stops at the '_'.
+                raise ValueError(f"rl.{axis}_{suffix} is not a plain number: {raw!r}")
+            endpoints.append(float(raw))
         ranges.append(tuple(endpoints))
     return tuple(ranges)
 
 
-def _scenario_file(ini: configparser.ConfigParser, ini_path: Path, key: str,
+def _scenario_file(ini: dict, ini_path: Path, key: str,
                    label: str, default: str = "") -> Path | None:
     """Resolve a [scenario] file relative to the run.ini; blank or absent means none."""
-    raw = strip_inline_comment(ini.get("scenario", key, fallback="")) or default
+    raw = _get(ini, "scenario", key, "") or default
     if not raw:
         return None
     path = Path(raw)
@@ -96,26 +104,17 @@ def read_scenario_identity(run_config: str) -> dict:
 
 def read_rl_selection(run_config: str) -> dict[str, str]:
     """Read [rl] policy options, omitting blank or absent keys."""
-    ini = _read_ini(run_config)
-    raw = {}
-    for key in _SELECTION_KEYS:
-        if not ini.has_option("rl", key):
-            continue
-        value = strip_inline_comment(ini.get("rl", key))
-        if value:
-            raw[key] = value
-    return raw
+    rl = _read_ini(run_config).get("rl", {})
+    return {key: rl[key] for key in _SELECTION_KEYS if rl.get(key)}
 
 
 def read_action_profile(run_config: str) -> str:
     """Return [rl] action_profile, or the C++ loader's default when absent."""
-    ini = _read_ini(run_config)
-    raw = strip_inline_comment(ini.get("rl", "action_profile",
-                                       fallback=_DEFAULT_ACTION_PROFILE))
+    raw = _get(_read_ini(run_config), "rl", "action_profile", _DEFAULT_ACTION_PROFILE)
     return raw or _DEFAULT_ACTION_PROFILE
 
 
 def read_control_mode(run_config: str) -> str:
     """Centralized when [rl] controlled_nodes is present, else legacy."""
-    ini = _read_ini(run_config)
-    return "centralized" if ini.has_option("rl", "controlled_nodes") else "legacy"
+    rl = _read_ini(run_config).get("rl", {})
+    return "centralized" if "controlled_nodes" in rl else "legacy"

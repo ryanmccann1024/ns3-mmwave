@@ -1,7 +1,7 @@
 /* -*- Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
 /**
  * @file traffic-matrix.cc
- * @brief Flow initialisation, expiry, Poisson arrivals and on-off state machine for @ref TrafficMatrix.
+ * @brief Flow initialisation, expiry, Poisson arrivals and on-off state machine for @ref mesh_sim::TrafficMatrix.
  *
  * Function contracts are documented in traffic-matrix.h.
  */
@@ -127,29 +127,33 @@ TrafficMatrix::InitGateway(uint32_t numNodes, double currentTime)
     uint32_t gw = 0;
     if (!m_trafficCfg.gateway_node_id.empty())
     {
-        // Try numeric index first; fall back to matching node ID string.
-        try
+        // Match the node ID first, so numeric IDs ("1", "2", ...) are not
+        // mistaken for indices; a bare in-range index is only a fallback.
+        bool found = false;
+        for (uint32_t i = 0; i < m_nodeSpecs.size(); ++i)
         {
-            gw = static_cast<uint32_t>(std::stoul(m_trafficCfg.gateway_node_id));
+            if (m_nodeSpecs[i].id == m_trafficCfg.gateway_node_id)
+            {
+                gw = i;
+                found = true;
+                break;
+            }
         }
-        catch (const std::invalid_argument&)
+        if (!found)
         {
-            bool found = false;
-            for (uint32_t i = 0; i < m_nodeSpecs.size(); ++i)
+            const std::string& id = m_trafficCfg.gateway_node_id;
+            if (id.find_first_not_of("0123456789") == std::string::npos &&
+                id.size() <= 9 && std::stoul(id) < numNodes)
             {
-                if (m_nodeSpecs[i].id == m_trafficCfg.gateway_node_id)
-                {
-                    gw = i;
-                    found = true;
-                    break;
-                }
+                gw = static_cast<uint32_t>(std::stoul(id));
+                found = true;
             }
-            if (!found)
-            {
-                throw std::runtime_error(
-                    "[TrafficMatrix] gateway_node_id '" +
-                    m_trafficCfg.gateway_node_id + "' not found in node list");
-            }
+        }
+        if (!found)
+        {
+            throw std::runtime_error(
+                "[TrafficMatrix] gateway_node_id '" +
+                m_trafficCfg.gateway_node_id + "' not found in node list");
         }
     }
 
@@ -205,6 +209,13 @@ TrafficMatrix::Tick(double currentTime)
 void
 TrafficMatrix::TickOnOff(double currentTime)
 {
+    // Zero-mean phases never advance phase_end_s; ValidateConfig rejects
+    // them, and this guard keeps direct callers from looping forever.
+    if (!(m_trafficCfg.on_time_s > 0.0 || m_trafficCfg.off_time_s > 0.0))
+    {
+        return;
+    }
+
     for (auto& f : m_flows)
     {
         if (!f.active)

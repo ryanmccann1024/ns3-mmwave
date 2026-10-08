@@ -12,6 +12,7 @@ import shutil
 # @param point_dir     Existing directory for this point (must already exist).
 # @param overrides     Constant `(section, key) -> value` overrides for all points.
 # @param point_params  Swept `(section, key) -> value` for this point; wins over `overrides`.
+# @param scenario_name Value written to `[scenario] name`.
 # @return Path of the written `<point_dir>/run.ini`.
 # @throws OSError if `point_dir` does not exist or is not writable.
 #

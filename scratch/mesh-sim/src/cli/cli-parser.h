@@ -58,7 +58,7 @@ struct CliArgs
                                           ///<   Empty means no CLI override, so @c [channel] band
                                           ///<   from @c run.ini decides.
     bool        channel_query   = false;  ///< Serve @c mesh_channel_query_v1 on stdin/stdout instead
-                                          ///<   of running (see @c src/query/README.md).
+                                          ///<   of running (see @ref src_query).
 };
 
 

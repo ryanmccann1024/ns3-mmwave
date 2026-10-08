@@ -18,7 +18,7 @@ validation tools. This directory has no standalone unit suite.
 | `progress-logger.h` | Header-only `ProgressLogger`: sim time, wall time and ETA on stderr. |
 | `run-logger.h` | Header-only `WriteRunLog`: seeds, CLI overrides and resolved config. |
 
-## Output
+## Output {#src_io_output}
 
 | Step | Where |
 |------|-------|

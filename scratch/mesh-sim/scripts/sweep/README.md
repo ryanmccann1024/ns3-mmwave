@@ -45,7 +45,7 @@ Run the sweep:
 |------|---------|
 | `--config` | Required. Path to the sweep INI. |
 | `--dry-run` | Print the sweep matrix and exit. |
-| `--resume` | Skip points whose `seed-<N>/summary.json` files all exist. |
+| `--resume` | Skip points whose `seed-<N>/summary.json` files all exist. Each run writes a new timestamped folder, so in practice nothing is skipped (see `CLAUDE.md`, Known issues). |
 | `--sim-binary` | Simulator binary. Default: first `ns3*-sim-*` under `<ns3>/build/scratch/mesh-sim/`. |
 
 ## Sweep INI
@@ -68,7 +68,7 @@ channel.frequency_ghz = 28.0, 39.0, 60.0
 channel.tx_power_dbm  = 20.0, 25.0, 30.0
 ```
 
-### `[sweep.meta]`
+### [sweep.meta]
 
 | Key | Default | Meaning |
 |-----|---------|---------|
@@ -78,11 +78,26 @@ channel.tx_power_dbm  = 20.0, 25.0, 30.0
 | `plot_config` | empty | Plot INI relative to the mesh-sim root; empty uses default plots. |
 | `label` | `sweep` | Used in each point's `[scenario] name` (`<label>_point-NNN`) and the console summary. |
 
-### `[sweep.override]` and `[sweep]`
+### [sweep.override] and [sweep]
 
 - `[sweep.override]` (optional): `section.key = value` constants applied to every point.
 - `[sweep]` (required): `section.key = v1, v2, ...`. Every key is a `run.ini` section and key.
 - Sweep values win over overrides, and overrides win over the base `run.ini`.
+
+### Sweeping the band
+
+`band` needs no special syntax; it is an ordinary `run.ini` key. Interference
+from jammers applies only to `sub-6` points.
+
+```ini
+[sweep]
+channel.band = mmwave, sub-6
+```
+
+Use `channel.band = sub-6` under `[sweep.override]` to pin every point instead.
+
+The validation batch runner takes the same override as a flag:
+`python -m scripts.validation.run_batch ... [--band sub-6]`.
 
 ## Output
 

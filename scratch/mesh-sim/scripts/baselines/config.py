@@ -128,7 +128,8 @@ def read_ini(run_config: str | Path) -> configparser.ConfigParser:
                                     default_section=_NO_DEFAULT_SECTION)
     ini.optionxform = str
     try:
-        ini.read_string(path.read_text(encoding="utf-8"), source=str(path))
+        text = _strip_header_comments(path.read_text(encoding="utf-8"))
+        ini.read_string(text, source=str(path))
     except configparser.Error as exc:
         raise ConfigError(f"{path}: {exc}") from exc
     for section in ini.sections():
@@ -140,6 +141,14 @@ def read_ini(run_config: str | Path) -> configparser.ConfigParser:
                 raise ConfigError(f"{path}: [{section}] {key} continues onto an indented "
                                   "line; the simulator reads each line separately")
     return ini
+
+
+def _strip_header_comments(text: str) -> str:
+    """Cut header lines at their first '#', then ';', as the C++ parser does; configparser
+    would otherwise read a ']' inside the comment as the end of the section name."""
+    return "\n".join(line.split("#", 1)[0].split(";", 1)[0]
+                     if line.lstrip(" \t").startswith("[") else line
+                     for line in text.split("\n"))
 
 
 def ini_value(ini: configparser.ConfigParser, section: str, key: str) -> str | None:
@@ -283,9 +292,12 @@ def explicit_rl_bounds(ini: configparser.ConfigParser) -> dict:
         if raw is None:
             continue
         try:
-            value = float(raw)
-        except ValueError as exc:
-            raise ConfigError(f"rl.{key} is not a number: {raw!r}") from exc
+            # float() accepts '_' digit separators; the simulator's std::stod stops there.
+            value = float(raw) if "_" not in raw else None
+        except ValueError:
+            value = None
+        if value is None:
+            raise ConfigError(f"rl.{key} is not a number: {raw!r}")
         if not math.isfinite(value):
             raise ConfigError(f"rl.{key} must be finite, got {raw!r}")
         bounds[key] = value

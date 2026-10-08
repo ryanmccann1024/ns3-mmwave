@@ -4,7 +4,7 @@
  * @brief Creates ns-3 mobility models, buildings, and propagation models
  *        for the mesh topology.
  *
- * @ref TopologyBuilder is the **only layer in mesh-sim that creates ns-3
+ * @ref mesh_sim::TopologyBuilder is the **only layer in mesh-sim that creates ns-3
  * objects**. All other subsystems receive the resulting pointers via the
  * accessor methods and operate entirely through the domain types defined
  * in @c src/domain/. No EPC, RRC, MAC, or protocol stack is created.
@@ -12,20 +12,20 @@
  *
  * **Mobility models**
  *
- * | @ref NodeSpec::mobility  | ns-3 class                          | Notes                                  |
+ * | @ref mesh_sim::NodeSpec::mobility  | ns-3 class                          | Notes                                  |
  * |--------------------------|-------------------------------------|----------------------------------------|
  * | @c "fixed"               | @c ConstantPositionMobilityModel    | Position set from @c NodeSpec::position. |
  * | @c "constant_velocity"   | @c ConstantVelocityMobilityModel    | Position and velocity set after install. |
- * | @c "random_walk"         | @c RandomWalk2dMobilityModel        | Direction changes every 1 simulated second; bounds and speed from @ref RandomWalkParams. |
- * | @c "waypoint"            | @c WaypointMobilityModel            | All @ref Waypoint entries added via @c ns3::Seconds(wp.t). |
- * | RL-controlled (centralized) | @c ConstantVelocityMobilityModel | Overrides the configured model for every index in @c cfg.rl.controlled_indices; starts at @ref ControlledStartPosition with zero velocity. |
+ * | @c "random_walk"         | @c RandomWalk2dMobilityModel        | Direction changes every 1 simulated second; bounds and speed from @ref mesh_sim::RandomWalkParams. |
+ * | @c "waypoint"            | @c WaypointMobilityModel            | All @ref mesh_sim::Waypoint entries added via @c ns3::Seconds(wp.t). |
+ * | RL-controlled (centralized) | @c ConstantVelocityMobilityModel | Overrides the configured model for every index in @c cfg.rl.controlled_indices; starts at @ref mesh_sim::ControlledStartPosition with zero velocity. |
  *
  * **Jammer mobility** (one ns-3 node per @c cfg.jammers entry, same order):
  * waypoints if any, else @c ConstantVelocityMobilityModel if any velocity
  * component is non-zero, else @c ConstantPositionMobilityModel. Jammer
  * @c random_walk settings are not used here.
  *
- * **Probes** (optional, channel query only; see @ref SetProbes): one ns-3 node
+ * **Probes** (optional, channel query only; see @ref mesh_sim::TopologyBuilder::SetProbes): one ns-3 node
  * with a directly created @c ConstantPositionMobilityModel per probe point,
  * appended after the jammers so mesh and jammer node IDs are unchanged.
  * Probe creation draws no random variables.
@@ -132,7 +132,7 @@ class TopologyBuilder
      * @brief Return the mobility model for each node in @c cfg.nodes order.
      *
      * The vector index matches the node index used by @ref LinkEvaluator
-     * and @ref LinkTable: @c GetMobilityModels()[k] corresponds to
+     * and @c LinkTable: @c GetMobilityModels()[k] corresponds to
      * @c cfg.nodes[k].
      *
      * @return Vector of @c N mobility model smart pointers, where @c N is
@@ -290,7 +290,7 @@ class TopologyBuilder
      * @brief Install @c ns3::RandomWalk2dMobilityModel on a node.
      *
      * Configures the walk with:
-     * - **Bounds**: rectangle from @ref RandomWalkParams.
+     * - **Bounds**: rectangle from @ref mesh_sim::RandomWalkParams.
      * - **Speed**: @c ConstantRandomVariable at @c speed_mps.
      * - **Mode**: @c Time — direction is resampled every 1 simulated second.
      *
@@ -316,7 +316,7 @@ class TopologyBuilder
      * @brief Install @c ns3::ConstantVelocityMobilityModel on an RL-controlled node.
      *
      * Used in centralized RL mode instead of the node's configured mobility
-     * model: the node starts at @ref ControlledStartPosition (first waypoint for
+     * model: the node starts at @ref mesh_sim::ControlledStartPosition (first waypoint for
      * waypoint mobility, otherwise @ref NodeSpec::position) with zero velocity,
      * and @ref RlBridge owns every subsequent velocity change.
      *

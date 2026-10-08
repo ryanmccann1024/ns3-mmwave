@@ -32,7 +32,7 @@ to exactly one value (`Error: --channel-query needs exactly one seed`, exit 1);
 `--output-dir` is ignored with a note on stderr. The `[baseline]` guard is not
 applied in this mode. Logs go to stderr; stdout carries only NDJSON.
 
-## Wire contract `mesh_channel_query_v1`
+## Wire contract mesh_channel_query_v1
 
 One JSON object per line in each direction.
 
