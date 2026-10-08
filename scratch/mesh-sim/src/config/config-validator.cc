@@ -11,16 +11,17 @@
 #include "src/config/rl-control.h"
 
 #include <algorithm>
+#include <cmath>
 #include <initializer_list>
 
 namespace mesh_sim
 {
 
-/** @brief Append an error to @p r if @p val is not > 0. */
+/** @brief Append an error to @p r if @p val is not > 0 (NaN fails). */
 static void
 checkPositive(ValidationResult& r, const std::string& field, double val)
 {
-    if (val <= 0.0)
+    if (!(val > 0.0))
     {
         r.errors.push_back(field + " must be > 0 (got " + std::to_string(val) + ")");
     }
@@ -56,6 +57,10 @@ ValidateConfig(const SimConfig& cfg)
     // -- timing --
     checkPositive(r, "duration_s", cfg.duration_s);
     checkPositive(r, "tick_s", cfg.tick_s);
+    if (std::isinf(cfg.duration_s))
+    {
+        r.errors.push_back("duration_s must be finite");
+    }
 
     if (cfg.tick_s > cfg.duration_s)
     {
@@ -63,7 +68,7 @@ ValidateConfig(const SimConfig& cfg)
                            ") must be <= duration_s (" +
                            std::to_string(cfg.duration_s) + ")");
     }
-    if (cfg.warmup_s < 0.0)
+    if (!(cfg.warmup_s >= 0.0))
     {
         r.errors.push_back("warmup_s must be >= 0 (got " +
                            std::to_string(cfg.warmup_s) + ")");
@@ -97,7 +102,7 @@ ValidateConfig(const SimConfig& cfg)
             }
             for (size_t i = 1; i < node.waypoints.size(); ++i)
             {
-                if (node.waypoints[i].t <= node.waypoints[i - 1].t)
+                if (!(node.waypoints[i].t > node.waypoints[i - 1].t))
                 {
                     r.errors.push_back(label + ": time must be strictly monotonic " +
                                        "(index " + std::to_string(i) + " t=" +
@@ -106,20 +111,20 @@ ValidateConfig(const SimConfig& cfg)
                     break;
                 }
             }
-            if (!node.waypoints.empty() && node.waypoints.front().t < 0.0)
+            if (!node.waypoints.empty() && !(node.waypoints.front().t >= 0.0))
             {
                 r.errors.push_back(label + ": first waypoint t must be >= 0 (got " +
                                    std::to_string(node.waypoints.front().t) + ")");
             }
         }
 
-        if (node.tx_array_gain_dbi.has_value() && *node.tx_array_gain_dbi < 0.0)
+        if (node.tx_array_gain_dbi.has_value() && !(*node.tx_array_gain_dbi >= 0.0))
         {
             r.errors.push_back("node '" + node.id +
                                "' tx_array_gain_dbi must be >= 0 (got " +
                                std::to_string(*node.tx_array_gain_dbi) + ")");
         }
-        if (node.rx_array_gain_dbi.has_value() && *node.rx_array_gain_dbi < 0.0)
+        if (node.rx_array_gain_dbi.has_value() && !(*node.rx_array_gain_dbi >= 0.0))
         {
             r.errors.push_back("node '" + node.id +
                                "' rx_array_gain_dbi must be >= 0 (got " +
@@ -137,12 +142,12 @@ ValidateConfig(const SimConfig& cfg)
     checkOneOf(r, "channel.scenario", cfg.channel.scenario,
                {"UMi", "UMa", "RMa", "InH", "InF"});
     checkOneOf(r, "channel.band", cfg.band, {"mmwave", "sub-6"});
-    if (cfg.channel.tx_array_gain_dbi < 0.0)
+    if (!(cfg.channel.tx_array_gain_dbi >= 0.0))
     {
         r.errors.push_back("channel.tx_array_gain_dbi must be >= 0 (got " +
                            std::to_string(cfg.channel.tx_array_gain_dbi) + ")");
     }
-    if (cfg.channel.rx_array_gain_dbi < 0.0)
+    if (!(cfg.channel.rx_array_gain_dbi >= 0.0))
     {
         r.errors.push_back("channel.rx_array_gain_dbi must be >= 0 (got " +
                            std::to_string(cfg.channel.rx_array_gain_dbi) + ")");
@@ -155,6 +160,11 @@ ValidateConfig(const SimConfig& cfg)
     checkOneOf(r, "traffic.flow_topology", tc.flow_topology,
                {"all_pairs", "random_pairs", "gateway"});
     checkPositive(r, "traffic.demand_mbps", tc.demand_mbps);
+    if (tc.model == "on_off")
+    {
+        checkPositive(r, "traffic.on_time_s", tc.on_time_s);
+        checkPositive(r, "traffic.off_time_s", tc.off_time_s);
+    }
 
     if (tc.flow_topology == "gateway")
     {
@@ -217,11 +227,11 @@ ValidateConfig(const SimConfig& cfg)
             checkPositive(r, "rl.arrival_threshold_m", cfg.rl.arrival_threshold_m);
         }
 
-        if (cfg.rl.x_min >= cfg.rl.x_max)
+        if (!(cfg.rl.x_min < cfg.rl.x_max))
             r.errors.push_back("rl.x_min must be < rl.x_max");
-        if (cfg.rl.y_min >= cfg.rl.y_max)
+        if (!(cfg.rl.y_min < cfg.rl.y_max))
             r.errors.push_back("rl.y_min must be < rl.y_max");
-        if (cfg.rl.z_min >= cfg.rl.z_max)
+        if (!(cfg.rl.z_min < cfg.rl.z_max))
             r.errors.push_back("rl.z_min must be < rl.z_max");
 
         if (!cfg.rl.controlled_node_id.empty())
@@ -261,14 +271,14 @@ ValidateConfig(const SimConfig& cfg)
         checkOneOf(r, label + " type", j.type, {"constant", "random"});
 
         // Power / duty cycle
-        if (j.duty_cycle < 0.0 || j.duty_cycle > 1.0)
+        if (!(j.duty_cycle >= 0.0 && j.duty_cycle <= 1.0))
         {
             r.errors.push_back(label + ": duty_cycle must be in [0, 1] (got " +
                                std::to_string(j.duty_cycle) + ")");
         }
 
         // Beamwidth in (0, 360]; azimuth in [0, 360)
-        if (j.beamwidth_deg <= 0.0 || j.beamwidth_deg > 360.0)
+        if (!(j.beamwidth_deg > 0.0 && j.beamwidth_deg <= 360.0))
         {
             r.errors.push_back(label + ": beamwidth_deg must be in (0, 360] (got " +
                                std::to_string(j.beamwidth_deg) + ")");
@@ -277,12 +287,12 @@ ValidateConfig(const SimConfig& cfg)
         // Interval check: each [start, end) must be ordered and non-negative.
         for (const auto& iv : j.intervals)
         {
-            if (iv.start < 0.0)
+            if (!(iv.start >= 0.0))
             {
                 r.errors.push_back(label + ": interval start must be >= 0 (got " +
                                    std::to_string(iv.start) + ")");
             }
-            if (iv.end <= iv.start)
+            if (!(iv.end > iv.start))
             {
                 r.errors.push_back(label + ": interval end must be > start (got start=" +
                                    std::to_string(iv.start) + ", end=" +
@@ -293,9 +303,9 @@ ValidateConfig(const SimConfig& cfg)
         // Random-walk bounds (the only bounds a JammerSpec carries).
         if (j.type == "random")
         {
-            if (j.random_walk.x_min >= j.random_walk.x_max)
+            if (!(j.random_walk.x_min < j.random_walk.x_max))
                 r.errors.push_back(label + ": random_walk x_min must be < x_max");
-            if (j.random_walk.y_min >= j.random_walk.y_max)
+            if (!(j.random_walk.y_min < j.random_walk.y_max))
                 r.errors.push_back(label + ": random_walk y_min must be < y_max");
         }
     }
@@ -304,11 +314,11 @@ ValidateConfig(const SimConfig& cfg)
     for (const auto& b : cfg.buildings)
     {
         std::string label = "building '" + b.id + "'";
-        if (b.x_min >= b.x_max)
+        if (!(b.x_min < b.x_max))
             r.errors.push_back(label + ": x_min must be < x_max");
-        if (b.y_min >= b.y_max)
+        if (!(b.y_min < b.y_max))
             r.errors.push_back(label + ": y_min must be < y_max");
-        if (b.z_min >= b.z_max)
+        if (!(b.z_min < b.z_max))
             r.errors.push_back(label + ": z_min must be < z_max");
     }
 
