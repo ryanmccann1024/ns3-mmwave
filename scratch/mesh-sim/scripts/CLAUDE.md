@@ -42,7 +42,8 @@ Reuse these instead of re-implementing them in a subpackage:
 - `sim_support.py` -- `find_mesh_root` (ancestor containing `sim.cc`),
   `find_sim_binary` (`<ns3>/build/scratch/mesh-sim/ns3*-sim-*`),
   `simulator_env` (prepends `<ns3>/build/lib` to `LD_LIBRARY_PATH` /
-  `DYLD_LIBRARY_PATH`), `parse_seed_spec` (`1,3,5-7`), `strip_inline_comment`
+  `DYLD_LIBRARY_PATH`), `parse_seed_spec` (`1,3,5-7`), `parse_ini` (whole INI file,
+  matching the C++ `parseIni`), `strip_inline_comment`
   (INI values, matching the C++ loader), `tail_lines`, `stop_process`
   (terminate, kill, reap; optionally the child's whole process group).
 - `stats.py` -- `sample_stats` and `t_critical_95` for 95% CIs. The t table

@@ -135,7 +135,9 @@ def _replace_value(line: str, value: str) -> str:
 
 def edit_ini_text(text: str, edits: dict) -> str:
     """Change only the edited keys; append missing keys to their section or a new one."""
-    lines = text.splitlines(keepends=True)
+    # Split only at '\n' like std::getline; str.splitlines also breaks at \f, \v, ...
+    *body, tail = text.split("\n")
+    lines = [line + "\n" for line in body] + ([tail] if tail else [])
     newline = "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
     if lines and not lines[-1].endswith(("\n", "\r")):
         lines[-1] += newline
