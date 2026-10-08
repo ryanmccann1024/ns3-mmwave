@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -94,15 +95,29 @@ parseSeedList(const std::string& arg)
     {
         if (!tok.empty())
         {
-            try
+            // Digits only: stoul alone would accept "-1", "7abc" and values
+            // above UINT32_MAX, which the cast below would silently wrap.
+            const std::string digits = trimStr(tok);
+            bool valid = !digits.empty() &&
+                         digits.find_first_not_of("0123456789") == std::string::npos;
+            unsigned long long value = 0;
+            if (valid)
             {
-                seeds.push_back(static_cast<uint32_t>(std::stoul(tok)));
+                try
+                {
+                    value = std::stoull(digits);
+                }
+                catch (const std::exception&)
+                {
+                    valid = false;
+                }
             }
-            catch (const std::exception&)
+            if (!valid || value > std::numeric_limits<uint32_t>::max())
             {
                 std::cerr << "Error: invalid seed value '" << tok << "'\n";
                 std::exit(1);
             }
+            seeds.push_back(static_cast<uint32_t>(value));
         }
     }
     return seeds;
