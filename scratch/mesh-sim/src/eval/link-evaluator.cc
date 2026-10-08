@@ -83,10 +83,15 @@ LinkEvaluator::Configure(const SimConfig& cfg,
         }
     }
 
-    // Configure jammer model if any jammers are present
+    // Configure jammer model if any jammers are present; otherwise drop any
+    // jammers left from a previous Configure.
     if (!cfg.jammers.empty())
     {
     	m_jammerModel.Configure(cfg.jammers, plModel, jammerMobs, m_frequencyHz, cfg.seed);
+    }
+    else
+    {
+        m_jammerModel = JammerModel{};
     }
     NS_LOG_DEBUG("Configure: txPower=" << m_txPowerDbm << " dBm, BW="
                  << m_bandwidthHz / 1e6 << " MHz, noiseFloor="
