@@ -196,10 +196,14 @@ The `init` message also has `type: "init"` and `num_controlled`, the actual
 number of active nodes (`num_controlled <= max_controlled_nodes`).
 `contract`, `reward_window`, and `wall_policy` are simulator-reported protocol
 facts, not additional `run.ini` settings.
-The signature also includes `type`, `facts_schema`, `facts_columns`,
-`node_ids`, `num_links`, `bounds`, `band`, `jammer_path_enabled`, and `warmup_s`
-(see [Per-decision facts](#per-decision-facts-mesh_facts_v1)). Padded entries
-in `slot_node_ids` and `slot_speed_mps` are `null`.
+The signature also includes `facts_schema`, `node_ids`, and `bounds`
+(see [Per-decision facts](#per-decision-facts-mesh_facts_v1)). Other `init`
+fields are not compared across resets:
+- `type` selects the protocol, and `facts_columns` and `num_links` are
+  checked against the contract each time an `init` is parsed.
+- `band`, `jammer_path_enabled`, and `warmup_s` may change between resets.
+
+Padded entries in `slot_node_ids` and `slot_speed_mps` are `null`.
 
 Each centralized `step` is a message from C++ to Python:
 
