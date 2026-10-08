@@ -309,7 +309,7 @@ class EpisodeSession:
         return tail_lines(self._stderr_path, _STDERR_TAIL_LINES) or "(stderr empty)"
 
     def read_message(self) -> dict:
-        """Read one JSON line from the simulator; EOF or bad JSON fails the episode."""
+        """Read one JSON object line from the simulator; EOF, bad JSON, or a non-object fails the episode."""
         assert self._proc is not None and self._proc.stdout is not None
         line = self._proc.stdout.readline()
         self._msg_count += 1
@@ -323,7 +323,7 @@ class EpisodeSession:
                 f"last {_STDERR_TAIL_LINES} stderr lines:\n{self._last_tail}"
             )
         try:
-            return json.loads(line)
+            msg = json.loads(line)
         except json.JSONDecodeError as exc:
             bad = line.rstrip("\n")[:_BAD_LINE_CHARS]
             message = f"Invalid JSON from sim on message line {self._msg_count}: {exc}"
@@ -337,6 +337,11 @@ class EpisodeSession:
                 f"exit code: {rc}\n"
                 f"last {_STDERR_TAIL_LINES} stderr lines:\n{self._last_tail}"
             ) from exc
+        if not isinstance(msg, dict):
+            self.protocol_error(
+                f"Expected a JSON object from sim, got {type(msg).__name__}"
+            )
+        return msg
 
     def _close_stderr(self) -> None:
         if self._stderr_file is not None:
