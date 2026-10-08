@@ -92,7 +92,8 @@ MeshRouter::FindPath(const LinkTable& links,
     else
         path = FindPathShortestPath(links, src, dst, numNodes);
 
-    if (m_cfg.max_hops > 0 && path.size() > m_cfg.max_hops + 1)
+    // Widen before adding 1 so max_hops = UINT32_MAX cannot wrap to 0.
+    if (m_cfg.max_hops > 0 && path.size() > static_cast<size_t>(m_cfg.max_hops) + 1)
         return {};
 
     return path;
