@@ -26,6 +26,9 @@ _TOP_KEYS = ("matrix_version", "name", "description", "run_config", "band",
 _SEED_KEYS = ("training", "model_selection", "held_out")
 _TRAINING_KEYS = ("total_timesteps", "n_steps", "gamma", "ent_coef",
                   "eval_every_steps", "checkpoint_every_steps", "keep_checkpoints")
+# train.py parses these with type=int, so a float would only fail at train time.
+_INT_TRAINING_KEYS = ("total_timesteps", "n_steps", "eval_every_steps",
+                      "checkpoint_every_steps", "keep_checkpoints")
 _EVALUATION_KEYS = ("model", "policies")
 _ROW_KEYS = ("name", "observation_preset", "action_profile", "reward_components",
              "reward_weights", "run_config", "band")
@@ -69,9 +72,15 @@ def _training(raw) -> dict:
         value = _scalar(value, f"training.{key}")
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise ValueError(f"training.{key} must be a number, got {value!r}")
+        if key in _INT_TRAINING_KEYS:
+            _int(value, f"training.{key}")
         settings[key] = value
-    if _int(settings.get("eval_every_steps", 0), "training.eval_every_steps") < 0:
-        raise ValueError("training.eval_every_steps must be >= 0")
+    # Mirrors train._cadence_from_args, so a bad cadence fails before execution.
+    for key in ("eval_every_steps", "checkpoint_every_steps"):
+        if settings.get(key, 0) < 0:
+            raise ValueError(f"training.{key} must be >= 0")
+    if settings.get("keep_checkpoints", 1) < 1:
+        raise ValueError("training.keep_checkpoints must be >= 1")
     return settings
 
 
@@ -336,9 +345,12 @@ def step_state(step: dict) -> tuple[str, str]:
     if not manifest.is_file():
         return "blocked", retry
     try:
-        status = json.loads(manifest.read_text()).get("status")
+        data = json.loads(manifest.read_text())
     except (OSError, ValueError):
         return "blocked", retry
+    if not isinstance(data, dict):
+        return "blocked", retry
+    status = data.get("status")
     if step["kind"] == "compare":
         return "done", ""
     if status == "completed":

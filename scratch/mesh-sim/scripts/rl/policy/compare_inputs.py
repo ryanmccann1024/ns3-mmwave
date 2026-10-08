@@ -59,6 +59,8 @@ def _policy_order(names) -> list:
 
 def _records(manifest: dict, path: Path) -> tuple:
     seeds = tuple(int(s) for s in manifest.get("seeds") or ())
+    if len(set(seeds)) != len(seeds):
+        raise ComparisonError(f"{path}: seeds {list(seeds)} repeat a seed")
     records: dict = {}
     for name, block in (manifest.get("policies") or {}).items():
         by_seed: dict = {}
