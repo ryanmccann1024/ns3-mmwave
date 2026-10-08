@@ -3,6 +3,13 @@ config-validator-test
 eval-test
 mesh-router-test
 traffic-matrix-test
+loader-test
+config-rules-test
+eval-jammer-test
+routing-extra-test
+traffic-extra-test
+io-cli-test
+rl-bridge-test
 
 # ns3/ stub symlink directories (created by Makefiles)
 ns3/
