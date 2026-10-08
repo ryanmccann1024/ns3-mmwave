@@ -24,9 +24,9 @@
  *
  * **Gateway resolution**
  * For the @c "gateway" topology, @ref mesh_sim::TrafficConfig::gateway_node_id is
- * resolved as a numeric index first (@c stoul); if that throws, it falls
- * back to a linear search by @ref mesh_sim::NodeSpec::id string. Index 0 is used
- * when @c gateway_node_id is empty.
+ * matched against each @ref mesh_sim::NodeSpec::id first. Only if no ID matches
+ * is an all-digit value below @c numNodes taken as a node index. Anything else
+ * throws. Index 0 is used when @c gateway_node_id is empty.
  */
 #pragma once
 
@@ -113,7 +113,8 @@ class TrafficMatrix
      * @param numNodes    Total number of active simulation nodes.
      * @param currentTime Simulation time at which flows start (seconds).
      * @throws std::runtime_error for an unrecognised @c flow_topology string,
-     *         or (via @ref InitGateway) an unmatched non-numeric gateway ID.
+     *         or (via @ref InitGateway) a gateway ID that matches no node ID
+     *         and is not an in-range index.
      *
      * Initial flows are created for every traffic model, including
      * @c "poisson". @c "random_pairs" needs @c numNodes >= 2, otherwise the
