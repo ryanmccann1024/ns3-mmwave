@@ -15,6 +15,7 @@
 
 #include "channel-config.h"
 #include "mesh-config.h"
+#include "query-config.h"
 #include "node-spec.h"
 #include "src/jammer/jammer-spec.h"
 
@@ -131,6 +132,7 @@ struct SimConfig
     RlConfig rl;  ///< Reinforcement-learning controller parameters.
                    ///<   Ignored when @c rl.enabled is @c false.
 
+    QueryConfig query;
     BaselineConfig baseline;  ///< Placement-baseline selector (@c [baseline] algorithm).
 
     std::vector<NodeSpec>     nodes;      ///< All simulation nodes, in index order.

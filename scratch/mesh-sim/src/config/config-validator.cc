@@ -7,6 +7,7 @@
 
 
 #include "src/config/config-validator.h"
+#include "src/config/query-config.h"
 
 #include "src/config/rl-control.h"
 
@@ -53,6 +54,9 @@ ValidationResult
 ValidateConfig(const SimConfig& cfg)
 {
     ValidationResult r;
+
+    const auto queryErrors = ValidateQueryConfig(cfg.query);
+    r.errors.insert(r.errors.end(), queryErrors.begin(), queryErrors.end());
 
     // -- timing --
     checkPositive(r, "duration_s", cfg.duration_s);

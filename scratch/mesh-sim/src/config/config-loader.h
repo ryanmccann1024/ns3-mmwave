@@ -58,7 +58,7 @@ class ConfigLoader
      *
      * Steps: parse @c run.ini; fill the sections above; load the nodes,
      * jammers, and buildings files in that order; apply the positions
-     * override. Does not validate ranges or enum values (except @c channel_model). When @c [output]
+     * override. Does not validate ranges or enum values (except @c channel_model and strict query option parsing). When @c [output]
      * @c dir is empty the timestamped directory is derived from the local
      * clock and assumes the run.ini lives three levels below the mesh-sim
      * root (for example @c inputs/baselines/foo/run.ini). Reads files only;

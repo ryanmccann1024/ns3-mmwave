@@ -6,6 +6,7 @@
  */
 
 #include "src/config/config-loader.h"
+#include "src/config/query-config.h"
 #include "src/util/ini-parser.h"
 #include "src/util/string-utils.h"
 #include "third_party/json.hpp"
@@ -361,6 +362,8 @@ ConfigLoader::Load(const std::string& run_config_path,
     cfg.rl.max_controlled_nodes = std::stoi(iniGet(ini, "rl", "max_controlled_nodes", "0"));
     cfg.rl.action_profile       = iniGet(ini, "rl", "action_profile", "move_2d");
     cfg.rl.decision_interval_s  = std::stod(iniGet(ini, "rl", "decision_interval_s", "0.0"));
+
+    cfg.query = LoadQueryConfig(ini);
 
     // [baseline] — only the selector; scripts/baselines/config.py owns the other keys.
     cfg.baseline.algorithm = iniGet(ini, "baseline", "algorithm", "none");
