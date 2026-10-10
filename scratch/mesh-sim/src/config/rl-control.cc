@@ -95,43 +95,13 @@ ControlledStartPosition(const NodeSpec& spec)
 namespace
 {
 
-// Rule 2: legacy selection, identical to the historical sim.cc block.
-void
-resolveLegacy(const SimConfig& cfg, RlControlResolution& r)
-{
-    uint32_t idx = static_cast<uint32_t>(cfg.nodes.size()) - 1;
-    if (!cfg.rl.controlled_node_id.empty())
-    {
-        for (uint32_t i = 0; i < cfg.nodes.size(); ++i)
-        {
-            if (cfg.nodes[i].id == cfg.rl.controlled_node_id)
-            {
-                idx = i;
-                break;
-            }
-        }
-    }
-    r.controlled_indices = {idx};
-    r.num_slots          = 1;
-}
-
 // Rules 3.1-3.6: selector validation and token -> node index mapping.
 void
 resolveSelection(const SimConfig& cfg, RlControlResolution& r)
 {
-    if (!cfg.rl.controlled_node_id.empty())
-    {
-        r.errors.push_back("rl.controlled_node_id and rl.controlled_nodes are mutually exclusive");
-    }
-
-    if (cfg.rl.action_type != "discrete")
-    {
-        r.errors.push_back("rl.action_type '" + cfg.rl.action_type +
-                           "' is not supported with rl.controlled_nodes");
-    }
     if (cfg.rl.action_profile == "move_3d")
     {
-        r.errors.push_back("rl.action_profile 'move_3d' is reserved and not implemented in P1");
+        r.errors.push_back("rl.action_profile 'move_3d' is not supported; use 'move_2d'");
     }
     else if (cfg.rl.action_profile != "move_2d")
     {
@@ -155,7 +125,7 @@ resolveSelection(const SimConfig& cfg, RlControlResolution& r)
     if (tokens.empty())
     {
         r.errors.push_back("rl.controlled_nodes is set but empty; use 'all', a comma-separated "
-                           "list of node ids, or remove the key for legacy single-node control");
+                           "list of node ids");
         return;
     }
 
@@ -356,17 +326,26 @@ RlControlResolution
 ResolveRlControl(const SimConfig& cfg)
 {
     RlControlResolution r;
-    r.control_mode = "legacy";
+    r.control_mode = "disabled";
 
     if (!cfg.rl.enabled)
     {
         return r;
     }
 
-    const bool centralized = cfg.rl.controlled_nodes_set;
-    r.control_mode         = centralized ? "centralized" : "legacy";
+    r.control_mode = "centralized";
+    for (const auto& key : cfg.rl.unsupported_keys)
+    {
+        r.errors.push_back("rl." + key + " is no longer supported; use "
+                           "rl.controlled_nodes and rl.action_profile=move_2d");
+    }
+    if (!cfg.rl.controlled_nodes_set)
+    {
+        r.errors.push_back("rl.controlled_nodes is required when RL is enabled");
+        return r;
+    }
 
-    r.num_ticks           = ComputeTickCount(cfg.duration_s, cfg.tick_s, centralized);
+    r.num_ticks = ComputeTickCount(cfg.duration_s, cfg.tick_s, true);
     const bool timingOk   = r.num_ticks > 0;
     if (!timingOk)
     {
@@ -379,18 +358,20 @@ ResolveRlControl(const SimConfig& cfg)
         r.errors.push_back("rl control requires at least one mesh node");
     }
 
-    if (!centralized)
-    {
-        if (haveNodes)
-        {
-            resolveLegacy(cfg, r);
-        }
-        return r;
-    }
-
     if (haveNodes)
     {
         resolveSelection(cfg, r);
+    }
+    if (cfg.mesh.traffic.flow_topology == "gateway")
+    {
+        for (uint32_t idx : r.controlled_indices)
+        {
+            if (cfg.nodes[idx].id == cfg.mesh.traffic.gateway_node_id)
+            {
+                r.errors.push_back("rl.controlled_nodes selects the active traffic gateway '" +
+                                   cfg.nodes[idx].id + "'; the gateway cannot be RL-controlled");
+            }
+        }
     }
     resolveSlotCount(cfg, r);
     resolveCadence(cfg, r, timingOk);

@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Stand-in for the C++ mesh-sim binary: same flags, same RL stdout/stdin protocol.
-
-Legacy single-node mode is used unless [rl] controlled_nodes is set, which selects
-the centralized protocol. FAKE_SIM_MODE selects normal (default), exit3, malformed,
-or one of the isolated centralized fault modes; it never proves real movement or
-reward correctness.
-"""
+"""Protocol fixture for Python tests; it does not prove simulator physics."""
 
 import configparser
 import json
@@ -16,10 +10,9 @@ from pathlib import Path
 
 VALUE_FLAGS = ("--run-config", "--seed", "--output-dir", "--band")
 BOOL_FLAGS = ("--rl-mode",)
-STEP_M = 5.0
 STDERR_MARKER = "fake-sim: simulated fatal error"
 
-CONTRACT = "mesh_move_2d_v1"
+CONTRACT = "mesh_move_2d_v2"
 ACTION_MEANINGS = ["west", "east", "south", "north", "hold"]
 HOLD = 4
 SPEED_CAP_MPS = 20.0
@@ -63,22 +56,6 @@ def write_outputs(out_dir: Path, seed: int, band: str | None) -> None:
         json.dumps({"seed": seed, "fake": True}, indent=2) + "\n"
     )
     (seed_dir / "links.csv").write_text("tick,src,dst,sinr_db,capacity_mbps\n")
-
-
-def message(tick: int, tick_s: float, pos: list[float], done: bool) -> str:
-    return json.dumps({
-        "type": "step",
-        "tick": tick,
-        "time_s": tick * tick_s,
-        "obs": {
-            "controlled_pos": pos,
-            "link_sinrs": [20.0 - pos[0] * 0.01, 18.0],
-            "link_capacities": [100.0, 90.0],
-        },
-        "reward": 1.0,
-        "done": done,
-        "action_type": "discrete",
-    })
 
 
 def emit(line: str) -> None:
@@ -215,10 +192,16 @@ def _init_message(mode: str, num_slots: int, count: int, nodes: list[dict],
         "num_decisions": -(-num_ticks // k),
         "reward_type": ini.get("rl", "reward_type", fallback="all_links_los"),
         "reward_window": "mean",
+        "warmup_s": ini.getfloat("scenario", "warmup_s", fallback=0.0),
+        "reward_warmup": "exclude",
         "wall_policy": "clip",
     }
     if mode == "bad_contract":
         init["contract"] = "mesh_move_9d_v9"
+    elif mode == "old_contract":
+        init["contract"] = "mesh_move_2d_v1"
+    elif mode == "warmup_overflow":
+        init["warmup_s"], init["tick_s"] = 1e308, 1e-308
     elif mode == "bad_meanings":
         init["action_meanings"] = ["north", "south", "east", "west", "hold"]
     elif mode == "bad_counts":
@@ -241,6 +224,15 @@ def run_centralized(args: dict, ini: configparser.ConfigParser, mode: str) -> in
     if mode == "long":
         num_ticks, k, interval_s = LONG_MODE_TICKS, 1, tick_s
 
+    if mode.startswith("root_"):
+        emit({"root_array": "[]", "root_null": "null", "root_number": "7", "root_string": '"hi"'}[mode])
+        sys.stdin.read()
+        return 0
+    if mode == "legacy_stream":
+        emit('{"type":"step","obs":{"controlled_pos":[0,0,0]}}')
+        sys.stdin.read()
+        return 0
+
     emit(json.dumps(_init_message(mode, num_slots, count, nodes, slots, speed,
                                   tick_s, interval_s, k, num_ticks, ini)))
 
@@ -250,6 +242,10 @@ def run_centralized(args: dict, ini: configparser.ConfigParser, mode: str) -> in
     while True:
         if mode == "malformed" and decision == 1:
             emit("this is not json {")
+            return 0
+        if mode == "step_array" and decision == 1:
+            emit("[]")
+            sys.stdin.read()
             return 0
         mask = _mask(nodes, slots, num_slots, bounds)
         obs = _observation(nodes, slots, num_slots)
@@ -261,15 +257,21 @@ def run_centralized(args: dict, ini: configparser.ConfigParser, mode: str) -> in
         if mode == "non_finite" and decision == 0:
             obs = list(obs)
             obs[1] = float("nan")
+        start = 0 if decision == 0 else tick - window_len + 1
+        warmup = ini.getfloat("scenario", "warmup_s", fallback=0.0)
+        scored = sum(i * tick_s >= warmup for i in range(start, tick + 1))
+        if mode == "bad_scored_ticks" and decision == 0:
+            scored += 1
         emit(json.dumps({
             "type": "step",
             "tick": tick,
             "time_s": tick * tick_s,
             "decision": decision,
             "ticks_in_step": window_len,
+            "scored_ticks": scored,
             "obs": obs,
             "mask": mask,
-            "reward": 1.0,
+            "reward": 1.0 if scored else 0.0,
             "done": tick >= num_ticks,
             "revalidated_slots": revalidated,
             "last_action": last_action,
@@ -300,49 +302,20 @@ def main() -> int:
     args = parse_args(sys.argv[1:])
     mode = os.environ.get("FAKE_SIM_MODE", "normal")
 
-    ini = configparser.ConfigParser()
+    ini = configparser.ConfigParser(interpolation=None)
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+    from scripts.sim_support import strip_inline_comment
     ini.read(args["run-config"])
+    for section in ini.sections():
+        for key, value in ini.items(section):
+            ini.set(section, key, strip_inline_comment(value))
     duration_s = ini.getfloat("scenario", "duration_s", fallback=0.4)
     tick_s = ini.getfloat("scenario", "tick_s", fallback=0.1)
     seed = int(args["seed"]) if "seed" in args else ini.getint("scenario", "seed", fallback=1)
 
     write_outputs(Path(args["output-dir"]), seed, args.get("band"))
 
-    if ini.has_option("rl", "controlled_nodes"):
-        return run_centralized(args, ini, mode)
-
-    n_messages = int(round(duration_s / tick_s)) + 1
-    pos = [0.0, 0.0, 0.0]
-
-    emit(message(0, tick_s, list(pos), n_messages == 1))
-    if mode == "exit3":
-        print(STDERR_MARKER, file=sys.stderr, flush=True)
-        return 3
-
-    for tick in range(1, n_messages):
-        line = sys.stdin.readline()
-        if not line:
-            return 0
-        action = int(json.loads(line)["action"])
-        if action == 0:
-            pos[0] -= STEP_M
-        elif action == 1:
-            pos[0] += STEP_M
-        elif action == 2:
-            pos[1] -= STEP_M
-        elif action == 3:
-            pos[1] += STEP_M
-        elif action == 4:
-            pos[2] = max(0.0, pos[2] - STEP_M)
-        elif action == 5:
-            pos[2] += STEP_M
-
-        if mode == "malformed" and tick == 1:
-            emit("this is not json {")
-            return 0
-        emit(message(tick, tick_s, list(pos), tick == n_messages - 1))
-
-    return 0
+    return run_centralized(args, ini, mode)
 
 
 if __name__ == "__main__":

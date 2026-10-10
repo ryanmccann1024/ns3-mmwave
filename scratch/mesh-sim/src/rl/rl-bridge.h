@@ -1,17 +1,8 @@
 /* -*- Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
-/*
- * RL bridge: stdin/stdout JSON IPC between the C++ sim and a Python RL agent.
- *
- * Legacy mode (one controlled node, Discrete(7)) writes one message per tick.
- * Centralized mode (`rl.controlled_nodes`) writes an `init` line once, then one
- * `step` message every `decision_interval_ticks` ticks carrying the joint
- * observation, the authoritative per-slot action mask, and the windowed reward;
- * the action is a MultiDiscrete([5]*M) list. C++ owns masks, speed caps, and the
- * per-tick bounds clamp -- Python never re-derives them. See src/rl/README.md.
- */
 #pragma once
 
 #include "src/domain/sim-config.h"
+#include "src/rl/reward-window.h"
 #include "src/eval/link-table.h"
 #include "src/routing/mesh-router.h"
 
@@ -48,7 +39,7 @@ class RlBridge
     void BeforeAdvance(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs);
 
     // Add this tick's reward to the current decision window (centralized).
-    void AccumulateTick(const LinkTable& linkTable, const std::vector<FlowResult>& flows);
+    void AccumulateTick(double time_s, const LinkTable& linkTable, const std::vector<FlowResult>& flows);
 
     // Write obs+reward to stdout, read action from stdin.
     // If done==true, writes final obs but does not read action.
@@ -56,7 +47,6 @@ class RlBridge
               double time_s,
               const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs,
               const LinkTable& linkTable,
-              const std::vector<FlowResult>& flowResults,
               bool done);
 
     // Apply the last received action to the controlled node(s).
@@ -65,13 +55,9 @@ class RlBridge
   private:
     RlConfig    m_rl;
     double      m_tickS;
-    uint32_t    m_controlledIdx;
     uint32_t    m_numNodes;
-    double      m_maxSpeed;
-    std::string m_nodeType;
 
-    // Centralized state
-    bool                     m_centralized = false;
+    RewardWindow m_rewardWindow;
     std::vector<ControlSlot> m_slots;
     uint32_t                 m_numSlots = 1;
     uint32_t                 m_k = 1;
@@ -79,30 +65,16 @@ class RlBridge
     std::vector<int>         m_lastJoint;        ///< Last joint action (4 == hold).
     std::vector<int>         m_lastMask;         ///< Mask sent in the last step message.
     std::vector<uint32_t>    m_revalidatedSlots; ///< Slots held by revalidation, for the next message.
-    double                   m_rewardSum = 0.0;
-    uint32_t                 m_rewardTicks = 0;
     uint32_t                 m_decision = 0;
     bool                     m_streamClosed = false;
 
-    // Last action received from Python
-    int    m_lastDiscreteAction = 0;
-    double m_lastTargetX = 0.0;
-    double m_lastTargetY = 0.0;
-    double m_lastTargetZ = 0.0;
-
     double ComputeRewardTick(const LinkTable& linkTable,
                              const std::vector<FlowResult>& flows) const;
-    void WriteObs(uint32_t tick, double time_s,
-                  const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs,
-                  const LinkTable& linkTable,
-                  double reward, bool done) const;
-    void ReadAction();
-
     void WriteStep(uint32_t tick, double time_s,
                    const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs,
                    const LinkTable& linkTable,
                    const std::vector<int>& mask,
-                   double reward, uint32_t ticksInStep, bool done) const;
+                   double reward, uint32_t ticksInStep, uint32_t scoredTicks, bool done) const;
     std::vector<int> ComputeMask(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs) const;
     void ReadJointAction();
     ns3::Vector ClampVelocityForTick(const ns3::Vector& pos, const ns3::Vector& vel) const;

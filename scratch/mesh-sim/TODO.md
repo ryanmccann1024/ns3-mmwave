@@ -56,11 +56,8 @@ human-owned and was deliberately not edited in P1; the line should be added by
 its owner. Owner: team — status: open.
 
 ### Continuous Desired-Position Actions with SB3
-The discrete left/right/stay action space is a v0 simplification. The
-continuous action type (`action_type = continuous`) is already implemented
-and outputs absolute target (x, y) coordinates. Next step: integrate
-Stable Baselines 3 (PPO/SAC) using the Gymnasium env which already supports
-both discrete and continuous spaces.
+Continuous control needs a separate action profile, protocol version, and
+verified Python/C++ implementation before it can be enabled.
 
 ### Richer Reward Shaping
 Currently supports `throughput` (sum delivered_mbps) and `all_links_los`
@@ -69,15 +66,14 @@ throughput, fairness (min-link capacity), latency, coverage area, or energy
 cost.
 
 ### 3D Movement for Drones
-The discrete action space already includes +/-Z alongside +/-X, +/-Y and Stay;
-the continuous action type still emits a 2-D target only. Remaining work:
+Current control moves only in x/y. Future 3D support needs
 per-node-type constraints so aerial nodes (drones) control altitude while
 ground nodes (vehicles, pedestrians) stay 2-D constrained, and a verified 3-D
 continuous action space.
 
 ### Larger Discrete Action Spaces
 Add 4-direction (up/down in y-axis) and 8-direction (diagonals) as
-additional `action_type` options.
+additional versioned action profiles.
 
 ### TODO-RL-SEEDS-1 — Multi-seed training policy
 P0 trains with one fixed seed (`m-ppo --seed`, else `[scenario] seed`) reused by

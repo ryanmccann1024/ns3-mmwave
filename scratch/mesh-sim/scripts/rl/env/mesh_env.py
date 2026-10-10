@@ -6,9 +6,9 @@ import gymnasium
 import numpy as np
 from gymnasium import spaces
 
-from .config import read_rl_bounds, read_scenario_seed
+from .config import read_scenario_seed
 from .episode import EpisodeSession
-from .protocol import CentralizedProtocol, LegacyProtocol, ProtocolError, SLOT_ACTIONS
+from .protocol import CentralizedProtocol, ProtocolError, SLOT_ACTIONS, validate_message
 
 
 class MeshRlEnv(gymnasium.Env):
@@ -41,16 +41,11 @@ class MeshRlEnv(gymnasium.Env):
 
         self.action_space: spaces.Space | None = None
         self.observation_space: spaces.Space | None = None
-        self._action_type: str | None = None
         self._signature: dict | None = None
         self._control_mode: str | None = None
         self._contract: dict | None = None
-        self._protocol: CentralizedProtocol | LegacyProtocol | None = None
+        self._protocol: CentralizedProtocol | None = None
 
-        self._x_range: tuple[float, float] | None = None
-        self._y_range: tuple[float, float] | None = None
-        self._z_range: tuple[float, float] | None = None
-        self._ctrl_pos: np.ndarray | None = None
 
         self.window_size = 512
         self.render_mode = render_mode
@@ -79,37 +74,22 @@ class MeshRlEnv(gymnasium.Env):
         self._session.stop("interrupted", "reset")
         self._session.start(self.seed_value, self.seed_source)
         first = self._session.read_message()
-        kind = first.get("type")
-        if kind == "init":
-            return self._reset_centralized(first)
-        if kind == "step":
-            return self._reset_legacy(first)
-        self._session.protocol_error(
-            f"Unexpected first message type {kind!r}; expected 'init' (centralized) "
-            "or 'step' (legacy)"
-        )
+        try:
+            validate_message(first)
+        except ProtocolError as exc:
+            self._session.protocol_error(str(exc))
+        if first.get("type") != "init":
+            self._session.protocol_error("Expected an 'init' message; legacy control is unsupported")
+        return self._reset_centralized(first)
 
     def step(self, action):
-        if self._control_mode == "centralized":
-            assert isinstance(self._protocol, CentralizedProtocol)
-            action_value = self._protocol.joint_action(action)
-        elif self._action_type == "continuous":
-            action_value = [float(action[0]), float(action[1])]
-        else:
-            action_value = int(action)
+        if self._protocol is None:
+            raise RuntimeError("reset() must succeed before step()")
+        action_value = self._protocol.joint_action(action)
         self._session.send_action(action_value)
         msg = self._session.read_message()
-
-        if self._control_mode == "centralized":
-            assert isinstance(self._protocol, CentralizedProtocol)
-            obs = self._validated_step(self._protocol, msg)
-            info = self._centralized_info(msg)
-        else:
-            assert isinstance(self._protocol, LegacyProtocol)
-            self._validated_step(self._protocol, msg)
-            obs = self._protocol.parse_obs(msg)
-            self._ctrl_pos = np.asarray(msg["obs"]["controlled_pos"], dtype=float)
-            info = {"time_s": msg["time_s"], "tick": msg["tick"]}
+        obs = self._validated_step(self._protocol, msg)
+        info = self._centralized_info(msg)
         reward = float(msg["reward"])
         terminated = bool(msg["done"])
         self._session.record_step(msg, reward)
@@ -124,78 +104,15 @@ class MeshRlEnv(gymnasium.Env):
         pass
 
     def action_masks(self) -> np.ndarray:
-        if self._control_mode == "centralized":
-            assert isinstance(self._protocol, CentralizedProtocol)
-            mask = self._protocol.mask
-            if mask is None:
-                return np.ones(self._protocol.mask_dim, dtype=bool)
-            return mask.astype(bool)
-
-        n = self.action_space.n if isinstance(self.action_space, spaces.Discrete) else 7
-        mask = np.ones(n, dtype=bool)
-        if self._ctrl_pos is None or self._x_range is None:
-            return mask
-
-        x, y = float(self._ctrl_pos[0]), float(self._ctrl_pos[1])
-        xmin, xmax = self._x_range
-        ymin, ymax = self._y_range
-        if n > 0:
-            mask[0] = x > xmin
-        if n > 1:
-            mask[1] = x < xmax
-        if n > 2:
-            mask[2] = y > ymin
-        if n > 3:
-            mask[3] = y < ymax
-        if n > 5 and self._z_range is not None and self._ctrl_pos.shape[0] >= 3:
-            z = float(self._ctrl_pos[2])
-            zmin, zmax = self._z_range
-            mask[4] = z > zmin
-            mask[5] = z < zmax
-        return mask
+        if self._protocol is None or self._protocol.mask is None:
+            raise RuntimeError("reset() must succeed before action_masks()")
+        return self._protocol.mask.astype(bool)
 
     def valid_action_mask(self) -> np.ndarray:
         return self.action_masks()
 
     def close(self):
         self._session.stop("interrupted", "close")
-
-    def _reset_legacy(self, msg: dict):
-        width = self.observation_space.shape[0] if self.observation_space else None
-        protocol = LegacyProtocol(width)
-        self._validated_step(protocol, msg, first=True)
-        action_type = msg.get("action_type", "discrete")
-        if action_type not in ("discrete", "continuous"):
-            self._session.protocol_error(f"Unknown legacy action_type {action_type!r}")
-
-        obs = protocol.parse_obs(msg)
-        signature = {
-            "control_mode": "legacy",
-            "action_type": action_type,
-            "obs_dim": int(obs.shape[0]),
-        }
-        self._check_signature(signature)
-        self._control_mode = "legacy"
-        self._contract = None
-        self._action_type = action_type
-        self._protocol = protocol
-        self._ctrl_pos = np.asarray(msg["obs"]["controlled_pos"], dtype=float)
-        info = {"time_s": msg["time_s"], "tick": msg["tick"]}
-
-        if self._x_range is None:
-            self._x_range, self._y_range, self._z_range = read_rl_bounds(self._run_config)
-        if self.observation_space is None:
-            self.observation_space = spaces.Box(
-                low=-np.inf, high=np.inf, shape=(obs.shape[0],), dtype=np.float64
-            )
-        if self.action_space is None:
-            if action_type == "continuous":
-                self.action_space = spaces.Box(
-                    low=-np.inf, high=np.inf, shape=(2,), dtype=np.float64
-                )
-            else:
-                self.action_space = spaces.Discrete(7)
-        return obs, info
 
     def _reset_centralized(self, init: dict):
         try:
@@ -222,12 +139,13 @@ class MeshRlEnv(gymnasium.Env):
             "num_decisions": init["num_decisions"],
             "reward_type": init["reward_type"],
             "reward_window": init["reward_window"],
+            "warmup_s": init["warmup_s"],
+            "reward_warmup": init["reward_warmup"],
             "wall_policy": init["wall_policy"],
         }
         self._check_signature(signature)
         self._control_mode = "centralized"
         self._contract = dict(init)
-        self._action_type = "discrete"
         self._protocol = protocol
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=(init["obs_dim"],), dtype=np.float64
@@ -252,6 +170,7 @@ class MeshRlEnv(gymnasium.Env):
             "time_s": msg["time_s"],
             "decision": msg["decision"],
             "ticks_in_step": msg["ticks_in_step"],
+            "scored_ticks": msg["scored_ticks"],
             "revalidated_slots": list(msg["revalidated_slots"]),
         }
 

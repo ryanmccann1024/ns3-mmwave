@@ -9,6 +9,7 @@ README](../../../README.md#python-environment).
 
 ```bash
 .venv/bin/python -m pytest scripts/rl/tests/test_mesh_env.py -q
+make -C tests/unit/rl test
 MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary .venv/bin/python -m pytest scripts/rl/tests/test_real_binary.py -q
 make -C tests/unit/config test
 MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary make -C tests integration
@@ -18,7 +19,7 @@ MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary make -C tests integration
 
 Unless noted, input is an in-process scenario with `fake_sim.py`; expected
 output is the stated Gymnasium result or error plus a correctly finalized
-`rl_episode.json`. Earlier single-node tests remain in this file.
+`rl_episode.json`. One-slot tests use the same centralized contract.
 
 | Test | Input → expected output |
 | --- | --- |
@@ -29,7 +30,7 @@ output is the stated Gymnasium result or error plus a correctly finalized
 | `test_centralized_masked_random_run_completes` | Valid masked random actions → two decisions and completed episode metadata. |
 | `test_centralized_faults_are_rejected` | Six malformed init/step variants → protocol error, failed episode, cleaned-up process. |
 | `test_reset_signature_drift_fails_before_replacing_spaces` | Change slot capacity between resets → error; original Gym spaces remain. |
-| `test_reset_mode_drift_is_rejected` | Switch centralized to legacy between resets → error; spaces remain. |
+| `test_legacy_stream_is_rejected` | Legacy first step → explicit error and failed episode cleanup. |
 | `test_long_stdout_is_drained_on_close` | Long simulator output, then close → process and reader thread exit; episode interrupted. |
 | `test_close_is_idempotent_and_reset_still_works` | Close twice, then reset → new episode allocated without leaked reader. |
 | `test_completed_episode_leaves_no_process_or_reader` | Two valid actions → completed episode and no child/reader left running. |
@@ -64,29 +65,33 @@ and checks accepted values or precise errors; it writes no simulation output.
 
 | Test | Input → expected output |
 | --- | --- |
-| `test_rl_disabled_is_legacy` | Disabled RL → legacy mode with no controlled selection. |
+| `test_rl_disabled_has_no_control` | Disabled RL → no controlled selection. |
 | `test_rl_selection_order` | Explicit node list → list order preserved. |
 | `test_rl_selection_all` | `all` → every mesh node in file order. |
 | `test_rl_all_with_ids_rejected` | `all` mixed with IDs → error. |
 | `test_rl_jammer_id_rejected` | Jammer ID in selection → jammer-specific error. |
 | `test_rl_unknown_id_rejected` | Unknown mesh ID → error. |
 | `test_rl_duplicate_token_rejected` | Repeated selected ID → error. |
-| `test_rl_both_selectors_rejected` | Legacy and centralized selectors together → error. |
+| `test_rl_removed_keys_rejected` | Removed control keys → migration error when RL is enabled; ignored when disabled. |
+| `test_rl_gateway_selection_rejected` | Active gateway selected explicitly or via all → error; other nodes accepted. |
 | `test_rl_empty_selector_rejected` | Present but empty selector → error. |
-| `test_rl_continuous_rejected` | Continuous action in centralized mode → error. |
 | `test_rl_action_profile` | Unsupported 3D or unknown profile → error. |
 | `test_rl_max_controlled_nodes` | Invalid/valid capacities → error or correctly padded position count. |
 | `test_rl_decision_interval` | Default, valid, fractional, excessive, invalid intervals → correct tick count or error. |
-| `test_rl_tick_counts` | Fractional duration/tick ratios → expected centralized and legacy tick counts. |
-| `test_rl_legacy_selection` | Absent centralized selector → existing single-node selection behavior. |
-| `test_rl_duplicate_node_ids` | Duplicate node IDs → centralized error; legacy behavior unchanged. |
+| `test_rl_tick_counts` | Fractional duration/tick ratios → robust RL counts; non-RL counts preserved. |
+| `test_rl_missing_selection_rejected` | Enabled RL without a selector → error, no implicit last-node control. |
+| `test_rl_duplicate_node_ids` | Duplicate node IDs → error when RL is enabled. |
 | `test_rl_start_outside_bounds` | Controlled start outside bounds → error. |
 | `test_rl_validator_reports_resolver_errors` | Invalid selection → validator reports it only with RL enabled. |
 | `test_rl_safety_cases` | Invalid time, bounds, step, nodes, or waypoints → error, never an uncaught exception. |
 | `test_controlled_start_position` | Fixed/waypoint/empty waypoint node → correct start or exception. |
 | `test_apply_rl_control` | Resolved settings or invalid resolution → copied fields or exception. |
 
-`tests/integration/cli-integration-test.sh` Test 9 runs the legacy smoke
-scenario with closed stdin. It expects five `step` lines, no `init`, and a
-`controlled_pos` observation on the first line; other CLI checks are described
-in the [main verification section](../../../README.md#verify).
+`tests/integration/cli-integration-test.sh` Test 9 expects one `init` plus
+five scored `step` messages from the one-slot smoke scenario.
+
+Warmup coverage includes Python metadata/count checks, a standalone C++ reward
+window test (empty, crossing boundary, mean, reset), and real-binary coarse/fine
+window comparisons with `warmup_s = 0.25`. Real-binary gateway tests reject
+explicit selection and `all` while accepting the other nodes. Non-object JSON
+tests verify child/reader cleanup and a failed version-3 episode manifest.

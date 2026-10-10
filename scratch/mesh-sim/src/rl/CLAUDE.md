@@ -1,16 +1,14 @@
 # rl/
 
 ## Scope
-C++ side of the RL bridge for both control modes: legacy single-node
-`Discrete(7)` and centralized `MultiDiscrete([5]*M)` over a resolved slot list.
-Handles stdin/stdout JSON IPC with a Python Gymnasium environment: writes
-observation+reward (every tick in legacy mode, every decision interval in
-centralized mode), reads the action from stdin, and applies it by setting
-controlled-node velocities via ConstantVelocityMobilityModel. Masks, speed
-caps, per-tick bounds clamping, and action revalidation are owned here.
+C++ side of centralized 2D `MultiDiscrete([5]*M)` control, including one-slot
+runs. Owns JSON IPC, masks, speed caps, per-tick clamping, action revalidation,
+and post-warmup reward means. Keep the Python protocol, contract docs, and
+fake/real simulator tests consistent with message or reward changes.
 
 ## Files
 - **rl-bridge.h/cc** -- `RlBridge` class with `Step()` (IPC) and `ApplyAction()` (physics).
+- **reward-window.h** -- Counts elapsed/scored ticks and averages post-warmup rewards.
 - **README.md** -- Mode/message/mask/action contract shared with the Python env.
 - **rl-agent.h** -- Legacy placeholder (no-op). Superseded by rl-bridge.
 

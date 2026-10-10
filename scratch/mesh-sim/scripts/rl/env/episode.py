@@ -1,16 +1,15 @@
-"""Per-episode simulator process, diagnostics, and manifest ownership."""
+"""Per-episode simulator process lifecycle and diagnostics."""
 
 import json
-import re
 import subprocess
 import threading
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 
 from scripts.sim_support import find_mesh_root, simulator_env, tail_lines
 
-_EPISODE_RE = re.compile(r"^episode-(\d+)$")
+from .episode_artifacts import EpisodeArtifacts
+
 _STDERR_TAIL_LINES = 40
 _BAD_LINE_CHARS = 200
 _MAX_ERROR_CHARS = 1000
@@ -20,24 +19,18 @@ _ESCALATION_WAIT_S = 2.0
 _DRAIN_CHUNK = 64 * 1024
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
 class EpisodeSession:
     def __init__(self, sim_binary: str, run_config: str, output_dir: Path,
                  band: str | None):
         self._sim_binary = sim_binary
         self._run_config = run_config
-        self._output_dir = output_dir
+        self._artifacts = EpisodeArtifacts(output_dir)
         self._band = band
-        self._next_index: int | None = None
         self._proc: subprocess.Popen | None = None
         self._stderr_file = None
         self._stderr_path: Path | None = None
         self._episode_dir: Path | None = None
         self._episode_index: int | None = None
-        self._manifest: dict | None = None
         self._cmd: list[str] = []
         self._msg_count = 0
         self._last_tail = "(no stderr captured)"
@@ -52,10 +45,10 @@ class EpisodeSession:
 
     @property
     def manifest(self) -> dict | None:
-        return self._manifest
+        return self._artifacts.manifest
 
     def start(self, seed: int, seed_source: str) -> None:
-        self._episode_dir, self._episode_index = self._allocate_episode_dir()
+        self._episode_dir, self._episode_index = self._artifacts.allocate()
         self._cmd = [
             self._sim_binary,
             f"--run-config={self._run_config}",
@@ -65,20 +58,7 @@ class EpisodeSession:
         ]
         if self._band is not None:
             self._cmd.append(f"--band={self._band}")
-        self._manifest = {
-            "manifest_version": 1,
-            "episode": self._episode_index,
-            "seed": seed,
-            "seed_source": seed_source,
-            "command": list(self._cmd),
-            "started_at": _now_iso(),
-            "ended_at": None,
-            "status": "running",
-            "exit_code": None,
-            "steps": 0,
-            "cumulative_reward": 0.0,
-        }
-        self._write_manifest()
+        self._artifacts.begin(self._episode_index, seed, seed_source, self._cmd)
         self._stderr_path = self._episode_dir / "sim_stderr.log"
         self._stderr_file = open(self._stderr_path, "w")
         self._msg_count = 0
@@ -93,36 +73,27 @@ class EpisodeSession:
                 env=self._child_env(),
             )
         except OSError as exc:
-            self._finalize_manifest("failed", None)
+            self._artifacts.finish("failed", None)
             self._close_stderr()
             raise RuntimeError(f"Failed to launch simulator {self._cmd}: {exc}") from exc
 
     def set_contract(self, init: dict) -> None:
-        assert self._manifest is not None
-        self._manifest.update({
-            "manifest_version": 2,
-            "control_mode": "centralized",
-            "contract": dict(init),
-            "decisions": 0,
-            "last_tick": None,
-            "stop_reason": None,
-        })
-        self._write_manifest()
+        self._artifacts.set_contract(init)
 
     def record_step(self, msg: dict, reward: float) -> None:
-        if self._manifest is None:
+        if self._artifacts.manifest is None:
             return
-        self._manifest["steps"] += 1
-        self._manifest["cumulative_reward"] += reward
-        if self._manifest["manifest_version"] == 2:
-            self._manifest["decisions"] = msg["decision"]
-            self._manifest["last_tick"] = msg["tick"]
-        self._write_manifest()
+        self._artifacts.manifest["steps"] += 1
+        self._artifacts.manifest["cumulative_reward"] += reward
+        self._artifacts.manifest["decisions"] = msg["decision"]
+        self._artifacts.manifest["last_tick"] = msg["tick"]
+        self._artifacts.manifest["scored_ticks"] += msg["scored_ticks"]
+        self._artifacts.write()
 
     def protocol_error(self, detail: str):
         message = f"{detail} on message line {self._msg_count}"
-        if self._manifest is not None:
-            self._manifest["error"] = message[:_MAX_ERROR_CHARS]
+        if self._artifacts.manifest is not None:
+            self._artifacts.manifest["error"] = message[:_MAX_ERROR_CHARS]
         rc = self.stop("failed", "error")
         raise RuntimeError(
             f"{message}\n"
@@ -140,45 +111,8 @@ class EpisodeSession:
         except (BrokenPipeError, ValueError, OSError):
             pass
 
-    def _allocate_episode_dir(self) -> tuple[Path, int]:
-        self._output_dir.mkdir(parents=True, exist_ok=True)
-        if self._next_index is None:
-            used = (int(match.group(1)) for path in self._output_dir.iterdir()
-                    if (match := _EPISODE_RE.match(path.name)))
-            self._next_index = max(used, default=-1) + 1
-        while True:
-            index = self._next_index
-            self._next_index += 1
-            path = self._output_dir / f"episode-{index:04d}"
-            try:
-                path.mkdir(exist_ok=False)
-            except FileExistsError:
-                continue
-            return path, index
-
     def _child_env(self) -> dict:
         return simulator_env(find_mesh_root(__file__))
-
-    def _write_manifest(self) -> None:
-        if self._manifest is None or self._episode_dir is None:
-            return
-        with open(self._episode_dir / "rl_episode.json", "w") as fh:
-            json.dump(self._manifest, fh, indent=2)
-            fh.write("\n")
-
-    def _finalize_manifest(self, status: str, exit_code: int | None,
-                           stop_reason: str | None = None,
-                           escalation: str | None = None) -> None:
-        if self._manifest is None:
-            return
-        self._manifest["status"] = status
-        self._manifest["exit_code"] = exit_code
-        self._manifest["ended_at"] = _now_iso()
-        if self._manifest["manifest_version"] == 2:
-            self._manifest["stop_reason"] = stop_reason
-            self._manifest["escalation"] = escalation
-        self._write_manifest()
-        self._manifest = None
 
     def _stderr_tail(self) -> str:
         self._close_stderr()
@@ -191,8 +125,8 @@ class EpisodeSession:
         line = self._proc.stdout.readline()
         self._msg_count += 1
         if not line:
-            if self._manifest is not None:
-                self._manifest["error"] = "sim process ended unexpectedly"
+            if self._artifacts.manifest is not None:
+                self._artifacts.manifest["error"] = "sim process ended unexpectedly"
             rc = self.stop("failed", "error")
             raise RuntimeError(
                 f"Sim process ended unexpectedly (exit code {rc})\n"
@@ -204,8 +138,8 @@ class EpisodeSession:
         except json.JSONDecodeError as exc:
             bad = line.rstrip("\n")[:_BAD_LINE_CHARS]
             message = f"Invalid JSON from sim on message line {self._msg_count}: {exc}"
-            if self._manifest is not None:
-                self._manifest["error"] = message[:_MAX_ERROR_CHARS]
+            if self._artifacts.manifest is not None:
+                self._artifacts.manifest["error"] = message[:_MAX_ERROR_CHARS]
             rc = self.stop("failed", "error")
             raise RuntimeError(
                 f"{message}\n"
@@ -256,8 +190,8 @@ class EpisodeSession:
             if status == "failed":
                 self._last_tail = self._stderr_tail()
             self._close_stderr()
-            if self._manifest is not None:
-                self._finalize_manifest(status, None, stop_reason, None)
+            if self._artifacts.manifest is not None:
+                self._artifacts.finish(status, None, stop_reason, None)
             return None
 
         deadline = time.monotonic() + _CLEANUP_BUDGET_S
@@ -283,7 +217,7 @@ class EpisodeSession:
 
         if stop_reason == "done":
             status = "completed" if rc == 0 else "failed"
-        self._finalize_manifest(status, rc, stop_reason, escalation)
+        self._artifacts.finish(status, rc, stop_reason, escalation)
         return rc
 
     @staticmethod

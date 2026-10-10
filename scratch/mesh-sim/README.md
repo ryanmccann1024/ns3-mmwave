@@ -185,30 +185,32 @@ if the output directory already contains `train_manifest.json` or
 
 ### Centralized multi-node control
 
-Setting `[rl] controlled_nodes` switches the bridge from the legacy
-single-node mode to centralized mode, where one MaskablePPO policy moves a
-fixed set of mesh nodes. The keys below apply only when `[rl] enabled = true`;
-all other `[rl]` keys keep their existing meaning.
+RL uses one MaskablePPO policy to move a selected set of mesh nodes in 2D.
+The keys below apply when `[rl] enabled = true` or `--rl-mode` is passed.
 
 | Key | Type / unit | Default | Mode |
 |---|---|---|---|
-| `controlled_nodes` | `all` or comma-separated node ids | absent (legacy mode) | centralized selector |
+| `controlled_nodes` | `all` or comma-separated node ids | required when enabled | centralized selector |
 | `max_controlled_nodes` | int, slot count `M` | `0` (auto-size to the resolved count), max `64` | centralized |
 | `action_profile` | enum | `move_2d` (only accepted value) | centralized |
 | `decision_interval_s` | seconds | `0` (means `tick_s`); must be an integer multiple of `tick_s` | centralized |
 
-`controlled_nodes` and the legacy `controlled_node_id` are mutually exclusive:
-setting both is a configuration error. The legacy key keeps `Discrete(7)` with
-`6:Stay`; `controlled_nodes` opts into `MultiDiscrete([5]*M)` with `4:hold`.
+`controlled_node_id`, `action_type`, and `arrival_threshold_m` are unsupported.
+Use `controlled_nodes` even for one node; actions use `MultiDiscrete([5]*M)`
+with `4:hold`. Continuous and 3D control are unsupported.
 
-`all` means every node listed in `nodes.json`, in file order. Jammers live in
+`all` means every node listed in `nodes.json`, in file order. If
+`traffic.flow_topology = gateway`, selecting `traffic.gateway_node_id` is an
+error, including via `all`; list the other nodes explicitly. Jammers live in
 `jammers.json`, are never mesh nodes, and can never be controlled — even if a
 jammer's `id` equals a node's `id`.
 
 In centralized mode `reward_type = all_links_los` is the conjunction over every
 controlled node (`+1` only if each one has at least one peer link and all of
 them are LOS), and the reward reported per decision is the mean of the per-tick
-rewards in that decision window.
+rewards at or after `[scenario] warmup_s` in that decision window. Decisions
+continue during warmup; windows with no scored ticks return zero. The
+`mesh_move_2d_v2` contract records the cutoff and scored tick count.
 
 `action_set` and `dimensions` are **not** accepted keys. The loader ignores
 unknown keys silently, so either spelling has no effect; `dimensions` is
