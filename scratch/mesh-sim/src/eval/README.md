@@ -90,3 +90,7 @@ No files are written. Two in-memory structures are produced each tick.
 | `src/domain/` (`link-result.h`, `sim-config.h`) | all | Shared POD types. |
 | `src/jammer/jammer-model.h` | `link-evaluator` | Jammer interference. |
 | g++ with C++17 | unit tests | `make -C tests/unit/eval test`. |
+
+`probe-diagnostics.h/cc` checks resolved 3GPP RMa/UMa/UMi endpoint height
+assumptions without ns-3 objects. The [query guide](../query/README.md) describes
+its advisory output; it does not alter propagation or certify all models.

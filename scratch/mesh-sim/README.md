@@ -795,3 +795,7 @@ pages and the per-file API docs.
 @section about About
 
 This sim is being worked on by the University of Massachusetts's ACNL.
+
+The simulator-scored placement engine and its owned parameter sections are
+documented in the [engine workflow](scripts/baselines/planners/README.md). Its
+API is available in this review; baseline CLI integration follows in #26.

@@ -35,3 +35,9 @@ artifacts and process behavior. They do not show that coverage/balanced/resilien
 improve simulator-delivered demand. Real-binary tests skip with `BLOCKED:` when
 `MESH_SIM_BIN` is unset; those skips are missing evidence, not passes. Exclude
 `test_real_binary.py` explicitly when running only the local suite.
+
+`test_engine_settings.py` covers owned parameter validation/precedence, score
+composition and extension, settings hashes, bounded cache/batches, serial
+timeouts, current-only warm-start provenance and early gateway rejection.
+It launches only `fake_query.py`. Query process units live in
+`tests/unit/query`; real simulator parity/timing remain separate.

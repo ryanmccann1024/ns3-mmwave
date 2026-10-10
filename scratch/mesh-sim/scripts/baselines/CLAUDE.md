@@ -23,7 +23,8 @@ coordinate/objective explanations, and active-planner extension steps.
 - Preserve all nine pinned `third_party/arpo_placement` source files. Put
   explanations in documentation and runtime adaptations outside that tree.
 - Mapping version 1/RF integration in this review is replaced downstream by
-  PRs #25/#26. Consult the active contract before changing or extending it.
+  PRs #25/#26. The #25 engine has its own [guide](planners/README.md);
+  existing preparation still uses RF until #26 wires it in. Consult the active contract before changing or extending it.
 - Tests write to temporary directories. Parsing and fake-planner/channel
   checks do not establish simulator performance. Never run `./ns3 build` or
   `./ns3 run`; real simulator execution is outside this review's checks.

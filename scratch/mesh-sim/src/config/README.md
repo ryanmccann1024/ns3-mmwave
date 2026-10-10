@@ -47,7 +47,7 @@ Paths inside `run.ini` are resolved against the `run.ini` directory.
 
 | Input | Read by | Notes |
 |-------|---------|-------|
-| `run.ini` | `ConfigLoader::Load` | Sections `[scenario]`, `[output]`, `[channel]`, `[nyu_channel]`, `[traffic]`, `[routing]`, `[rl]`. |
+| `run.ini` | `ConfigLoader::Load` | Sections `[channel_query]` (owned by `query-config`), `[scenario]`, `[output]`, `[channel]`, `[nyu_channel]`, `[traffic]`, `[routing]`, `[rl]`. |
 | nodes file (`[scenario] nodes_file`, default `nodes.json`) | `ConfigLoader::Load` | Required. |
 | `[scenario] jammers_file` | `ConfigLoader::Load` | Optional. |
 | `[scenario] buildings_file` | `ConfigLoader::Load` | Optional. |
@@ -72,3 +72,6 @@ Paths inside `run.ini` are resolved against the `run.ini` directory.
 
 - C++17, `third_party/json.hpp` (nlohmann/json).
 - `src/domain/` (config and spec types) and `src/util/` (`ini-parser.h`, `string-utils.h`).
+
+`query-config.h/cc` owns worker budget parsing and validation; defaults come
+from `domain/query-config.h`. See the [query guide](../query/README.md).

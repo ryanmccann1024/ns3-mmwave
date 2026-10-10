@@ -140,3 +140,19 @@ and rejects unknown keys and values; the binary ignores keys other than
 | `waypoint_policy` | `reject` | `reject` or `translate` for selected waypoint nodes. |
 | `mapping_file` | none | Baseline mapping JSON; required when active. Relative paths resolve from `run.ini`. |
 | `rf_config` | none | Planner RF configuration file; required when active. Relative paths resolve from `run.ini`. |
+
+
+## `[channel_query]` and placement-engine settings
+
+`query-config.cc` owns the worker settings: `child_deadline_s` = 60 seconds
+(finite in (0,86400]), `terminate_grace_s` = 1 second (finite in (0,60]),
+`max_child_response_bytes` = 16777216 (integer in [1024,16777216]), and
+`max_response_bytes` = 67108864 (integer ≤268435456, at least child limit +
+69632 bytes). Unknown worker keys are errors. Resolved values appear in the
+`mesh_channel_query_v1` init handshake.
+
+Python engine configuration uses `[placement_objective]`,
+`[placement_optimizer]` and `[channel_query_client]`; see the complete
+[planner parameter example](../../scripts/baselines/planners/README.md#configuration-and-extension).
+The engine API reads these sections; existing baseline CLIs connect to it in
+#26. Do not infer that setting these sections changes the earlier RF adapter.

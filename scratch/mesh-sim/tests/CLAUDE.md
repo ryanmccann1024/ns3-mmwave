@@ -41,7 +41,7 @@ MESH_SIM_BIN=<BIN> make integration
 - `integration/cli-integration-test.sh` -- Tests 1-9 against a real binary
   (`$MESH_SIM_BIN`, else the argument, else the single
   `build/scratch/mesh-sim/ns3*-sim-*` match). Tests 4-9 use `inputs/baselines`
-  fixtures; Test 9 checks the legacy RL stream shape.
+  fixtures; Test 9 checks the centralized RL stream shape.
 - `fixtures/regression/p0/` -- only `manifest.json` is tracked. The reference
   `*.json` snapshots are external (gitignored); never recapture them from
   changed code. Used by `scripts/validation/regression_check.py`.
@@ -58,3 +58,6 @@ MESH_SIM_BIN=<BIN> make integration
 4. Only test ns-3-free code (`domain`, `config`, `util`, and the pure parts of
    `eval`, `routing`, `traffic`). If code under test pulls in an ns-3 header,
    stub it in `common/` rather than linking ns-3.
+
+- `unit/query` tests framing, limits, height advisories and POSIX child lifecycle
+  with callbacks/stub scoring; no ns-3 simulator is linked or run.

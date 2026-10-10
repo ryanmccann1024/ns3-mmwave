@@ -36,3 +36,6 @@ throws), `domain/link-result.h`, and the consumers (`io/`, `routing/`, `rl/`). U
 ## Dependencies
 - Depends on: `domain/`, `jammer/`, ns-3 (propagation, mobility, channel condition)
 - Depended on by: `sim.cc`, `query/`, `routing/` (link-table), `io/` (link-table, sinr-capacity), `rl/` (link-table)
+
+- `probe-diagnostics.h/cc` owns pure model-aware height advisories. Preserve
+  them in query/planning output; do not silently adjust physical inputs.

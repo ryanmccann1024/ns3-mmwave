@@ -13,6 +13,7 @@ Before changing a user-visible behavior, check the affected layers:
 | --- | --- |
 | `run.ini` or CLI option | Loader, resolution/validation, [documented options](README.md#centralized-multi-node-control), example, and one valid/invalid configuration check. |
 | RL action, observation, mask, cadence, or reward semantics | C++ bridge and simulator loop, Python protocol/environment, [contract](src/rl/README.md), focused fake-simulator and real-binary checks. |
+| Placement engine or query contract | Component/strategy owners, settings/hash, C++ query owners, client/fake worker, [engine workflow](scripts/baselines/planners/README.md), query units and real-binary checks. |
 | Training or episode output | Writer, any reader, [output layout](README.md#where-output-lands), and a test of the changed fields. |
 | Scenario identity | `read_scenario_identity` in `scripts/rl/env/config.py`, saved training manifest, relevant tests, and the [identity description](src/rl/README.md#saved-scenario-identity). |
 
