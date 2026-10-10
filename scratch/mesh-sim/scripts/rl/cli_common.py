@@ -1,22 +1,17 @@
 """Shared CLI options and provenance helpers for the mesh-sim RL lifecycle tools."""
 
-import hashlib
 import importlib.metadata
-import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
+from scripts.artifact_io import now_iso, sha256_file, write_json
 from scripts.rl.bootstrap_venv import DIRECT_DEPS
 from scripts.rl.env.config import read_scenario_seed
 from scripts.rl.env.selection import TELEMETRY_MODES, RlSelection, resolve_selection
 
 MANIFEST_NAME = "train_manifest.json"
 MODEL_BASENAME = "maskable_ppo_mesh"
-
-
-def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def package_versions() -> dict:
@@ -29,13 +24,19 @@ def package_versions() -> dict:
     return versions
 
 
-def make_out_dir(output_dir: str) -> str:
+def resolve_out_dir(output_dir: str) -> str:
+    """Choose an output path without creating it."""
     if output_dir:
         out_dir = output_dir
     else:
         now = datetime.now()
         out_dir = os.path.join("outputs", now.strftime("%Y-%m"),
                                now.strftime("%d"), now.strftime("%H-%M-%S"))
+    return out_dir
+
+
+def make_out_dir(output_dir: str) -> str:
+    out_dir = resolve_out_dir(output_dir)
     os.makedirs(out_dir, exist_ok=True)
     return out_dir
 
@@ -45,24 +46,6 @@ def has_previous_run(out_dir: str) -> str | None:
         if os.path.exists(os.path.join(out_dir, name)):
             return name
     return None
-
-
-def sha256_file(path) -> str:
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
-def write_json(path, payload) -> None:
-    """Write JSON atomically so a reader never sees a half-written manifest."""
-    path = Path(path)
-    temp = path.with_name(path.name + ".tmp")
-    try:
-        with open(temp, "w") as fh:
-            json.dump(payload, fh, indent=2, allow_nan=False)
-            fh.write("\n")
-    except BaseException:
-        temp.unlink(missing_ok=True)
-        raise
-    os.replace(temp, path)
 
 
 def add_scenario_arguments(parser, run_config_required: bool = True) -> None:

@@ -114,3 +114,25 @@ def test_experiment_run_groups_two_training_runs(sim_binary, multi_run_config, t
     entry = _primary(group, "hold")
     assert entry["common_seeds"] == [11, 12]
     assert entry["interval"]["kind"] == ACROSS_RUNS_KIND
+
+
+def test_empty_warmup_evaluation_comparison_keeps_null_metrics_and_decisions(
+        sim_binary, multi_run_config, tmp_path):
+    config = Path(multi_run_config)
+    config.write_text(config.read_text().replace("tick_s = 0.1", "tick_s = 0.1\nwarmup_s = 2.0"))
+    eval_dir = tmp_path / "eval"
+    assert evaluate_cli.main(["--sim-binary", sim_binary, "--run-config", str(config),
+        "--output-dir", str(eval_dir), "--seeds", "11,12", "--policies", "hold,random_valid"]) == 0
+    manifest = json.loads((eval_dir / "eval_manifest.json").read_text())
+    assert manifest["eval_manifest_version"] == 3
+    assert manifest["metric_source"]["warmup_excluded"] is True
+    for block in manifest["policies"].values():
+        for episode in block["episodes"]:
+            assert episode["decisions"] > 0 and episode["return"] == 0
+            assert all(value is None for value in episode["metrics"].values())
+    out = tmp_path / "comparison"
+    assert compare_cli.main(["--eval-dirs", str(eval_dir), "--output-dir", str(out)]) == 1
+    comparison = json.loads((out / "comparison.json").read_text())
+    assert comparison["metric_source"] == manifest["metric_source"]
+    assert all(entry["n_used"] == 0 for block in comparison["evaluations"]
+               for entry in block["comparisons"])

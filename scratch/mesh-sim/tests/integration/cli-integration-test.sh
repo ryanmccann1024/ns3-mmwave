@@ -125,7 +125,7 @@ fi
 
 # --- Test 6: Valid run produces run.log and per-seed outputs ---
 # p0-smoke has [rl] enabled, so stdout carries the RL JSON stream and stdin is
-# the action channel; closed stdin makes every action a Stay.
+# the action channel; closed stdin makes every controlled node hold.
 echo "Test 6: valid run produces run.log"
 if "$BIN" --run-config="$SMOKE/run.ini" --seed=1 --output-dir="$TMP/run6" \
         </dev/null >/dev/null 2>"$TMP/run6.err"; then
@@ -225,22 +225,22 @@ if [[ $jam_ok -eq 1 ]]; then
     fi
 fi
 
-# --- Test 9: legacy stream shape is unchanged ---
-echo "Test 9: legacy RL stream shape"
+# --- Test 9: one-slot centralized stream ---
+echo "Test 9: centralized RL stream shape"
 if "$BIN" --run-config="$SMOKE/run.ini" --seed=1 --output-dir="$TMP/run12" \
         </dev/null >"$TMP/run12.out" 2>"$TMP/run12.err"; then
     line_count=$(grep -c '' "$TMP/run12.out" || true)
-    if [[ "$line_count" -ne 5 ]]; then
-        fail "legacy stdout should have 5 lines, got $line_count"
-    elif grep -q '"type":"init"' "$TMP/run12.out"; then
-        fail "legacy stdout must not contain an init message"
-    elif ! head -n 1 "$TMP/run12.out" | grep -q 'controlled_pos'; then
-        fail "legacy first line should contain controlled_pos"
+    if [[ "$line_count" -ne 6 ]]; then
+        fail "centralized stdout should have init plus 5 steps, got $line_count lines"
+    elif ! head -n 1 "$TMP/run12.out" | grep -q '"contract":"mesh_move_2d_v2"'; then
+        fail "first message must advertise mesh_move_2d_v2"
+    elif [[ $(grep -c '"scored_ticks":' "$TMP/run12.out") -ne 5 ]]; then
+        fail "every step must include scored_ticks"
     else
-        pass "legacy stream is 5 step lines with no init message"
+        pass "one-slot stream has init plus 5 scored step messages"
     fi
 else
-    fail "legacy p0-smoke run should exit 0"
+    fail "centralized p0-smoke run should exit 0"
 fi
 
 # --- Summary ---

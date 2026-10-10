@@ -92,7 +92,8 @@ Suite output is disposable. `--out` must resolve beneath `outputs/` and may not
 be `outputs/` itself. Reusing the same `--out` replaces only suite-owned
 products — `suite-report.json` and the manifest-named case subdirectories —
 leaving unrelated siblings alone. It never touches the tracked manifest or
-local reference snapshots.
+local reference snapshots. Case names must be nonempty single path segments;
+all names are checked before cleanup.
 
 Exit codes: `0` all required (and executed optional) cases passed, `1` a
 mismatch or failure, `2` a usage or I/O error.
@@ -106,8 +107,10 @@ Without reference data, `python3 -m scripts.validation.smoke_check --sim-binary
 <BIN> --out outputs/smoke-check/<new-name>` checks the tiny synthetic jammer
 scenario's output contracts and two-run same-seed repeatability. CI runs this
 on Linux/macOS; it is not a comparison against historical cloud references.
-`regression_snapshot.py` owns normalization/comparison; `regression_check.py`
-owns the CLI/suite. Launcher paths and loader setup live in `scripts/sim_support.py`.
+`regression_snapshot.py` owns normalization/comparison; `regression_suite.py`
+owns manifest validation, reference integrity, and suite output cleanup;
+`regression_check.py` owns the CLI and run orchestration. These modules use only
+the standard library. Launcher paths and loader setup live in `scripts/sim_support.py`.
 
 ## How to read the chart
 

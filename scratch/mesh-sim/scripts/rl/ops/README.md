@@ -4,14 +4,23 @@ Tools around an existing `experiment_plan.json`. Create the plan before executin
 
 ## Module map
 
-- `tasks.py`: task mapping and filesystem state
-- `run_task.py`: execute one task or comparison
-- `benchmark.py`: measure one task and scale resource estimates
-- `tune.py`: Optuna smoke experiments
-- `slurm.py`: scheduler adapter
-- `receipts.py`: submission bookkeeping
-- `reconcile.py`: combine filesystem and scheduler state
-- `cluster.py`: SLURM operations CLI
+| Owner | Responsibility |
+| --- | --- |
+| `tasks.py` | Task mapping and filesystem state; imports the experiment policy owner. |
+| `task_execution.py` | Execute tasks/comparison and write operational records. |
+| `process.py` | Launch, stop and reap experiment process groups, including descendants. |
+| `measurement.py` | Task timing, process-tree sampling and completion evidence. |
+| `estimation.py` | Estimate eligible matrices from complete measurements. |
+| `../tuning/config.py` | Study settings and distributions. |
+| `../tuning/trainer.py` | Supported trainer adaptation and model-selection objective. |
+| `../tuning/study.py` | Pinned Optuna sampling and seeded sampler state. |
+| `../tuning/driver.py` | Trial execution and explicit recovery. |
+| `../tuning/artifacts.py` | Versioned trial/study records and atomic checkpoints. |
+| `../../artifact_io.py` | Shared atomic JSON I/O, content hashes and UTC timestamps. |
+
+`run_task.py`, `benchmark.py`, and `tune.py` parse commands and delegate. Writing
+an operational record belongs in operations; it is not part of argument parsing.
+The command paths and existing task/tuning helper imports remain available.
 
 ## Task unit
 
@@ -72,6 +81,12 @@ back from `comparison.json`.
 A tolerated `2` therefore makes the runner exit 0, so `sacct` does not show a
 healthy task as FAILED, while the raw code survives in the record.
 
+Task steps run in managed process groups. Interruption, wait failure, and
+post-launch recording failure stop/reap the group before returning. SIGINT and
+SIGTERM return 130 and 143. Task resume skips finished steps; it does not resume
+a training checkpoint. Use the documented `scripts.rl.train --resume` workflow
+for that, then rerun the task so evaluation can follow completed training.
+
 ### Record schema (`--record`)
 
 ```json
@@ -84,6 +99,28 @@ healthy task as FAILED, while the raw code survives in the record.
 
 `task_index` and `task_id` are `null` in compare mode. A skipped step records
 `exit_code: null` and `tolerated: null`.
+
+## First task through comparison
+
+From `scratch/mesh-sim/`, create a plan using a previously built `<BIN>`, inspect
+it, execute its first task, and inspect the resulting training/evaluation manifests:
+
+```bash
+.venv/bin/python -m scripts.rl.experiment plan \
+  --matrix inputs/experiments/bypass-smoke-matrix.json \
+  --output-root outputs/ops-walkthrough --sim-binary <BIN>
+.venv/bin/python -m scripts.rl.experiment status --output-root outputs/ops-walkthrough
+.venv/bin/python -m scripts.rl.ops.run_task --output-root outputs/ops-walkthrough \
+  --task-index 0 --record outputs/ops-walkthrough/task-0000.json
+.venv/bin/python -m scripts.rl.experiment status --output-root outputs/ops-walkthrough
+```
+
+The task table follows train-step order in `experiment_plan.json`. Execute the
+remaining task indices, then run `scripts.rl.ops.run_task --output-root
+outputs/ops-walkthrough --compare`. Inspect `comparison/comparison.json` and
+`comparison/episodes.csv`; incomplete prerequisites are refused unless explicitly
+allowed. A task record preserves raw exits even when health-counter exit 2 is
+tolerated. None of these examples claims that a smoke model has learned.
 
 ## Benchmark
 
@@ -105,6 +142,12 @@ matrix or predict queue wait time.
   --target-matrix <matrix.json> --safety-factor 2.0 \
   --output outputs/bench/bypass-smoke/benchmark/estimate.json
 ```
+
+`run` writes benchmark schema 2 with each step's manifest status. `estimate`
+requires schema 2, tolerated exits, completed train/evaluation manifests, and all
+expected evaluation episodes. Failed/partial measurements cannot produce an
+estimate; schema 1 measurements must be repeated. Estimates use schema 2 and
+the configured evaluation cadence, including `eval_episodes`.
 
 `run` needs both step directories `pending`, refuses an existing
 `benchmark/task-NNNN.json`, launches each step in its own process group, applies
@@ -197,8 +240,8 @@ at least one trial failed — records are still written in that case.
   several training seeds of *one* configuration; the way to use a tuning result
   is to freeze one configuration by hand, then train it on several training
   seeds through a matrix and evaluate it on held-out seeds.
-- The objective is one deterministic episode on one model-selection seed at a
-  smoke budget. **It ranks nothing reliably and is no evidence of learning.**
+- The example objective uses one deterministic episode on one model-selection
+  seed at a smoke budget; configured `eval_episodes` is recorded in the objective. **It ranks nothing reliably and is no evidence of learning.**
 - Rows with different reward definitions produce returns on different scales, so
   each needs its own study.
 - The numbers in `inputs/experiments/bypass-smoke-study.json` exist to exercise
@@ -214,7 +257,9 @@ at least one trial failed — records are still written in that case.
   "matrix": "inputs/experiments/bypass-smoke-matrix.json",
   "row": "local-delivery",
   "training_seed": 101,
-  "sampler": {"type": "tpe", "seed": 7},
+  "trainer": "maskable_ppo",
+  "sampler": {"type": "tpe", "seed": 7, "n_startup_trials": 10,
+              "n_ei_candidates": 24, "multivariate": false},
   "n_trials": 3,
   "search_space": {
     "n_steps":  {"type": "categorical", "choices": [32, 64]},
@@ -237,7 +282,7 @@ Every key is validated before anything is launched:
 - Unknown keys at any level are refused, naming the valid ones. A relative
   `matrix` path is resolved against the mesh root.
 - `search_space` must be non-empty and its keys a subset of `n_steps`, `gamma`,
-  and `ent_coef` — the only knobs that reach `MaskablePPO` today.
+  and `ent_coef` — the supported search parameters declared by the trainer owner today.
   `total_timesteps` gets its own message: the budget is fixed per study and
   comes from the matrix. Any other name is reported as not wired, pointing at
   the open `TODO-RL-TUNE-1`.
@@ -250,9 +295,13 @@ Every key is validated before anything is launched:
 - The matrix must set `seeds.model_selection` and `training.total_timesteps`,
   and satisfy `0 < training.eval_every_steps <= total_timesteps` — otherwise no
   model selection ever runs and every objective would be `null`.
-- `sampler.type` must be `tpe` with an integer `seed`; `1 <= n_trials <= 50`.
+- `trainer` defaults to `maskable_ppo`; unsupported trainers are refused.
+- `sampler.type` is `tpe`; seed is an integer in [0, 2**32 - 1]. Startup/candidate
+  counts are positive integers; `multivariate` is boolean. Defaults are 10,
+  24, and false. `n_trials` is a positive total attempt budget; no fixed cap of
+  50 is imposed. Failed/interrupted trials consume an attempt too.
 - An `--output-root` already holding `study_manifest.json` or `trials/` is
-  refused: studies are not resumed, so choose a new root.
+  refused for a fresh run; explicit `--resume` loads the recovery checkpoint.
 - `--sim-binary` is always required, and must be an existing executable file
   unless `--dry-run`.
 
@@ -267,9 +316,10 @@ run, carrying `--eval-seed <model_selection>`; a command whose `--seed` or
 `--eval-seed` value is a held-out seed is refused — the guard reads only the
 value following each of those two flags, not every token of the command. Trials run sequentially as subprocesses.
 
-The sampler is `TPESampler(seed=<spec seed>, n_startup_trials=10)`, and that
-constant is recorded in the manifest. With ten or fewer trials every draw is an
-objective-independent startup draw, so `--dry-run` asks `min(n_trials, 10)`
+The sampler uses the resolved spec settings recorded in the manifest. Until
+`n_startup_trials` completed objectives exist, draws are startup samples. The
+three-trial example remains a plumbing smoke, not adaptive search. `--dry-run`
+asks `min(n_trials, n_startup_trials)`
 times without telling and prints exactly those parameter sets and commands; for
 a larger `n_trials` it says the remaining trials depend on earlier objectives.
 A dry run creates no output directory, record, training process, or simulator
@@ -283,34 +333,89 @@ fails that trial with a recorded reason and the study continues.
 
 ```
 <output-root>/study_manifest.json
+<output-root>/study-checkpoint.bin
 <output-root>/trials/trial-0000/trial.json
 <output-root>/trials/trial-0000/train/<row>/train-seed-<S>/   (train.py's own output)
 ```
 
-`trial.json` holds `trial_version`, `number`, `params`, the resolved full
+`trial.json` uses `trial_version: 2` and holds `number`, `params`, the configured
 `training` block, `module`, `args`, `train_dir`, `state`
-(`complete`/`failed`), `objective`, `failure`, `exit_code`, `started_at`, and
-`ended_at`.
+(`running`/`complete`/`failed`), `objective`, `failure`, `exit_code`, `started_at`, and
+`ended_at`, and the launched process identity. Before command construction,
+`training` is empty and command/path fields are unset; a construction failure
+keeps that record with its reason.
 
 `study_manifest.json` is rewritten atomically after every trial with
-`study_manifest_version`, `status` (`running`/`completed`/`failed`), the `spec`
+`study_manifest_version: 2`, `status` (`running`/`completed`/`failed`/`interrupted`), the `spec`
 (path, sha256, body), the `matrix` (path, sha256, name), `row`, `seed_roles`
 (`training`, `model_selection`, `held_out_used: false`), the `objective`
 description, `sampler`, `fixed_training`, `optuna_version`,
 `package_versions`, `python_version`, `platform`, `sim_binary`, the per-trial
-summaries, `best`, `started_at`, and `ended_at`. `best.training` is a full
-resolved training block, ready to be copied by hand into a new matrix file —
-nothing edits a matrix automatically.
+records, `best`, `started_at`, `ended_at`, and `resume_events`. `best.training`
+is the matrix training block with sampled values, ready to be copied by hand
+into a new matrix file. Nothing edits a matrix automatically.
 
 ### Optuna pin
 
 Optuna is pinned in `requirements-tuning.txt` and deliberately kept out of
 `requirements.txt`: the training manifests record the direct dependency set, so
 adding a tuner there would change every manifest and force the cluster venv to
-carry a package no job imports. `tune.py` imports Optuna lazily; a missing
+carry a package no job imports. The study owner imports Optuna lazily; a missing
 install or a version other than the pin is a refusal naming both versions and
 the install command. Nothing else in this package imports Optuna, and no
 cluster job does.
+
+
+### Resume a study
+
+```bash
+.venv/bin/python -m scripts.rl.ops.tune \
+  --study inputs/experiments/bypass-smoke-study.json \
+  --output-root outputs/tune/bypass-smoke --sim-binary <BIN> --resume
+```
+
+The checkpoint atomically saves the Optuna study, seeded sampler, pending trial,
+records and best configuration before refreshing JSON mirrors. Recovery loads
+that locally created checkpoint and repairs mirrors. It preserves completed
+trials and does not re-execute them. A pending trial with completed training is
+reconciled; otherwise it is recorded as failed and the remaining attempts run.
+The tuner does not automatically resume a training checkpoint or overwrite an
+interrupted training directory. Completed studies launch nothing on resume.
+
+A file lock permits one writer. If an interrupted trial's saved process group
+may still exist, recovery refuses until it is stopped; resume runs on that
+trial's original host. Inputs, scenario hashes, simulator bytes, Python/dependency
+versions, and the Optuna pin must match. Changed settings require a fresh study.
+Version 1 JSON-only studies have no sampler checkpoint and cannot be resumed.
+`--resume` and `--dry-run` cannot be combined.
+
+The checkpoint contains Python/Optuna serialized state from this run; retain it
+with its JSON records and matching environment. JSON records alone cannot
+restore seeded sampler continuation. See [Optuna's persistence guide](https://optuna.readthedocs.io/en/v5.0.0/tutorial/20_recipes/001_rdb.html).
+
+### Add a trainer or parameter
+
+The generic driver asks a trainer adapter to build a trial and read its objective.
+`MaskablePpoTrainer` is the implementation available today. Another algorithm
+needs an actual trainer/command and an adapter declaring its searchable parameter
+types, validation, objective name/direction, and command construction. Register
+it in `get_trainer`; do not add algorithm-name branches to the CLI/driver.
+
+For more PPO parameters, wire the constructor, config validation, train CLI,
+training provenance, compatibility/comparison grouping, and matrix translation
+first. Then add the parameter to `agents.config.PPO_SEARCH_PARAMETERS`. The
+existing separate study JSON provides ranges and choices; it cannot make an
+unimplemented constructor parameter tunable. Cadence and training budgets stay
+fixed within a study. Resolved runtime hyperparameters remain in each training
+manifest.
+
+Keep tuning/model-selection seeds separate from final evaluation. Copy the
+selected training block into a new experiment matrix, freeze it, and use
+independent training and held-out evaluation seeds. Trials of different
+configurations are not replicate training runs.
+
+See [the operations test map](../tests/ops-tests.md) for recovery, adaptive search,
+process cleanup and estimate eligibility checks and their evidence limits.
 
 ## Cluster runs
 

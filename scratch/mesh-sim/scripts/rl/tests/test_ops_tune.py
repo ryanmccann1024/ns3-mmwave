@@ -96,7 +96,7 @@ REFUSALS = [
         "ent_coef": {"type": "float", "low": 0.0, "high": 0.05, "log": True}}}},
      "log requires low > 0"),
     ("tiny n_steps choice", {"overrides": {"search_space": {
-        "n_steps": {"type": "categorical", "choices": [1, 64]}}}}, "must all be >= 2"),
+        "n_steps": {"type": "categorical", "choices": [1, 64]}}}}, "integer >= 2"),
     ("seed outside seeds.training", {"overrides": {"training_seed": 999}},
      "not in seeds.training"),
     ("empty search space", {"overrides": {"search_space": {}}}, "non-empty"),
@@ -213,7 +213,7 @@ def test_a_completed_study_records_objectives_and_the_best_training_block(
     manifest = json.loads((out / "study_manifest.json").read_text())
 
     assert manifest["status"] == "completed"
-    assert manifest["study_manifest_version"] == 1
+    assert manifest["study_manifest_version"] == 2
     assert manifest["seed_roles"] == {"training": 101, "model_selection": 201,
                                       "held_out_used": False}
     assert manifest["sampler"]["n_startup_trials"] == tune.N_STARTUP_TRIALS
@@ -224,7 +224,7 @@ def test_a_completed_study_records_objectives_and_the_best_training_block(
         "gamma": 0.91, "ent_coef": 0.002}
 
     trial = json.loads((out / "trials/trial-0001/trial.json").read_text())
-    assert trial["trial_version"] == 1 and trial["state"] == "complete"
+    assert trial["trial_version"] == 2 and trial["state"] == "complete"
     assert trial["objective"] == 7.5 and trial["failure"] is None
     assert trial["params"] == {"n_steps": 32, "gamma": 0.91, "ent_coef": 0.002}
 
@@ -336,3 +336,239 @@ def test_two_runs_with_the_same_sampler_seed_agree(tmp_path, stub_binary):
     assert runs[0] == runs[1]
     assert json.loads((tmp_path / "first/study_manifest.json").read_text())[
         "optuna_version"] == tune.read_tuning_pin(find_mesh_root() / tune.PIN_NAME)
+
+
+def test_configured_sampler_settings_and_trial_budget(tmp_path):
+    spec = tune.load_study(_spec_file(tmp_path, n_trials=75, trainer="maskable_ppo",
+                                    sampler={"type": "tpe", "seed": 7,
+                                             "n_startup_trials": 3,
+                                             "n_ei_candidates": 12, "multivariate": True}))
+    assert spec["n_trials"] == 75
+    assert spec["sampler"]["n_startup_trials"] == 3
+    assert spec["sampler"]["n_ei_candidates"] == 12
+    assert spec["sampler"]["multivariate"] is True
+
+
+@pytest.mark.parametrize("overrides", [
+    {"trainer": "unimplemented"},
+    {"sampler": {"type": "tpe", "seed": -1}},
+    {"sampler": {"type": "tpe", "seed": 7, "n_startup_trials": 0}},
+    {"sampler": {"type": "tpe", "seed": 7, "n_ei_candidates": 0}},
+    {"sampler": {"type": "tpe", "seed": 7, "multivariate": "true"}},
+
+])
+def test_invalid_adapter_or_sampler_settings_fail_before_outputs(tmp_path, stub_binary, overrides):
+    out = tmp_path / "out"
+    assert _run(_spec_file(tmp_path, **overrides), out, stub_binary, _StubTrainer()) == 1
+    assert not out.exists()
+
+
+def test_running_trial_is_recorded_before_execution_and_resume_retains_it(tmp_path, stub_binary):
+    spec = _spec_file(tmp_path)
+    out = tmp_path / "out"
+    completed = _StubTrainer()
+    calls = []
+
+    def interrupt(trial):
+        record = json.loads((out / f"trials/trial-{len(calls):04d}/trial.json").read_text())
+        assert record["state"] == "running" and record["params"]
+        calls.append(trial)
+        if len(calls) == 2:
+            raise KeyboardInterrupt("interrupted")
+        return completed(trial)
+
+    with pytest.raises(KeyboardInterrupt):
+        _run(spec, out, stub_binary, interrupt)
+    before = (out / "trials/trial-0000/trial.json").read_bytes()
+    resumed = _StubTrainer()
+    assert _run(spec, out, stub_binary, resumed, extra=["--resume"]) == 1
+    manifest = json.loads((out / "study_manifest.json").read_text())
+    assert len(resumed.calls) == 1
+    assert (out / "trials/trial-0000/trial.json").read_bytes() == before
+    assert [r["state"] for r in manifest["trials"]] == ["complete", "failed", "complete"]
+    assert "not restarted" in manifest["trials"][1]["failure"]
+    assert manifest["resume_events"]
+
+
+def test_resume_recovers_finished_training_without_reexecuting_it(tmp_path, stub_binary):
+    spec = _spec_file(tmp_path)
+    out = tmp_path / "out"
+    trainer = _StubTrainer()
+
+    def completed_then_interrupted(trial):
+        trainer(trial)
+        raise KeyboardInterrupt("crash before recording objective")
+
+    with pytest.raises(KeyboardInterrupt):
+        _run(spec, out, stub_binary, completed_then_interrupted)
+    resumed = _StubTrainer()
+    assert _run(spec, out, stub_binary, resumed, extra=["--resume"]) == 0
+    assert len(resumed.calls) == 2
+    records = json.loads((out / "study_manifest.json").read_text())["trials"]
+    assert records[0]["state"] == "complete"
+    assert records[0]["objective"] == 1.0
+
+
+def test_completed_resume_launches_nothing_and_changed_spec_is_refused(tmp_path, stub_binary):
+    spec = _spec_file(tmp_path)
+    out = tmp_path / "out"
+    assert _run(spec, out, stub_binary, _StubTrainer()) == 0
+    trainer = _StubTrainer()
+    assert _run(spec, out, stub_binary, trainer, extra=["--resume"]) == 0
+    assert trainer.calls == []
+    body = json.loads(spec.read_text())
+    body["sampler"]["seed"] = 8
+    write_json(spec, body)
+    assert _run(spec, out, stub_binary, trainer, extra=["--resume"]) == 1
+    assert trainer.calls == []
+
+
+def test_resume_refuses_a_corrupt_checkpoint(tmp_path, stub_binary):
+    spec = _spec_file(tmp_path)
+    out = tmp_path / "out"
+    assert _run(spec, out, stub_binary, _StubTrainer()) == 0
+    checkpoint = out / "study-checkpoint.bin"
+    checkpoint.write_bytes(checkpoint.read_bytes()[:-5])
+    trainer = _StubTrainer()
+    assert _run(spec, out, stub_binary, trainer, extra=["--resume"]) == 1
+    assert trainer.calls == []
+
+
+def test_adaptive_search_and_resume_preserve_seeded_continuation(tmp_path, stub_binary, monkeypatch):
+    optuna = pytest.importorskip("optuna")
+    spec = _spec_file(tmp_path, n_trials=8,
+                      sampler={"type": "tpe", "seed": 7, "n_startup_trials": 3})
+    adaptive = []
+    original = optuna.samplers.TPESampler._sample
+
+    def sample(self, study, trial, *args, **kwargs):
+        adaptive.append(trial.number)
+        return original(self, study, trial, *args, **kwargs)
+
+    monkeypatch.setattr(optuna.samplers.TPESampler, "_sample", sample)
+
+    def objective(trial):
+        gamma = trial["training"]["gamma"]
+        Path(trial["train_dir"]).mkdir(parents=True, exist_ok=True)
+        write_json(Path(trial["train_dir"]) / "train_manifest.json",
+                   {"status": "completed", "best_mean_reward": -(gamma - 0.945)**2})
+        return 0
+
+    uninterrupted = tmp_path / "uninterrupted"
+    assert _run(spec, uninterrupted, stub_binary, objective, sampler=None) == 0
+    assert adaptive and min(adaptive) >= 3
+    interrupted = tmp_path / "interrupted"
+    calls = 0
+
+    def crash(trial):
+        nonlocal calls
+        calls += 1
+        code = objective(trial)
+        if calls == 5:
+            raise KeyboardInterrupt("after adaptive trial completed")
+        return code
+
+    with pytest.raises(KeyboardInterrupt):
+        _run(spec, interrupted, stub_binary, crash, sampler=None)
+    assert _run(spec, interrupted, stub_binary, objective, sampler=None, extra=["--resume"]) == 0
+    first = json.loads((uninterrupted / "study_manifest.json").read_text())
+    second = json.loads((interrupted / "study_manifest.json").read_text())
+    assert [(r["params"], r["objective"]) for r in first["trials"]] == [
+        (r["params"], r["objective"]) for r in second["trials"]]
+    assert first["best"] == second["best"]
+
+
+def test_checkpoint_survives_failure_to_refresh_json_mirror(tmp_path, stub_binary, monkeypatch):
+    from scripts.rl.tuning import artifacts
+    spec = _spec_file(tmp_path)
+    out = tmp_path / "out"
+    original = artifacts.write_json
+
+    def fail(path, payload):
+        if Path(path).name == "study_manifest.json":
+            raise OSError("mirror storage failure")
+        return original(path, payload)
+
+    monkeypatch.setattr(artifacts, "write_json", fail)
+    assert _run(spec, out, stub_binary, _StubTrainer()) == 1
+    assert (out / "study-checkpoint.bin").is_file()
+    monkeypatch.setattr(artifacts, "write_json", original)
+    assert _run(spec, out, stub_binary, _StubTrainer(), extra=["--resume"]) == 0
+
+
+def test_nonfinite_search_range_is_refused(tmp_path, stub_binary):
+    spec = _spec_file(tmp_path)
+    body = json.loads(spec.read_text())
+    body["search_space"]["ent_coef"]["high"] = float("inf")
+    spec.write_text(json.dumps(body))
+    out = tmp_path / "out"
+    assert _run(spec, out, stub_binary, _StubTrainer()) == 1
+    assert not out.exists()
+
+
+def test_concurrent_writer_is_refused(tmp_path, stub_binary):
+    from scripts.rl.tuning.artifacts import study_lock
+    out = tmp_path / "out"
+    trainer = _StubTrainer()
+    with study_lock(out):
+        assert _run(_spec_file(tmp_path), out, stub_binary, trainer) == 1
+    assert trainer.calls == []
+    assert not (out / "study-checkpoint.bin").exists()
+
+
+def test_build_failure_records_and_closes_the_asked_trial(tmp_path, stub_binary, monkeypatch):
+    from scripts.rl.tuning import driver
+    optuna = pytest.importorskip("optuna")
+    spec = _spec_file(tmp_path)
+    out = tmp_path / "out"
+    original = driver.build_trial
+    calls = 0
+
+    def build(*args):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise ValueError("trial command preparation failed")
+        return original(*args)
+
+    monkeypatch.setattr(driver, "build_trial", build)
+    assert _run(spec, out, stub_binary, _StubTrainer(), sampler=None) == 1
+    from scripts.rl.tuning.artifacts import identity, restore
+    state = restore(out, identity(tune.load_study(spec), stub_binary), optuna.__version__)
+    assert [r.number for r in state["study"]._study.trials] == [0, 1, 2]
+    assert state["study"]._study.trials[0].state == optuna.trial.TrialState.FAIL
+    assert state["manifest"]["trials"][0]["state"] == "failed"
+    assert "preparation failed" in state["manifest"]["trials"][0]["failure"]
+
+
+@pytest.mark.parametrize("operation", ["ask", "tell"])
+def test_interrupted_sampler_mutation_is_not_committed_without_its_record(
+        tmp_path, stub_binary, monkeypatch, operation):
+    pytest.importorskip("optuna")
+    from scripts.rl.tuning.study import _OptunaStudy
+    spec = _spec_file(tmp_path)
+    original = getattr(_OptunaStudy, operation)
+    interrupted_once = False
+
+    def interrupt(self, *args):
+        nonlocal interrupted_once
+        result = original(self, *args)
+        if not interrupted_once:
+            interrupted_once = True
+            raise KeyboardInterrupt(f"inside {operation}")
+        return result
+
+    out = tmp_path / "interrupted"
+    with monkeypatch.context() as patch:
+        patch.setattr(_OptunaStudy, operation, interrupt)
+        with pytest.raises(KeyboardInterrupt):
+            _run(spec, out, stub_binary, _StubTrainer(), sampler=None)
+
+    assert _run(spec, out, stub_binary, _StubTrainer(), sampler=None, extra=["--resume"]) == 0
+    uninterrupted = tmp_path / "uninterrupted"
+    assert _run(spec, uninterrupted, stub_binary, _StubTrainer(), sampler=None) == 0
+    resumed = json.loads((out / "study_manifest.json").read_text())["trials"]
+    reference = json.loads((uninterrupted / "study_manifest.json").read_text())["trials"]
+    assert [r["params"] for r in resumed] == [r["params"] for r in reference]
+    assert [r["number"] for r in resumed] == [0, 1, 2]
+    assert all(r["state"] == "complete" for r in resumed)
