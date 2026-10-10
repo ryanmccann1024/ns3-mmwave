@@ -24,14 +24,19 @@ def package_versions() -> dict:
     return versions
 
 
-def make_out_dir(output_dir: str) -> str:
-    """Create and return the output dir; default is outputs/YYYY-MM/DD/HH-MM-SS."""
+def resolve_out_dir(output_dir: str) -> str:
+    """Choose an output path without creating it."""
     if output_dir:
         out_dir = output_dir
     else:
         now = datetime.now()
         out_dir = os.path.join("outputs", now.strftime("%Y-%m"),
                                now.strftime("%d"), now.strftime("%H-%M-%S"))
+    return out_dir
+
+
+def make_out_dir(output_dir: str) -> str:
+    out_dir = resolve_out_dir(output_dir)
     os.makedirs(out_dir, exist_ok=True)
     return out_dir
 

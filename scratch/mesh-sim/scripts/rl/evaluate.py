@@ -11,18 +11,15 @@ from scripts.rl.cli_common import (MANIFEST_NAME, add_scenario_arguments,
                                    add_selection_arguments, selection_from_args)
 from scripts.rl.env.config import read_scenario_identity
 from scripts.rl.env.mesh_env import MeshRlEnv
-from scripts.rl.policy.bundle import (eval_selection, load_model, read_bundle,
+from scripts.rl.policy.bundle import (check_run_overlap, eval_selection, load_model, read_bundle,
                                       seed_roles, selection_from_manifest,
                                       training_provenance)
 from scripts.rl.policy.compat import check_compatibility
-from scripts.rl.policy.evaluate import (EVAL_MANIFEST_NAME, HoldPolicy, ModelPolicy,
+from scripts.rl.policy.evaluate import (DEFAULT_POLICIES, EVAL_MANIFEST_NAME, POLICY_NAMES, HoldPolicy, ModelPolicy,
                                         PolicySpec, Prepared, RandomValidPolicy,
-                                        evaluate)
+                                        evaluate, placement_spec, prepare_placements)
 from scripts.sim_support import parse_seed_spec
 
-DEFAULT_POLICIES = ("model", "hold", "random_valid")
-PLACEMENT_POLICIES = ("geometric", "optimization")
-POLICY_NAMES = DEFAULT_POLICIES + PLACEMENT_POLICIES
 SELECTION_FLAGS = ("observation_preset", "reward_components", "reward_weights",
                    "telemetry", "telemetry_every")
 
@@ -48,11 +45,7 @@ def _parse_policies(raw: str) -> list[str]:
 def _check_output_dir(output_dir: str, run_dir: str | None) -> None:
     out = Path(output_dir).resolve()
     if run_dir:
-        run = Path(run_dir).resolve()
-        if out == run or run in out.parents:
-            raise ValueError(
-                f"--output-dir {out} is inside the training run {run}; "
-                "evaluation never writes into a training directory")
+        check_run_overlap(out, run_dir)
     for name in (MANIFEST_NAME, EVAL_MANIFEST_NAME):
         if (out / name).exists():
             raise ValueError(f"Refusing to start: {out} already contains {name}")
@@ -61,28 +54,6 @@ def _check_output_dir(output_dir: str, run_dir: str | None) -> None:
 def _baseline_spec(name: str) -> PolicySpec:
     policy = HoldPolicy() if name == "hold" else RandomValidPolicy()
     return PolicySpec(name, lambda env, first_seed: Prepared(policy))
-
-
-def _placement_spec(prepared) -> PolicySpec:
-    """Hold the prepared layout; the plan is applied through the effective run.ini."""
-    policy = HoldPolicy()
-    return PolicySpec(prepared.method, lambda env, first_seed: Prepared(policy),
-                      metadata=prepared.metadata)
-
-
-def _prepare_placements(args, policies: list[str], run_config: str, band: str | None,
-                        seeds: list[int]) -> dict:
-    """Plan every requested placement method before any episode runs."""
-    methods = [name for name in policies if name in PLACEMENT_POLICIES]
-    if not methods:
-        return {}
-    from scripts.baselines import adapter
-
-    return {method: adapter.prepare(
-                run_config, method, Path(args.output_dir) / method / "baseline",
-                mode="evaluation", eval_root=args.output_dir, band=band,
-                simulation_seeds=seeds, sim_binary=args.sim_binary)
-            for method in methods}
 
 
 def _model_spec(bundle, live_identity: dict, band: str | None,
@@ -214,10 +185,11 @@ def main(argv=None) -> int:
             "scenario_identity": identity,
             "bundle": bundle.describe() if bundle is not None else None,
         }
-        placements = _prepare_placements(args, policies, run_config, band, seeds)
+        placements = prepare_placements(policies, run_config, args.output_dir,
+                                        args.sim_binary, band, seeds)
         specs = [_model_spec(bundle, identity, band, args.allow_different_scenario)
                  if name == "model"
-                 else _placement_spec(placements[name]) if name in placements
+                 else placement_spec(placements[name]) if name in placements
                  else _baseline_spec(name) for name in policies]
         configs = {name: str(prepared.effective_run_config)
                    for name, prepared in placements.items()}

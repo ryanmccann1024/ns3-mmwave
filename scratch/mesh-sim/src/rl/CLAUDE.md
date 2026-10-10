@@ -1,18 +1,19 @@
 # rl/
 
 ## Scope
-C++ side of the RL bridge for both control modes: legacy single-node
-`Discrete(7)` and centralized `MultiDiscrete([5]*M)` over a resolved slot list.
-Handles stdin/stdout JSON IPC with a Python Gymnasium environment: writes
-observation+reward (every tick in legacy mode, every decision interval in
-centralized mode), reads the action from stdin, and applies it by setting
-controlled-node velocities via ConstantVelocityMobilityModel. Masks, speed
-caps, per-tick bounds clamping, and action revalidation are owned here.
-In centralized mode the bridge also exports raw per-decision facts (node,
-link, and window sums); preset selection and normalization live in Python.
+C++ side of centralized 2D `MultiDiscrete([5]*M)` control, including one-slot
+runs. Owns JSON IPC, masks, speed caps, per-tick clamping, action revalidation,
+and post-warmup reward means. Keep the Python protocol, contract docs, and
+fake/real simulator tests consistent with message or reward changes.
+
+The bridge exports raw node/link facts and scored-window sums; Python owns
+observation normalization, reward composition, and schema metadata. Keep
+component rules with their definitions and artifact bookkeeping out of the
+process lifecycle.
 
 ## Files
 - **rl-bridge.h/cc** -- `RlBridge` class with `Step()` (IPC) and `ApplyAction()` (physics).
+- **reward-window.h** -- Counts elapsed/scored ticks and averages post-warmup rewards.
 - **README.md** -- Mode/message/mask/action contract shared with the Python env.
 - **policy-inputs.md** -- Observation presets, reward components, telemetry.
 - **policy-input-tests.md / policy-lifecycle-tests.md / policy-comparison-tests.md** -- Test maps.

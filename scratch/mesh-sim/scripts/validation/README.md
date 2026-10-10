@@ -157,7 +157,12 @@ python3 -m scripts.validation.regression_check verify-suite \
   only `suite-report.json` and the case subdirectories.
 - Exit codes: `0` all passed, `1` mismatch or failure, `2` usage or I/O error.
 
-Single-case subcommands:
+Suite output is disposable. `--out` must resolve beneath `outputs/` and may not
+be `outputs/` itself. Reusing the same `--out` replaces only suite-owned
+products — `suite-report.json` and the manifest-named case subdirectories —
+leaving unrelated siblings alone. It never touches the tracked manifest or
+local reference snapshots. Case names must be nonempty single path segments;
+all names are checked before cleanup.
 
 ```bash
 python3 -m scripts.validation.regression_check capture --sim-binary <BIN> \
@@ -169,8 +174,14 @@ python3 -m scripts.validation.regression_check compare --baseline <snapshot.json
 
 ### Smoke check
 
-Runs `inputs/baselines/p0-jammer-smoke` twice with seed 1, checks the output
-contracts, and checks that the two runs match. It needs no reference data.
+Without reference data, `python3 -m scripts.validation.smoke_check --sim-binary
+<BIN> --out outputs/smoke-check/<new-name>` checks the tiny synthetic jammer
+scenario's output contracts and two-run same-seed repeatability. CI runs this
+on Linux/macOS; it is not a comparison against historical cloud references.
+`regression_snapshot.py` owns normalization/comparison; `regression_suite.py`
+owns manifest validation, reference integrity, and suite output cleanup;
+`regression_check.py` owns the CLI and run orchestration. These modules use only
+the standard library. Launcher paths and loader setup live in `scripts/sim_support.py`.
 
 ```bash
 python3 -m scripts.validation.smoke_check --sim-binary <BIN> --out outputs/smoke-check/<new-name>

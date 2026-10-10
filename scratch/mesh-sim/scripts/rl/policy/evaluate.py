@@ -12,16 +12,18 @@ import numpy as np
 from scripts.rl.cli_common import now_iso, package_versions, write_json
 from scripts.rl.env.protocol import SLOT_ACTIONS
 from scripts.rl.env.telemetry import TELEMETRY_FILE
+from scripts.rl.policy.metrics import (CSV_METRICS, METRIC_SOURCE,
+                                       episode_metrics as reduce_episode_metrics)
 
 EVAL_MANIFEST_NAME = "eval_manifest.json"
-EVAL_MANIFEST_VERSION = 2
-METRIC_SOURCE = {"kind": "telemetry_window", "warmup_excluded": False}
+EVAL_MANIFEST_VERSION = 3
+DEFAULT_POLICIES = ("model", "hold", "random_valid")
+PLACEMENT_POLICIES = ("geometric", "optimization")
+POLICY_NAMES = DEFAULT_POLICIES + PLACEMENT_POLICIES
 HOLD_ACTION = 4
 _RETURN_TOL = 1e-9
-_DEMAND_EPS = 1e-9
 _MAX_ERROR_CHARS = 1000
-_METRIC_NAMES = ("delivery_ratio", "connectivity", "los_fraction",
-                 "unroutable_fraction", "first_all_los_decision")
+
 
 
 class Policy(Protocol):
@@ -147,35 +149,7 @@ def _read_records(episode_dir: Path) -> list[dict]:
 
 def episode_metrics(episode_dir: Path, num_links: int) -> dict:
     """Delivery, connectivity, LOS, and routability from the per-decision window sums."""
-    records = _read_records(episode_dir)
-    metrics = {name: None for name in _METRIC_NAMES}
-    if not records:
-        return metrics
-
-    ticks = demand = delivered = connected = los = 0.0
-    flow_ticks = unroutable = 0.0
-    for record in records:
-        window = record["facts"]["window"]
-        ticks += int(window["ticks"])
-        demand += float(window["demand_mbps_sum"])
-        delivered += float(window["delivered_mbps_sum"])
-        connected += int(window["connected_pairs_sum"])
-        los += int(window["los_pairs_sum"])
-        flow_ticks += int(window["flow_ticks_with_demand"])
-        unroutable += int(window["unroutable_flow_ticks"])
-        if (metrics["first_all_los_decision"] is None
-                and int(window["los_pairs_sum"]) == int(window["ticks"]) * num_links):
-            metrics["first_all_los_decision"] = int(record["decision"])
-
-    pairs = ticks * num_links
-    if demand > _DEMAND_EPS:
-        metrics["delivery_ratio"] = delivered / demand
-    if pairs > 0:
-        metrics["connectivity"] = connected / pairs
-        metrics["los_fraction"] = los / pairs
-    if flow_ticks > 0:
-        metrics["unroutable_fraction"] = unroutable / flow_ticks
-    return metrics
+    return reduce_episode_metrics(_read_records(episode_dir), num_links)
 
 
 def run_episode(env, policy: Policy, seed: int, initial=None) -> EpisodeResult:
@@ -232,7 +206,7 @@ def _not_run(seed: int) -> EpisodeResult:
                          exit_code=None, decisions=0, total_return=None,
                          reward_components_sum={}, revalidated_slots_total=None,
                          mask_violations=None, actions_sha256=None,
-                         metrics={name: None for name in _METRIC_NAMES})
+                         metrics={name: None for name in CSV_METRICS})
 
 
 def _partial_episode(env, seed: int, recorded: set[str]) -> tuple[Path | None, dict]:
@@ -261,7 +235,7 @@ def _failed_result(env, seed: int, exc: BaseException,
         total_return=partial.get("cumulative_reward"),
         reward_components_sum=dict(partial.get("reward_components_sum") or {}),
         revalidated_slots_total=None, mask_violations=None, actions_sha256=None,
-        metrics={name: None for name in _METRIC_NAMES},
+        metrics={name: None for name in CSV_METRICS},
         error=f"{type(exc).__name__}: {exc}"[:_MAX_ERROR_CHARS],
     )
 
@@ -382,3 +356,24 @@ def evaluate(make_env, policies: list[PolicySpec], seeds: list[int], out_dir,
     manifest["ended_at"] = now_iso()
     write_json(manifest_path, manifest)
     return manifest
+
+
+def placement_spec(prepared) -> PolicySpec:
+    """Hold a layout applied through the prepared effective run.ini."""
+    policy = HoldPolicy()
+    return PolicySpec(prepared.method, lambda env, seed: Prepared(policy),
+                      metadata=prepared.metadata)
+
+
+def prepare_placements(policies: list[str], run_config: str, output_dir: str,
+                       sim_binary: str, band: str | None, seeds: list[int]) -> dict:
+    """Prepare every requested placement before starting any evaluation episode."""
+    methods = [name for name in policies if name in PLACEMENT_POLICIES]
+    if not methods:
+        return {}
+    from scripts.baselines.preparation import prepare
+
+    return {method: prepare(run_config, method, Path(output_dir) / method / "baseline",
+                            mode="evaluation", eval_root=output_dir, band=band,
+                            simulation_seeds=seeds, sim_binary=sim_binary)
+            for method in methods}

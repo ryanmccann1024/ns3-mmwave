@@ -3,21 +3,22 @@
 import csv
 import importlib.util
 import json
-import subprocess
 import sys
+import subprocess
 from pathlib import Path
 
 import pytest
 
 from scripts.baselines.tests.conftest import NODES as BASELINE_NODES
 from scripts.baselines.tests.conftest import install_stub_planner, write_scenario
+from scripts.rl.env.config import read_scenario_identity
+from scripts.rl.policy import evaluate as policy_evaluate
+from scripts.sim_support import find_mesh_root
+
 from scripts.rl import compare as compare_cli
 from scripts.rl import evaluate as evaluate_cli
 from scripts.rl import experiment
-from scripts.rl.env.config import read_scenario_identity
-from scripts.rl.policy import evaluate as policy_evaluate
 from scripts.rl.policy.compare import ACROSS_RUNS_KIND, PAIRED_KIND, PRIMARY_METRIC
-from scripts.sim_support import find_mesh_root
 
 requires_sb3 = pytest.mark.skipif(importlib.util.find_spec("sb3_contrib") is None,
                                   reason="sb3_contrib not installed")
@@ -122,6 +123,28 @@ def test_experiment_run_groups_two_training_runs(sim_binary, multi_run_config, t
     assert entry["interval"]["kind"] == ACROSS_RUNS_KIND
 
 
+def test_empty_warmup_evaluation_comparison_keeps_null_metrics_and_decisions(
+        sim_binary, multi_run_config, tmp_path):
+    config = Path(multi_run_config)
+    config.write_text(config.read_text().replace("tick_s = 0.1", "tick_s = 0.1\nwarmup_s = 2.0"))
+    eval_dir = tmp_path / "eval"
+    assert evaluate_cli.main(["--sim-binary", sim_binary, "--run-config", str(config),
+        "--output-dir", str(eval_dir), "--seeds", "11,12", "--policies", "hold,random_valid"]) == 0
+    manifest = json.loads((eval_dir / "eval_manifest.json").read_text())
+    assert manifest["eval_manifest_version"] == 3
+    assert manifest["metric_source"]["warmup_excluded"] is True
+    for block in manifest["policies"].values():
+        for episode in block["episodes"]:
+            assert episode["decisions"] > 0 and episode["return"] == 0
+            assert all(value is None for value in episode["metrics"].values())
+    out = tmp_path / "comparison"
+    assert compare_cli.main(["--eval-dirs", str(eval_dir), "--output-dir", str(out)]) == 1
+    comparison = json.loads((out / "comparison.json").read_text())
+    assert comparison["metric_source"] == manifest["metric_source"]
+    assert all(entry["n_used"] == 0 for block in comparison["evaluations"]
+               for entry in block["comparisons"])
+
+
 def _placement_run_config(tmp_path, monkeypatch, **overrides) -> str:
     """Synthetic baseline scenario with the stub planner installed."""
     install_stub_planner(monkeypatch)
@@ -173,7 +196,7 @@ def test_placement_policies_start_from_their_plans(sim_binary, tmp_path, monkeyp
         "--policies", "hold,geometric,optimization"]) == 0
 
     manifest = json.loads((eval_dir / "eval_manifest.json").read_text())
-    assert manifest["status"] == "completed" and manifest["eval_manifest_version"] == 2
+    assert manifest["status"] == "completed" and manifest["eval_manifest_version"] == 3
     assert manifest["run_config"] == str(Path(run_config).resolve())
     assert manifest["scenario_identity"] == read_scenario_identity(run_config)
     assert list(manifest["policies"]) == ["hold", "geometric", "optimization"]

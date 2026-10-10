@@ -18,14 +18,17 @@ Before changing a user-visible behavior, check the affected layers:
 | Training or episode output | Writer, any reader, [output layout](@ref where_output_lands), and a test of the changed fields. |
 | Scenario identity | `read_scenario_identity` in `scripts/rl/env/config.py`, saved training manifest, relevant tests, and the [identity description](@ref src_rl_saved_scenario_identity). |
 
-The C++/Python `contract` name (`mesh_move_2d_v1`) describes the wire and
+The C++/Python `contract` name (`mesh_move_2d_v2`) describes the wire and
 action meaning. Change it for incompatible protocol semantics or layout, not
 for a refactor that preserves behavior. A saved JSON `manifest_version`
 describes a file's schema: increment the *relevant* version when fields or
 their meanings change, then update writers, readers, examples, and tests.
-Currently `train_manifest.json` uses version 2;
-`rl_episode.json` uses version 1 for legacy control and version 2 for
-centralized control. Versions do not increment for each run. The SHA-256
+Currently `train_manifest.json` uses version 5;
+`rl_episode.json` uses version 4, including scored tick counts and a consistent
+pre-handshake failure schema. `eval_manifest.json` uses version 3 for metrics
+over scored ticks with warmup excluded; comparison JSON retains version 1 and
+validates the evaluation version and scoring metadata. Versions do not
+increment for each run. The SHA-256
 fields in `scenario_identity` are file fingerprints, not schema versions;
 change them only by changing the corresponding input files or the identity
 definition.

@@ -1,6 +1,5 @@
 """MaskablePPO trainer wrapper + its config for the mesh-sim RL agent."""
 
-from dataclasses import dataclass
 from typing import Callable
 
 from gymnasium import Env
@@ -8,17 +7,7 @@ from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
 from sb3_contrib.common.wrappers import ActionMasker
 from sb3_contrib.ppo_mask import MaskablePPO
 
-
-@dataclass
-class MaskablePPOConfig:
-    """Training hyperparameters; defaults differ from SB3 where commented."""
-    total_timesteps: int = 100_000   # budget for .learn(); mesh env is slow -> start low
-    n_steps: int = 1024              # SB3 default 2048; smaller = more frequent updates
-    gamma: float = 0.95              # SB3 default 0.99
-    ent_coef: float = 0.01           # SB3 default 0.0; keeps exploring under masking
-    seed: int = 42
-    verbose: int = 1
-    tensorboard_log: str | None = None
+from scripts.rl.agents.config import MaskablePPOConfig as MaskablePPOConfig
 
 
 class MaskablePpoTrainer:
@@ -38,14 +27,32 @@ class MaskablePpoTrainer:
             tensorboard_log=cfg.tensorboard_log,
         )
 
-    def train(self, callback=None):
-        """Run learn() for total_timesteps and return the model."""
-        self.model.learn(total_timesteps=self.cfg.total_timesteps, callback=callback)
+    @classmethod
+    def resume(cls, cfg, env, mask_fn, bundle):
+        """Restore SB3 policy/optimizer state onto a fresh masked simulator episode."""
+        trainer = cls.__new__(cls)
+        trainer.cfg = cfg
+        trainer.env = ActionMasker(env, mask_fn)
+        trainer.model = MaskablePPO.load(str(bundle.model_path), env=trainer.env, device="cpu")
+        if trainer.model.num_timesteps != bundle.num_timesteps:
+            raise ValueError("checkpoint timestep count differs from its manifest entry")
+        for key in ("n_steps", "gamma", "ent_coef", "seed"):
+            if getattr(trainer.model, key) != getattr(cfg, key):
+                raise ValueError(f"checkpoint {key} differs from the recorded training configuration")
+        trainer.model.verbose = cfg.verbose
+        trainer.model.tensorboard_log = cfg.tensorboard_log
+        return trainer
+
+    def train(self, callback=None, continuing=False):
+        remaining = (self.cfg.total_timesteps - self.model.num_timesteps
+                     if continuing else self.cfg.total_timesteps)
+        self.model.learn(total_timesteps=remaining, callback=callback,
+                         reset_num_timesteps=not continuing)
         return self.model
 
     @staticmethod
     def load(path: str, env: Env, mask_fn: Callable) -> MaskablePPO:
-        """Reload a saved policy onto a fresh masked env; CPU keeps replay deterministic."""
+        """Reload a saved policy onto a fresh masked CPU environment."""
         return MaskablePPO.load(path, env=ActionMasker(env, mask_fn), device="cpu")
 
     def save(self, path: str) -> None:

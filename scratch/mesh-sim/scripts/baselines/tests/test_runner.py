@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.baselines import artifacts, runner
+from scripts.baselines import artifacts, execution, runner
 from scripts.baselines.tests.conftest import fake_child_binary, write_scenario
 
 MESH_ROOT = Path(__file__).resolve().parents[3]
@@ -294,7 +294,7 @@ def test_stop_child_terminates_then_kills_and_reaps(tmp_path, monkeypatch, mode,
     try:
         _wait_for(pid_file)
         started = time.monotonic()
-        runner.stop_child(proc, wait_s=0.5)
+        execution.stop_child(proc, wait_s=0.5)
         assert proc.returncode == expected
         assert time.monotonic() - started < 10
     finally:
@@ -305,8 +305,73 @@ def test_stop_child_terminates_then_kills_and_reaps(tmp_path, monkeypatch, mode,
 
 def test_automatic_output_root_naming(tmp_path):
     now = datetime(2026, 9, 29, 13, 5, 7)
-    first = runner.automatic_output_root(tmp_path, now)
+    first = execution.automatic_output_root(tmp_path, now)
     assert first == tmp_path / "outputs/2026-09/29/13-05-07-baseline"
     first.mkdir(parents=True)
-    assert runner.automatic_output_root(tmp_path, now) == first.with_name(
+    assert execution.automatic_output_root(tmp_path, now) == first.with_name(
         "13-05-07-baseline-2")
+
+
+@pytest.mark.parametrize("fault", ("running_write", "wait", "persistent_write"))
+def test_ordinary_failure_stops_and_reaps_child(tmp_path, fake_child, monkeypatch, fault, capsys):
+    ini = write_scenario(tmp_path / "s", overrides={"algorithm": "none"})
+    out = tmp_path / "run"
+    pid_file = tmp_path / "child.pid"
+    monkeypatch.setenv("FAKE_CHILD_MODE", "hang")
+    monkeypatch.setenv("FAKE_CHILD_PID_FILE", str(pid_file))
+    real_popen = execution.subprocess.Popen
+    real_status = artifacts.set_status
+    children = []
+
+    def launch(*args, **kwargs):
+        proc = real_popen(*args, **kwargs)
+        children.append(proc)
+        _wait_for(pid_file)
+        if fault == "wait":
+            real_wait = proc.wait
+            raised = False
+
+            def wait(timeout=None):
+                nonlocal raised
+                if timeout is None and not raised:
+                    raised = True
+                    raise RuntimeError("injected wait failure")
+                return real_wait(timeout=timeout)
+
+            monkeypatch.setattr(proc, "wait", wait)
+        return proc
+
+    def set_status(path, status, **fields):
+        if status == "running" and fault != "wait":
+            raise OSError("injected running write failure")
+        if status == "failed" and fault == "persistent_write":
+            raise OSError("injected failure write failure")
+        return real_status(path, status, **fields)
+
+    monkeypatch.setattr(execution.subprocess, "Popen", launch)
+    monkeypatch.setattr(artifacts, "set_status", set_status)
+    try:
+        assert _main(fake_child, ini, out, "--seeds", "1") == 1
+        assert len(children) == 1 and children[0].returncode == -signal.SIGTERM
+        assert _gone(int(pid_file.read_text()))
+        manifest = _manifest(out)
+        if fault == "persistent_write":
+            assert manifest["status"] == "prepared"
+            assert "Could not record baseline failure" in capsys.readouterr().err
+        else:
+            assert manifest["status"] == "failed" and manifest["ended_at"]
+            assert "injected" in manifest["error"]
+            assert manifest["seeds"] == [{"seed": 1, "status": "failed", "summary": None}]
+    finally:
+        for proc in children:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+
+
+def test_preparation_imports_remain_available():
+    from scripts.baselines import adapter, preparation
+
+    assert adapter.prepare is preparation.prepare
+    assert adapter.PreparedBaseline is preparation.PreparedBaseline
+    assert adapter.BaselinePreparationError is preparation.BaselinePreparationError

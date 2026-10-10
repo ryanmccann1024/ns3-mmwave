@@ -45,10 +45,8 @@ _TX_GAIN_DBI    = 6.0    ##< Default per-node transmit array gain (dBi); --tx-ga
 _RX_GAIN_DBI    = 6.0    ##< Default per-node receive array gain (dBi);  --rx-gain.
 
 # --- RL ([rl] section) defaults ---
-_RL_ACTION_TYPE   = "discrete"   ##< discrete (masked 7-action) or continuous.
 _RL_REWARD_TYPE   = "throughput" ##< throughput or all_links_los (mean_sinr alias).
 _RL_STEP_SIZE_M   = 25.0         ##< Per-move distance for each discrete action (m).
-_RL_ARRIVAL_M     = 1.0          ##< Continuous-mode arrival threshold (m).
 _RL_BOUND_MARGIN  = 250.0        ##< Padding added around node extent for x/y bounds (m).
 _RL_Z_MIN         = 0.0          ##< Min controlled-node height (m).
 _RL_Z_MAX         = 100.0        ##< Max controlled-node height (m).
@@ -303,11 +301,10 @@ def _create_ini(output_path: Path, scenario_name: str, sim_duration: float,
         rl = {}
     cfg["rl"] = {
         "enabled":             str(rl.get("enabled", False)).lower(),
-        "controlled_node_id":  rl.get("controlled_node_id", ""),
-        "action_type":         rl.get("action_type", _RL_ACTION_TYPE),
+        "controlled_nodes":    rl.get("controlled_nodes", ""),
+        "action_profile":      "move_2d",
         "reward_type":         rl.get("reward_type", _RL_REWARD_TYPE),
         "step_size_m":         str(rl.get("step_size_m", _RL_STEP_SIZE_M)),
-        "arrival_threshold_m": str(rl.get("arrival_threshold_m", _RL_ARRIVAL_M)),
         "x_min":               str(rl.get("x_min", 0.0)),
         "x_max":               str(rl.get("x_max", 0.0)),
         "y_min":               str(rl.get("y_min", 0.0)),
@@ -594,11 +591,8 @@ def main(argv: list[str] | None = None) -> int:
     # [rl] section knobs
     p.add_argument("--rl-enabled", action="store_true",
                    help="Set [rl] enabled=true (turns on RL mode in the sim)")
-    p.add_argument("--rl-controlled-node", default="",
-                   help="id of the controlled node ([rl] controlled_node_id)")
-    p.add_argument("--rl-action-type", default=_RL_ACTION_TYPE,
-                   choices=["discrete", "continuous"],
-                   help=f"[rl] action_type. Default: {_RL_ACTION_TYPE}")
+    p.add_argument("--rl-controlled-nodes", default="",
+                   help="Comma-separated node IDs or all ([rl] controlled_nodes)")
     p.add_argument("--rl-reward-type", default=_RL_REWARD_TYPE,
                    choices=["throughput", "all_links_los", "mean_sinr"],
                    help=f"[rl] reward_type. Default: {_RL_REWARD_TYPE}")
@@ -648,8 +642,7 @@ def main(argv: list[str] | None = None) -> int:
 
     rl_opts = {
         "enabled":            args.rl_enabled,
-        "controlled_node_id": args.rl_controlled_node,
-        "action_type":        args.rl_action_type,
+        "controlled_nodes":   args.rl_controlled_nodes,
         "reward_type":        args.rl_reward_type,
         "step_size_m":        args.rl_step_size,
         "z_min":              args.rl_z_min,

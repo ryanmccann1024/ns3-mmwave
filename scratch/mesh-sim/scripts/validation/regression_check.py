@@ -20,18 +20,19 @@ import argparse
 import configparser
 import json
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 from scripts.sim_support import find_mesh_root, simulator_env, strip_inline_comment, tail_lines
 from .regression_snapshot import (
-    SNAPSHOT_VERSION, build_snapshot, check_snapshot_clean, compare_snapshots,
-    compare_source_digests, load_table, rel_to_root, serialize_snapshot, sha256_of,
+    build_snapshot, check_snapshot_clean, compare_snapshots,
+    compare_source_digests, rel_to_root, serialize_snapshot, sha256_of,
 )
-
-MANIFEST_VERSION = 1
+from .regression_suite import (
+    load_suite_manifest, path_under_root, prepare_suite_output, source_issues,
+    suite_output_dir, verify_manifest_snapshots,
+)
 
 EXIT_MISMATCH = 1
 EXIT_USAGE = 2
@@ -49,69 +50,6 @@ EXIT_USAGE = 2
 def mesh_sim_root() -> Path:
     """Locate mesh-sim without depending on the current working directory."""
     return find_mesh_root(__file__)
-
-
-## @fn path_under_root
-# @brief Resolve a manifest path and keep it inside the mesh-sim root.
-#
-# @param value  Path string from the manifest; must be relative.
-# @param root   Resolved mesh-sim root.
-# @return Absolute resolved path.
-# @throws ValueError if `value` is absolute or resolves outside `root`.
-def path_under_root(value: str, root: Path) -> Path:
-    """Resolve a manifest path while rejecting absolute or escaping paths."""
-    path = Path(value)
-    if path.is_absolute():
-        raise ValueError("Manifest path must be relative: %s" % value)
-    resolved = (root / path).resolve()
-    try:
-        resolved.relative_to(root)
-    except ValueError as exc:
-        raise ValueError("Manifest path escapes mesh-sim root: %s" % value) from exc
-    return resolved
-
-
-## @fn suite_output_dir
-# @brief Validate the `--out` directory of a suite run.
-#
-# @param value  Path string given to `--out`.
-# @param root   Resolved mesh-sim root.
-# @return Absolute resolved path beneath `<root>/outputs/`.
-# @throws ValueError if the path is outside `outputs/` or is `outputs/` itself.
-def suite_output_dir(value: str, root: Path) -> Path:
-    """Require suite output beneath outputs/ without allowing outputs/ itself."""
-    path = Path(value).resolve()
-    outputs = (root / "outputs").resolve()
-    try:
-        path.relative_to(outputs)
-    except ValueError as exc:
-        raise ValueError("Suite --out must be beneath %s" % outputs) from exc
-    if path == outputs:
-        raise ValueError("Suite --out must be a directory beneath %s" % outputs)
-    return path
-
-
-## @fn prepare_suite_output
-# @brief Delete products of a previous suite run, then make sure the output directory exists.
-#
-# @param out_root    Suite output directory.
-# @param case_names  Manifest case names (each is a subdirectory of `out_root`).
-# @return True if anything from an earlier run was found and removed.
-#
-# Removes only `suite-report.json` and the named case subdirectories; other
-# siblings are untouched. Creates `out_root` if needed.
-def prepare_suite_output(out_root: Path, case_names: list[str]) -> bool:
-    """Remove only files owned by a previous run of this suite."""
-    targets = [out_root / "suite-report.json"]
-    targets.extend(out_root / name for name in case_names)
-    replaced = any(path.exists() or path.is_symlink() for path in targets)
-    for path in targets:
-        if path.is_symlink() or path.is_file():
-            path.unlink()
-        elif path.is_dir():
-            shutil.rmtree(path)
-    out_root.mkdir(parents=True, exist_ok=True)
-    return replaced
 
 
 # ---------------------------------------------------------------------------
@@ -351,159 +289,6 @@ def cmd_compare(args) -> int:
 # ---------------------------------------------------------------------------
 
 
-## @fn load_suite_manifest
-# @brief Read and validate the suite manifest.
-#
-# @param path  Manifest JSON file.
-# @param root  Resolved mesh-sim root, used to check case paths.
-# @return The parsed manifest dict.
-# @throws ValueError if the version is not `MANIFEST_VERSION`, `baseline` lacks
-#         `git_commit` or `simulator_binary_sha256`, `cases` is empty, a case lacks a
-#         required key, has an unsafe or duplicate `name`, a bad `label`,
-#         `required` or `band`, a non-integer `seed`, or paths that are absolute
-#         or escape the root.
-# @throws OSError, json.JSONDecodeError if the file cannot be read or parsed.
-def load_suite_manifest(path: Path, root: Path) -> dict:
-    """Load and validate the tracked regression-suite manifest."""
-    with open(path, encoding="utf-8") as handle:
-        manifest = json.load(handle)
-    if manifest.get("manifest_version") != MANIFEST_VERSION:
-        raise ValueError(
-            "Unsupported manifest_version %r" % manifest.get("manifest_version")
-        )
-    baseline = manifest.get("baseline")
-    if not isinstance(baseline, dict):
-        raise ValueError("Manifest baseline must be an object")
-    for key in ("git_commit", "simulator_binary_sha256"):
-        if not isinstance(baseline.get(key), str) or not baseline[key]:
-            raise ValueError("Manifest baseline.%s is required" % key)
-
-    cases = manifest.get("cases")
-    if not isinstance(cases, list) or not cases:
-        raise ValueError("Manifest cases must be a non-empty array")
-    names = set()
-    required = (
-        "name", "label", "required", "family", "case", "seed", "band", "run_config",
-        "snapshot", "snapshot_sha256",
-    )
-    for index, case in enumerate(cases):
-        if not isinstance(case, dict):
-            raise ValueError("Manifest cases[%d] must be an object" % index)
-        missing = [key for key in required if key not in case]
-        if missing:
-            raise ValueError(
-                "Manifest cases[%d] missing: %s" % (index, ", ".join(missing))
-            )
-        if (
-            not isinstance(case["name"], str)
-            or Path(case["name"]).name != case["name"]
-            or case["name"] in (".", "..")
-        ):
-            raise ValueError("Manifest case name must be one safe path segment")
-        if case["name"] in names:
-            raise ValueError("Duplicate manifest case name: %s" % case["name"])
-        names.add(case["name"])
-        if not isinstance(case["label"], str) or not case["label"]:
-            raise ValueError("Manifest label is required for %s" % case["name"])
-        if not isinstance(case["required"], bool):
-            raise ValueError("Manifest required must be boolean for %s" % case["name"])
-        if case["band"] not in ("mmwave", "sub-6"):
-            raise ValueError("Invalid band for %s: %s" % (case["name"], case["band"]))
-        int(case["seed"])
-        path_under_root(case["run_config"], root)
-        path_under_root(case["snapshot"], root)
-    return manifest
-
-
-## @fn verify_manifest_snapshots
-# @brief Check every reference snapshot before any simulator is started.
-#
-# @param manifest  Validated manifest from `load_suite_manifest`.
-# @param root      Resolved mesh-sim root.
-# @return List of `{"case", "snapshot", "snapshot_path"}` in manifest order.
-# @throws ValueError if a snapshot file is not installed, its SHA-256 differs from
-#         `snapshot_sha256`, its metadata (version, family, case, seed, band) differs
-#         from the manifest, or it does not record the case's `run_config`.
-def verify_manifest_snapshots(manifest: dict, root: Path) -> list[dict]:
-    """Verify snapshot bytes and duplicated case metadata before running."""
-    verified = []
-    for case in manifest["cases"]:
-        snapshot_path = path_under_root(case["snapshot"], root)
-        if not snapshot_path.is_file():
-            raise ValueError(
-                "Reference snapshot not installed: %s. Ask the project team for "
-                "the approved cloud baseline bundle and unpack it under "
-                "tests/fixtures/regression/p0/. Reference snapshots are local-only; "
-                "do not recapture them from the changed simulator."
-                % case["snapshot"]
-            )
-        actual_sha = sha256_of(snapshot_path)
-        if actual_sha != case["snapshot_sha256"]:
-            raise ValueError(
-                "Snapshot digest mismatch for %s: expected %s, got %s"
-                % (case["name"], case["snapshot_sha256"], actual_sha)
-            )
-        with open(snapshot_path, encoding="utf-8") as handle:
-            snapshot = json.load(handle)
-        expected = {
-            "snapshot_version": SNAPSHOT_VERSION,
-            "family": case["family"],
-            "case": case["case"],
-            "seed": int(case["seed"]),
-            "band": case["band"],
-        }
-        for key, value in expected.items():
-            if snapshot.get(key) != value:
-                raise ValueError(
-                    "Snapshot metadata mismatch for %s.%s: expected %r, got %r"
-                    % (case["name"], key, value, snapshot.get(key))
-                )
-        source_paths = {entry.get("path") for entry in snapshot.get("sources", [])}
-        if case["run_config"] not in source_paths:
-            raise ValueError(
-                "Snapshot %s does not record run_config %s"
-                % (case["name"], case["run_config"])
-            )
-        verified.append(
-            {"case": case, "snapshot": snapshot, "snapshot_path": snapshot_path}
-        )
-    return verified
-
-
-## @fn source_issues
-# @brief Find scenario input files that are missing or changed since the snapshot.
-#
-# @param snapshot  Reference snapshot with a `sources` list.
-# @param root      Resolved mesh-sim root.
-# @return Tuple `(missing_paths, changed_paths)` of relative path strings.
-def source_issues(snapshot: dict, root: Path) -> tuple[list[str], list[str]]:
-    """Return missing and digest-mismatched scenario source paths."""
-    missing = []
-    changed = []
-    for result in compare_source_digests(snapshot, root):
-        if result["candidate"] is None:
-            missing.append(result["path"])
-        elif not result["match"]:
-            changed.append(result["path"])
-    return missing, changed
-
-
-## @fn cmd_verify_suite
-# @brief `verify-suite` subcommand: run and compare every case in a manifest.
-#
-# @param args  Parsed arguments: `manifest`, `sim_binary`, `out`, `atol`,
-#              `max_diffs`, `require_all`.
-# @return 0 if no case failed (skipped optional cases do not count); 1 otherwise;
-#         2 if the manifest or binary file does not exist.
-# @throws ValueError for an invalid manifest, snapshot or `--out` (caught in `main`,
-#         which returns 2).
-#
-# Order: validate manifest, verify all snapshot hashes, validate `--out`, clear
-# earlier suite products, then per case: if input files are missing the case is
-# FAIL (required, or `--require-all`) or SKIP (optional); if inputs changed it is
-# FAIL; otherwise runs `cmd_capture` into `<out>/<name>` and `cmd_compare` (report
-# at `<out>/<name>/comparison.json`). Prints one row per case and writes
-# `<out>/suite-report.json`.
 def cmd_verify_suite(args) -> int:
     root = mesh_sim_root()
     manifest_path = Path(args.manifest).resolve()

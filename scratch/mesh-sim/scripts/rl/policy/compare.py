@@ -8,6 +8,7 @@ from scripts.rl.policy.compare_inputs import (CSV_COLUMNS, CSV_METRICS, EVAL_MAN
                                               Evaluation, _metric_value, _policy_order,
                                               episode_rows, load_evaluation,
                                               load_evaluations)
+from scripts.rl.policy.metrics import REGISTRY, check_metric_source
 from scripts.stats import t_critical_95
 
 __all__ = ["ACROSS_RUNS_KIND", "COMPARISON_VERSION", "CSV_COLUMNS", "CSV_METRICS",
@@ -212,6 +213,16 @@ def build_comparison(evaluations: list, missing=(), baselines=None,
         baselines = sorted({name for e in evaluations for name in e.records
                             if name != "model"})
     baselines = list(baselines)
+    reference = None
+    for evaluation in evaluations:
+        source = evaluation.manifest.get("metric_source")
+        try:
+            check_metric_source(source)
+        except ValueError as exc:
+            raise ComparisonError(f"{evaluation.eval_dir}: {exc}") from exc
+        if reference is not None and source != reference:
+            raise ComparisonError("evaluations use different metric_source definitions")
+        reference = source
     blocks = []
     for evaluation in evaluations:
         blocks.append({"eval_dir": evaluation.eval_dir, "label": evaluation.label,
@@ -226,9 +237,12 @@ def build_comparison(evaluations: list, missing=(), baselines=None,
         for block in blocks for comparison in block["comparisons"])
     return {"comparison_version": COMPARISON_VERSION,
             "status": "incomplete" if incomplete else "complete",
-            "metric_source": dict(METRIC_SOURCE), "primary_metric": PRIMARY_METRIC,
+            "metric_source": (dict(evaluations[0].manifest["metric_source"])
+                              if evaluations else dict(METRIC_SOURCE)),
+            "primary_metric": PRIMARY_METRIC,
             "metrics": {name: {"higher_is_better": higher,
-                               "comparable_across_reward_definitions": shared}
+                               "comparable_across_reward_definitions": shared,
+                               "units": REGISTRY[name].units}
                         for name, (higher, shared) in METRICS.items()},
             "inputs": [{"eval_dir": e.eval_dir, "eval_manifest_sha256": e.sha256,
                         "manifest_status": e.manifest.get("status"), "label": e.label,

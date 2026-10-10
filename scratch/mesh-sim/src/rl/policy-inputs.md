@@ -27,8 +27,7 @@ Its five matching CLI flags can override these keys independently; resolution
 is CLI > `run.ini` > default. The resolved values and their sources go into
 `train_manifest.json` and each `episode-NNNN/rl_episode.json`. Omitting
 `reward_components` returns the C++ reward; omitting `telemetry` writes no
-`steps.jsonl`. These choices require centralized mode because legacy mode does
-not export `facts`.
+`steps.jsonl`. RL uses centralized 2D control, including one-slot runs.
 
 Follow one policy step:
 
@@ -37,7 +36,7 @@ sim.cc tick loop -> rl-bridge.cc step {obs, mask, reward, facts}
     -> mesh_env.py builds selected observation and reward
     -> MaskablePPO chooses one masked action per controlled position
     -> rl-bridge.cc applies those actions until the next decision
-    -> episode.py optionally saves the decision in steps.jsonl
+    -> episode_artifacts.py optionally saves the decision in steps.jsonl
 ```
 
 `observations.py` defines the policy input layouts; `rewards.py` defines reward
@@ -95,9 +94,11 @@ at tick 0 and the simulator runs ticks 1–5 with it. At tick 5 the agent sees
 the resulting state and one reward computed from those five ticks; ticks 6–10
 form the next window. The reset observation at tick 0 contains a one-tick
 measurement but contributes **no** policy-step reward. The last window can be
-shorter, and `ticks_in_step` reports its actual length.
+shorter, and `ticks_in_step` reports its elapsed length. `scored_ticks` counts
+only samples at or after warmup. Episode 0 is the first episode, not a dedicated
+warmup episode; reset is an initialization sample.
 
-Every tick, C++ adds the current flow demands and deliveries, connected and
+Every scored tick (`time_s >= warmup_s`), C++ adds the current flow demands and deliveries, connected and
 line-of-sight link counts, and its own per-tick reward to `facts.window`.
 `demand_mbps_sum` and `delivered_mbps_sum` are sums of Mbps readings over
 flows and ticks (Mbps·tick), not transferred bytes. `flow_ticks_with_demand`
@@ -105,7 +106,9 @@ counts flow/tick pairs with positive demand; `unroutable_flow_ticks` counts
 those that could not be routed. `connected_pairs_sum` and `los_pairs_sum` sum
 counts of node pairs over ticks. `legacy_reward_sum` sums C++'s per-tick
 `reward_type` values. The C++ message reward is always
-`legacy_reward_sum / window.ticks`.
+`legacy_reward_sum / window.scored_ticks`, or zero when no ticks are scored.
+Actions and movement continue during warmup; its facts sums remain zero.
+All Python components return zero with invalid flags for a zero-scored window.
 
 When `reward_components` is set, Python computes these components from the
 *same* window, then returns the weighted sum to Gymnasium:
@@ -113,9 +116,9 @@ When `reward_components` is set, Python computes these components from the
 | Component | Value for one window |
 | --- | --- |
 | `delivery_ratio` | `delivered_mbps_sum / demand_mbps_sum`; marked invalid and contributes zero if demand sum ≤ `1e-9` |
-| `connectivity` | `connected_pairs_sum / (window.ticks × num_links)` |
-| `throughput_mbps` | `delivered_mbps_sum / window.ticks`; not scaled to `[0,1]` |
-| `legacy` | `legacy_reward_sum / window.ticks`; C++ reward, **not** legacy control mode |
+| `connectivity` | `connected_pairs_sum / (window.scored_ticks × num_links)` |
+| `throughput_mbps` | `delivered_mbps_sum / window.scored_ticks`; not scaled to `[0,1]` |
+| `legacy` | `legacy_reward_sum / window.scored_ticks`; C++ reward, **not** legacy control mode |
 
 For five ticks, suppose demand sums to 150, delivery to 120, and 12 of the
 possible `5 × 3 = 15` pair/tick observations are connected. Then delivery
@@ -151,8 +154,36 @@ head -n 2 outputs/rl-multi-custom/episode-0000/steps.jsonl
 .venv/bin/python -c 'from scripts.rl.env.telemetry import replay_file; import sys; print(replay_file(sys.argv[1]))' outputs/rl-multi-custom/episode-0000/steps.jsonl
 ```
 
+Telemetry version 2 and facts schema `mesh_facts_v2` identify scored-window
+semantics. Training and episode manifest version 4 includes the selections and schemas;
+episode manifests also record scored counts. Older trace versions are rejected. Replay validates the header schemas,
+raw fact structure, and finite numeric values before comparison.
+
 Replay rebuilds saved observations and Python-composed rewards from each
 record's raw facts and checks for mismatches. It does not rerun radio physics,
 verify unsaved decisions, or recheck a C++-authored reward. See the
 [test map](@ref src_rl_policy_input_tests) for
 the small fake-simulator and real-binary checks behind this contract.
+
+## Add a preset or reward component
+
+Register an `ObservationPreset` in `observations.py` with a build function,
+space, feature names, dtype, and normalization parameters. Declare its
+`required_facts`; if a contract field changes the meaning of a feature, list it
+in `compatibility_fields` (for normalized positions, use `("bounds",)`). The
+shared schema builder and compatibility check use that metadata automatically.
+Changing feature meanings requires a new preset version.
+
+For a reward, register a `RewardComponent` in `rewards.py` with its value
+function, range, required window facts, parameters, and any `contract_fields`
+that affect its meaning. For example, a served-demand fraction uses
+`delivered_mbps_sum / demand_mbps_sum`, declares both facts, and records its
+zero-demand epsilon in parameters. Return `(0.0, False)` when demand is absent;
+the component wrapper already masks windows with no scored ticks. The composer
+owns weight validation and combining valid terms. `legacy` depends on
+`reward_type` and `reward_window`, so its schema records both.
+
+Add an exact-value test and a schema-change test beside the existing tests in
+`test_observations_rewards.py`. Replay uses the same definitions; do not add
+preset-name branches, normalization constants, or reward arithmetic to
+`mesh_env.py`, `selection.py`, or the recorder.

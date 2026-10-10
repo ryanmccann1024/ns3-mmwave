@@ -19,9 +19,16 @@ In a new local scenario directory, create `run.ini`:
 ```ini
 [scenario]
 seed = 1
+duration_s = 10
+warmup_s = 2
 nodes_file = nodes.json
 
+[traffic]
+flow_topology = gateway
+gateway_node_id = gw
+
 [rl]
+enabled = true
 controlled_nodes = relay-a, relay-b
 max_controlled_nodes = 2
 action_profile = move_2d
@@ -83,11 +90,82 @@ PY
 
 Expected: `geometric coverage ('relay-a', 'relay-b')` and a rectangle from 0 to
 400 metres on both axes. This checks parsing, not simulator readiness or RF
-availability. The downstream adapter also needs a locally supplied `rf.yaml`
+availability. The adapter also needs a locally supplied `rf.yaml`
 whose radio names match `radios`, plus the rest of the simulator's scenario
 configuration. Private supplied RF files are not included in the repository.
 The public, hand-written synthetic RF fixture in `tests/conftest.py` is used for
 local tests; it is not a field calibration.
+
+## Prepare, run, evaluate, and compare
+
+After supplying that RF file and checking the scenario, inspect preparation
+without starting the simulator. Use a fresh directory for each command:
+
+```bash
+.venv/bin/python - <<'PY'
+from scripts.baselines.preparation import prepare
+plan = prepare("my-scenario/run.ini", "geometric", "outputs/placement-preview",
+               mode="standalone")
+print(plan.manifest_path)
+print(plan.plan_path)
+print(plan.effective_run_config)
+PY
+```
+
+Read `outputs/placement-preview/effective-inputs/baseline-plan.json`: compare
+`original`, `planned`, `selected`, and `displacement_m` for each node. `gw`
+stays fixed and both relays preserve z = 30. The source INI and nodes are
+unchanged. Planning happens once; it is not an episode movement controller.
+
+For a standalone run, replace `<BIN>` with an already-built mesh-sim binary.
+The runner prepares again in its own fresh output directory, then starts it:
+
+```bash
+.venv/bin/python -m scripts.baselines.runner \
+  --sim-binary <BIN> --run-config my-scenario/run.ini \
+  --seeds 11,12 --output-dir outputs/placement-standalone
+```
+
+Inspect `baseline_manifest.json`, `sim.log`, and each `seed-N/summary.json`.
+A failed/interrupted run keeps its evidence; correct the cause and choose a
+fresh output directory to retry. The runner stops and reaps a launched child
+even if writing its running status or waiting for it fails. If storage also
+prevents recording the failure, stderr names that second error.
+
+To evaluate without a saved model:
+
+```bash
+.venv/bin/python -m scripts.rl.evaluate \
+  --sim-binary <BIN> --run-config my-scenario/run.ini \
+  --seeds 11,12 --policies hold,random_valid,geometric,optimization \
+  --output-dir outputs/placement-eval
+```
+
+Inspect `eval_manifest.json`, `<method>/baseline/baseline_manifest.json`, and
+each policy's episode artifacts. Both placement methods use the same scored
+window and hold their prepared positions. Their initial relocation cost is in
+the `baseline` block; it is not a measured travel total during the episode.
+
+The comparison command pairs a model with baselines. With an existing compatible
+training run, replace `<TRAIN-RUN>` with its directory and choose evaluation
+seeds outside its training and model-selection seeds:
+
+```bash
+.venv/bin/python -m scripts.rl.evaluate \
+  --sim-binary <BIN> --run-dir <TRAIN-RUN> \
+  --seeds 11,12 --policies model,hold,random_valid,geometric,optimization \
+  --output-dir outputs/model-placement-eval
+.venv/bin/python -m scripts.rl.compare \
+  --eval-dirs outputs/model-placement-eval \
+  --baselines hold,random_valid,geometric,optimization \
+  --output-dir outputs/model-placement-comparison
+```
+
+The saved training scenario must have the baseline inputs above; its saved
+observation/reward selection determines evaluation. Read `comparison.json`
+and `episodes.csv` for measured, paired results and exclusions. A baseline-only
+evaluation remains useful, but has no model for this comparison. One trained
+run does not establish variability across independent training runs.
 
 Choose `optimization` to use the optimizer; it requires `seed` and
 `max_iterations`. `geometric` requires neither. Both require an objective,
