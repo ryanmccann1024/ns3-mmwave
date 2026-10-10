@@ -8,7 +8,8 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from scripts.baselines.artifacts import PLAN_NAME, run_relative, sha256_file, write_plan
+from scripts.artifact_io import sha256_file
+from scripts.baselines.artifacts import PLAN_NAME, run_relative, write_plan
 from scripts.baselines.config import BaselineConfig, ConfigError, read_ini, scenario_file
 
 SOURCE_DIR = "source-inputs"
