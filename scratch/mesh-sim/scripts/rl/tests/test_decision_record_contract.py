@@ -62,6 +62,8 @@ def test_scoring_metadata_is_copied_without_inferring_from_elapsed_ticks(
     header = json.loads((source / "steps.jsonl").read_text().splitlines()[0])
     steps = _steps(source)
     contract = dict(header["contract"], num_decisions=1)
+    if scored_ticks is None:
+        contract.pop("reward_warmup", None)
     if scored_ticks is not None:
         contract.update(warmup_s=0.3, reward_warmup="exclude", reward_window="mean")
     directory = tmp_path / "copy" / "episode-0000"
@@ -73,6 +75,8 @@ def test_scoring_metadata_is_copied_without_inferring_from_elapsed_ticks(
     obs, _ = replay_record(header, steps[0])
     recorder.record_reset(steps[0], obs, True)
     outcome = dict(steps[1], reward=0.0, done=True)
+    if scored_ticks is None:
+        outcome.pop("scored_ticks", None)
     if scored_ticks is not None:
         outcome["scored_ticks"] = scored_ticks
     recorder.record_decision(outcome,

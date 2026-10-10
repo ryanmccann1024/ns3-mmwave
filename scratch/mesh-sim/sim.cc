@@ -210,14 +210,10 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
         /// @brief Optional RL bridge — picks the controlled node and steps
         ///        the obs/action loop alongside the main tick loop.
         std::unique_ptr<mesh_sim::RlBridge> rlBridge;
-        const bool centralizedRl = (cfg.rl.control_mode == "centralized");
         if (cfg.rl.enabled)
         {
             rlBridge = std::make_unique<mesh_sim::RlBridge>(cfg);
-            if (centralizedRl)
-            {
-                rlBridge->WriteInit();
-            }
+            rlBridge->WriteInit();
         }
 
         /// @brief Main per-tick loop: advance sim time, evaluate links,
@@ -286,21 +282,10 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
             if (rlBridge)
             {
                 bool done = (ti == numTicks);
-                if (centralizedRl)
+                rlBridge->AccumulateTick(t, linkTable, flowResults);
+                if (done || rlBridge->IsDecisionTick(ti))
                 {
-                    rlBridge->AccumulateTick(linkTable, flowResults);
-                    if (done || rlBridge->IsDecisionTick(ti))
-                    {
-                        rlBridge->Step(ti, t, mobs, linkTable, flowResults, done);
-                        if (!done)
-                        {
-                            rlBridge->ApplyAction(mobs);
-                        }
-                    }
-                }
-                else
-                {
-                    rlBridge->Step(ti, t, mobs, linkTable, flowResults, done);
+                    rlBridge->Step(ti, t, mobs, linkTable, done);
                     if (!done)
                     {
                         rlBridge->ApplyAction(mobs);

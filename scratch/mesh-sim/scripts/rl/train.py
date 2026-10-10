@@ -2,213 +2,18 @@
 """Train a MaskablePPO policy on mesh-sim scenarios."""
 
 import argparse
-import math
-import os
-import platform
 import sys
-from dataclasses import dataclass
 
-from scripts.rl.agents.callbacks import CHECKPOINT_DIR, build_callbacks, list_checkpoints
-from scripts.rl.agents.mask_ppo import MaskablePPOConfig, MaskablePpoTrainer
-from scripts.rl.cli_common import (MANIFEST_NAME, MODEL_BASENAME,
-                                   add_decision_record_arguments, add_scenario_arguments,
-                                   add_selection_arguments, decision_records_from_args,
-                                   has_previous_run, make_out_dir, now_iso,
-                                   package_versions, resolve_seed, selection_from_args,
-                                   sha256_file, write_json)
-from scripts.rl.env.config import read_scenario_identity
-from scripts.rl.env.decision_settings import DecisionRecordSettings
-from scripts.rl.env.decisions import DecisionContext, DecisionRecording
-from scripts.rl.env.mesh_env import MeshRlEnv
-
-MANIFEST_VERSION = 4
-BEST_MODEL_NAME = "best_model.zip"
-EVAL_LOG_NAME = "evaluations.npz"
-EVAL_DIR = "eval"
-
-_MAX_ERROR_CHARS = 1000
-
-
-@dataclass
-class Cadence:
-    """Checkpoint/evaluation knobs; units are SB3 timesteps."""
-    checkpoint_every: int = 0
-    keep_checkpoints: int = 3
-    eval_every: int = 0
-    eval_episodes: int = 1
-    eval_seed: int = 0
-
-
-def mask_fn(env):
-    return env.unwrapped.action_masks()
-
-
-def _write_manifest(out_dir: str, manifest: dict) -> None:
-    write_json(os.path.join(out_dir, MANIFEST_NAME), manifest)
-
-
-def _evaluation_block(out_dir: str, cadence: Cadence) -> dict | None:
-    if cadence.eval_every <= 0:
-        return None
-    return {
-        "every_steps": cadence.eval_every,
-        "episodes": cadence.eval_episodes,
-        "seed": cadence.eval_seed,
-        "seed_source": "eval",
-        "output_dir": os.path.abspath(os.path.join(out_dir, EVAL_DIR)),
-        "log_path": os.path.abspath(os.path.join(out_dir, EVAL_LOG_NAME)),
-    }
-
-
-def _checkpoint_entries(out_dir: str) -> list[dict]:
-    return [{"path": os.path.abspath(str(path)),
-             "sha256": sha256_file(path),
-             "num_timesteps": steps}
-            for steps, path in list_checkpoints(os.path.join(out_dir, CHECKPOINT_DIR))]
-
-
-def _best_model_entries(out_dir: str, eval_callback) -> dict:
-    """Best-model provenance from the eval callback; all null when no evaluation ran."""
-    if eval_callback is None:
-        return {}
-    best_path = os.path.join(out_dir, BEST_MODEL_NAME)
-    if not os.path.isfile(best_path):
-        return {}
-    mean_reward = float(eval_callback.best_mean_reward)
-    return {
-        "best_model_path": os.path.abspath(best_path),
-        "best_model_sha256": sha256_file(best_path),
-        "best_mean_reward": mean_reward if math.isfinite(mean_reward) else None,
-    }
-
-
-def _recording(records: DecisionRecordSettings | None,
-               context: DecisionContext) -> DecisionRecording | None:
-    return None if records is None else DecisionRecording(records, context)
-
-
-def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
-               out_dir: str, band: str | None, seed_source: str, selection,
-               cadence: Cadence, records: DecisionRecordSettings | None = None) -> str:
-    manifest = {
-        "manifest_version": MANIFEST_VERSION,
-        "status": "running",
-        "started_at": now_iso(),
-        "ended_at": None,
-        "sim_binary": os.path.abspath(sim_binary),
-        "run_config": os.path.abspath(run_config),
-        "scenario_identity": read_scenario_identity(run_config),
-        "control_mode": None,
-        "contract": None,
-        "algorithm": "MaskablePPO",
-        "seed": cfg.seed,
-        "seed_source": seed_source,
-        "band": band,
-        "selection": None,
-        "observation_schema": None,
-        "reward_schema": None,
-        "telemetry": None,
-        "hyperparameters": {
-            "total_timesteps": cfg.total_timesteps,
-            "n_steps": cfg.n_steps,
-            "gamma": cfg.gamma,
-            "ent_coef": cfg.ent_coef,
-            "verbose": cfg.verbose,
-            "tensorboard_log": cfg.tensorboard_log,
-            "checkpoint_every_steps": cadence.checkpoint_every,
-            "keep_checkpoints": cadence.keep_checkpoints,
-            "eval_every_steps": cadence.eval_every,
-            "eval_episodes": cadence.eval_episodes,
-        },
-        "evaluation": _evaluation_block(out_dir, cadence),
-        "output_dir": os.path.abspath(out_dir),
-        "python_version": platform.python_version(),
-        "platform": {"system": platform.system(), "machine": platform.machine()},
-        "package_versions": package_versions(),
-        "model_path": None,
-        "model_sha256": None,
-        "best_model_path": None,
-        "best_model_sha256": None,
-        "best_mean_reward": None,
-        "checkpoints": [],
-    }
-    _write_manifest(out_dir, manifest)
-
-    model_path = os.path.abspath(os.path.join(out_dir, f"{MODEL_BASENAME}.zip"))
-    env = eval_env = eval_callback = None
-    try:
-        # Let the env resolve the run.ini seed itself so episode manifests report
-        # the same seed_source as this training manifest.
-        env_seed = cfg.seed if seed_source == "cli" else None
-        env = MeshRlEnv(sim_binary, run_config, seed=env_seed,
-                        output_dir=out_dir, band=band, selection=selection,
-                        decision_records=_recording(records,
-                                                    DecisionContext("training", "train")))
-        env.reset()                   # populate dynamic obs/action spaces before wrapping
-        manifest["control_mode"] = env.control_mode
-        manifest["contract"] = env.contract
-        if env.control_mode == "centralized":
-            manifest.update({
-                "selection": selection.describe(),
-                "observation_schema": env.observation_schema,
-                "reward_schema": env.reward_schema,
-                "telemetry": {"mode": selection.telemetry,
-                              "every": selection.telemetry_every},
-            })
-        _write_manifest(out_dir, manifest)
-
-        if cadence.eval_every > 0:
-            eval_env = MeshRlEnv(sim_binary, run_config, seed=cadence.eval_seed,
-                                 output_dir=os.path.join(out_dir, EVAL_DIR), band=band,
-                                 selection=selection,
-                                 decision_records=_recording(records, DecisionContext(
-                                     "evaluation", "train_eval", policy="model")))
-            eval_env.reset(seed=cadence.eval_seed, options={"seed_source": "eval"})
-
-        callbacks, eval_callback = build_callbacks(
-            out_dir, cadence.checkpoint_every, cadence.keep_checkpoints,
-            eval_env, cadence.eval_every, cadence.eval_episodes, cfg.verbose)
-
-        trainer = MaskablePpoTrainer(cfg, env, mask_fn)
-        trainer.train(callback=callbacks or None)
-        trainer.save(os.path.join(out_dir, MODEL_BASENAME))
-    except Exception as exc:
-        manifest["status"] = "failed"
-        manifest["ended_at"] = now_iso()
-        manifest["error"] = f"{type(exc).__name__}: {exc}"[:_MAX_ERROR_CHARS]
-        _write_manifest(out_dir, manifest)
-        raise
-    finally:
-        # Always reap the simulators; a recorded failure is never relabelled here.
-        for instance in (env, eval_env):
-            if instance is not None:
-                try:
-                    instance.close()
-                except Exception:
-                    pass
-
-    manifest["status"] = "completed"
-    manifest["ended_at"] = now_iso()
-    manifest["model_path"] = model_path
-    manifest["model_sha256"] = sha256_file(model_path)
-    manifest["checkpoints"] = _checkpoint_entries(out_dir)
-    manifest.update(_best_model_entries(out_dir, eval_callback))
-    _write_manifest(out_dir, manifest)
-    return model_path
-
-
-def _cadence_from_args(args) -> Cadence | str:
-    """Validate the cadence flags before anything is launched; a str is the error."""
-    if args.checkpoint_every_steps < 0 or args.eval_every_steps < 0:
-        return "--checkpoint-every-steps and --eval-every-steps must be >= 0"
-    if args.keep_checkpoints < 1:
-        return "--keep-checkpoints must be >= 1"
-    if args.eval_episodes < 1:
-        return "--eval-episodes must be >= 1"
-    return Cadence(checkpoint_every=args.checkpoint_every_steps,
-                   keep_checkpoints=args.keep_checkpoints,
-                   eval_every=args.eval_every_steps,
-                   eval_episodes=args.eval_episodes)
+from scripts.rl.agents.config import (Cadence, MaskablePPOConfig,
+                                      validate_training_settings)
+from scripts.rl.cli_common import (add_scenario_arguments, add_selection_arguments,
+                                   add_decision_record_arguments, decision_records_from_args,
+                                   has_previous_run, make_out_dir, resolve_out_dir,
+                                   resolve_seed,
+                                   selection_from_args)
+from scripts.rl.policy.bundle import (check_run_overlap, read_recovery_bundle,
+                                      selection_from_manifest)
+from scripts.rl.policy.training import train_mppo
 
 
 def main() -> int:
@@ -225,10 +30,15 @@ def main() -> int:
 
     # Maskable PPO
     ppo = sub.add_parser("m-ppo", help="Maskable PPO")
-    ppo.add_argument("--total-timesteps", type=int, default=100_000)
-    ppo.add_argument("--n-steps", type=int, default=1024)
-    ppo.add_argument("--gamma", type=float, default=0.95)
-    ppo.add_argument("--ent-coef", type=float, default=0.01)
+    ppo.add_argument("--total-timesteps", type=int, default=100_000,
+                     help="Cumulative timestep target, including restored steps when resuming")
+    ppo.add_argument("--n-steps", type=int, default=None)
+    ppo.add_argument("--gamma", type=float, default=None)
+    ppo.add_argument("--ent-coef", type=float, default=None)
+    ppo.add_argument("--resume-run-dir", default=None,
+                     help="Continue from a verified checkpoint in this previous run")
+    ppo.add_argument("--resume-checkpoint", default=None,
+                     help="checkpoints/<file>.zip; omitted -> latest retained checkpoint")
     ppo.add_argument("--seed", type=int, default=None,
                      help="Training seed; defaults to [scenario] seed in run.ini")
     ppo.add_argument("--tensorboard-log", default=None)
@@ -256,29 +66,51 @@ def main() -> int:
     if args.modeltype != "m-ppo":
         return 1
 
-    cadence = _cadence_from_args(args)
-    if isinstance(cadence, str):
-        print(cadence, file=sys.stderr)
-        return 1
-
-    try:
-        seed, seed_source = resolve_seed(args.seed, args.run_config)
-    except ValueError as exc:
-        print(str(exc), file=sys.stderr)
-        return 1
-    try:
-        selection = selection_from_args(args)
-    except ValueError as exc:
-        print(f"Invalid RL selection: {exc}", file=sys.stderr)
-        return 1
+    resume = None
     try:
         records = decision_records_from_args(args)
-    except ValueError as exc:
-        print(f"Invalid decision-record settings: {exc}", file=sys.stderr)
+        cadence = Cadence(checkpoint_every=args.checkpoint_every_steps,
+                          keep_checkpoints=args.keep_checkpoints,
+                          eval_every=args.eval_every_steps,
+                          eval_episodes=args.eval_episodes)
+        if args.resume_checkpoint and not args.resume_run_dir:
+            raise ValueError("--resume-checkpoint requires --resume-run-dir")
+        if args.resume_run_dir:
+            resume = read_recovery_bundle(args.resume_run_dir, args.resume_checkpoint)
+            if args.total_timesteps <= resume.num_timesteps:
+                raise ValueError("--total-timesteps must exceed the restored timestep count")
+            flags = ("observation_preset", "reward_components", "reward_weights",
+                     "telemetry", "telemetry_every", "observation_parameters", "reward_parameters")
+            if any(getattr(args, flag) is not None for flag in flags):
+                raise ValueError("selection flags cannot change when resuming; the manifest decides")
+            selection = selection_from_manifest(resume.manifest)
+            seed = int(resume.manifest["seed"])
+            if args.seed is not None and args.seed != seed:
+                raise ValueError("--seed cannot change when resuming")
+            seed_source = resume.manifest["seed_source"]
+            args.band = args.band if args.band is not None else resume.manifest.get("band")
+        else:
+            seed, seed_source = resolve_seed(args.seed, args.run_config)
+            selection = selection_from_args(args)
+        defaults = MaskablePPOConfig()
+        for key in ("n_steps", "gamma", "ent_coef"):
+            saved = (resume.manifest["hyperparameters"][key] if resume is not None
+                     else getattr(defaults, key))
+            value = getattr(args, key)
+            if resume is not None and value is not None and value != saved:
+                raise ValueError(f"--{key.replace('_', '-')} cannot change when resuming")
+            setattr(args, key, saved if value is None else value)
+        validate_training_settings({key: getattr(args, key) for key in
+                                    ("total_timesteps", "n_steps", "gamma", "ent_coef")})
+        cadence.eval_seed = args.eval_seed if args.eval_seed is not None else seed + 1
+        out_dir = resolve_out_dir(args.output_dir)
+        if resume is not None:
+            check_run_overlap(out_dir, resume.run_dir)
+    except (ValueError, OSError) as exc:
+        print(str(exc), file=sys.stderr)
         return 1
-    cadence.eval_seed = args.eval_seed if args.eval_seed is not None else seed + 1
 
-    out_dir = make_out_dir(args.output_dir)
+    out_dir = make_out_dir(out_dir)
     existing = has_previous_run(out_dir)
     if existing:
         print(f"Refusing to start: {out_dir} already contains {existing}. "
@@ -297,7 +129,7 @@ def main() -> int:
     )
     try:
         train_mppo(cfg, args.sim_binary, args.run_config, out_dir,
-                   args.band, seed_source, selection, cadence, records)
+                   args.band, seed_source, selection, cadence, resume, records)
     except Exception as exc:
         print(f"Training failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1

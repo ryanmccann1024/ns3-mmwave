@@ -609,7 +609,7 @@ def test_string_ids_and_null_padding(sim_binary, multi_run_config, tmp_path):
     episode_dir = _join_run(sim_binary, multi_run_config, tmp_path / "rl")
     manifest, lines = _check_sidecar(episode_dir)
     identity = manifest["contract_identity"]
-    assert identity == {"contract_id": "mesh_move_2d_v1",
+    assert identity == {"contract_id": "mesh_move_2d_v2",
                         "node_ids": ["node-a", "node-b", "node-c"],
                         "slot_node_ids": ["node-b", "node-c", None],
                         "action_meanings": ["west", "east", "south", "north", "hold"],
@@ -1193,10 +1193,12 @@ def test_training_context_records(trained_run, sim_binary, multi_run_config, tmp
 def test_legacy_mode_is_refused(sim_binary, tmp_path):
     run_config = tmp_path / "legacy.ini"
     run_config.write_text(LEGACY_RUN_INI)
-    with pytest.raises(ValueError):
-        MeshRlEnv(sim_binary, str(run_config), output_dir=str(tmp_path / "rl"),
-                  decision_records=DecisionRecording(_settings(), SCRIPTED))
-    assert not (tmp_path / "rl").exists() or not list((tmp_path / "rl").iterdir())
+    env = MeshRlEnv(sim_binary, str(run_config), output_dir=str(tmp_path / "rl"),
+                    decision_records=DecisionRecording(_settings(), SCRIPTED))
+    with pytest.raises(RuntimeError):
+        env.reset()
+    assert env._proc is None
+    env.close()
 
     disabled = MeshRlEnv(sim_binary, str(run_config), output_dir=str(tmp_path / "off"),
                          decision_records=DecisionRecording(resolve_decision_records(),

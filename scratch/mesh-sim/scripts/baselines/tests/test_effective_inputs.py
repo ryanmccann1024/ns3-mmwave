@@ -1,5 +1,7 @@
 """Effective INI edits, nodes.json rewrite, asset rebasing, and source snapshots."""
 
+from scripts.baselines import preparation
+
 import copy
 import json
 
@@ -83,7 +85,7 @@ def test_edit_preserves_crlf_and_missing_final_newline():
 @pytest.mark.parametrize("mode,enabled", [("standalone", "false"), ("evaluation", "true")])
 def test_effective_ini_per_mode(tmp_path, stub_planner, mode, enabled):
     ini = _commented_scenario(tmp_path)
-    prepared = adapter.prepare(ini, "geometric", tmp_path / "out" / mode / "baseline",
+    prepared = preparation.prepare(ini, "geometric", tmp_path / "out" / mode / "baseline",
                                mode=mode)
     text = prepared.effective_run_config.read_text()
     assert _changed_lines(COMMENTED_INI, text) == [
@@ -113,7 +115,7 @@ def test_source_snapshot_and_sources_unmodified(tmp_path, stub_planner):
     sources = [ini, ini.parent / "nodes.json", ini.parent / "maps/mapping.json",
                ini.parent / "rf.yaml", tmp_path / "shared/buildings.json"]
     before = {path: artifacts.sha256_file(path) for path in sources}
-    prepared = adapter.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
+    prepared = preparation.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
     assert {path: artifacts.sha256_file(path) for path in sources} == before
     snapshot = prepared.prep_dir / "source-inputs"
     assert sorted(p.name for p in snapshot.iterdir()) == [
@@ -131,7 +133,7 @@ def test_source_snapshot_and_sources_unmodified(tmp_path, stub_planner):
 
 def test_relocated_run_keeps_relative_references(tmp_path, stub_planner):
     ini = write_scenario(tmp_path / "s")
-    prepared = adapter.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
+    prepared = preparation.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
     moved = tmp_path / "elsewhere"
     prepared.prep_dir.rename(moved)
     manifest = artifacts.read_json(moved / "baseline_manifest.json")
@@ -145,7 +147,7 @@ def test_missing_asset_is_an_error(tmp_path, stub_planner):
     ini = write_scenario(tmp_path / "s", ini_text=scenario_ini().replace(
         "nodes_file = nodes.json", "nodes_file = nodes.json\njammers_file = jammers.json"))
     with pytest.raises(BaselinePreparationError, match="jammers file not found"):
-        adapter.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
+        preparation.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
     assert not (tmp_path / "run/source-inputs").exists()
 
 
@@ -157,7 +159,7 @@ def test_same_basename_assets_are_an_error(tmp_path, stub_planner):
         (ini.parent / sub).mkdir()
         (ini.parent / sub / "data.json").write_text("[]\n")
     with pytest.raises(BaselinePreparationError, match="same basename"):
-        adapter.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
+        preparation.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
 
 
 def test_reserved_basename_is_an_error(tmp_path, stub_planner):
@@ -166,20 +168,20 @@ def test_reserved_basename_is_an_error(tmp_path, stub_planner):
     (ini.parent / "b").mkdir()
     (ini.parent / "b/nodes.json").write_text("[]\n")
     with pytest.raises(BaselinePreparationError, match="same basename"):
-        adapter.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
+        preparation.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
 
 
 def test_duplicate_section_or_key_fails_before_writing(tmp_path, stub_planner):
     text = scenario_ini() + "\n[rl]\nenabled = false\n"
     ini = write_scenario(tmp_path / "s", ini_text=text)
     with pytest.raises(BaselinePreparationError, match="already exists"):
-        adapter.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
+        preparation.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
     assert sorted(p.name for p in (tmp_path / "run").iterdir()) == ["baseline_manifest.json"]
 
 
 def test_unselected_nodes_numerically_identical(tmp_path, stub_planner):
     ini = write_scenario(tmp_path / "s")
-    prepared = adapter.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
+    prepared = preparation.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
     rewritten = json.loads((prepared.prep_dir / "effective-inputs/nodes.json").read_text())
     original = {n["id"]: n for n in NODES}
     for entry in rewritten:
@@ -205,7 +207,7 @@ def _waypoint_scenario(tmp_path, policy):
 def test_controlled_waypoint_node_reject(tmp_path, stub_planner):
     ini = _waypoint_scenario(tmp_path, "reject")
     with pytest.raises(BaselinePreparationError, match="node 'uav-b' uses waypoint mobility"):
-        adapter.prepare(ini, "geometric", tmp_path / "out/geometric/baseline")
+        preparation.prepare(ini, "geometric", tmp_path / "out/geometric/baseline")
     prep = tmp_path / "out/geometric/baseline"
     assert not (prep / "effective-inputs").exists()
     assert not (prep / "effective-inputs.partial").exists()
@@ -225,13 +227,13 @@ def test_selected_stationary_waypoint_rejected_before_solver(tmp_path, stub_plan
 
     monkeypatch.setattr("scripts.baselines.arpo_solver.solve", stationary_solve)
     with pytest.raises(BaselinePreparationError, match="node 'uav-b' uses waypoint mobility"):
-        adapter.prepare(ini, "geometric", tmp_path / "out/geometric/baseline")
+        preparation.prepare(ini, "geometric", tmp_path / "out/geometric/baseline")
     assert not called
 
 
 def test_controlled_waypoint_node_translate(tmp_path, stub_planner):
     ini = _waypoint_scenario(tmp_path, "translate")
-    prepared = adapter.prepare(ini, "geometric", tmp_path / "out/geometric/baseline")
+    prepared = preparation.prepare(ini, "geometric", tmp_path / "out/geometric/baseline")
     plan = {n["id"]: n for n in json.loads(prepared.plan_path.read_text())["nodes"]}
     assert plan["uav-b"]["original"] == {"x": 220.0, "y": 160.0, "z": 30.0}
     target = plan["uav-b"]["planned"]
@@ -269,7 +271,7 @@ def test_rewrite_nodes_rules():
 def test_method_none_copies_nodes_bytes(tmp_path):
     ini = write_scenario(tmp_path / "s", overrides={"algorithm": "none"})
     (ini.parent / "nodes.json").write_text(json.dumps(NODES))
-    prepared = adapter.prepare(ini, None, tmp_path / "run", mode="standalone")
+    prepared = preparation.prepare(ini, None, tmp_path / "run", mode="standalone")
     assert (prepared.prep_dir / "effective-inputs/nodes.json").read_bytes() == (
         (ini.parent / "nodes.json").read_bytes())
 
@@ -279,7 +281,7 @@ def test_unmoved_plan_copies_nodes_bytes(tmp_path, stub_planner, monkeypatch):
         return PlanResult(positions={r.id: (r.x, r.y, r.z) for r in request.nodes})
     monkeypatch.setattr("scripts.baselines.arpo_solver.solve", hold)
     ini = write_scenario(tmp_path / "s")
-    prepared = adapter.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
+    prepared = preparation.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
     assert (prepared.prep_dir / "effective-inputs/nodes.json").read_bytes() == (
         (ini.parent / "nodes.json").read_bytes())
     assert json.loads(prepared.plan_path.read_text())["initial_displacement_m_total"] == 0.0

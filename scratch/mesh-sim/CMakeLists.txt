@@ -23,6 +23,7 @@ set(MESH_SIM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/viz-writer.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/metrics-writer.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/rl/rl-bridge.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/rl/reward-window.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/jammer/jammer-model.cc
 )
 

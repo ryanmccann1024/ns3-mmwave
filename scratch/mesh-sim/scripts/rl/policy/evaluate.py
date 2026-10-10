@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import math
 import platform
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -13,17 +12,18 @@ import numpy as np
 from scripts.rl.cli_common import now_iso, package_versions, write_json
 from scripts.rl.env.protocol import SLOT_ACTIONS
 from scripts.rl.env.telemetry import TELEMETRY_FILE
+from scripts.rl.policy.metrics import (CSV_METRICS, METRIC_SOURCE,
+                                       episode_metrics as reduce_episode_metrics)
 
 EVAL_MANIFEST_NAME = "eval_manifest.json"
-EVAL_MANIFEST_VERSION = 2
-METRIC_SOURCE = {"kind": "telemetry_window", "warmup_excluded": False}
+EVAL_MANIFEST_VERSION = 4
+DEFAULT_POLICIES = ("model", "hold", "random_valid")
+PLACEMENT_POLICIES = ("geometric", "optimization")
+POLICY_NAMES = DEFAULT_POLICIES + PLACEMENT_POLICIES
 HOLD_ACTION = 4
 _RETURN_TOL = 1e-9
-_DEMAND_EPS = 1e-9
 _MAX_ERROR_CHARS = 1000
-_METRIC_NAMES = ("delivery_ratio", "connectivity", "los_fraction",
-                 "unroutable_fraction", "first_all_los_decision",
-                 "travel_m_total", "displacement_m_final")
+
 
 
 class Policy(Protocol):
@@ -140,72 +140,27 @@ def _actions_sha256(actions: list[list[int]]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _read_records(episode_dir: Path) -> list[dict]:
+def _read_records(episode_dir: Path):
     path = episode_dir / TELEMETRY_FILE
     if not path.is_file():
-        return []
-    lines = [line for line in path.read_text().splitlines() if line.strip()]
-    records = [json.loads(line) for line in lines[1:]]
-    return [r for r in records if int(r.get("decision", 0)) >= 1]
+        return
+    with path.open() as handle:
+        next(handle, None)
+        for line in handle:
+            if line.strip():
+                record = json.loads(line)
+                if int(record.get("decision", 0)) >= 1:
+                    yield record
 
 
 def episode_metrics(episode_dir: Path, num_links: int) -> dict:
-    """Delivery, connectivity, LOS, and routability from the per-decision window sums."""
     path = episode_dir / TELEMETRY_FILE
-    metrics = {name: None for name in _METRIC_NAMES}
     if not path.is_file():
-        return metrics
-    lines = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
-    if len(lines) < 2:
-        return metrics
-    header = lines[0]
-    all_records = [line for line in lines[1:] if line.get("type") == "step"]
-    records = [r for r in all_records if int(r.get("decision", 0)) >= 1]
-    if not records:
-        return metrics
-
-    ticks = demand = delivered = connected = los = 0.0
-    flow_ticks = unroutable = 0.0
-    for record in records:
-        window = record["facts"]["window"]
-        ticks += int(window["ticks"])
-        demand += float(window["demand_mbps_sum"])
-        delivered += float(window["delivered_mbps_sum"])
-        connected += int(window["connected_pairs_sum"])
-        los += int(window["los_pairs_sum"])
-        flow_ticks += int(window["flow_ticks_with_demand"])
-        unroutable += int(window["unroutable_flow_ticks"])
-        if (metrics["first_all_los_decision"] is None
-                and int(window["los_pairs_sum"]) == int(window["ticks"]) * num_links):
-            metrics["first_all_los_decision"] = int(record["decision"])
-
-    pairs = ticks * num_links
-    if demand > _DEMAND_EPS:
-        metrics["delivery_ratio"] = delivered / demand
-    if pairs > 0:
-        metrics["connectivity"] = connected / pairs
-        metrics["los_fraction"] = los / pairs
-    if flow_ticks > 0:
-        metrics["unroutable_fraction"] = unroutable / flow_ticks
-    if all_records and all_records[0]["decision"] == 0:
-        ids = header["contract"]["node_ids"]
-        initial = all_records[0]["facts"]["nodes"]
-        previous = initial
-        travel = {node_id: 0.0 for node_id in ids}
-        for record in records:
-            current = record["facts"]["nodes"]
-            for index, node_id in enumerate(ids):
-                travel[node_id] += math.hypot(current[index][0] - previous[index][0],
-                                              current[index][1] - previous[index][1])
-            previous = current
-        displacement = {node_id: math.hypot(previous[index][0] - initial[index][0],
-                                            previous[index][1] - initial[index][1])
-                        for index, node_id in enumerate(ids)}
-        metrics["travel_m_total"] = sum(travel.values())
-        metrics["displacement_m_final"] = sum(displacement.values())
-        metrics["per_node_travel_m"] = travel
-        metrics["per_node_displacement_m"] = displacement
-    return metrics
+        return reduce_episode_metrics((), num_links)
+    with path.open() as handle:
+        header = json.loads(next(handle, "{}"))
+        records = (json.loads(line) for line in handle if line.strip())
+        return reduce_episode_metrics(records, num_links, header.get("contract"))
 
 
 def run_episode(env, policy: Policy, seed: int, initial=None) -> EpisodeResult:
@@ -262,7 +217,7 @@ def _not_run(seed: int) -> EpisodeResult:
                          exit_code=None, decisions=0, total_return=None,
                          reward_components_sum={}, revalidated_slots_total=None,
                          mask_violations=None, actions_sha256=None,
-                         metrics={name: None for name in _METRIC_NAMES})
+                         metrics={name: None for name in CSV_METRICS})
 
 
 def _partial_episode(env, seed: int, recorded: set[str]) -> tuple[Path | None, dict]:
@@ -291,7 +246,7 @@ def _failed_result(env, seed: int, exc: BaseException,
         total_return=partial.get("cumulative_reward"),
         reward_components_sum=dict(partial.get("reward_components_sum") or {}),
         revalidated_slots_total=None, mask_violations=None, actions_sha256=None,
-        metrics={name: None for name in _METRIC_NAMES},
+        metrics={name: None for name in CSV_METRICS},
         error=f"{type(exc).__name__}: {exc}"[:_MAX_ERROR_CHARS],
     )
 
@@ -300,14 +255,11 @@ def summarize(results: list[EpisodeResult], expected: int | None = None) -> dict
     """Per-policy aggregate; returns and counters cover completed episodes only."""
     done = [r for r in results if r.status == "completed"]
     returns = [r.total_return for r in done]
-    per_decision = [r.total_return / r.decisions for r in done if r.decisions > 0]
     return {
         "expected_episodes": len(results) if expected is None else int(expected),
         "mean_return": (sum(returns) / len(returns)) if returns else None,
         "min_return": min(returns) if returns else None,
         "max_return": max(returns) if returns else None,
-        "mean_reward_per_decision": (sum(per_decision) / len(per_decision))
-        if per_decision else None,
         "revalidated_slots_total": sum(r.revalidated_slots_total or 0 for r in done),
         "mask_violations_total": sum(r.mask_violations or 0 for r in done),
         "completed_episodes": len(done),
@@ -415,3 +367,24 @@ def evaluate(make_env, policies: list[PolicySpec], seeds: list[int], out_dir,
     manifest["ended_at"] = now_iso()
     write_json(manifest_path, manifest)
     return manifest
+
+
+def placement_spec(prepared) -> PolicySpec:
+    """Hold a layout applied through the prepared effective run.ini."""
+    policy = HoldPolicy()
+    return PolicySpec(prepared.method, lambda env, seed: Prepared(policy),
+                      metadata=prepared.metadata)
+
+
+def prepare_placements(policies: list[str], run_config: str, output_dir: str,
+                       sim_binary: str, band: str | None, seeds: list[int]) -> dict:
+    """Prepare every requested placement before starting any evaluation episode."""
+    methods = [name for name in policies if name in PLACEMENT_POLICIES]
+    if not methods:
+        return {}
+    from scripts.baselines.preparation import prepare
+
+    return {method: prepare(run_config, method, Path(output_dir) / method / "baseline",
+                            mode="evaluation", eval_root=output_dir, band=band,
+                            simulation_seeds=seeds, sim_binary=sim_binary)
+            for method in methods}

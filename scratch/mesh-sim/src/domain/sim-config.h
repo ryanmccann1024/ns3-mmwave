@@ -42,48 +42,14 @@ struct TimingInfo
                                                    ///<   (@c end - @c start as a double).
 };
 
-/**
- * @brief Reinforcement-learning controller configuration.
- *
- * When @c enabled is @c false every other field is ignored. When @c true the
- * sim exchanges JSON observations and actions with an external RL agent via
- * stdin/stdout at each tick (activated by the @c --rl-mode CLI flag).
- *
- * **Action meanings**
- * | Mode                        | Action space                                          |
- * |-----------------------------|-------------------------------------------------------|
- * | legacy @c "discrete"        | 7 actions (0:-X 1:+X 2:-Y 3:+Y 4:-Z 5:+Z 6:Stay) that |
- * |                             |   set an absolute target clamped to the bounding box. |
- * | legacy @c "continuous"      | An absolute (x, y[, z]) target position.              |
- * | centralized @c "move_2d"    | @c MultiDiscrete([5]*M) per slot: 0:west 1:east       |
- * |                             |   2:south 3:north 4:hold.                             |
- *
- * **Reward types**
- * | @c reward_type     | Description                                                   |
- * |--------------------|---------------------------------------------------------------|
- * | @c "throughput"    | Sum of @c delivered_mbps across all flows.                    |
- * | @c "all_links_los" | +1 when the controlled node has at least one peer link and    |
- * |                    | every such link is LOS, else -1 (legacy alias: @c "mean_sinr").|
- */
 struct RlConfig
 {
-    bool        enabled             = false;         ///< Enable RL mode when @c true (also set by @c --rl-mode).
-    std::string controlled_node_id;                  ///< Legacy mode: ID of the node the RL agent controls.
-                                                     ///<   Empty (or unmatched at resolve time) means
-                                                     ///<   the last node in @ref SimConfig::nodes.
-                                                     ///<   Mutually exclusive with @c controlled_nodes.
-    std::string action_type         = "discrete";    ///< Action space type:
-                                                     ///<   @c "discrete" or @c "continuous".
+    bool        enabled             = false;         ///< Enable RL mode when @c true.
     std::string reward_type         = "throughput";  ///< Reward signal:
                                                      ///<   @c "throughput" or @c "all_links_los".
     std::string reward_type_alias;                   ///< Legacy spelling that was normalized
                                                      ///<   (@c "mean_sinr") or empty.
-    double step_size_m          = 50.0;   ///< Nominal displacement in metres per simulator
-                                           ///<   tick (must be > 0 for @c "discrete"); also sets
-                                           ///<   the speed cap step_size_m / tick_s.
-    double arrival_threshold_m  =  1.0;   ///< Distance in metres below which the controlled
-                                           ///<   node has "arrived" at its target. Used only by
-                                           ///<   @c "continuous" mode (must be > 0 there).
+    double step_size_m          = 50.0;   ///< Per-tick displacement in metres at the configured speed cap.
 
     // ---- Movement bounding box ---------------------------------------------
     double x_min = -1000.0;  ///< Western boundary of the controlled node's allowed area (m).
@@ -94,8 +60,9 @@ struct RlConfig
     double z_max = 100.0;    ///< Upper altitude limit of the controlled node's allowed area (m).
 
     // ---- Centralized multi-node control (raw @c [rl] keys) -----------------
+    std::vector<std::string> unsupported_keys; ///< Removed INI keys for migration errors.
     std::string controlled_nodes;             ///< @c "all" or a comma-separated list of node
-                                              ///<   ids. Presence selects centralized mode.
+                                              ///<   ids; required when RL is enabled.
     bool        controlled_nodes_set = false; ///< @c true when the @c controlled_nodes key is
                                               ///<   present in @c run.ini.
     int         max_controlled_nodes = 0;     ///< Slot count @c M; @c 0 means the resolved
@@ -105,10 +72,10 @@ struct RlConfig
                                               ///<   @ref SimConfig::tick_s (one decision per tick).
 
     // ---- Resolved fields (never from INI; written by @c ApplyRlControl) -----
-    std::string control_mode = "legacy";        ///< @c "legacy" or @c "centralized".
+    std::string control_mode = "disabled";        ///< @c "disabled" or @c "centralized".
     std::vector<uint32_t> controlled_indices;   ///< Slot order indices into
                                                 ///<   @ref SimConfig::nodes.
-    uint32_t num_slots = 0;                     ///< Resolved slot count @c M (legacy: 1).
+    uint32_t num_slots = 0;                     ///< Resolved slot count @c M.
     uint32_t decision_interval_ticks = 1;       ///< Resolved decision cadence @c k in ticks.
     uint32_t num_ticks = 0;                     ///< Loop tick count for the resolved mode.
 };

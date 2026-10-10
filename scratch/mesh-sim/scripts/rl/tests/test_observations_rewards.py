@@ -23,7 +23,7 @@ BOUNDS = {"x_min": 0.0, "x_max": 100.0, "y_min": -50.0, "y_max": 100.0,
           "z_min": 0.0, "z_max": 50.0}
 CONTRACT = {
     "type": "init",
-    "contract": "mesh_move_2d_v1",
+    "contract": "mesh_move_2d_v2",
     "dimensions": 2,
     "action_meanings": ["west", "east", "south", "north", "hold"],
     "max_controlled_nodes": 3,
@@ -41,7 +41,7 @@ CONTRACT = {
     "reward_type": "all_links_los",
     "reward_window": "mean",
     "wall_policy": "clip",
-    "facts_schema": "mesh_facts_v1",
+    "facts_schema": "mesh_facts_v2",
     "facts_columns": {"nodes": ["x", "y", "z", "vx", "vy", "vz", "slot"],
                       "links": ["sinr_db", "capacity_mbps", "is_los"]},
     "node_ids": NODE_IDS,
@@ -50,13 +50,14 @@ CONTRACT = {
     "band": "mmwave",
     "jammer_path_enabled": False,
     "warmup_s": 0.0,
+    "reward_warmup": "exclude",
 }
 FACTS = {
     "nodes": [[50.0, 20.0, 10.0, 1.2, -0.9, 0.0, -1],
               [100.0, 0.0, 10.0, 0.0, -10.0, 0.0, 0],
               [100.0, 50.0, 10.0, 0.0, 0.0, 0.0, 1]],
     "links": [[31.4, 1650.2, 1], [28.9, 1512.7, 1], [30.1, 1601.0, 1]],
-    "window": {"ticks": 5, "demand_mbps_sum": 150.0, "delivered_mbps_sum": 120.0,
+    "window": {"scored_ticks": 5, "demand_mbps_sum": 150.0, "delivered_mbps_sum": 120.0,
                "flow_ticks_with_demand": 15, "unroutable_flow_ticks": 0,
                "connected_pairs_sum": 12, "los_pairs_sum": 15,
                "legacy_reward_sum": 5.0},
@@ -180,7 +181,7 @@ def test_raw_links_schema_uses_null_bounds_but_infinite_box():
 
 @pytest.mark.parametrize("overrides,fields", [
     ({"num_mesh_nodes": 4, "node_ids": NODE_IDS + ["node-d"], "num_links": 6},
-     {"obs_dim", "num_mesh_nodes", "feature_names"}),
+     {"obs_dim", "num_mesh_nodes", "feature_names", "low", "high"}),
     ({"dimensions": 3,
       "action_meanings": ["west", "east", "south", "north", "down", "up", "hold"]},
      {"dimensions", "action_meanings"}),
@@ -283,8 +284,6 @@ def test_motion_cost_uses_actual_xy_positions_and_speed():
     assert context["travel_fraction"] == pytest.approx((0.5 + 1.0) / 2)
     diagonal = math.hypot(100, 150)
     assert context["origin_fraction"] == pytest.approx((2.5 + 5.0) / (2 * diagonal))
-    assert context["sinr_quality"] == pytest.approx(
-        sum(sinr_n(link[0]) for link in FACTS["links"]) / 3)
     breakdown = RewardComposer(["travel_fraction", "origin_fraction"],
                                [-0.02, -0.01]).compose(FACTS["window"], 0.0,
                                                        CONTRACT, context)
@@ -302,27 +301,27 @@ def test_signed_delivery_with_movement_penalty():
 def test_motion_cost_uses_short_terminal_window_duration():
     previous = [list(row) for row in FACTS["nodes"]]
     current = dict(FACTS, nodes=[list(row) for row in FACTS["nodes"]],
-                   window=dict(FACTS["window"], ticks=2))
+                   window=dict(FACTS["window"], scored_ticks=2))
     current["nodes"][1][0] -= 2.0
-    context = position_context(current, previous, previous, CONTRACT)
+    context = position_context(current, previous, previous, CONTRACT, elapsed_ticks=2)
     assert context["travel_fraction"] == pytest.approx(0.5)
 
 
 def test_sinr_shaping_uses_only_present_link_facts():
-    context = position_context(FACTS, FACTS["nodes"], FACTS["nodes"], CONTRACT)
+    context = {"links": FACTS["links"]}
     breakdown = RewardComposer(["sinr_quality"], [0.2]).compose(
         FACTS["window"], 0.0, CONTRACT, context)
-    assert breakdown.total == pytest.approx(0.2 * context["sinr_quality"])
+    assert breakdown.total == pytest.approx(0.2 * sum(sinr_n(link[0]) for link in FACTS["links"]) / 3)
     invalid = facts_with_link(-999.0, 0.0)
-    assert position_context(invalid, FACTS["nodes"], FACTS["nodes"], CONTRACT)[
-        "sinr_quality"] == 0.0
+    assert RewardComposer(["sinr_quality"], [1]).compose(
+        invalid["window"], 0, CONTRACT, {"links": invalid["links"]}).total == 0
 
 
 def test_unmet_sinr_shaping_turns_off_at_service_threshold():
-    context = position_context(FACTS, FACTS["nodes"], FACTS["nodes"], CONTRACT)
+    context = {"links": FACTS["links"]}
     component = get_component("unmet_sinr_quality")
     value, valid = component.value(FACTS["window"], 0.0, CONTRACT, context)
-    assert valid and value == pytest.approx(context["sinr_quality"] * (0.95 - 0.8) / 0.95)
+    assert valid and value == pytest.approx(sum(sinr_n(link[0]) for link in FACTS["links"]) / 3 * (0.95 - 0.8) / 0.95)
     healthy = dict(FACTS["window"], delivered_mbps_sum=150.0)
     assert component.value(healthy, 0.0, CONTRACT, context) == (0.0, True)
 
@@ -339,22 +338,20 @@ def test_composer_rejects_bad_configuration(components, weights):
 
 
 def test_reward_schema_authorities():
-    python_schema = reward_schema(["delivery_ratio"], [2.0], reward_type="all_links_los",
-                                  reward_window="mean")
+    python_schema = reward_schema(["delivery_ratio"], [2.0], contract=dict(CONTRACT, reward_type="all_links_los", reward_window="mean"))
     assert python_schema["authority"] == "python"
-    assert python_schema["zero_demand_rule"] == "masked"
+    assert python_schema["component_details"]["delivery_ratio"]["zero_demand_rule"] == "masked"
     assert python_schema["ranges"]["delivery_ratio"] == [0.0, 1.0]
-    cpp_schema = reward_schema([], [], reward_type="all_links_los",
-                               reward_window="mean")
+    cpp_schema = reward_schema([], [], contract=dict(CONTRACT, reward_type="all_links_los", reward_window="mean"))
     assert cpp_schema["authority"] == "cpp" and cpp_schema["reward_type"] == "all_links_los"
     assert "Infinity" not in canonical_json(
-        reward_schema(["throughput_mbps"], [1.0], reward_type="x", reward_window="mean"))
+        reward_schema(["throughput_mbps"], [1.0], contract=dict(CONTRACT, reward_type="x", reward_window="mean")))
 
     delivery_schema = reward_schema(
         ["delivery_binary", "signed_delivery_ratio"], [1.0, 1.0],
-        reward_type="throughput", reward_window="mean")
-    assert "delivery_binary_rule" in delivery_schema
-    assert "signed_delivery_ratio_rule" in delivery_schema
+        contract=dict(CONTRACT, reward_type="throughput", reward_window="mean"))
+    assert delivery_schema["component_details"]["delivery_binary"]["formula"]
+    assert delivery_schema["component_details"]["signed_delivery_ratio"]["formula"]
 
 
 
@@ -393,6 +390,7 @@ def test_resolve_selection_precedence(tmp_path):
         "observation_preset": "run.ini", "reward_components": "run.ini",
         "reward_weights": "default", "telemetry": "run.ini",
         "telemetry_every": "run.ini",
+        "observation_parameters": "default", "reward_parameters": "default",
     }
 
     overridden = resolve_selection(config, observation_preset="raw_links_v1",
@@ -408,9 +406,10 @@ def test_resolve_selection_precedence(tmp_path):
     assert defaults.describe() == {
         "observation_preset": "raw_links_v1", "reward_components": [],
         "reward_weights": [], "telemetry": "none", "telemetry_every": 1,
+        "observation_parameters": {}, "reward_parameters": {},
         "source": {key: "default" for key in
                    ("observation_preset", "reward_components", "reward_weights",
-                    "telemetry", "telemetry_every")},
+                    "telemetry", "telemetry_every", "observation_parameters", "reward_parameters")},
     }
 
 
@@ -429,10 +428,9 @@ def test_resolve_selection_rejects_invalid_keys(tmp_path, kwargs, key):
         resolve_selection(config, **kwargs)
 
 
-def test_resolve_selection_rejects_p2_selection_in_legacy_mode(tmp_path):
+def test_selection_does_not_reimplement_simulator_control_validation(tmp_path):
     config = write_ini(tmp_path, LEGACY_INI)
-    with pytest.raises(ValueError, match="observation_preset"):
-        resolve_selection(config, observation_preset="local_links_v1")
+    assert resolve_selection(config, observation_preset="local_links_v1").observation_preset == "local_links_v1"
     assert resolve_selection(config).observation_preset == "raw_links_v1"
 
 
@@ -440,15 +438,17 @@ def test_telemetry_records_replay_without_mismatch(tmp_path):
     selection = resolve_selection(write_ini(tmp_path, CENTRALIZED_INI))
     preset = get_preset(selection.observation_preset)
     obs_schema = observation_schema(selection.observation_preset, CONTRACT)
-    rwd_schema = reward_schema(selection.reward_components, selection.reward_weights,
-                               reward_type=CONTRACT["reward_type"],
-                               reward_window=CONTRACT["reward_window"])
+    rwd_schema = reward_schema(selection.reward_components, selection.reward_weights, contract=dict(CONTRACT, reward_type=CONTRACT["reward_type"], reward_window=CONTRACT["reward_window"], num_links=CONTRACT["num_links"]))
     composer = RewardComposer(selection.reward_components, selection.reward_weights)
 
     recorder = StepRecorder(tmp_path / "steps.jsonl", selection.telemetry_every)
     recorder.write_header(make_header(CONTRACT, selection.describe(), obs_schema,
                                       rwd_schema))
-    reset_facts = dict(FACTS, window=dict(FACTS["window"], ticks=1))
+    reset_facts = dict(FACTS, window={key: (1 if key in ("scored_ticks", "legacy_reward_sum") else
+                          3 if key in ("flow_ticks_with_demand", "connected_pairs_sum", "los_pairs_sum") else
+                          30.0 if key == "demand_mbps_sum" else
+                          24.0 if key == "delivered_mbps_sum" else 0)
+                   for key in FACTS["window"]})
     reset = make_record(0, 0, 0.0, 1, None, [1] * 15, [], reset_facts, 1.0, None,
                         preset.build(reset_facts, CONTRACT))
     assert reset["reward"] is None and reset["action_sent"] is None
@@ -475,3 +475,89 @@ def test_should_save_sampling(tmp_path, decision, done, saved):
         assert recorder.should_save(decision, done) is saved
     finally:
         recorder.close()
+
+
+@pytest.mark.parametrize("name", ["delivery_ratio", "connectivity", "throughput_mbps", "legacy"])
+def test_components_mask_empty_scored_window(name):
+    empty = {key: 0 for key in FACTS["window"]}
+    assert get_component(name).value(empty, 0.0, CONTRACT) == (0.0, False)
+    result = RewardComposer([name], [1.0]).compose(empty, 0.0, CONTRACT)
+    assert result.total == 0.0 and result.valid[name] == 0
+
+
+def test_reward_schema_includes_base_reward_dependencies():
+    def schema(name, reward_type):
+        return reward_schema([name], [1.0], contract=dict(CONTRACT, reward_type=reward_type, reward_window="mean", num_links=3))
+    assert schema("legacy", "all_links_los")["sha256"] != schema("legacy", "throughput")["sha256"]
+    assert schema("delivery_ratio", "all_links_los") == schema("delivery_ratio", "throughput")
+
+
+def test_reward_schema_changes_with_scoring_cutoff():
+    first = reward_schema([], [], contract=dict(CONTRACT, reward_type="all_links_los", reward_window="mean"))
+    later = reward_schema([], [], contract=dict(CONTRACT, reward_type="all_links_los", reward_window="mean", warmup_s=0.3))
+    assert first["sha256"] != later["sha256"]
+
+
+def test_registered_preset_declares_bounds_compatibility(monkeypatch):
+    from dataclasses import replace
+    from scripts.rl.env.observations import PRESETS
+    preset = replace(get_preset("local_links_v1"), name="test_normalized_v1")
+    monkeypatch.setitem(PRESETS, preset.name, preset)
+    saved = preset.schema(CONTRACT)
+    live = preset.schema(contract_with(bounds=dict(BOUNDS, x_max=200.0)))
+    with pytest.raises(SchemaMismatchError) as error:
+        check_schema(saved, live)
+    assert error.value.fields == ["bounds"]
+
+
+@pytest.fixture
+def replay_trace(tmp_path):
+    selection = resolve_selection(write_ini(tmp_path, CENTRALIZED_INI))
+    header = make_header(CONTRACT, selection.describe(),
+                         observation_schema(selection.observation_preset, CONTRACT),
+                         reward_schema(selection.reward_components, selection.reward_weights, contract=dict(CONTRACT, reward_type=CONTRACT["reward_type"], reward_window="mean", num_links=3)))
+    preset = get_preset(selection.observation_preset)
+    reward = RewardComposer(selection.reward_components, selection.reward_weights).compose(
+        FACTS["window"], 1.0, CONTRACT)
+    record = make_record(1, 5, 0.5, 5, [4, 4, 4], [1] * 15, [], FACTS,
+                         1.0, reward, preset.build(FACTS, CONTRACT))
+    path = tmp_path / "trace.jsonl"
+    return path, header, record
+
+
+@pytest.mark.parametrize("field", ["telemetry_version", "observation_schema", "reward_schema"])
+def test_replay_rejects_wrong_version_or_schema(replay_trace, field):
+    path, header, record = replay_trace
+    if field == "telemetry_version":
+        header[field] = 999
+    else:
+        header[field]["sha256"] = "0" * 64
+    path.write_text(json.dumps(header) + "\n" + json.dumps(record) + "\n")
+    with pytest.raises(ValueError, match="version|schema"):
+        replay_file(path)
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), -float("inf")])
+def test_replay_rejects_nonfinite_saved_reward(replay_trace, bad):
+    path, header, record = replay_trace
+    record["reward"]["total"] = bad
+    path.write_text(json.dumps(header) + "\n" + json.dumps(record) + "\n")
+    with pytest.raises(ValueError, match="finite"):
+        replay_file(path)
+
+
+def test_replay_rejects_bad_facts(replay_trace):
+    from copy import deepcopy
+    path, header, record = replay_trace
+    record = deepcopy(record)
+    record["facts"]["window"]["delivered_mbps_sum"] = 200.0
+    path.write_text(json.dumps(header) + "\n" + json.dumps(record) + "\n")
+    with pytest.raises(ValueError, match="exceeds"):
+        replay_file(path)
+
+
+def test_replay_reports_finite_reward_mismatch(replay_trace):
+    path, header, record = replay_trace
+    record["reward"]["total"] += 0.1
+    path.write_text(json.dumps(header) + "\n" + json.dumps(record) + "\n")
+    assert replay_file(path).reward_mismatches == 1

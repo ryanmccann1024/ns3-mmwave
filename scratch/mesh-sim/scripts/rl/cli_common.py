@@ -1,29 +1,25 @@
 """Shared CLI options and provenance helpers for the mesh-sim RL lifecycle tools."""
 
-import hashlib
 import importlib.metadata
-import json
 import os
 import re
-from datetime import datetime, timezone
 from pathlib import Path
+from datetime import datetime
 
-from scripts.rl.bootstrap_venv import DIRECT_DEPS
 from scripts.sim_support import find_mesh_root
-from scripts.rl.env.config import read_scenario_seed
 from scripts.rl.env.decision_settings import (OBS_VECTOR_MODES, PREFERENCE_MODES,
-                                      DecisionRecordSettings, resolve_decision_records)
+                                             DecisionRecordSettings, resolve_decision_records)
+from scripts.artifact_io import now_iso, sha256_file, write_json
+from scripts.rl.bootstrap_venv import DIRECT_DEPS
+from scripts.rl.env.config import read_scenario_seed
 from scripts.rl.env.selection import TELEMETRY_MODES, RlSelection, resolve_selection
 
 MANIFEST_NAME = "train_manifest.json"
 MODEL_BASENAME = "maskable_ppo_mesh"
 
 
-def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
 def package_versions() -> dict:
+    """Installed version of each direct dependency; None if missing."""
     versions = {}
     for mod, distribution in DIRECT_DEPS.items():
         try:
@@ -33,13 +29,19 @@ def package_versions() -> dict:
     return versions
 
 
-def make_out_dir(output_dir: str) -> str:
+def resolve_out_dir(output_dir: str) -> str:
+    """Choose an output path without creating it."""
     if output_dir:
         out_dir = output_dir
     else:
         now = datetime.now()
         out_dir = os.path.join("outputs", now.strftime("%Y-%m"),
                                now.strftime("%d"), now.strftime("%H-%M-%S"))
+    return out_dir
+
+
+def make_out_dir(output_dir: str) -> str:
+    out_dir = resolve_out_dir(output_dir)
     os.makedirs(out_dir, exist_ok=True)
     return out_dir
 
@@ -60,28 +62,11 @@ def automatic_output_root(name: str) -> Path:
 
 
 def has_previous_run(out_dir: str) -> str | None:
+    """Name of the first manifest or model file already in out_dir, else None."""
     for name in (MANIFEST_NAME, f"{MODEL_BASENAME}.zip"):
         if os.path.exists(os.path.join(out_dir, name)):
             return name
     return None
-
-
-def sha256_file(path) -> str:
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
-def write_json(path, payload) -> None:
-    """Write JSON atomically so a reader never sees a half-written manifest."""
-    path = Path(path)
-    temp = path.with_name(path.name + ".tmp")
-    try:
-        with open(temp, "w") as fh:
-            json.dump(payload, fh, indent=2, allow_nan=False)
-            fh.write("\n")
-    except BaseException:
-        temp.unlink(missing_ok=True)
-        raise
-    os.replace(temp, path)
 
 
 def add_scenario_arguments(parser, run_config_required: bool = True) -> None:
@@ -102,22 +87,14 @@ def add_selection_arguments(parser) -> None:
                         help="Comma-separated reward components; omitted -> the C++ reward")
     parser.add_argument("--reward-weights", default=None,
                         help="Comma-separated weights, one per reward component")
+    parser.add_argument("--observation-parameters", default=None,
+                        help="JSON object of the selected preset's normalization scales")
+    parser.add_argument("--reward-parameters", default=None,
+                        help="JSON object keyed by selected reward component")
     parser.add_argument("--telemetry", default=None, choices=list(TELEMETRY_MODES),
                         help="steps writes <episode-dir>/steps.jsonl")
     parser.add_argument("--telemetry-every", default=None,
                         help="Save every kth policy decision (requires --telemetry steps)")
-
-
-def selection_from_args(args) -> RlSelection:
-    """Resolve the policy selection from parsed CLI arguments; raises ValueError."""
-    return resolve_selection(
-        args.run_config,
-        observation_preset=args.observation_preset,
-        reward_components=args.reward_components,
-        reward_weights=args.reward_weights,
-        telemetry=args.telemetry,
-        telemetry_every=args.telemetry_every,
-    )
 
 
 def add_decision_record_arguments(parser) -> None:
@@ -144,6 +121,20 @@ def decision_records_from_args(args) -> DecisionRecordSettings:
         preferences=args.decision_records_preferences,
         record_every=args.decision_records_every,
         max_bytes_per_episode=args.decision_records_max_bytes,
+    )
+
+
+def selection_from_args(args) -> RlSelection:
+    """Resolve the policy selection from parsed CLI arguments; raises ValueError."""
+    return resolve_selection(
+        args.run_config,
+        observation_preset=args.observation_preset,
+        reward_components=args.reward_components,
+        reward_weights=args.reward_weights,
+        telemetry=args.telemetry,
+        telemetry_every=args.telemetry_every,
+        observation_parameters=getattr(args, "observation_parameters", None),
+        reward_parameters=getattr(args, "reward_parameters", None),
     )
 
 

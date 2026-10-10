@@ -3,6 +3,7 @@
 import numpy as np
 
 
+
 class PreferenceCapture:
     """Forward hook on ``policy.action_net``; no extra forward, RNG, or parameter access."""
 
