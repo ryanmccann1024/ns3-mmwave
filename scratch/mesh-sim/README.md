@@ -612,14 +612,20 @@ single array task, or `--json` to `status` for machine-readable state. The
 cluster [operations guide](scripts/rl/ops/README.md#cluster-runs) explains
 receipts, recovery, cancellation, and each command's refusal rules.
 
-Copy selected results from the run to this machine. Nothing local is ever
-overwritten, and `fetch_manifest.json` records what arrived, marking unselected
-categories `not_fetched` rather than missing:
+Copy selected results from the run to this machine. Existing result files are
+preserved, and `fetch_manifest.json` inventories the destination, marking
+unselected categories `not_fetched` rather than missing:
 
 ```bash
 .venv/bin/python -m scripts.rl.ops.fetch --remote user@host:/abs/output-root \
   --dest outputs/fetched/bypass-smoke --select comparison,manifests
 ```
+
+`--update` adds missing files and keeps existing manifests/traces unchanged.
+Use a new `--dest` after a remote run finishes to get fresh results. Select
+`manifests,inputs` for baseline provenance and `decision-records` for the larger
+optional decision traces. The [retrieval guide](scripts/rl/ops/README.md#fetch)
+documents Unity/SLURM context, categories, copied-state reporting, and tests.
 
 ### Band in sweeps and validation batches
 

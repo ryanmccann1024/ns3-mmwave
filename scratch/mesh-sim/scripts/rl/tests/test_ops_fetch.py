@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from scripts.rl.cli_common import write_json
-from scripts.rl.ops import fetch
+from scripts.rl.ops import fetch, retrieval
 from scripts.sim_support import find_mesh_root
 
 REMOTE_ROOT = Path("/remote/run")
@@ -53,6 +53,7 @@ def _payload(tmp_path: Path, statuses: dict | None = None,
             out_dir.mkdir(parents=True)
             if status == "blocked":
                 (out_dir / "episode-0000").mkdir()
+                (out_dir / name).write_text("{unfinished manifest")
             else:
                 write_json(out_dir / name, {"status": status})
     if comparison is not None:
@@ -64,7 +65,9 @@ def _payload(tmp_path: Path, statuses: dict | None = None,
 
 def _fake_rsync(tmp_path: Path, monkeypatch, payload: Path | None = None,
                 exit_code: int = 0) -> Path:
-    """Install a PATH shim that records argv and copies the fixture tree."""
+    """Record argv and stage a controlled fixture without replacing existing files.
+
+    The shim does not implement filters; test_ops_fetch_local.py verifies real rsync."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     log = tmp_path / "rsync-argv.json"
@@ -76,7 +79,13 @@ def _fake_rsync(tmp_path: Path, monkeypatch, payload: Path | None = None,
         Path({str(log)!r}).write_text(json.dumps(sys.argv))
         payload = {repr(str(payload)) if payload is not None else None}
         if payload is not None and {exit_code} == 0:
-            shutil.copytree(payload, sys.argv[-1], dirs_exist_ok=True)
+            source, dest = Path(payload), Path(sys.argv[-1])
+            for path in source.rglob("*"):
+                if path.is_file():
+                    target = dest / path.relative_to(source)
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    if not target.exists():
+                        shutil.copy2(path, target)
         sys.exit({exit_code})
         """))
     script.chmod(0o755)
@@ -94,35 +103,18 @@ def _includes(argv: list[str]) -> list[str]:
 
 
 def _manifest(dest: Path) -> dict:
-    return json.loads((dest / fetch.FETCH_MANIFEST_NAME).read_text())
+    return json.loads((dest / retrieval.FETCH_MANIFEST_NAME).read_text())
 
 
-CATEGORY_RULES = [
-    ("comparison", ["comparison/comparison.json", "comparison/episodes.csv"]),
-    ("manifests", ["train/**/train_manifest.json", "eval/**/eval_manifest.json",
-                   "train/**/episode-*/rl_episode.json",
-                   "eval/**/episode-*/rl_episode.json",
-                   "cluster/records/**", "benchmark/**"]),
-    ("models", ["train/**/maskable_ppo_mesh.zip", "train/**/best_model.zip"]),
-    ("selection-logs", ["train/**/evaluations.npz"]),
-    ("inputs", ["train/**/episode-*/inputs/**", "eval/**/episode-*/inputs/**"]),
-    ("telemetry", ["train/**/episode-*/steps.jsonl",
-                   "eval/**/episode-*/steps.jsonl"]),
-    ("episode-data", ["train/**/episode-*/**", "eval/**/episode-*/**"]),
-    ("logs", ["cluster/logs/**"]),
-]
-
-
-@pytest.mark.parametrize("category,rules", CATEGORY_RULES,
-                         ids=[case[0] for case in CATEGORY_RULES])
-def test_each_category_adds_its_include_rules(tmp_path, monkeypatch, category, rules):
+@pytest.mark.parametrize("category", list(retrieval.CATEGORY_INCLUDES))
+def test_each_category_adds_its_include_rules(tmp_path, monkeypatch, category):
     log = _fake_rsync(tmp_path, monkeypatch, _payload(tmp_path))
     dest = tmp_path / "dest"
 
     assert fetch.main(["--remote", REMOTE, "--dest", str(dest),
                        "--select", category]) == 0
     argv = _argv(log)
-    assert _includes(argv) == list(fetch.ALWAYS_INCLUDE) + rules
+    assert _includes(argv) == list(retrieval.ALWAYS_INCLUDE) + list(retrieval.CATEGORY_INCLUDES[category])
     assert argv[-4:] == ["--include=*/", "--exclude=*", f"{REMOTE}/", f"{dest}/"]
     assert argv[1:4] == ["-a", "--prune-empty-dirs", "--ignore-existing"]
 
@@ -131,7 +123,7 @@ def test_the_always_included_files_need_no_selection(tmp_path, monkeypatch):
     log = _fake_rsync(tmp_path, monkeypatch, _payload(tmp_path))
 
     assert fetch.main(["--remote", REMOTE, "--dest", str(tmp_path / "dest")]) == 0
-    assert _includes(_argv(log)) == list(fetch.ALWAYS_INCLUDE)
+    assert _includes(_argv(log)) == list(retrieval.ALWAYS_INCLUDE)
 
 
 def test_two_categories_are_combined_in_order(tmp_path, monkeypatch):
@@ -140,8 +132,8 @@ def test_two_categories_are_combined_in_order(tmp_path, monkeypatch):
     assert fetch.main(["--remote", REMOTE, "--dest", str(tmp_path / "dest"),
                        "--select", "comparison,manifests"]) == 0
     assert _includes(_argv(log)) == (
-        list(fetch.ALWAYS_INCLUDE) + list(fetch.CATEGORY_INCLUDES["comparison"])
-        + list(fetch.CATEGORY_INCLUDES["manifests"]))
+        list(retrieval.ALWAYS_INCLUDE) + list(retrieval.CATEGORY_INCLUDES["comparison"])
+        + list(retrieval.CATEGORY_INCLUDES["manifests"]))
 
 
 def test_an_unknown_category_is_refused(tmp_path, monkeypatch, capsys):
@@ -244,7 +236,7 @@ TASK_STATES = [
      ["partial", "completed"], True),
     ("blocked training", {"row-a/train-seed-1": ("blocked", None),
                           "row-b/train-seed-1": ("completed", "completed")},
-     ["failed", "completed"], True),
+     ["incomplete", "completed"], True),
     ("nothing fetched", {"row-a/train-seed-1": (None, None),
                          "row-b/train-seed-1": ("completed", "completed")},
      ["missing", "completed"], True),
@@ -309,13 +301,13 @@ def test_the_manifest_records_remote_argv_and_file_digests(tmp_path, monkeypatch
     assert fetch.main(["--remote", REMOTE, "--dest", str(dest),
                        "--select", "comparison"]) == 0
     manifest = _manifest(dest)
-    assert manifest["fetch_manifest_version"] == 1
+    assert manifest["fetch_manifest_version"] == 2
     assert manifest["remote"] == REMOTE
     assert manifest["argv"][0] == "rsync" and "--ignore-existing" in manifest["argv"]
     assert "fetched_at" in manifest
     paths = {entry["path"] for entry in manifest["files"]}
     assert "experiment_plan.json" in paths and "cluster/tasks.json" in paths
-    assert fetch.FETCH_MANIFEST_NAME not in paths
+    assert retrieval.FETCH_MANIFEST_NAME not in paths
     for entry in manifest["files"]:
         assert entry["bytes"] == (dest / entry["path"]).stat().st_size
         assert len(entry["sha256"]) == 64
@@ -341,7 +333,7 @@ def test_a_failed_rsync_writes_no_manifest(tmp_path, monkeypatch, capsys):
                        "--select", "manifests"]) == 1
     assert "rsync exited 23" in capsys.readouterr().err
     assert log.exists()
-    assert not (dest / fetch.FETCH_MANIFEST_NAME).exists()
+    assert not (dest / retrieval.FETCH_MANIFEST_NAME).exists()
 
 
 def test_dry_run_prints_the_argv_and_writes_nothing(tmp_path, monkeypatch, capsys):
@@ -354,3 +346,45 @@ def test_dry_run_prints_the_argv_and_writes_nothing(tmp_path, monkeypatch, capsy
     assert out.startswith("rsync -a --prune-empty-dirs --ignore-existing")
     assert f"{dest}/" in out
     assert not log.exists() and not dest.exists()
+
+
+@pytest.mark.parametrize("statuses,expected", [
+    ({"row-a/train-seed-1": ("running", None)}, "running"),
+    ({"row-a/train-seed-1": ("completed", "running")}, "running"),
+    ({"row-a/train-seed-1": ("failed", None)}, "failed"),
+    ({"row-a/train-seed-1": ("completed", "failed")}, "failed"),
+    ({"row-a/train-seed-1": ("completed", None)}, "incomplete"),
+])
+def test_running_and_incomplete_are_not_failures(tmp_path, monkeypatch, statuses, expected):
+    _fake_rsync(tmp_path, monkeypatch, _payload(tmp_path, statuses))
+    dest = tmp_path / "dest"
+    assert fetch.main(["--remote", REMOTE, "--dest", str(dest), "--select", "manifests"]) == 0
+    assert _manifest(dest)["tasks"][0]["state"] == expected
+    assert _manifest(dest)["state_basis"] == "local_manifests"
+
+
+@pytest.mark.parametrize("symlink", [False, True])
+def test_destination_inside_source_is_refused(tmp_path, monkeypatch, symlink):
+    log = _fake_rsync(tmp_path, monkeypatch)
+    source = tmp_path / "source"
+    source.mkdir()
+    dest = source / "archive"
+    if symlink:
+        link = tmp_path / "link"
+        link.symlink_to(source, target_is_directory=True)
+        dest = link / "archive"
+    assert fetch.main(["--remote", str(source), "--dest", str(dest)]) == 1
+    assert not log.exists() and not dest.exists()
+
+
+def test_failed_update_keeps_previous_fetch_manifest(tmp_path, monkeypatch):
+    payload = _payload(tmp_path)
+    _fake_rsync(tmp_path, monkeypatch, payload)
+    dest = tmp_path / "dest"
+    args = ["--remote", REMOTE, "--dest", str(dest), "--select", "manifests"]
+    assert fetch.main(args) == 0
+    previous = (dest / retrieval.FETCH_MANIFEST_NAME).read_bytes()
+    _fake_rsync(tmp_path, monkeypatch, payload, exit_code=23)
+    assert fetch.main(args + ["--update"]) == 1
+    assert (dest / retrieval.FETCH_MANIFEST_NAME).read_bytes() == previous
+    assert not (dest / "fetch_manifest.1.json").exists()

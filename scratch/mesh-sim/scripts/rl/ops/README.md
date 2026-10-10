@@ -57,15 +57,17 @@ slurm.py       cluster-config validation, sbatch/squeue/sacct/scancel argv build
 receipts.py    cluster/ layout, task table, submit lock, submission receipts.
 reconcile.py   pure: filesystem state + receipts + scheduler snapshot -> task state.
 cluster.py     CLI: argument parsing, orchestration, printing.
-fetch.py       CLI: rsync selected results to a local destination.
+retrieval.py   file categories, destination checks, rsync transfer, local state,
+               destination inventory, and fetch manifest I/O.
+fetch.py       CLI: parse retrieval options and delegate to retrieval.
 ```
 
 Dependency direction, no cycles: `tasks` is imported by `run_task`,
-`benchmark`, `reconcile`, `cluster`, and `fetch`. `reconcile` imports only
+`benchmark`, `reconcile`, `cluster`, and `retrieval`. `reconcile` imports only
 `tasks` and takes receipts and the scheduler snapshot as plain dicts.
 `slurm` and `receipts` import neither each other nor `reconcile`. `cluster`
 imports `tasks`, `slurm`, `receipts`, `reconcile`, and `run_task`. `tune` and
-`fetch` import no scheduler module. Only `tasks`, `tune`, and `benchmark`
+`retrieval` import no scheduler module. Only `tasks`, `tune`, and `benchmark`
 import `scripts.rl.experiment`, and only its public names (`load_matrix`,
 `build_plan`, `load_plan`, `step_state`, `PLAN_NAME`).
 
@@ -425,63 +427,145 @@ prints one line from the comparison outcome plus the raw exit code:
 
 ## Fetch
 
+The intended cluster workflow is Unity with SLURM. Scheduler settings come from
+the required cluster config; this command uses SSH/rsync to retrieve files from
+the chosen transfer host. The host, username, and absolute output path must come
+from your Unity setup. Fetch does not query SLURM, load modules, or choose a
+partition; it also accepts a local source directory for testing and local copies.
+
 ```bash
 .venv/bin/python -m scripts.rl.ops.fetch --remote user@host:/abs/output-root \
-  --dest outputs/fetched/<name> --select comparison,manifests [--update] [--dry-run]
+  --dest outputs/fetched/bypass-first --select comparison,manifests
+
+# Preview the same transfer without creating output or contacting the host.
+.venv/bin/python -m scripts.rl.ops.fetch --remote user@host:/abs/output-root \
+  --dest outputs/fetched/bypass-first --select comparison,manifests --dry-run
 ```
 
-`--remote` and `--dest` are required and have no defaults; a local path is
-accepted as `--remote`. `--select` is optional — without it only the
-always-included files are copied.
-
-Always included: `experiment_plan.json`, `cluster/tasks.json`, and
-`cluster/receipts/*.json`. Categories (an unknown name is refused):
+`--remote` and `--dest` are required. Without `--select`, only the
+always-included files are copied: `experiment_plan.json`, `cluster/tasks.json`,
+and `cluster/receipts/*.json`. Unknown categories are refused.
 
 | Category | Included |
 |---|---|
 | `comparison` | `comparison/comparison.json`, `comparison/episodes.csv` |
-| `manifests` | `train/**/train_manifest.json`, `eval/**/eval_manifest.json`, `train/**/episode-*/rl_episode.json`, `eval/**/episode-*/rl_episode.json`, `cluster/records/**`, `benchmark/**` |
-| `models` | `train/**/maskable_ppo_mesh.zip`, `train/**/best_model.zip` |
+| `manifests` | Train/evaluation manifests, episode manifests, decision-record manifests, evaluation baseline manifests/plans, `cluster/records/**`, `benchmark/**` |
+| `models` | Final and best PPO ZIPs, plus retained `train/**/checkpoints/*.zip` |
 | `selection-logs` | `train/**/evaluations.npz` |
-| `inputs` | `train/**/episode-*/inputs/**`, `eval/**/episode-*/inputs/**` |
-| `telemetry` | `train/**/episode-*/steps.jsonl`, `eval/**/episode-*/steps.jsonl` |
-| `episode-data` | `train/**/episode-*/**`, `eval/**/episode-*/**` (whole trees; potentially large, explicit opt-in) |
+| `inputs` | Episode input snapshots and evaluation baselines' `source-inputs/` and `effective-inputs/` trees |
+| `telemetry` | Episode `steps.jsonl` files |
+| `decision-records` | Episode `policy_decisions.jsonl` traces; explicit opt-in |
+| `episode-data` | Whole episode trees, including decision traces; potentially large |
 | `logs` | `cluster/logs/**` |
 
-The argv is `rsync -a --prune-empty-dirs --ignore-existing --include=… --include='*/'
---exclude='*' <remote>/ <dest>/`. `--ignore-existing` is always present, so a
-local file is never overwritten. A non-empty destination is refused unless
-`--update`, which only adds files that are absent locally and keeps an earlier
-manifest as `fetch_manifest.<n>.json`. The destination is also refused when it
-resolves to the filesystem root, a home directory, the mesh-sim checkout root,
-an existing non-directory, or a path containing a local `--remote` source; a
-destination symlink is checked both as written and as resolved. `--dry-run`
-prints the argv and transfers nothing. A non-zero `rsync` exit gives exit 1 and
-no manifest; a missing `rsync` on `PATH` is a reported refusal.
+`retrieval.CATEGORY_INCLUDES` holds the exact patterns. Episode patterns include
+callback evaluations under `train/` as well as standalone evaluations under
+`eval/`. Baseline metadata lives beside episode directories under
+`eval/<row>/train-seed-<S>/<method>/baseline/`, with its plan at
+`effective-inputs/baseline-plan.json`; selecting whole episodes alone
+does not include that sibling baseline tree. Use `manifests,inputs` for its
+metadata and source/effective inputs. Use `models,manifests` when retained
+checkpoint metadata is needed alongside its ZIP; fetching files does not itself
+rebase or validate a model bundle for recovery.
 
-`<dest>/fetch_manifest.json`:
+### Add missing files or take a fresh snapshot
 
-```json
-{"fetch_manifest_version": 1, "remote": "...", "selection": ["comparison"],
- "argv": [ … ], "fetched_at": "...",
- "files": [{"path": "...", "bytes": 0, "sha256": "..."}],
- "tasks": [{"index": 0, "id": "...", "state": "completed|partial|failed|missing|not_fetched"}],
- "comparison": "not_fetched|absent|complete|incomplete|unreadable",
- "snapshot_of_incomplete_run": true}
+Every transfer uses `rsync -a --prune-empty-dirs --ignore-existing` with include
+rules followed by `--include='*/' --exclude='*'`. Existing local files are never
+replaced. A non-empty destination requires `--update`, which **adds missing
+files only**. It does not refresh a running manifest, append a growing trace, or
+replace an incomplete comparison. It can therefore mix old files with newly
+arrived files. The command prints a reminder and records `files_may_be_stale`.
+
+To add missing categories to the first copy:
+
+```bash
+.venv/bin/python -m scripts.rl.ops.fetch --remote user@host:/abs/output-root \
+  --dest outputs/fetched/bypass-first --select models,manifests --update
 ```
 
-The distinction matters: `not_fetched` means the category was not selected, not
-that the remote run lacked the file. Task states are read from the fetched
-files only when `manifests` was selected — otherwise every task is
-`not_fetched` and `snapshot_of_incomplete_run` is `null` rather than inferred
-from omitted files. `comparison` is `not_fetched` unless `comparison` was
-selected, and may be `unreadable` when the file arrived but could not be
-parsed. With `manifests` selected, each step's `output_dir` is mapped from the
-remote plan root onto the destination, because the fetched plan's absolute
-paths do not exist locally.
+After the remote run finishes, use a new destination for fresh results:
 
-Fetched trees live under the git-ignored `outputs/`; nothing fetched is
-committed.
+```bash
+.venv/bin/python -m scripts.rl.ops.fetch --remote user@host:/abs/output-root \
+  --dest outputs/fetched/bypass-finished --select comparison,manifests,inputs
+```
+
+The first directory stays intact. Even a new destination is a file-by-file
+copy, not an atomic snapshot of an actively changing remote run; fetch after
+completion for a consistent finished result.
+
+Destinations cannot be a filesystem root, a home directory, the mesh-sim root,
+or an existing non-directory. Local source and destination trees must not
+overlap in either direction; symlinks are checked after resolution. A missing
+rsync or nonzero transfer exit gives exit 1. On transfer failure, no new fetch
+manifest is published or rotated, but rsync may have left partial files. Use a
+new destination for a fresh retry; `--update` retains any existing partial files.
+
+### Fetch manifest
+
+`<dest>/fetch_manifest.json` uses version 2:
+
+```json
+{"fetch_manifest_version": 2, "remote": "...", "selection": ["manifests"],
+ "argv": [], "fetched_at": "...", "transfer_mode": "new_destination",
+ "files_may_be_stale": false, "inventory_scope": "destination",
+ "state_basis": "local_manifests",
+ "files": [{"path": "...", "bytes": 0, "sha256": "..."}],
+ "tasks": [{"index": 0, "id": "...", "state": "running"}],
+ "comparison": "not_fetched", "snapshot_of_incomplete_run": true}
+```
+
+`transfer_mode` is `new_destination` or `add_missing`. `fetched_at` is the time
+this inspection was recorded; it is not the transfer time of every listed file.
+`files` inventories the destination, including files retained from earlier
+copies, excluding current and rotated fetch manifests. It is not a count of new
+files transferred. A successful update keeps the previous manifest as
+`fetch_manifest.<n>.json`; older version-1 history stays intact.
+
+Task states describe **copied local manifests**, not live scheduler state:
+
+| State | Meaning |
+|---|---|
+| `completed` / `partial` | Copied evaluation reports that status |
+| `running` | Copied training or evaluation reports running; it may be stale |
+| `failed` | Copied training or evaluation explicitly reports failed/interrupted |
+| `missing` | Neither step directory exists locally |
+| `incomplete` | Other unfinished, unreadable, or unrecognized copied state |
+| `not_fetched` | The current transfer did not select `manifests` |
+
+`snapshot_of_incomplete_run` is null when task state cannot be inspected, and
+otherwise says whether any copied task is not completed. `comparison` is
+`not_fetched` unless selected, then `absent`, `complete`, `incomplete`, or
+`unreadable`. Selected-but-absent means absent in the local inventory; it does
+not prove what currently exists remotely. Inspection rebases step output paths
+in memory without changing the copied plan. Fetched trees belong under the
+git-ignored `outputs/` directory.
+
+### Extending retrieval and testing it
+
+Keep new artifact rules in `retrieval.py`, with the category and output owner
+documented here. Check the writer's actual directory layout first, including
+callback evaluation nesting. Update the local-rsync fixture with a small example
+and an expected selected/unselected result. Do not add a second category table
+to the CLI or repeat production rules in fake tests. When fetch manifest meanings
+change, update its version, this schema description, and the state/history tests.
+
+```bash
+.venv/bin/python -m pytest -q scripts/rl/tests/test_ops_fetch.py \
+  scripts/rl/tests/test_ops_fetch_local.py scripts/rl/tests/test_ops_tasks.py
+```
+
+| Tests | What they verify |
+|---|---|
+| `test_ops_fetch.py` | CLI/category refusals, argv, destination and symlink checks, copied task/comparison states, local inventory/digests, manifest history, dry-run and transfer failures |
+| `test_ops_fetch_local.py` | Installed rsync's real include/exclude behavior for every category, checkpoint/baseline/decision artifacts, unchanged local files on update, fresh destination refresh, and malformed copied states |
+| `test_ops_tasks.py` | Shared plan/task mapping and comparison outcomes used during inspection |
+
+The fake transfer tool stages controlled fixtures and failures without network
+access; it does not implement rsync filtering. Real transfer tests use only
+pytest's temporary local directories and skip if rsync is unavailable. They do
+not verify SSH, Unity transfer-host permissions, or live SLURM behavior.
 
 ## Benchmark
 
@@ -749,7 +833,8 @@ plan steps and **8 tasks**:
 
 The cluster commands are exercised **against a fake scheduler only**: `sbatch`,
 `squeue`, `sacct`, and `scancel` shims in the test suite, never a real SLURM
-installation. `fetch` is exercised against a fake `rsync` shim. `squeue` and
+installation. Retrieval also has real local-rsync checks on disposable
+directories; its controlled failure tests use a fake shim. `squeue` and
 `sacct` output and state names vary by SLURM version and site configuration, so
 the parsers remain unproven until a live run. Every query failure degrades to
 `unknown`, which blocks resubmission rather than risking a duplicate job.
