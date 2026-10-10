@@ -282,7 +282,7 @@ def test_tiny_training_run(sim_binary, run_config, tmp_path, monkeypatch):
     assert manifest["status"] == "completed"
     assert manifest["seed"] == 1 and manifest["seed_source"] == "run.ini"
     assert manifest["package_versions"]["sb3_contrib"]
-    assert manifest["manifest_version"] == 4
+    assert manifest["manifest_version"] == 5
     assert manifest["control_mode"] == "centralized"
     assert all(manifest[key] is not None for key in
                ("selection", "observation_schema", "reward_schema", "telemetry"))
@@ -702,7 +702,7 @@ def test_centralized_tiny_training_run(sim_binary, multi_run_config, tmp_path,
     assert train.main() == 0
 
     manifest = json.loads((out_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 4
+    assert manifest["manifest_version"] == 5
     assert manifest["status"] == "completed"
     assert manifest["control_mode"] == "centralized"
     assert manifest["contract"]["contract"] == "mesh_move_2d_v2"
@@ -965,7 +965,7 @@ def test_training_records_selection_and_schema_hashes(sim_binary, multi_run_conf
     assert train.main() == 0
 
     manifest = json.loads((out_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 4
+    assert manifest["manifest_version"] == 5
     selection = manifest["selection"]
     assert selection["observation_preset"] == "local_links_v1"
     assert selection["reward_components"] == ["delivery_ratio", "connectivity"]
@@ -1027,7 +1027,7 @@ def test_checkpoint_and_eval_cadence(sim_binary, multi_run_config, tmp_path, mon
     assert train.main() == 0
 
     manifest = json.loads((out_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 4 and manifest["status"] == "completed"
+    assert manifest["manifest_version"] == 5 and manifest["status"] == "completed"
     assert manifest["hyperparameters"]["checkpoint_every_steps"] == 8
     assert manifest["hyperparameters"]["keep_checkpoints"] == 1
     assert manifest["hyperparameters"]["eval_episodes"] == 1

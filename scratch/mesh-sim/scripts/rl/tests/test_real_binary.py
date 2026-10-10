@@ -477,7 +477,7 @@ def test_training_run_writes_matching_schema_hashes(tmp_path):
     assert result.returncode == 0, result.stderr[-2000:]
 
     manifest = json.loads((out_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 4
+    assert manifest["manifest_version"] == 5
     source = manifest["selection"]["source"]
     assert [source[key] for key in ("observation_preset", "reward_components",
                                     "telemetry", "telemetry_every")] == ["cli"] * 4
@@ -642,7 +642,7 @@ def test_lifecycle_train_inspect_evaluate_in_fresh_processes(tmp_path):
     assert trained.returncode == 0, trained.stderr[-2000:]
 
     manifest = json.loads((run_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 4 and manifest["status"] == "completed"
+    assert manifest["manifest_version"] == 5 and manifest["status"] == "completed"
     assert manifest["control_mode"] == "centralized"
     assert manifest["model_sha256"] == hashlib.sha256(
         Path(manifest["model_path"]).read_bytes()).hexdigest()

@@ -7,12 +7,11 @@ from pathlib import Path
 
 from scripts.rl.cli_common import MANIFEST_NAME, sha256_file
 from scripts.rl.env.observations import PRESETS
-from scripts.rl.env.rewards import COMPONENTS
+from scripts.rl.env.rewards import COMPONENTS, RewardComposer
 from scripts.rl.env.selection import TELEMETRY_MODES, RlSelection
 from scripts.rl.policy.compat import BundleError
+from scripts.rl.policy.training_artifacts import MANIFEST_VERSION, CHECKPOINT_DIR
 
-MANIFEST_VERSION = 4
-CHECKPOINT_DIR = "checkpoints"
 _SELECTION_KEYS = ("observation_preset", "reward_components", "reward_weights",
                    "telemetry", "telemetry_every")
 
@@ -57,6 +56,8 @@ def _checkpoint_target(run_dir: Path, manifest: dict, model: str) -> tuple[Path,
             f"--model {model!r} must be 'final', 'best', or "
             f"'{CHECKPOINT_DIR}/<name>.zip' relative to {run_dir}")
     target = (run_dir / relative).resolve()
+    if target.parent != (run_dir / CHECKPOINT_DIR).resolve():
+        raise BundleError("checkpoint must remain inside the training checkpoint directory")
     for entry in manifest.get("checkpoints") or []:
         if Path(entry["path"]).resolve() == target:
             return target, entry["sha256"], int(entry["num_timesteps"])
@@ -78,9 +79,9 @@ def _model_target(run_dir: Path, manifest: dict, model: str) -> tuple[Path, str,
     return _checkpoint_target(run_dir, manifest, model)
 
 
-def read_bundle(run_dir, model: str = "final") -> ModelBundle:
+def _read_bundle(run_dir, model: str, recovering=False) -> ModelBundle:
     """Verify the manifest and the requested model file; no flag bypasses a digest."""
-    run_dir = Path(run_dir)
+    run_dir = Path(run_dir).resolve()
     manifest = read_manifest(run_dir)
 
     version = manifest.get("manifest_version")
@@ -89,7 +90,8 @@ def read_bundle(run_dir, model: str = "final") -> ModelBundle:
             f"train manifest version {version!r} is not {MANIFEST_VERSION}; "
             "retrain with current tooling")
     status = manifest.get("status")
-    if status != "completed":
+    allowed = ("completed", "failed", "running", "interrupted") if recovering else ("completed",)
+    if status not in allowed:
         raise BundleError(f"training run {run_dir} has status {status!r}, not 'completed'")
     control_mode = manifest.get("control_mode")
     if control_mode == "legacy":
@@ -106,6 +108,34 @@ def read_bundle(run_dir, model: str = "final") -> ModelBundle:
             f"model file digest mismatch for {path}: recorded {digest}, found {actual}")
     selection = model if model in ("final", "best") else "checkpoint"
     return ModelBundle(run_dir, manifest, selection, path, digest, num_timesteps)
+
+
+def read_bundle(run_dir, model: str = "final") -> ModelBundle:
+    """Verify a completed training bundle for evaluation."""
+    return _read_bundle(run_dir, model)
+
+
+def read_recovery_bundle(run_dir, checkpoint: str | None = None) -> ModelBundle:
+    """Verify a retained checkpoint, including one from a failed or interrupted run."""
+    if checkpoint is None:
+        entries = read_manifest(run_dir).get("checkpoints") or []
+        if not entries:
+            raise BundleError("run has no retained checkpoints to resume")
+        entry = max(entries, key=lambda e: int(e["num_timesteps"]))
+        checkpoint = f"{CHECKPOINT_DIR}/{Path(entry['path']).name}"
+    if checkpoint in ("final", "best"):
+        raise BundleError("recovery requires a retained checkpoint")
+    bundle = _read_bundle(run_dir, checkpoint, recovering=True)
+    if bundle.num_timesteps is None or bundle.num_timesteps < 0:
+        raise BundleError("checkpoint has no valid restored timestep count")
+    return bundle
+
+
+def check_run_overlap(output_dir, run_dir):
+    """Refuse equal, child, or ancestor output roots before any run artifacts are written."""
+    out, run = Path(output_dir).resolve(), Path(run_dir).resolve()
+    if out == run or run in out.parents or out in run.parents:
+        raise ValueError(f"--output-dir {out} overlaps the training run {run}; choose a separate root")
 
 
 def selection_from_manifest(manifest: dict) -> RlSelection:
@@ -126,6 +156,10 @@ def selection_from_manifest(manifest: dict) -> RlSelection:
         raise BundleError(
             f"recorded reward_weights has {len(weights)} entries but reward_components "
             f"has {len(components)}")
+    try:
+        RewardComposer(components, weights)
+    except ValueError as exc:
+        raise BundleError(str(exc)) from exc
     telemetry = str(saved.get("telemetry", "none"))
     if telemetry not in TELEMETRY_MODES:
         raise BundleError(f"recorded telemetry {telemetry!r} is not valid")

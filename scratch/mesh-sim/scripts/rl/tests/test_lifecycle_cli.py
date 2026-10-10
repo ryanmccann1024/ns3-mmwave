@@ -152,7 +152,7 @@ def test_missing_manifest_is_reported(tmp_path, capsys):
 
 def test_missing_model_file_exits_two(tmp_path, capsys):
     manifest = {
-        "manifest_version": 4, "status": "completed", "algorithm": "MaskablePPO",
+        "manifest_version": 5, "status": "completed", "algorithm": "MaskablePPO",
         "seed": 1, "seed_source": "run.ini", "control_mode": "centralized",
         "model_path": str(tmp_path / "maskable_ppo_mesh.zip"),
         "model_sha256": "0" * 64, "checkpoints": [],
@@ -181,7 +181,7 @@ def test_inspect_a_training_run(sim_binary, multi_run_config, tmp_path, monkeypa
 
     assert inspect_model.main(["--run-dir", str(out_dir), "--json"]) == 0
     report = json.loads(capsys.readouterr().out)
-    assert report["manifest_version"] == 4
+    assert report["manifest_version"] == 5
     assert report["status"] == "completed"
     assert report["contract"]["contract"] == "mesh_move_2d_v2"
     assert report["observation_schema"]["note"] == "bounds not structural for raw_links_v1"

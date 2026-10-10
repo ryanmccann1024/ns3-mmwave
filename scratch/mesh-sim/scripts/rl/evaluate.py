@@ -11,7 +11,7 @@ from scripts.rl.cli_common import (MANIFEST_NAME, add_scenario_arguments,
                                    add_selection_arguments, selection_from_args)
 from scripts.rl.env.config import read_scenario_identity
 from scripts.rl.env.mesh_env import MeshRlEnv
-from scripts.rl.policy.bundle import (eval_selection, load_model, read_bundle,
+from scripts.rl.policy.bundle import (check_run_overlap, eval_selection, load_model, read_bundle,
                                       selection_from_manifest)
 from scripts.rl.policy.compat import check_compatibility
 from scripts.rl.policy.evaluate import (EVAL_MANIFEST_NAME, HoldPolicy, ModelPolicy,
@@ -56,11 +56,7 @@ def _parse_policies(raw: str) -> list[str]:
 def _check_output_dir(output_dir: str, run_dir: str | None) -> None:
     out = Path(output_dir).resolve()
     if run_dir:
-        run = Path(run_dir).resolve()
-        if out == run or run in out.parents:
-            raise ValueError(
-                f"--output-dir {out} is inside the training run {run}; "
-                "evaluation never writes into a training directory")
+        check_run_overlap(out, run_dir)
     for name in (MANIFEST_NAME, EVAL_MANIFEST_NAME):
         if (out / name).exists():
             raise ValueError(f"Refusing to start: {out} already contains {name}")

@@ -13,7 +13,7 @@ from scripts.rl.env.observations import SchemaMismatchError, observation_schema
 from scripts.rl.env.rewards import reward_schema
 from scripts.rl.env.selection import RlSelection
 from scripts.rl.policy import evaluate as policy_evaluate
-from scripts.rl.policy.bundle import (eval_selection, read_bundle,
+from scripts.rl.policy.bundle import (eval_selection, read_bundle, read_recovery_bundle,
                                       selection_from_manifest)
 from scripts.rl.policy.compat import (BundleError, RewardMismatchError,
                                       ScenarioMismatchError, StructuralMismatchError,
@@ -125,7 +125,7 @@ class _StubEnv:
 def _manifest(contract, preset="raw_links_v1", components=(), weights=(),
               identity=None, band="mmwave"):
     return {
-        "manifest_version": 4,
+        "manifest_version": 5,
         "status": "completed",
         "control_mode": "centralized",
         "contract": contract,
@@ -561,3 +561,208 @@ def test_model_evaluation_refuses_a_different_node_count(sim_binary, multi_run_c
     failed = json.loads((tmp_path / "eval-4" / "eval_manifest.json").read_text())
     assert failed["status"] == "failed"
     assert failed["error"].startswith("StructuralMismatchError")
+
+
+# 6. Recovery and durable artifacts ----------------------------------------------
+
+@pytest.fixture
+def failed_checkpoint_run(sim_binary, multi_run_config, tmp_path, monkeypatch):
+    from scripts.rl import train
+    from scripts.rl.policy import training
+    from stable_baselines3.common.callbacks import BaseCallback
+
+    run_dir = tmp_path / "failed-train"
+    original = training.build_callbacks
+
+    class FailAfterCheckpoint(BaseCallback):
+        def _on_step(self):
+            if self.num_timesteps == 18:
+                saved = json.loads((run_dir / "train_manifest.json").read_text())
+                assert saved["status"] == "running"
+                assert saved["checkpoints"][0]["num_timesteps"] == 16
+                assert read_recovery_bundle(run_dir).num_timesteps == 16
+                raise RuntimeError("deliberate training interruption")
+            return True
+
+    def callbacks(*args, **kwargs):
+        items, evaluation = original(*args, **kwargs)
+        return items + [FailAfterCheckpoint()], evaluation
+
+    with monkeypatch.context() as patch:
+        patch.setattr(training, "build_callbacks", callbacks)
+        patch.setattr(sys, "argv", ["train", "--sim-binary", sim_binary,
+            "--run-config", multi_run_config, "--output-dir", str(run_dir),
+            "--verbose", "0", "m-ppo", "--total-timesteps", "24", "--n-steps", "8",
+            "--checkpoint-every-steps", "8", "--keep-checkpoints", "1",
+            "--eval-every-steps", "8", "--eval-seed", "5"])
+        assert train.main() == 1
+    manifest = json.loads((run_dir / "train_manifest.json").read_text())
+    assert manifest["status"] == "failed" and manifest["num_timesteps"] == 18
+    assert manifest["checkpoints"][0]["evaluation_state"]["completed_evaluations"] == 2
+    assert manifest["best_model_sha256"]
+    assert sorted(p.name for p in (run_dir / "checkpoints").glob("*.zip")) == ["checkpoint_16_steps.zip"]
+    return run_dir
+
+
+def _resume_argv(sim_binary, run_config, run_dir, out_dir, *extra):
+    return ["train", "--sim-binary", sim_binary, "--run-config", run_config,
+            "--output-dir", str(out_dir), "--verbose", "0", "m-ppo",
+            "--resume-run-dir", str(run_dir), "--total-timesteps", "24", *extra]
+
+
+@pytest.mark.parametrize("status", ["failed", "running"])
+def test_resume_failed_or_stale_running_checkpoint(failed_checkpoint_run, sim_binary,
+                                                  multi_run_config, tmp_path, monkeypatch, status):
+    from scripts.rl import train
+    from scripts.rl.agents.mask_ppo import MaskablePpoTrainer
+    from scripts.rl.cli_common import sha256_file
+    from sb3_contrib import MaskablePPO
+
+    parent = failed_checkpoint_run
+    manifest_path = parent / "train_manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["status"] = status
+    manifest_path.write_text(json.dumps(manifest))
+    parent_digest = sha256_file(manifest_path)
+    bundle = read_recovery_bundle(parent)
+    saved = MaskablePPO.load(str(bundle.model_path), device="cpu")
+    optimizer_steps = [int(v["step"]) for v in saved.policy.optimizer.state_dict()["state"].values()]
+    assert optimizer_steps and saved.num_timesteps == 16
+    original = MaskablePpoTrainer.train
+
+    def verify_then_continue(trainer, *args, **kwargs):
+        assert kwargs["continuing"] is True
+        assert trainer.model.num_timesteps == 16
+        restored = [int(v["step"]) for v in trainer.model.policy.optimizer.state_dict()["state"].values()]
+        assert restored == optimizer_steps
+        return original(trainer, *args, **kwargs)
+
+    monkeypatch.setattr(MaskablePpoTrainer, "train", verify_then_continue)
+    out = tmp_path / "resumed"
+    monkeypatch.setattr(sys, "argv", _resume_argv(sim_binary, multi_run_config, parent, out,
+                                                "--checkpoint-every-steps", "5"))
+    assert train.main() == 0
+    result = json.loads((out / "train_manifest.json").read_text())
+    assert result["num_timesteps"] == 24
+    recovery = result["resume"]
+    assert recovery["restored_timesteps"] == 16 and recovery["remaining_timesteps"] == 8
+    assert recovery["exact_resume"] is False and "rollout_buffer" in recovery["restarted"]
+    assert recovery["parent"]["model_sha256"] == bundle.model_sha256
+    assert recovery["parent"]["train_manifest_sha256"] == parent_digest
+    assert result["hyperparameters"]["n_steps"] == 8
+    assert result["checkpoints"][0]["num_timesteps"] == 20
+    assert sha256_file(manifest_path) == parent_digest
+    final = MaskablePPO.load(result["model_path"], device="cpu")
+    assert min(int(v["step"]) for v in final.policy.optimizer.state_dict()["state"].values()) > min(optimizer_steps)
+
+
+def test_resume_refuses_corrupt_checkpoint(failed_checkpoint_run, sim_binary,
+                                         multi_run_config, tmp_path, monkeypatch, capsys):
+    from scripts.rl import train
+    checkpoint = read_recovery_bundle(failed_checkpoint_run).model_path
+    checkpoint.write_bytes(b"broken archive")
+    out = tmp_path / "resumed"
+    monkeypatch.setattr(sys, "argv", _resume_argv(sim_binary, multi_run_config,
+                                                failed_checkpoint_run, out))
+    assert train.main() == 1
+    assert "digest mismatch" in capsys.readouterr().err and not out.exists()
+
+
+@pytest.mark.parametrize("flags,error", [
+    (["--total-timesteps", "16"], "must exceed"),
+    (["--n-steps", "16"], "cannot change"),
+    (["--seed", "7"], "cannot change"),
+])
+def test_resume_refuses_changed_settings(failed_checkpoint_run, sim_binary,
+                                         multi_run_config, tmp_path, monkeypatch, capsys, flags, error):
+    from scripts.rl import train
+    out = tmp_path / "resumed"
+    monkeypatch.setattr(sys, "argv", _resume_argv(sim_binary, multi_run_config,
+                                                failed_checkpoint_run, out, *flags))
+    assert train.main() == 1
+    assert error in capsys.readouterr().err and not out.exists()
+
+
+def test_resume_refuses_scenario_changes(failed_checkpoint_run, sim_binary,
+                                        multi_run_config, tmp_path, monkeypatch, capsys):
+    from scripts.rl import train
+    path = Path(multi_run_config)
+    path.write_text(path.read_text() + "\n# scenario edited\n")
+    out = tmp_path / "resumed"
+    monkeypatch.setattr(sys, "argv", _resume_argv(sim_binary, multi_run_config,
+                                                failed_checkpoint_run, out))
+    assert train.main() == 1
+    assert "ScenarioMismatchError" in capsys.readouterr().err
+    assert not (out / "maskable_ppo_mesh.zip").exists()
+    episode = json.loads((out / "episode-0000" / "rl_episode.json").read_text())
+    assert episode["exit_code"] == 0
+
+
+def test_default_resume_output_cannot_overlap_parent(failed_checkpoint_run, sim_binary,
+                                                    multi_run_config, tmp_path, monkeypatch, capsys):
+    from scripts.rl import train
+    monkeypatch.setattr(train, "resolve_out_dir", lambda _: str(failed_checkpoint_run / "child"))
+    argv = _resume_argv(sim_binary, multi_run_config, failed_checkpoint_run, "")
+    monkeypatch.setattr(sys, "argv", argv)
+    assert train.main() == 1
+    assert "overlaps" in capsys.readouterr().err
+    assert not (failed_checkpoint_run / "child").exists()
+
+
+@pytest.mark.parametrize("relative", [".", "model", "model/child"])
+def test_evaluation_rejects_ancestor_equal_and_descendant_output(tmp_path, relative):
+    root = tmp_path / "runs"
+    run = root / "model"
+    with pytest.raises(ValueError, match="overlaps"):
+        evaluate_cli._check_output_dir(str(root / relative), str(run))
+    assert not root.exists()
+
+
+def test_empty_warmup_windows_do_not_count_as_all_los(sim_binary, multi_run_config, tmp_path):
+    path = Path(multi_run_config)
+    path.write_text(path.read_text().replace("tick_s = 0.1", "tick_s = 0.1\nwarmup_s = 2.0"))
+    out = tmp_path / "eval-warmup"
+    assert evaluate_cli.main(_eval_argv(sim_binary, multi_run_config, out)) == 0
+    result = json.loads((out / "eval_manifest.json").read_text())
+    for policy in result["policies"].values():
+        for episode in policy["episodes"]:
+            assert episode["return"] == 0
+            assert all(value is None for value in episode["metrics"].values())
+
+
+def test_atomic_json_failure_preserves_previous_manifest(tmp_path):
+    from scripts.rl.cli_common import write_json
+    path = tmp_path / "manifest.json"
+    write_json(path, {"status": "running"})
+    with pytest.raises(ValueError):
+        write_json(path, {"status": "completed", "value": float("nan")})
+    assert json.loads(path.read_text()) == {"status": "running"}
+    assert not path.with_name(path.name + ".tmp").exists()
+
+
+def test_manifest_publication_failure_keeps_previous_checkpoint(multi_run_config, tmp_path, monkeypatch):
+    from scripts.rl.agents.callbacks import Cadence
+    from scripts.rl.agents.mask_ppo import MaskablePPOConfig
+    from scripts.rl.policy.training_artifacts import TrainingArtifacts
+
+    out = tmp_path / "train"
+    out.mkdir()
+    artifacts = TrainingArtifacts(MaskablePPOConfig(), "unused-binary", multi_run_config,
+                                  out, None, "run.ini", Cadence())
+    directory = out / "checkpoints"
+    directory.mkdir()
+    first = directory / "checkpoint_8_steps.zip"
+    first.write_bytes(b"previous checkpoint")
+    artifacts.record_checkpoint(first, 8, keep_last=1)
+    second = directory / "checkpoint_16_steps.zip"
+    second.write_bytes(b"new checkpoint")
+
+    def fail_write():
+        raise OSError("manifest publication failed")
+
+    monkeypatch.setattr(artifacts, "write", fail_write)
+    with pytest.raises(OSError, match="publication failed"):
+        artifacts.record_checkpoint(second, 16, keep_last=1)
+    published = json.loads((out / "train_manifest.json").read_text())
+    assert published["checkpoints"][0]["num_timesteps"] == 8
+    assert first.read_bytes() == b"previous checkpoint"
