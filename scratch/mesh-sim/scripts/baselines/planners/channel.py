@@ -8,7 +8,8 @@ import selectors
 import subprocess
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
+from itertools import islice
 
 import numpy as np
 
@@ -19,16 +20,18 @@ MODES = ("standalone", "evaluation")
 BANDS = ("mmwave", "sub-6")
 SINR_MIN_DB = -6.7
 POSITION_TOL_M = 1e-6
-REQUEST_BASE_TIMEOUT_S = 60.0
-REQUEST_PER_LAYOUT_S = 0.5
 INIT_TIMEOUT_S = 60.0
 INIT_LINE_LIMIT_BYTES = 16 * 1024 * 1024
 SHUTDOWN_GRACE_S = 5.0
 TERMINATE_WAIT_S = 5.0
 READ_CHUNK_BYTES = 1024 * 1024
 WRITE_CHUNK_BYTES = 64 * 1024
-REQUIRED_LIMITS = ("max_layouts", "max_probes", "max_request_line_bytes",
-                   "max_child_response_bytes")
+REQUIRED_LIMITS = (
+    "max_layouts",
+    "max_probes",
+    "max_request_line_bytes",
+    "max_child_response_bytes",
+)
 # Response-line bound: each layout may carry one full child body plus re-framing.
 RESPONSE_LAYOUT_SLACK_BYTES = 4096
 RESPONSE_ENVELOPE_BYTES = 64 * 1024
@@ -49,6 +52,7 @@ class LayoutResult:
     is_los: np.ndarray
     coverage: list[list[int]] | None
     wall_s: float
+    diagnostics: tuple[str, ...] = ()
 
 
 def _reject_constant(token: str):
@@ -60,8 +64,7 @@ def _is_int(value) -> bool:
 
 
 def _is_finite(value) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and \
-        math.isfinite(value)
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
 def _wait_fd(fd: int, event: int, timeout_s: float) -> bool:
@@ -70,11 +73,16 @@ def _wait_fd(fd: int, event: int, timeout_s: float) -> bool:
         return bool(selector.select(max(timeout_s, 0.0)))
 
 
-def query_command(sim_binary, query_run_config, planning_seed: int, band: str | None,
-                  mode: str) -> list[str]:
+def query_command(
+    sim_binary, query_run_config, planning_seed: int, band: str | None, mode: str
+) -> list[str]:
     """Worker argv: --rl-mode only in evaluation, --band only when given."""
-    command = [str(sim_binary), f"--run-config={query_run_config}", "--channel-query",
-               f"--seed={int(planning_seed)}"]
+    command = [
+        str(sim_binary),
+        f"--run-config={query_run_config}",
+        "--channel-query",
+        f"--seed={int(planning_seed)}",
+    ]
     if band is not None:
         command.append(f"--band={band}")
     if mode == "evaluation":
@@ -82,15 +90,62 @@ def query_command(sim_binary, query_run_config, planning_seed: int, band: str | 
     return command
 
 
+@dataclass(frozen=True)
+class QuerySettings:
+    request_timeout_s: float | None = None
+    init_timeout_s: float = INIT_TIMEOUT_S
+    shutdown_grace_s: float = SHUTDOWN_GRACE_S
+    terminate_wait_s: float = TERMINATE_WAIT_S
+    request_margin_s: float = 5.0
+    max_layouts: int = 32
+    response_budget_bytes: int = 64 * 1024 * 1024
+    cache_bytes: int = 32 * 1024 * 1024
+
+    def __post_init__(self):
+        for name, value in asdict(self).items():
+            if value is None and name == "request_timeout_s":
+                continue
+            if name in ("max_layouts", "response_budget_bytes", "cache_bytes"):
+                minimum = 0 if name == "cache_bytes" else 1
+                if not _is_int(value) or value < minimum:
+                    raise ValueError(f"query {name} must be an integer >= {minimum}")
+            elif not _is_finite(value) or value <= 0:
+                raise ValueError(f"query {name} must be finite and > 0")
+
+
 class ChannelScorer:
     """Owns one channel-query worker: init handshake, batched evaluation, cleanup, stats."""
 
-    def __init__(self, sim_binary, query_run_config, planning_seed: int, run_id: int,
-                 band: str | None, mode: str, roster, start_positions, jammer_seed: int,
-                 log, *, request_timeout_s: float | None = None,
-                 max_layouts: int | None = None, init_timeout_s: float = INIT_TIMEOUT_S,
-                 shutdown_grace_s: float = SHUTDOWN_GRACE_S,
-                 terminate_wait_s: float = TERMINATE_WAIT_S):
+    def __init__(
+        self,
+        sim_binary,
+        query_run_config,
+        planning_seed: int,
+        run_id: int,
+        band: str | None,
+        mode: str,
+        roster,
+        start_positions,
+        jammer_seed: int,
+        log,
+        *,
+        request_timeout_s: float | None = None,
+        max_layouts: int | None = None,
+        init_timeout_s: float = INIT_TIMEOUT_S,
+        shutdown_grace_s: float = SHUTDOWN_GRACE_S,
+        terminate_wait_s: float = TERMINATE_WAIT_S,
+        request_margin_s: float = 5.0,
+        response_budget_bytes: int = 64 * 1024 * 1024,
+    ):
+        self.settings = QuerySettings(
+            request_timeout_s=request_timeout_s,
+            max_layouts=max_layouts or 32,
+            init_timeout_s=init_timeout_s,
+            shutdown_grace_s=shutdown_grace_s,
+            terminate_wait_s=terminate_wait_s,
+            request_margin_s=request_margin_s,
+            response_budget_bytes=response_budget_bytes,
+        )
         if mode not in MODES:
             raise ValueError(f"mode must be one of {MODES}, got {mode!r}")
         if band is not None and band not in BANDS:
@@ -106,13 +161,18 @@ class ChannelScorer:
             raise ValueError("request_timeout_s must be positive")
         if max_layouts is not None and (not _is_int(max_layouts) or max_layouts < 1):
             raise ValueError("max_layouts must be an integer >= 1")
-        self._expected = {"seed": int(planning_seed), "run_id": int(run_id),
-                          "jammer_seed": int(jammer_seed)}
+        self._expected = {
+            "seed": int(planning_seed),
+            "run_id": int(run_id),
+            "jammer_seed": int(jammer_seed),
+        }
         self._band_requested = band
         self._mode = mode
         self._log = log
         self._request_timeout_s = request_timeout_s
         self._max_layouts_override = max_layouts
+        self._response_budget_bytes = response_budget_bytes
+        self._request_margin_s = request_margin_s
         self._shutdown_grace_s = shutdown_grace_s
         self._terminate_wait_s = terminate_wait_s
         self._pairs = [(i, j) for i in range(n) for j in range(i + 1, n)]
@@ -130,8 +190,9 @@ class ChannelScorer:
         self.command = query_command(sim_binary, query_run_config, planning_seed, band, mode)
         self._launch()
         try:
-            line = self._read_line(time.monotonic() + init_timeout_s, INIT_LINE_LIMIT_BYTES,
-                                   "the init line")
+            line = self._read_line(
+                time.monotonic() + init_timeout_s, INIT_LINE_LIMIT_BYTES, "the init line"
+            )
             self._check_init(self._decode(line, "init line"))
         except BaseException:
             self._abort()
@@ -148,9 +209,14 @@ class ChannelScorer:
             # start_new_session gives the worker its own group so close() can reach every
             # descendant. If this process dies, the worker reads EOF on stdin and exits.
             self._proc = subprocess.Popen(
-                self.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE if stderr_fd is None else stderr_fd, bufsize=0,
-                start_new_session=True, env=simulator_env(find_mesh_root()))
+                self.command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE if stderr_fd is None else stderr_fd,
+                bufsize=0,
+                start_new_session=True,
+                env=simulator_env(find_mesh_root()),
+            )
         except OSError as exc:
             self._closed = True
             raise PlannerError(f"cannot start the channel query worker: {exc}") from exc
@@ -200,7 +266,19 @@ class ChannelScorer:
 
     @property
     def max_layouts(self) -> int:
-        published = self._init["limits"]["max_layouts"]
+        limits = self._init["limits"]
+        budget = min(
+            self._response_budget_bytes,
+            limits.get("max_response_bytes", self._response_budget_bytes),
+        )
+        published = min(
+            limits["max_layouts"],
+            max(
+                1,
+                (budget - RESPONSE_ENVELOPE_BYTES)
+                // (limits["max_child_response_bytes"] + RESPONSE_LAYOUT_SLACK_BYTES),
+            ),
+        )
         if self._max_layouts_override is None:
             return published
         return min(published, self._max_layouts_override)
@@ -232,23 +310,32 @@ class ChannelScorer:
             starts = np.asarray(init.get("start_positions"), dtype=float)
         except (TypeError, ValueError):
             starts = None
-        if starts is None or starts.shape != self._start.shape or not np.all(
-                np.abs(starts - self._start) <= POSITION_TOL_M):
-            problems.append("start_positions differ from the roster's start positions "
-                            f"by more than {POSITION_TOL_M} m")
+        if (
+            starts is None
+            or starts.shape != self._start.shape
+            or not np.all(np.abs(starts - self._start) <= POSITION_TOL_M)
+        ):
+            problems.append(
+                "start_positions differ from the roster's start positions "
+                f"by more than {POSITION_TOL_M} m"
+            )
         for key, expected in self._expected.items():
             if not _is_int(init.get(key)) or init[key] != expected:
                 problems.append(f"{key} {init.get(key)!r} != {expected}")
         rl_expected = self._mode == "evaluation"
         if init.get("rl_enabled") is not rl_expected:
-            problems.append(f"rl_enabled {init.get('rl_enabled')!r} != {rl_expected} "
-                            f"for mode {self._mode}")
+            problems.append(
+                f"rl_enabled {init.get('rl_enabled')!r} != {rl_expected} " f"for mode {self._mode}"
+            )
         if init.get("band") not in BANDS:
             problems.append(f"band {init.get('band')!r} is not one of {BANDS}")
         elif self._band_requested is not None and (
-                init["band"] != self._band_requested or init.get("band_source") != "cli"):
-            problems.append(f"band {init['band']!r} (source {init.get('band_source')!r}) "
-                            f"!= requested {self._band_requested!r} from the CLI")
+            init["band"] != self._band_requested or init.get("band_source") != "cli"
+        ):
+            problems.append(
+                f"band {init['band']!r} (source {init.get('band_source')!r}) "
+                f"!= requested {self._band_requested!r} from the CLI"
+            )
         if not _is_finite(init.get("sinr_threshold_db")):
             problems.append("sinr_threshold_db is not a finite number")
         channel = init.get("channel")
@@ -256,15 +343,40 @@ class ChannelScorer:
             problems.append("channel.rx_array_gain_dbi is not a finite number")
         limits = init.get("limits")
         if not isinstance(limits, dict) or not all(
-                _is_int(limits.get(key)) and limits[key] > 0 for key in REQUIRED_LIMITS):
+            _is_int(limits.get(key)) and limits[key] > 0 for key in REQUIRED_LIMITS
+        ):
             problems.append(f"limits must give positive integers {list(REQUIRED_LIMITS)}")
+        if isinstance(limits, dict):
+            for key in ("child_deadline_s", "terminate_grace_s"):
+                value = limits.get(key, 1.0 if key == "terminate_grace_s" else None)
+                if not _is_finite(value) or value <= 0:
+                    problems.append(f"limits.{key} must be finite and > 0")
+            if "max_response_bytes" in limits and (
+                not _is_int(limits["max_response_bytes"]) or limits["max_response_bytes"] <= 0
+            ):
+                problems.append("limits.max_response_bytes must be a positive integer")
+            if (
+                _is_int(limits.get("max_child_response_bytes"))
+                and self._response_budget_bytes
+                < limits["max_child_response_bytes"]
+                + RESPONSE_LAYOUT_SLACK_BYTES
+                + RESPONSE_ENVELOPE_BYTES
+            ):
+                problems.append("response_budget_bytes cannot hold one maximum child response")
         if problems:
-            raise PlannerError("channel query init does not match this plan: " +
-                               "; ".join(problems))
+            raise PlannerError(
+                "channel query init does not match this plan: " + "; ".join(problems)
+            )
         self._init = init
 
-    def set_probes(self, points, *, height_m: float = 1.5, rx_gain_dbi: float | None = None,
-                   sinr_db: float = SINR_MIN_DB) -> None:
+    def set_probes(
+        self,
+        points,
+        *,
+        height_m: float = 1.5,
+        rx_gain_dbi: float | None = None,
+        sinr_db: float = SINR_MIN_DB,
+    ) -> None:
         """Fix the coverage probe grid once, before the first evaluate()."""
         self._require_open()
         if self._probes is not None:
@@ -272,60 +384,77 @@ class ChannelScorer:
         if self._stats["requests"]:
             raise ValueError("probes must be set before the first evaluate()")
         grid = np.asarray(points, dtype=float)
-        if grid.ndim != 2 or grid.shape[1] != 2 or not len(grid) or \
-                not np.isfinite(grid).all():
+        if grid.ndim != 2 or grid.shape[1] != 2 or not len(grid) or not np.isfinite(grid).all():
             raise ValueError("probe points must be a non-empty G x 2 array of finite x, y")
         if rx_gain_dbi is None:
             rx_gain_dbi = float(self._init["channel"]["rx_array_gain_dbi"])
-        for name, value in (("height_m", height_m), ("rx_gain_dbi", rx_gain_dbi),
-                            ("sinr_db", sinr_db)):
+        for name, value in (
+            ("height_m", height_m),
+            ("rx_gain_dbi", rx_gain_dbi),
+            ("sinr_db", sinr_db),
+        ):
             if not _is_finite(value):
                 raise ValueError(f"probe {name} must be finite")
         if height_m < 0:
             raise ValueError("probe height_m must be >= 0")
         if len(grid) > self._init["limits"]["max_probes"]:
-            raise PlannerError(f"{len(grid)} coverage probes exceed the worker's max_probes "
-                               f"{self._init['limits']['max_probes']}; use fewer coverage "
-                               "grid cells or a coarser grid_min_resolution_m")
-        self._probes = {"height_m": float(height_m), "rx_gain_dbi": float(rx_gain_dbi),
-                        "sinr_db": float(sinr_db), "points": [tuple(p) for p in grid.tolist()]}
+            raise PlannerError(
+                f"{len(grid)} coverage probes exceed the worker's max_probes "
+                f"{self._init['limits']['max_probes']}; use fewer coverage "
+                "grid cells or a coarser grid_min_resolution_m"
+            )
+        self._probes = {
+            "height_m": float(height_m),
+            "rx_gain_dbi": float(rx_gain_dbi),
+            "sinr_db": float(sinr_db),
+            "points": [tuple(p) for p in grid.tolist()],
+        }
         payload = {**self._probes, "points": grid.tolist()}
         self._probe_json = ',"probes":' + json.dumps(payload, separators=(",", ":"))
 
-    def evaluate(self, layouts) -> list[LayoutResult]:
-        """Score full N x 3 layouts in order; any worker failure aborts with PlannerError."""
+    def iter_evaluate(self, layouts):
+        """Incrementally validate and query bounded batches; failures close the worker."""
         self._require_open()
-        arrays = [self._check_layout(layout, index) for index, layout in enumerate(layouts)]
-        fragments = [json.dumps(a.tolist(), separators=(",", ":")) for a in arrays]
-        results: list[LayoutResult] = []
-        try:
-            for start, stop in self._batches(fragments):
-                results.extend(self._request(fragments[start:stop], start))
-        except BaseException:
-            self._abort()
-            raise
-        return results
+        source = iter(layouts)
+        offset = 0
+        while chunk := list(islice(source, self.max_layouts)):
+            arrays = [self._check_layout(layout, offset + k) for k, layout in enumerate(chunk)]
+            fragments = [json.dumps(a.tolist(), separators=(",", ":")) for a in arrays]
+            try:
+                for start, stop in self._batches(fragments):
+                    yield from self._request(fragments[start:stop], offset + start)
+            except BaseException:
+                self._abort()
+                raise
+            offset += len(chunk)
+
+    def evaluate(self, layouts) -> list[LayoutResult]:
+        """Collect results for callers that explicitly need a finite list."""
+        return list(self.iter_evaluate(layouts))
 
     def _check_layout(self, layout, index: int) -> np.ndarray:
         array = np.asarray(layout, dtype=float)
         if array.shape != self._start.shape or not np.isfinite(array).all():
-            raise ValueError(f"layout {index} must be {len(self._roster)} finite "
-                             "[x, y, z] rows")
+            raise ValueError(f"layout {index} must be {len(self._roster)} finite " "[x, y, z] rows")
         return array
 
     def _line(self, request_id: int, fragments: list[str]) -> bytes:
-        return ('{"type":"evaluate","request_id":%d,"layouts":[%s]%s}\n' % (
-            request_id, ",".join(fragments), self._probe_json)).encode()
+        return (
+            '{"type":"evaluate","request_id":%d,"layouts":[%s]%s}\n'
+            % (request_id, ",".join(fragments), self._probe_json)
+        ).encode()
 
     def _batches(self, fragments: list[str]):
         limit = self._init["limits"]["max_request_line_bytes"]
-        fixed = len(self._line(10 ** 18, []))
+        fixed = len(self._line(10**18, []))
         start, size = 0, fixed
         for index, fragment in enumerate(fragments):
             if fixed + len(fragment) > limit:
-                raise PlannerError(f"one layout request needs {fixed + len(fragment)} bytes, "
-                                   f"over the worker's max_request_line_bytes {limit}; "
-                                   "reduce the coverage probe count")
+                raise PlannerError(
+                    f"one layout request needs {fixed + len(fragment)} bytes, "
+                    f"over the worker's max_request_line_bytes {limit}; "
+                    "reduce the coverage probe count"
+                )
             extra = len(fragment) + 1
             if index > start and (index - start >= self.max_layouts or size + extra > limit):
                 yield start, index
@@ -338,15 +467,29 @@ class ChannelScorer:
         self._request_id += 1
         request_id = self._request_id
         count = len(fragments)
-        timeout = self._request_timeout_s if self._request_timeout_s is not None else (
-            REQUEST_BASE_TIMEOUT_S + REQUEST_PER_LAYOUT_S * count)
+        timeout = (
+            self._request_timeout_s
+            if self._request_timeout_s is not None
+            else (
+                self._request_margin_s
+                + count
+                * (
+                    self._init["limits"]["child_deadline_s"]
+                    + self._init["limits"].get("terminate_grace_s", 1.0)
+                )
+            )
+        )
         started = time.monotonic()
         deadline = started + timeout
         what = f"the response to request {request_id} ({count} layouts)"
         self._in_flight = True
         self._write(self._line(request_id, fragments), deadline, what)
         child = self._init["limits"]["max_child_response_bytes"]
-        limit = count * (child + RESPONSE_LAYOUT_SLACK_BYTES) + RESPONSE_ENVELOPE_BYTES
+        limit = min(
+            self._response_budget_bytes,
+            self._init["limits"].get("max_response_bytes", self._response_budget_bytes),
+            count * (child + RESPONSE_LAYOUT_SLACK_BYTES) + RESPONSE_ENVELOPE_BYTES,
+        )
         raw = self._read_line(deadline, limit, what)
         self._in_flight = False
         results = self._parse_response(self._decode(raw, what), request_id, count, offset)
@@ -358,20 +501,26 @@ class ChannelScorer:
         self._stats["wall_s"] += time.monotonic() - started
         return results
 
-    def _parse_response(self, response, request_id: int, count: int,
-                        offset: int) -> list[LayoutResult]:
+    def _parse_response(
+        self, response, request_id: int, count: int, offset: int
+    ) -> list[LayoutResult]:
         if not isinstance(response, dict):
             raise PlannerError(f"request {request_id}: response is not a JSON object")
         if response.get("type") == "error":
-            raise PlannerError(f"request {request_id} rejected by the channel query worker "
-                               f"(request_id {response.get('request_id')!r}): "
-                               f"{response.get('message')}")
+            raise PlannerError(
+                f"request {request_id} rejected by the channel query worker "
+                f"(request_id {response.get('request_id')!r}): "
+                f"{response.get('message')}"
+            )
         if response.get("type") != "result":
-            raise PlannerError(f"request {request_id}: unexpected response type "
-                               f"{response.get('type')!r}")
+            raise PlannerError(
+                f"request {request_id}: unexpected response type " f"{response.get('type')!r}"
+            )
         if not _is_int(response.get("request_id")) or response["request_id"] != request_id:
-            raise PlannerError(f"request {request_id}: response echoes request_id "
-                               f"{response.get('request_id')!r}")
+            raise PlannerError(
+                f"request {request_id}: response echoes request_id "
+                f"{response.get('request_id')!r}"
+            )
         if not _is_finite(response.get("wall_s")):
             raise PlannerError(f"request {request_id}: wall_s is not a finite number")
         layouts = response.get("layouts")
@@ -384,8 +533,7 @@ class ChannelScorer:
         if not isinstance(entry, dict):
             raise PlannerError(f"{where}: result is not a JSON object")
         if "error" in entry:
-            raise PlannerError(f"{where} failed in the channel query worker: "
-                               f"{entry['error']}")
+            raise PlannerError(f"{where} failed in the channel query worker: " f"{entry['error']}")
         links = entry.get("links")
         if not isinstance(links, list) or len(links) != len(self._pairs):
             raise PlannerError(f"{where}: expected {len(self._pairs)} links in i<j order")
@@ -395,10 +543,15 @@ class ChannelScorer:
         is_los = np.zeros((n, n), dtype=bool)
         connected = np.zeros((n, n), dtype=bool)
         for (i, j), link in zip(self._pairs, links):
-            if not isinstance(link, list) or len(link) != 6 or not (
-                    _is_int(link[0]) and _is_int(link[1]) and (link[0], link[1]) == (i, j)):
-                raise PlannerError(f"{where}: link {link!r} is not [{i}, {j}, sinr_db, "
-                                   "capacity_mbps, is_los, connected]")
+            if (
+                not isinstance(link, list)
+                or len(link) != 6
+                or not (_is_int(link[0]) and _is_int(link[1]) and (link[0], link[1]) == (i, j))
+            ):
+                raise PlannerError(
+                    f"{where}: link {link!r} is not [{i}, {j}, sinr_db, "
+                    "capacity_mbps, is_los, connected]"
+                )
             if not (_is_finite(link[2]) and _is_finite(link[3])):
                 raise PlannerError(f"{where}: link ({i}, {j}) has a non-finite value")
             if not (isinstance(link[4], bool) and isinstance(link[5], bool)):
@@ -409,9 +562,18 @@ class ChannelScorer:
             connected[i, j] = connected[j, i] = link[5]
         if not _is_finite(entry.get("wall_s")):
             raise PlannerError(f"{where}: wall_s is not a finite number")
-        return LayoutResult(connected=connected, sinr_db=sinr, capacity_mbps=capacity,
-                            is_los=is_los, coverage=self._parse_coverage(entry, where),
-                            wall_s=float(entry["wall_s"]))
+        diagnostics = entry.get("diagnostics", [])
+        if not isinstance(diagnostics, list) or not all(isinstance(x, str) for x in diagnostics):
+            raise PlannerError(f"{where}: diagnostics must be a list of strings")
+        return LayoutResult(
+            connected=connected,
+            sinr_db=sinr,
+            capacity_mbps=capacity,
+            is_los=is_los,
+            coverage=self._parse_coverage(entry, where),
+            wall_s=float(entry["wall_s"]),
+            diagnostics=tuple(diagnostics),
+        )
 
     def _parse_coverage(self, entry: dict, where: str) -> list[list[int]] | None:
         coverage = entry.get("coverage")
@@ -425,9 +587,11 @@ class ChannelScorer:
         parsed = []
         for node, covered in enumerate(coverage):
             if not isinstance(covered, list) or not all(
-                    _is_int(k) and 0 <= k < count for k in covered):
-                raise PlannerError(f"{where}: coverage of node {node} has a probe index "
-                                   f"outside 0..{count - 1}")
+                _is_int(k) and 0 <= k < count for k in covered
+            ):
+                raise PlannerError(
+                    f"{where}: coverage of node {node} has a probe index " f"outside 0..{count - 1}"
+                )
             parsed.append(sorted(set(covered)))
         return parsed
 
@@ -458,8 +622,10 @@ class ChannelScorer:
             except BlockingIOError:
                 continue
             except OSError as exc:
-                raise PlannerError(f"channel query worker stopped reading ({exc}) before "
-                                   f"{what}; {self._worker_status()}") from exc
+                raise PlannerError(
+                    f"channel query worker stopped reading ({exc}) before "
+                    f"{what}; {self._worker_status()}"
+                ) from exc
             view = view[written:]
 
     def _read_line(self, deadline: float, limit: int, what: str) -> bytes:
@@ -471,7 +637,7 @@ class ChannelScorer:
                 if newline + 1 > limit:
                     break
                 line = bytes(self._buffer[:newline])
-                del self._buffer[:newline + 1]
+                del self._buffer[: newline + 1]
                 return line
             scanned = len(self._buffer)
             if scanned >= limit:
@@ -483,8 +649,10 @@ class ChannelScorer:
                 continue
             chunk = os.read(fd, READ_CHUNK_BYTES)
             if not chunk:
-                raise PlannerError(f"channel query worker ended before {what}; "
-                                   f"{self._worker_status()} (see the planner log)")
+                raise PlannerError(
+                    f"channel query worker ended before {what}; "
+                    f"{self._worker_status()} (see the planner log)"
+                )
             self._buffer += chunk
         raise PlannerError(f"{what} exceeds the {limit}-byte line limit")
 
@@ -507,8 +675,11 @@ class ChannelScorer:
         try:
             if graceful:
                 try:
-                    self._write(b'{"type":"shutdown"}\n',
-                                time.monotonic() + self._shutdown_grace_s, "shutdown")
+                    self._write(
+                        b'{"type":"shutdown"}\n',
+                        time.monotonic() + self._shutdown_grace_s,
+                        "shutdown",
+                    )
                 except PlannerError:
                     graceful = False
             try:

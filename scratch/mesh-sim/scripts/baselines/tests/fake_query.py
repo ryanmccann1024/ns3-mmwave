@@ -27,7 +27,8 @@ CONTRACT = "mesh_channel_query_v1"
 SINR_MIN_DB = -6.7
 MIB = 1024 * 1024
 LIMITS = {"max_layouts": 1024, "max_probes": 10000, "max_request_line_bytes": 16 * MIB,
-          "max_child_response_bytes": 16 * MIB, "child_deadline_s": 60.0}
+          "max_child_response_bytes": 16 * MIB, "child_deadline_s": 60.0,
+          "terminate_grace_s": 1.0, "max_response_bytes": 64 * MIB}
 CRASH_EXIT_CODE = 3
 GRANDCHILD = ("import signal, sys, time\n"
               "if sys.argv[1] == 'ignore':\n"
@@ -116,6 +117,12 @@ def _init(flags: dict) -> tuple[dict, list]:
         "tx_array_gain_dbi": float(_value(ini, "channel", "tx_array_gain_dbi", 12.0)),
         "rx_array_gain_dbi": float(_value(ini, "channel", "rx_array_gain_dbi", 12.0)),
     }
+    limits = dict(LIMITS)
+    if ini.has_section("channel_query"):
+        for key, raw in ini.items("channel_query"):
+            if key not in ("child_deadline_s", "terminate_grace_s", "max_child_response_bytes", "max_response_bytes"):
+                _die(f"unknown worker setting {key}")
+            limits[key] = float(raw) if key.endswith("_s") else int(raw)
     init = {
         "type": "init", "contract": CONTRACT, "isolation": "fork_per_layout",
         "node_ids": ids, "node_types": [e.get("node_type", "drone") for e in nodes],
@@ -127,7 +134,7 @@ def _init(flags: dict) -> tuple[dict, list]:
         "sinr_threshold_db": SINR_MIN_DB,
         "jammer_path_enabled": band == "sub-6" and bool(_value(ini, "scenario",
                                                                 "jammers_file")),
-        "num_buildings": num_buildings, "channel": channel, "limits": dict(LIMITS),
+        "num_buildings": num_buildings, "channel": channel, "limits": limits,
         "time_s": 0.0,
     }
     patch = os.environ.get("FAKE_QUERY_INIT_PATCH")
@@ -165,7 +172,8 @@ def _evaluate_layout(layout, nodes, init, probes, range_m) -> dict:
             coverage.append([k for k, (px, py) in enumerate(probes["points"])
                              if _sinr(math.dist(point, (px, py, probes["height_m"])),
                                       range_m) >= probes["sinr_db"]])
-    return {"links": links, "coverage": coverage, "wall_s": time.monotonic() - started}
+    return {"links": links, "coverage": coverage, "wall_s": time.monotonic() - started,
+            "diagnostics": json.loads(os.environ.get("FAKE_QUERY_DIAGNOSTICS", "[]"))}
 
 
 def _finite_number(value) -> bool:
