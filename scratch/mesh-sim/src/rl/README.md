@@ -20,46 +20,45 @@ For a code walkthrough, start with the tick loop in `sim.cc`, then
 `src/rl/rl-bridge.cc` for the messages, actions, and tick reward. Follow one
 `step` into `scripts/rl/env/mesh_env.py` to see what Gymnasium returns.
 
-The Python side is documented in [`scripts/rl/README.md`](../../scripts/rl/README.md),
-[`scripts/rl/env/README.md`](../../scripts/rl/env/README.md),
-[`scripts/rl/policy/README.md`](../../scripts/rl/policy/README.md), and
-[`scripts/rl/tests/README.md`](../../scripts/rl/tests/README.md). In short,
-`scripts/rl/env/mesh_env.py` owns the Gymnasium API,
-`protocol.py` validates actions and messages, and `episode.py` owns the
-simulator process, episode directories, diagnostics, and manifest.
+On the Python side, `scripts/rl/env/mesh_env.py` owns the Gymnasium API,
+`protocol.py` validates actions and messages, and `episode.py` owns simulator process cleanup and diagnostics;
+`episode_artifacts.py` owns episode directories, manifests, and telemetry lifecycle.
 `selection.py` resolves the observation/reward/telemetry selection and its
 precedence, and validates it. `observations.py` owns the named observation
 presets and their schema identity. `rewards.py` owns the reward components and
 the composer. `telemetry.py` owns `steps.jsonl` records and their replay.
-`decisions.py` writes the opt-in [decision records](decision-records.md).
-For training, follow [`train.py`](../../scripts/rl/train.py) (CLI and model
-output) into [`agents/mask_ppo.py`](../../scripts/rl/agents/mask_ppo.py)
+For training, follow [`train.py`](@ref rl/train.py) (CLI and model
+output) into [`agents/mask_ppo.py`](@ref agents/mask_ppo.py)
 (MaskablePPO setup), then into the environment. Within `env/`, `config.py`
 reads the seed and movement bounds.
 For a worked configuration, formulas, normalization, and trace inspection, see
 the [policy-input guide](policy-inputs.md).
 
-## Modes
+[`config.py`](../../scripts/rl/env/config.py) reads the seed and scenario fingerprints.
+On the C++ side, [`sim.cc`](../../sim.cc) advances the ticks and
+[`rl-bridge.cc`](rl-bridge.cc) exchanges observations, rewards, masks, and
+actions with Python.
 
-| Mode | Selected by | Action space | Stream |
-| --- | --- | --- | --- |
-| legacy | `[rl] controlled_node_id` (or neither selector) | `Discrete(7)`: `0:-X 1:+X 2:-Y 3:+Y 4:-Z 5:+Z 6:Stay`, absolute clamped target | one `step` line per tick, no `init` |
-| centralized | presence of `[rl] controlled_nodes` | `MultiDiscrete([5]*M)` | one `init` line, then one `step` line per decision |
+## Control configuration
 
-`controlled_node_id` and `controlled_nodes` are mutually exclusive. There is no
-automatic migration: legacy action `4` is `-Z`, centralized action `4` is hold.
-`action_set` and `dimensions` are not configuration keys.
+RL requires `[rl] controlled_nodes`: a comma-separated list of node IDs or
+`all`. One policy uses `MultiDiscrete([5]*M)`, including one-slot runs.
+`controlled_node_id`, `action_type`, and `arrival_threshold_m` are removed;
+active configurations using those keys fail with migration guidance. Replace
+the selector with `controlled_nodes` and use `action_profile = move_2d`.
+Scalar actions and continuous targets are unsupported; rebuild or retrain
+older policies rather than translating their action indices.
 
-## Centralized contract (`mesh_move_2d_v1`)
+## Centralized contract (`mesh_move_2d_v2`)
 
 Here, **contract** means the agreed C++/Python message and action format—not a
-radio link or a training objective. `mesh_move_2d_v1` identifies the current
+radio link or a training objective. `mesh_move_2d_v2` identifies the current
 two-dimensional, five-action-per-slot protocol. Python rejects an unknown
 contract name; it is reported by the simulator, not chosen in `run.ini`.
 
 | Item | Value |
 | --- | --- |
-| Slot order | resolved `controlled_nodes` order; `all` means every `nodes.json` entry in file order. Jammers are never controllable. |
+| Slot order | resolved `controlled_nodes` order; `all` means every `nodes.json` entry in file order. Jammers are never controllable. Selecting the active traffic gateway is an error, including via `all`; list the other nodes explicitly. |
 | Slots | A slot is a zero-based place in the agent's fixed-length action, mask, and observation arrays—not another network node. An active slot maps to one controlled node; an unused slot is padding and must hold. `M = max_controlled_nodes` (`0` auto-sizes). |
 | Action meanings | `0 west (-x)`, `1 east (+x)`, `2 south (-y)`, `3 north (+y)`, `4 hold`; z is never changed |
 | Hold | action `4` commands zero velocity until the next decision. The node stops moving; it does not repeat the previous direction. A node can also stop at a wall while a direction remains commanded. |
@@ -69,10 +68,26 @@ contract name; it is reported by the simulator, not chosen in `run.ini`.
 | Speed cap | `v_i = min(step_size_m / tick_s, MaxSpeedForType(node_type))`, fixed at construction and reported in `init.slot_speed_mps`. `step_size_m` is nominal movement **per simulator tick**, not per RL decision. |
 | Cadence | decisions at ticks `0, k, 2k, …` with `k = decision_interval_ticks`; velocities persist between decisions; physics still advances every `tick_s` |
 | Partial windows | `num_decisions = ceil(num_ticks / k)`; the last window may be shorter, and every `step` reports its `ticks_in_step` |
-| Reward window | `mean`: one policy reward is the arithmetic mean of the per-tick rewards since the previous decision; the last window can be shorter. |
+| Reward window | `mean`: one policy reward is the arithmetic mean of scored per-tick rewards since the previous decision; the last window can be shorter. |
 | Terminal message | emitted at `tick == num_ticks` with `done: true`; no action is read after it |
 
-### Reward and wall behavior
+### Reward and wall behavior {#src_rl_reward_and_wall}
+
+Decisions and movement start at tick zero. Rewards and summary metrics exclude
+ticks with `time_s < warmup_s`; the boundary tick is included. A decision
+window entirely within warmup returns zero reward. A window crossing the
+boundary averages only its scored ticks. `ticks_in_step` retains elapsed ticks;
+`scored_ticks` reports the mean's denominator. With `warmup_s = 0.3` and a
+first decision at `0.5 s`, ticks 3–5 are scored while ticks 1–2 are excluded.
+The `init` reports `warmup_s` and `reward_warmup = exclude`; version 2 makes
+this scoring change explicit and rejects version 1 clients/policies.
+Zero rewards still represent ordinary RL transitions: early actions can earn
+later rewards by improving the post-warmup state.
+
+Episode manifest version 5 records `scored_ticks` across returned Gymnasium
+steps, excluding the reset sample; summary metrics can include that tick-zero
+sample when warmup is zero. `cumulative_reward` sums decision means, so it is
+not the same quantity as an average or total of summary metric samples.
 
 At tick 0, the simulator evaluates links and traffic and sends an initial
 reward in the reset message; Gymnasium's `reset()` does **not** return that
@@ -84,10 +99,11 @@ path is line-of-sight, otherwise -1. At the next decision,
 `reward_window = mean` sends their arithmetic mean as **one** RL step reward.
 For three tick rewards `+1, -1, +1`,
 the decision reward is `+1/3`, not `+1` and not three separate agent steps.
-`ticks_in_step` gives the number averaged: usually `decision_interval_ticks`,
+`scored_ticks` gives the number averaged. With no warmup it equals
+`ticks_in_step`: usually `decision_interval_ticks`,
 but only the remaining ticks in a short final window.
 
-For `tick_s = 0.1`, `decision_interval_s = 0.5` (`k = 5`), and a 10-tick run:
+With `warmup_s = 0`, for `tick_s = 0.1`, `decision_interval_s = 0.5` (`k = 5`), and a 10-tick run:
 
 | Simulator ticks | What Python receives |
 | --- | --- |
@@ -154,7 +170,7 @@ ordinary dictionary, not a SHA hash or another configuration file.
 | Signature field | Meaning |
 | --- | --- |
 | `control_mode` | `centralized`; identifies the multi-node protocol (set by Python, not sent in `init`). |
-| `contract` | C++/Python protocol identifier; see [Centralized contract](#centralized-contract-mesh_move_2d_v1). |
+| `contract` | C++/Python protocol identifier; see [Centralized contract](#centralized-contract-mesh_move_2d_v2). |
 | `dimensions` | `2`: actions move horizontally; z can still appear in observations. |
 | `action_meanings` | Ordered meanings of actions 0–4: west, east, south, north, hold. |
 | `num_mesh_nodes` | Total mesh nodes `N` in `nodes.json`, including uncontrolled nodes but not jammers. |
@@ -170,7 +186,8 @@ ordinary dictionary, not a SHA hash or another configuration file.
 | `num_ticks` | Total simulator ticks in the episode. |
 | `num_decisions` | Number of decision windows, `ceil(num_ticks / k)`. |
 | `reward_type` | C++ reward selected by `[rl] reward_type`. |
-| `reward_window` | `mean`: one arithmetic mean over this decision's ticks; see [Reward and wall behavior](#reward-and-wall-behavior). |
+| `warmup_s`, `reward_warmup` | Configured cutoff and `exclude` scoring policy; decisions continue during warmup. |
+| `reward_window` | `mean`: one arithmetic mean over this decision's scored ticks; see [Reward and wall behavior](#reward-and-wall-behavior). |
 | `wall_policy` | `clip`: x/y movement lands at the bounds rather than crossing them; see [Reward and wall behavior](#reward-and-wall-behavior). |
 
 The `init` message also has `type: "init"` and `num_controlled`, the actual
@@ -179,7 +196,7 @@ number of active nodes (`num_controlled <= max_controlled_nodes`).
 facts, not additional `run.ini` settings.
 The signature also includes `type`, `facts_schema`, `facts_columns`,
 `node_ids`, `num_links`, `bounds`, `band`, `jammer_path_enabled`, and `warmup_s`
-(see [Per-decision facts](#per-decision-facts-mesh_facts_v1)). Padded entries
+(see [Per-decision facts](@ref src_rl_per_decision_facts)). Padded entries
 in `slot_node_ids` and `slot_speed_mps` are `null`.
 
 Each centralized `step` is a message from C++ to Python:
@@ -189,29 +206,25 @@ Each centralized `step` is a message from C++ to Python:
 | `type` | Always `step`. |
 | `tick`, `time_s` | Current tick number and simulated time in seconds; the reset message is tick 0. |
 | `decision` | Zero-based message/decision index; reset is 0, first action's result is 1. |
-| `ticks_in_step` | Number of tick rewards averaged into this message's `reward`; reset has 1. |
+| `ticks_in_step` | Elapsed simulator ticks in the window; reset has 1. |
+| `scored_ticks` | Ticks at or after warmup; reward is their mean, or zero if none. |
 | `obs` | Flat observation array in the slot layout above, length `obs_dim`. |
 | `mask` | Flat 0/1 valid-action array, five entries per slot, length `mask_dim`. |
-| `reward` | Mean reward across this message's ticks, as described above. |
+| `reward` | Mean reward across this message's scored ticks, as described above. |
 | `done` | Whether the episode reached its final tick; no action follows a true value. |
-| `revalidated_slots` | Zero-based positions from the previous action that C++ changed to hold; see [Invalid or missing actions](#invalid-or-missing-actions). |
+| `revalidated_slots` | Zero-based positions from the previous action that C++ changed to hold; see [Invalid or missing actions](@ref src_rl_invalid_actions). |
 | `facts` | Raw node, link, and window measurements described below. |
 
 Python replies with `{"action":[…]}`: exactly `M` integers in `[0,4]`, with
 `4` for every padded position.
 
-Legacy `step` remains unchanged: `type`, `tick`, `time_s`,
-`obs.{controlled_pos,link_sinrs,link_capacities}`, `reward`, `done`,
-`action_type`; its reply is `{"action":<int>}`.
-
 `time_s` is simulated time, never wall clock, so identical inputs give identical
 stdout.
 
-## Per-decision facts (`mesh_facts_v1`)
+## Per-decision facts (`mesh_facts_v2`)
 
 Every centralized `step` carries a `facts` object of raw simulator values; C++
-does no clipping, scaling, or feature selection. Legacy mode emits no facts and
-its stream is unchanged. `init.facts_schema = "mesh_facts_v1"` names this
+does no clipping, scaling, or feature selection. `init.facts_schema = "mesh_facts_v2"` names this
 schema, and `init.facts_columns` names the column order of both tables:
 
 | Table | Rows | Columns | Units |
@@ -226,14 +239,14 @@ appears once; the `-999` SINR sentinel is possible in principle and Python
 treats it as invalid. `init` also carries `node_ids` (the `N` ids in file
 order), `num_links`, the movement `bounds` (`x_min`…`z_max`), `band`,
 `jammer_path_enabled` (`band = sub-6` with at least one enabled jammer, exported
-as metadata only), and `warmup_s` (metadata: the RL reward does not skip warmup).
+as metadata only), and `warmup_s` (the scoring cutoff).
 
-`facts.window` holds sums over exactly the ticks of this decision window, the
-same window as `reward`:
+`facts.window` holds sums over scored ticks of this decision window, the
+same window as `reward`; ticks before warmup contribute no sums:
 
 | Field | Meaning |
 | --- | --- |
-| `ticks` | ticks in the window; equals `ticks_in_step` |
+| `scored_ticks` | ticks at or after warmup; equals step `scored_ticks` |
 | `demand_mbps_sum`, `delivered_mbps_sum` | Σ over ticks of Σ over flows (Mbps·tick) |
 | `flow_ticks_with_demand` | count of (tick, flow) pairs with `demand_mbps > 0` |
 | `unroutable_flow_ticks` | those of the above that were not routable; zero-demand flows are excluded because the router marks them unroutable |
@@ -241,18 +254,21 @@ same window as `reward`:
 | `los_pairs_sum` | Σ over ticks of the LOS pair count over `i<j` |
 | `legacy_reward_sum` | Σ of the per-tick `reward_type` value |
 
-Invariant: `reward == legacy_reward_sum / ticks` (`0.0` when `ticks == 0`), so
+Invariant: `reward == legacy_reward_sum / scored_ticks` (`0.0` when `scored_ticks == 0`), so
 the emitted `reward` is unchanged by the facts export. The reset message covers
-tick 0 only, so its window has `ticks = 1`; that reward is observable but is not
+tick 0 only, so its window has `scored_ticks = 1` only when warmup is zero; that reward is observable but is not
 a policy reward. C++ never emits NaN or infinity in `facts`.
 
-## Invalid or missing actions
+## Invalid or missing actions {#src_rl_invalid_actions}
 
-| Case | Centralized | Legacy |
-| --- | --- | --- |
-| EOF (stdin closed) | all slots hold for the rest of the episode, one `Warning: RL action stream closed; all controlled nodes hold.`; every tick and message still runs | Stay, one `Warning: RL action stream closed; holding position (Stay).` |
-| Structural error (bad JSON, not a list, wrong length, non-integer, out of range) | all slots hold, one `Warning: malformed RL joint action; all controlled nodes hold.` | Stay, one `Warning: malformed RL action JSON; holding position (Stay).` (a non-integer `action`, e.g. a list, is malformed rather than fatal) |
-| Semantic error (masked-out direction, non-hold in a padded slot) | only that slot holds, one `Warning: RL joint action revalidated; invalid slot actions replaced by hold.`, and the slot index appears in the next message's `revalidated_slots` | n/a |
+| Case | Result |
+| --- | --- |
+| EOF (stdin closed) | All slots hold for the rest of the episode; one warning; ticks and messages continue. |
+| Bad JSON/action shape, non-integer, out of range | All slots hold; one malformed-action warning. |
+| Masked direction or non-hold padding | Only invalid slots hold; one revalidation warning; indices appear in the next `revalidated_slots`. |
+
+Python rejects non-object JSON messages and invalid contracts/fields, then
+reaps the simulator and finalizes the episode as failed.
 
 `revalidated_slots` means **zero-based action positions**, not node IDs or a
 new set of controlled nodes. C++ replaces each invalid position with hold (`4`)
@@ -262,9 +278,9 @@ controlled nodes and a padded third position, `[2,1,0]` is executed as
 is empty for a deliberate hold, wall clipping during movement, or a malformed
 whole action (which makes all positions hold instead).
 
-A centralized run never accepts a scalar action; a legacy run never accepts a list.
+Every RL run requires a joint action list, including a single controlled node.
 
-## Compatibility envelope
+## Compatibility envelope {#src_rl_compatibility_envelope}
 
 A policy is structurally compatible with a run only when `contract`,
 `action_meanings`, `max_controlled_nodes` (→ `nvec`) and `num_mesh_nodes`
@@ -297,7 +313,7 @@ resets stay deterministic, but that alone does not make an RL-versus-baseline
 comparison fair: confirm uncontrolled and jammer randomness is paired before any
 such campaign.
 
-## Saved scenario identity
+## Saved scenario identity {#src_rl_saved_scenario_identity}
 
 Training writes `scenario_identity` in `train_manifest.json` with five fields
 (`read_scenario_identity` in `scripts/rl/env/config.py`): `run_config` is the
@@ -309,9 +325,19 @@ relative to `run.ini` unless already absolute, and defaults to `nodes.json`.
 These fingerprints do not change the simulation or the reward. The record does
 **not** fingerprint waypoints, a CLI band override, or the simulator binary
 (the band is compared separately in step 4 of the
-[compatibility envelope](#compatibility-envelope)). A matching identity is not
+[compatibility envelope](@ref src_rl_compatibility_envelope)). A matching identity is not
 proof that a model transfers. The selected node order and protocol settings are
 saved separately in the manifest's `contract` field.
 
 For the checklist when changing the protocol or saved-file format, see
-[`CONTRIBUTING.md`](../../CONTRIBUTING.md).
+@ref contribution.
+
+## Tests {#src_rl_tests}
+
+Test maps (inputs and expected outputs):
+
+- @ref src_rl_policy_input_tests -- centralized action contract, observations, rewards, telemetry.
+- @ref src_rl_policy_lifecycle_tests -- validate, train, inspect, evaluate.
+- @ref src_rl_policy_comparison_tests -- policy comparison, experiment matrix, evaluation pipeline.
+
+The test files live in [`scripts/rl/tests/`](@ref scripts_rl_tests).

@@ -33,7 +33,7 @@ Test maps: [lifecycle](../../../src/rl/policy-lifecycle-tests.md) and
 
 `read_bundle` refuses a run unless all of these hold:
 
-- `manifest_version` equals `MANIFEST_VERSION` in `bundle.py` (currently 4).
+- `manifest_version` equals `MANIFEST_VERSION` imported from `training_artifacts.py` (currently 6).
 - `status` is `completed`.
 - `control_mode` is `centralized`.
 - The chosen model file exists and its SHA-256 matches the digest in the manifest.

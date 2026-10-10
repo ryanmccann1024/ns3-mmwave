@@ -79,7 +79,7 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
   action/observation/reward semantics, output files, scenario identity), check
   the "update together" table in `CONTRIBUTING.md`. Bump the relevant
   `manifest_version` when a saved JSON schema changes; change the RL `contract`
-  name (`mesh_move_2d_v1`) only for incompatible protocol changes.
+  name (`mesh_move_2d_v2`) only for incompatible protocol changes.
 
 ## Documentation review guidelines
 

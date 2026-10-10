@@ -204,23 +204,24 @@ all other `[rl]` keys keep their existing meaning.
 
 | Key | Type / unit | Default | Mode |
 |---|---|---|---|
-| `controlled_nodes` | `all` or comma-separated node ids | absent (legacy mode) | centralized selector |
+| `controlled_nodes` | `all` or comma-separated node ids | required when RL is enabled | centralized selector |
 | `max_controlled_nodes` | int, slot count `M` | `0` (auto-size to the resolved count), max `64` | centralized |
 | `action_profile` | enum | `move_2d` (only accepted value) | centralized |
 | `decision_interval_s` | seconds | `0` (means `tick_s`); must be an integer multiple of `tick_s` | centralized |
 
-`controlled_nodes` and the legacy `controlled_node_id` are mutually exclusive:
-setting both is a configuration error. The legacy key keeps `Discrete(7)` with
-`6:Stay`; `controlled_nodes` opts into `MultiDiscrete([5]*M)` with `4:hold`.
+`controlled_nodes` selects `MultiDiscrete([5]*M)` with `4:hold`.
+Obsolete `controlled_node_id`, `action_type`, and `arrival_threshold_m` keys are
+configuration errors.
 
-`all` means every node listed in `nodes.json`, in file order. Jammers live in
+`all` selects eligible nodes in file order, excluding the active traffic gateway. Jammers live in
 `jammers.json`, are never mesh nodes, and can never be controlled — even if a
 jammer's `id` equals a node's `id`.
 
 In centralized mode `reward_type = all_links_los` is the conjunction over every
 controlled node (`+1` only if each one has at least one peer link and all of
 them are LOS), and the reward reported per decision is the mean of the per-tick
-rewards in that decision window.
+rewards over scored ticks in that decision window. Decisions continue during
+warmup; scoring starts at `time_s >= warmup_s`, and an unscored window returns zero.
 
 `action_set` and `dimensions` are **not** accepted keys. The loader ignores
 unknown keys silently, so either spelling has no effect; `dimensions` is
@@ -266,8 +267,9 @@ ignores them*. They apply to centralized mode only.
 
 Each key resolves independently with precedence CLI > `run.ini` > default, and
 both manifests record the resolved value and its source. An unknown preset or
-component, a weight count that does not match the components, or any non-default
-value of these keys in legacy mode fails before the simulator starts.
+component, a weight count that does not match the components, or invalid input
+parameters fails before the simulator starts. Configurable scales and thresholds
+are documented in [policy-inputs.md](src/rl/policy-inputs.md#configurable-service-and-geometry-inputs).
 
 Observation presets:
 

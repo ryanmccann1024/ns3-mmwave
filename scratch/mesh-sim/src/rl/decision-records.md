@@ -179,8 +179,8 @@ does not require adding its name to several decision-record tables.
 
 V2 also records `manifest.scoring` (`warmup_s`, `reward_warmup`, `reward_window`)
 when those fields are supplied by the validated simulator contract, and
-`outcome.scored_ticks` when supplied by its validated outcome. The older bridge
-on this review branch supplies neither, so they are null. Null means unknown,
+`outcome.scored_ticks` when supplied by its validated outcome. Current scored contracts supply these fields. Historical contracts can leave
+them null. Null means unknown,
 not zero warmup or an unscored window. A zero scored-tick count means that no
 time in that window contributed to scoring. `ticks_in_step` still describes
 elapsed simulation ticks, including decisions during warmup. Readers check
@@ -188,12 +188,9 @@ elapsed simulation ticks, including decisions during warmup. Readers check
 
 ### Downstream migration
 
-PR #24 expanded the frozen v1 reward-name tables. When updating that PR, preserve
-the historical v1 file and pin from here, use v2 for new records, and remove its
-duplicate v1 reward-name additions. Carry the upstream protocol/scoring changes
-through the review stack; do not infer scored time from the elapsed window.
-Update writer, schema validation, replay/reader expectations, documentation, and
-the GUI consumer together. The GUI consumer is outside this repository and must
+New reward components use the v2 extensible maps; historical v1 remains pinned.
+Do not infer scored time from the elapsed window. Update writer, schema
+validation, replay/reader expectations, documentation, and the GUI consumer together. The GUI consumer is outside this repository and must
 explicitly adopt the pinned v2 schema before reading these new records.
 
 ### Ownership and extension
