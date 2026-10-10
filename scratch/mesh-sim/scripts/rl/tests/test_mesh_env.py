@@ -3,6 +3,7 @@
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import subprocess
 import sys
@@ -28,8 +29,8 @@ tick_s = 0.1
 
 [rl]
 enabled = true
-controlled_node_id = relay
-action_type = discrete
+controlled_nodes = node-a
+action_profile = move_2d
 reward_type = all_links_los
 step_size_m = 5.0
 """
@@ -48,7 +49,6 @@ controlled_nodes = node-b, node-c
 max_controlled_nodes = 3
 action_profile = move_2d
 decision_interval_s = 0.5
-action_type = discrete
 reward_type = all_links_los
 step_size_m = 1.0
 x_min = 0.0
@@ -110,7 +110,7 @@ def test_two_resets_allocate_distinct_episodes(sim_binary, run_config, tmp_path)
     for manifest in (first, second):
         assert manifest["seed"] == 1
         assert manifest["seed_source"] == "run.ini"
-        assert manifest["manifest_version"] == 1
+        assert manifest["manifest_version"] == 4
     for index in (0, 1):
         manifest = _episode_manifest(out_dir, index)
         assert manifest["status"] == "interrupted"
@@ -122,7 +122,7 @@ def test_done_episode_is_completed(sim_binary, run_config, tmp_path):
     env = MeshRlEnv(sim_binary, run_config, output_dir=str(out_dir))
     env.reset()
     for _ in range(4):
-        _, _, done, _, _ = env.step(6)
+        _, _, done, _, _ = env.step([4])
     assert done
     env.close()
     manifest = _episode_manifest(out_dir, 0)
@@ -162,31 +162,16 @@ def test_missing_seed_is_rejected(sim_binary, tmp_path):
 
 
 @pytest.mark.parametrize("marker", ["#", ";"])
-def test_seed_and_bounds_strip_inline_comments(sim_binary, run_config, tmp_path, marker):
+def test_seed_strips_inline_comments(sim_binary, run_config, tmp_path, marker):
     path = Path(run_config)
-    path.write_text(RUN_INI.replace("seed = 1", f"seed = 1{marker}seed note") +
-                    f"x_min = -10{marker}low\nx_max = 10 {marker}high\n"
-                    f"y_min = -20{marker}low\ny_max = 20 {marker}high\n"
-                    f"z_min = 0{marker}low\nz_max = 30 {marker}high\n")
+    path.write_text(RUN_INI.replace("seed = 1", f"seed = 1{marker}seed note"))
     env = MeshRlEnv(sim_binary, run_config, output_dir=str(tmp_path / "train"))
     env.reset()
     assert env.seed_value == 1
-    assert env._x_range == (-10.0, 10.0)
-    assert env._y_range == (-20.0, 20.0)
-    assert env._z_range == (0.0, 30.0)
     env.close()
 
 
 # 3. Protocol failures -----------------------------------------------------------
-
-def test_partial_bounds_override_one_endpoint(tmp_path):
-    from scripts.rl.env.config import read_rl_bounds
-
-    ini = tmp_path / "run.ini"
-    ini.write_text("[rl]\nx_min = -10 # one endpoint only\n")
-    assert read_rl_bounds(str(ini)) == (
-        (-10.0, 2000.0), (-1000.0, 1000.0), (0.0, 100.0)
-    )
 
 def test_premature_exit_reports_code_and_stderr(sim_binary, run_config, tmp_path,
                                                 monkeypatch):
@@ -194,7 +179,7 @@ def test_premature_exit_reports_code_and_stderr(sim_binary, run_config, tmp_path
     env = MeshRlEnv(sim_binary, run_config, output_dir=str(tmp_path / "train"))
     env.reset()
     with pytest.raises(RuntimeError) as err:
-        env.step(6)
+        env.step([4])
     message = str(err.value)
     assert "exit code 3" in message
     assert "fake-sim: simulated fatal error" in message
@@ -206,9 +191,9 @@ def test_malformed_output_reports_line_and_text(sim_binary, run_config, tmp_path
     env = MeshRlEnv(sim_binary, run_config, output_dir=str(tmp_path / "train"))
     env.reset()
     with pytest.raises(RuntimeError) as err:
-        env.step(6)
+        env.step([4])
     message = str(err.value)
-    assert "message line 2" in message
+    assert "message line 3" in message
     assert "this is not json {" in message
 
 
@@ -224,16 +209,11 @@ def test_band_flag_forwarding(sim_binary, run_config, tmp_path, band):
     assert flags == ([f"--band={band}"] if band else [])
 
 
-def test_bound_defaults_match_cpp_and_mask_z(sim_binary, run_config, tmp_path):
+def test_mask_is_taken_from_protocol(sim_binary, run_config, tmp_path):
     env = MeshRlEnv(sim_binary, run_config, output_dir=str(tmp_path / "train"))
     env.reset()
-    assert env._x_range == (-1000.0, 2000.0)
-    assert env._y_range == (-1000.0, 1000.0)
-    assert env._z_range == (0.0, 100.0)
-
-    mask = env.action_masks()
-    assert not mask[4]      # at z_min -> -Z illegal
-    assert mask[5] and mask[6]
+    assert env.action_masks().shape == (5,)
+    assert env.action_masks()[4]
     env.close()
 
 
@@ -338,13 +318,13 @@ def test_centralized_spaces_contract_and_padding(sim_binary, multi_run_config, t
     assert obs.shape == (24,) and obs.dtype == np.float64
 
     contract = env.contract
-    assert contract["contract"] == "mesh_move_2d_v1"
+    assert contract["contract"] == "mesh_move_2d_v2"
     assert contract["slot_node_ids"] == ["node-b", "node-c", None]
     assert (contract["obs_dim"], contract["mask_dim"]) == (24, 15)
     assert (contract["num_ticks"], contract["decision_interval_ticks"],
             contract["num_decisions"]) == (10, 5, 2)
 
-    assert info == {"tick": 0, "time_s": 0.0, "decision": 0, "ticks_in_step": 1,
+    assert info == {"tick": 0, "time_s": 0.0, "decision": 0, "ticks_in_step": 1, "scored_ticks": 1,
                     "revalidated_slots": []}
     assert list(obs[16:24]) == [0.0] * 8               # padded slot is all zeros
     mask = env.action_masks()
@@ -376,7 +356,7 @@ def test_centralized_joint_action_is_forwarded(sim_binary, multi_run_config, tmp
     assert (obs[1], obs[2]) == (100.0, -5.0)
     assert (obs[9], obs[10]) == (100.0, 50.0)
     assert list(obs[16:24]) == [0.0] * 8
-    assert info == {"tick": 5, "time_s": 0.5, "decision": 1, "ticks_in_step": 5,
+    assert info == {"tick": 5, "time_s": 0.5, "decision": 1, "ticks_in_step": 5, "scored_ticks": 5,
                     "revalidated_slots": []}
     assert reward == 1.0 and not terminated and not truncated
 
@@ -411,16 +391,19 @@ def test_centralized_masked_random_run_completes(sim_binary, multi_run_config, t
 
     env.close()
     manifest = _episode_manifest(out_dir, 0)
-    assert manifest["manifest_version"] == 3
+    assert manifest["manifest_version"] == 4
     assert manifest["status"] == "completed" and manifest["exit_code"] == 0
     assert manifest["control_mode"] == "centralized"
-    assert manifest["contract"]["contract"] == "mesh_move_2d_v1"
+    assert manifest["contract"]["contract"] == "mesh_move_2d_v2"
     assert manifest["decisions"] == 2 and manifest["last_tick"] == 10
     assert manifest["stop_reason"] == "done" and manifest["escalation"] == "exited"
 
 
 @pytest.mark.parametrize("mode,pattern", [
     ("bad_contract", "Unknown init contract"),
+    ("old_contract", "Unknown init contract"),
+    ("warmup_overflow", "warmup_s/tick_s exceeds"),
+    ("bad_scored_ticks", "scored_ticks"),
     ("bad_meanings", "action_meanings"),
     ("bad_counts", "num_controlled"),
     ("bad_obs_len", "obs length 23 != obs_dim 24"),
@@ -461,13 +444,58 @@ def test_reset_signature_drift_fails_before_replacing_spaces(sim_binary,
     env.close()
 
 
-def test_reset_mode_drift_is_rejected(sim_binary, multi_run_config, tmp_path):
+def test_legacy_stream_is_rejected(sim_binary, multi_run_config, tmp_path, monkeypatch):
+    monkeypatch.setenv("FAKE_SIM_MODE", "legacy_stream")
+    env = _multi_env(sim_binary, multi_run_config, tmp_path)
+    with pytest.raises(RuntimeError, match="legacy control is unsupported"):
+        env.reset()
+    assert env._proc is None
+    assert _episode_manifest(tmp_path / "train", 0)["status"] == "failed"
+
+
+@pytest.mark.parametrize("mode", ["root_array", "root_null", "root_number", "root_string"])
+def test_non_object_first_message_finalizes_episode(sim_binary, multi_run_config,
+                                                  tmp_path, monkeypatch, mode):
+    monkeypatch.setenv("FAKE_SIM_MODE", mode)
+    env = _multi_env(sim_binary, multi_run_config, tmp_path)
+    with pytest.raises(RuntimeError, match="must be a JSON object"):
+        env.reset()
+    manifest = _episode_manifest(tmp_path / "train", 0)
+    assert env._proc is None and _drain_threads() == []
+    assert manifest["status"] == "failed" and manifest["exit_code"] is not None
+    assert manifest["manifest_version"] == 4 and manifest["contract"] is None
+    env.close()
+    assert _episode_manifest(tmp_path / "train", 0)["status"] == "failed"
+
+
+def test_non_object_step_finalizes_episode(sim_binary, multi_run_config,
+                                         tmp_path, monkeypatch):
+    monkeypatch.setenv("FAKE_SIM_MODE", "step_array")
     env = _multi_env(sim_binary, multi_run_config, tmp_path)
     env.reset()
-    Path(multi_run_config).write_text(RUN_INI)
-    with pytest.raises(RuntimeError, match="control_mode"):
-        env.reset()
-    assert isinstance(env.action_space, gymnasium.spaces.MultiDiscrete)
+    with pytest.raises(RuntimeError, match="must be a JSON object"):
+        env.step([4, 4, 4])
+    assert env._proc is None and _drain_threads() == []
+    assert _episode_manifest(tmp_path / "train", 0)["status"] == "failed"
+
+
+@pytest.mark.parametrize("warmup,counts", [(0.0, [1, 5, 5]), (0.3, [0, 3, 5]),
+                                         (0.5, [0, 1, 5]), (0.7, [0, 0, 4])])
+def test_warmup_metadata_and_rewards(sim_binary, multi_run_config, tmp_path, warmup, counts):
+    path = Path(multi_run_config)
+    path.write_text(MULTI_RUN_INI.replace("tick_s = 0.1", f"tick_s = 0.1\nwarmup_s = {warmup}"))
+    env = _multi_env(sim_binary, multi_run_config, tmp_path)
+    _, info = env.reset()
+    assert env.contract["warmup_s"] == warmup
+    assert env.contract["reward_warmup"] == "exclude"
+    assert info["scored_ticks"] == counts[0]
+    for count in counts[1:]:
+        _, reward, _, _, info = env.step([4, 4, 4])
+        assert info["scored_ticks"] == count
+        assert info["ticks_in_step"] == 5
+        assert reward == (1.0 if count else 0.0)
+    manifest = _episode_manifest(tmp_path / "train", 0)
+    assert manifest["scored_ticks"] == sum(counts[1:])
     env.close()
 
 
@@ -583,10 +611,10 @@ def test_centralized_tiny_training_run(sim_binary, multi_run_config, tmp_path,
     assert train.main() == 0
 
     manifest = json.loads((out_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 3
+    assert manifest["manifest_version"] == 4
     assert manifest["status"] == "completed"
     assert manifest["control_mode"] == "centralized"
-    assert manifest["contract"]["contract"] == "mesh_move_2d_v1"
+    assert manifest["contract"]["contract"] == "mesh_move_2d_v2"
     assert manifest["contract"]["max_controlled_nodes"] == 3
 
     identity = manifest["scenario_identity"]
@@ -600,7 +628,7 @@ def test_centralized_tiny_training_run(sim_binary, multi_run_config, tmp_path,
     assert episodes
     for path in episodes:
         episode = json.loads(path.read_text())
-        assert episode["manifest_version"] == 3, path
+        assert episode["manifest_version"] == 4, path
         assert episode["status"] in ("completed", "interrupted"), path
         if episode["status"] == "completed":
             assert episode["decisions"] == 2 and episode["exit_code"] == 0, path
@@ -632,7 +660,7 @@ def test_training_failure_closes_the_environment(sim_binary, multi_run_config,
 
 
 def test_episode_allocation_scans_existing_directories_once(tmp_path, monkeypatch):
-    from scripts.rl.env.episode import EpisodeSession
+    from scripts.rl.env.episode_artifacts import EpisodeArtifacts
 
     (tmp_path / "episode-0007").mkdir()
     (tmp_path / "episode-10000").mkdir()
@@ -645,9 +673,9 @@ def test_episode_allocation_scans_existing_directories_once(tmp_path, monkeypatc
         return original_iterdir(path)
 
     monkeypatch.setattr(Path, "iterdir", counted_iterdir)
-    session = EpisodeSession("sim", "run.ini", tmp_path, None)
-    first, first_index = session._allocate_episode_dir()
-    second, second_index = session._allocate_episode_dir()
+    artifacts = EpisodeArtifacts(tmp_path)
+    first, first_index = artifacts.allocate()
+    second, second_index = artifacts.allocate()
 
     assert (first.name, first_index) == ("episode-10001", 10001)
     assert (second.name, second_index) == ("episode-10002", 10002)
@@ -832,7 +860,7 @@ def test_training_records_selection_and_schema_hashes(sim_binary, multi_run_conf
     assert train.main() == 0
 
     manifest = json.loads((out_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 3
+    assert manifest["manifest_version"] == 4
     selection = manifest["selection"]
     assert selection["observation_preset"] == "local_links_v1"
     assert selection["reward_components"] == ["delivery_ratio", "connectivity"]
@@ -848,7 +876,7 @@ def test_training_records_selection_and_schema_hashes(sim_binary, multi_run_conf
     assert episodes
     for path in episodes:
         episode = json.loads(path.read_text())
-        assert episode["manifest_version"] == 3, path
+        assert episode["manifest_version"] == 4, path
         assert episode["observation_schema_sha256"] == obs_sha, path
         assert episode["reward_schema_sha256"] == reward_sha, path
         header = json.loads((path.parent / "steps.jsonl").read_text().splitlines()[0])
@@ -875,3 +903,116 @@ def test_default_selection_telemetry_replays_via_raw_links(sim_binary, multi_run
     summary = replay_file(out_dir / "episode-0000" / "steps.jsonl")
     assert (summary.obs_mismatches, summary.reward_mismatches) == (0, 0)
     assert _episode_manifest(out_dir, 0)["reward_components_sum"] == {}
+
+
+@pytest.mark.parametrize("warmup,scored", [(0.3, [0, 3, 5]), (0.8, [0, 0, 3])])
+def test_composed_rewards_and_replay_use_scored_ticks(sim_binary, multi_run_config,
+                                                      tmp_path, warmup, scored):
+    from scripts.rl.env.selection import resolve_selection
+    from scripts.rl.env.telemetry import replay_file
+    path = Path(multi_run_config)
+    path.write_text(MULTI_RUN_INI.replace("tick_s = 0.1", f"tick_s = 0.1\nwarmup_s = {warmup}"))
+    selection = resolve_selection(str(path), reward_components="delivery_ratio,connectivity,throughput_mbps,legacy",
+                                  telemetry="steps")
+    env = MeshRlEnv(sim_binary, str(path), output_dir=str(tmp_path / "train"), selection=selection)
+    try:
+        _, info = env.reset()
+        assert info["scored_ticks"] == scored[0]
+        for count in scored[1:]:
+            _, reward, _, _, info = env.step([4, 4, 4])
+            assert info["scored_ticks"] == count
+            assert reward == pytest.approx(17.5 if count else 0.0)
+            assert set(info["reward"]["valid"].values()) == {int(count > 0)}
+    finally:
+        env.close()
+    trace = tmp_path / "train" / "episode-0000" / "steps.jsonl"
+    summary = replay_file(trace)
+    assert summary.records == 3 and summary.obs_mismatches == summary.reward_mismatches == 0
+    records = [json.loads(line) for line in trace.read_text().splitlines()[1:]]
+    assert [r["facts"]["window"]["scored_ticks"] for r in records] == scored
+    assert [r["ticks_in_step"] for r in records] == [1, 5, 5]
+    assert _episode_manifest(tmp_path / "train", 0)["scored_ticks"] == sum(scored[1:])
+
+
+def test_reward_overflow_reaps_child_and_finalizes_episode(sim_binary, multi_run_config, tmp_path):
+    from scripts.rl.env.selection import resolve_selection
+    selection = resolve_selection(multi_run_config, reward_components="delivery_ratio,connectivity",
+                                  reward_weights="1.7e308,1.7e308")
+    env = MeshRlEnv(sim_binary, multi_run_config, output_dir=str(tmp_path / "train"), selection=selection)
+    try:
+        env.reset()
+        proc = env._proc
+        with pytest.raises(RuntimeError, match="composed reward is not finite"):
+            env.step([4, 4, 4])
+        assert proc.poll() is not None and env._proc is None
+        assert _drain_threads() == []
+        manifest = _episode_manifest(tmp_path / "train", 0)
+        assert manifest["status"] == "failed" and "not finite" in manifest["error"]
+    finally:
+        env.close()
+
+
+@pytest.mark.parametrize("when", ["reset", "step", "close"])
+def test_telemetry_io_failure_reaps_child(sim_binary, multi_run_config, tmp_path, monkeypatch, when):
+    from scripts.rl.env.selection import resolve_selection
+    from scripts.rl.env.telemetry import StepRecorder
+    selection = resolve_selection(multi_run_config, telemetry="steps")
+    env = MeshRlEnv(sim_binary, multi_run_config, output_dir=str(tmp_path / "train"), selection=selection)
+    def fail(*args):
+        raise OSError("trace storage failed")
+    try:
+        if when == "reset":
+            monkeypatch.setattr(StepRecorder, "write_header", fail)
+            with pytest.raises(RuntimeError, match="trace storage failed"):
+                env.reset()
+        else:
+            env.reset()
+            proc = env._proc
+            if when == "step":
+                monkeypatch.setattr(StepRecorder, "append", fail)
+                with pytest.raises(RuntimeError, match="trace storage failed"):
+                    env.step([4, 4, 4])
+            else:
+                recorder = env._session._artifacts._recorder
+                handle = recorder._handle
+                class BrokenHandle:
+                    def flush(self):
+                        raise OSError("trace storage failed")
+                    def close(self):
+                        handle.close()
+                recorder._handle = BrokenHandle()
+                with pytest.raises(OSError, match="trace storage failed"):
+                    env.close()
+                assert handle.closed
+            assert proc.poll() is not None
+        assert env._proc is None and _drain_threads() == []
+        assert _episode_manifest(tmp_path / "train", 0)["status"] == "failed"
+    finally:
+        env.close()
+
+
+@pytest.mark.parametrize("field", ["total", "components"])
+def test_aggregate_reward_overflow_preserves_failed_manifest(sim_binary, multi_run_config,
+                                                            tmp_path, monkeypatch, field):
+    from dataclasses import replace
+    from scripts.rl.env.rewards import COMPONENTS
+    from scripts.rl.env.selection import resolve_selection
+    if field == "components":
+        component = replace(COMPONENTS["legacy"], _value=lambda *args: (1.7e308, True))
+        monkeypatch.setitem(COMPONENTS, "legacy", component)
+    selection = resolve_selection(multi_run_config, reward_components="legacy",
+                                  reward_weights="1.7e308" if field == "total" else "0.0")
+    env = MeshRlEnv(sim_binary, multi_run_config, output_dir=str(tmp_path / "train"), selection=selection)
+    try:
+        env.reset()
+        proc = env._proc
+        env.step([4, 4, 4])
+        with pytest.raises(RuntimeError, match="Episode reward totals must remain finite"):
+            env.step([4, 4, 4])
+        assert proc.poll() is not None and env._proc is None
+        manifest = _episode_manifest(tmp_path / "train", 0)
+        assert manifest["status"] == "failed" and manifest["steps"] == 1
+        assert math.isfinite(manifest["cumulative_reward"])
+        assert all(math.isfinite(v) for v in manifest["reward_components_sum"].values())
+    finally:
+        env.close()

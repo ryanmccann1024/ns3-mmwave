@@ -83,11 +83,8 @@ human-owned and was deliberately not edited when centralized control was
 added; the line should be added by its owner. Owner: team — status: open.
 
 ### Continuous Desired-Position Actions with SB3
-The discrete left/right/stay action space is a v0 simplification. The
-continuous action type (`action_type = continuous`) is already implemented
-and outputs absolute target (x, y) coordinates. Next step: integrate
-Stable Baselines 3 (PPO/SAC) using the Gymnasium env which already supports
-both discrete and continuous spaces.
+Continuous control needs a separate action profile, protocol version, and
+verified Python/C++ implementation before it can be enabled.
 
 ### Richer Reward Shaping
 Currently supports `throughput` (sum delivered_mbps) and `all_links_los`
@@ -96,15 +93,14 @@ throughput, fairness (min-link capacity), latency, coverage area, or energy
 cost.
 
 ### 3D Movement for Drones
-The discrete action space already includes +/-Z alongside +/-X, +/-Y and Stay;
-the continuous action type still emits a 2-D target only. Remaining work:
+Current control moves only in x/y. Future 3D support needs
 per-node-type constraints so aerial nodes (drones) control altitude while
 ground nodes (vehicles, pedestrians) stay 2-D constrained, and a verified 3-D
 continuous action space.
 
 ### Larger Discrete Action Spaces
 Add 4-direction (up/down in y-axis) and 8-direction (diagonals) as
-additional `action_type` options.
+additional versioned action profiles.
 
 ### TODO-RL-SEEDS-1 — Multi-seed training policy
 P0 trains with one fixed seed (`m-ppo --seed`, else `[scenario] seed`) reused by
@@ -140,27 +136,9 @@ infer answers from the code.
   jammer trajectory, and should it become waypoints or another recorded-motion
   form?
   Owner: team/Kyle/jammer developer — status: open.
-- **TODO-JAM-5 — Receive antenna effects.** Should the receiving node's antenna
-  direction/gain alter jammer interference, in addition to the jammer's own
-  pointing direction?
-  Owner: team/Kyle/jammer developer — status: open.
 - **TODO-JAM-6 — Duty cycle.** Should constant and random jammers keep
   interpreting duty cycle differently?
   Owner: team/Kyle/jammer developer — status: open.
-
-## Data provenance
-
-### TODO-DATA-1 — EW-trials source table and generated jammers.json
-No EW-trials source CSV and no field-generated `jammers.json` exist anywhere
-under `scratch/mesh-sim/`. The synthetic
-`inputs/baselines/p0-jammer-smoke/jammers.json` is P0's only jammer coverage and
-is not field data. `scripts/validation/make_jammers.py` is the generator: it
-reads an EW trial log CSV plus a scenario's `gps_all_nodes_trace.csv` and emits
-a `jammers.json` aligned to that scenario, but no input table for it is present
-here. Identify the owner and location of the real EW trials table, confirm how
-it drives `make_jammers.py`, and decide whether generated jammer input belongs
-in `inputs/calfex/` or stays local.
-Owner: team — status: open.
 
 ## Beam Codebook Model
 

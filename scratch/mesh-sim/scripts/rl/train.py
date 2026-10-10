@@ -107,7 +107,7 @@ def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
         manifest["contract"] = env.contract
         if env.control_mode == "centralized":
             manifest.update({
-                "manifest_version": 3,
+                "manifest_version": 4,
                 "selection": selection.describe(),
                 "observation_schema": env.observation_schema,
                 "reward_schema": env.reward_schema,

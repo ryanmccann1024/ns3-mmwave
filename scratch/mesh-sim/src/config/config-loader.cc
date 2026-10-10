@@ -309,8 +309,6 @@ ConfigLoader::Load(const std::string& run_config_path,
 
     // [rl] — reinforcement learning config
     cfg.rl.enabled              = iniGetBool(ini, "rl", "enabled", false);
-    cfg.rl.controlled_node_id   = iniGet(ini, "rl", "controlled_node_id", "");
-    cfg.rl.action_type          = iniGet(ini, "rl", "action_type", "discrete");
     cfg.rl.reward_type          = iniGet(ini, "rl", "reward_type", "throughput");
     if (cfg.rl.reward_type == "mean_sinr")
     {
@@ -318,7 +316,6 @@ ConfigLoader::Load(const std::string& run_config_path,
         cfg.rl.reward_type_alias = "mean_sinr";
     }
     cfg.rl.step_size_m          = std::stod(iniGet(ini, "rl", "step_size_m", "50.0"));
-    cfg.rl.arrival_threshold_m  = std::stod(iniGet(ini, "rl", "arrival_threshold_m", "1.0"));
     cfg.rl.x_min                = std::stod(iniGet(ini, "rl", "x_min", "-1000.0"));
     cfg.rl.x_max                = std::stod(iniGet(ini, "rl", "x_max", "2000.0"));
     cfg.rl.y_min                = std::stod(iniGet(ini, "rl", "y_min", "-1000.0"));
@@ -326,7 +323,15 @@ ConfigLoader::Load(const std::string& run_config_path,
     cfg.rl.z_min		= std::stod(iniGet(ini, "rl", "z_min", "0.0"));
     cfg.rl.z_max		= std::stod(iniGet(ini, "rl", "z_max", "100.0"));
 
-    // Key presence (not its value) selects centralized multi-node control.
+    for (const auto& key : {"controlled_node_id", "action_type", "arrival_threshold_m"})
+    {
+        if (ini.count("rl") && ini.at("rl").count(key))
+        {
+            cfg.rl.unsupported_keys.push_back(key);
+        }
+    }
+
+    // Require an explicit selection when RL is enabled.
     cfg.rl.controlled_nodes     = iniGet(ini, "rl", "controlled_nodes", "");
     cfg.rl.controlled_nodes_set =
         ini.count("rl") != 0 && ini.at("rl").count("controlled_nodes") != 0;

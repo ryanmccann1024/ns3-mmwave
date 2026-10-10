@@ -7,6 +7,9 @@ against an ns-3 propagation model, routes traffic, and writes metrics. It also
 supports an optional reinforcement-learning bridge and an optional jammer /
 interference model.
 
+For changes to configuration, the RL protocol, or saved results, see the
+[contributor checklist](CONTRIBUTING.md).
+
 @section build Build
 
 All commands run from the **ns3-mmwave repo root** (two levels above this directory).
@@ -167,7 +170,8 @@ can instead compose the reward from named components — see
 ### MaskablePPO smoke run
 
 Run from `scratch/mesh-sim/`, with global options before the `m-ppo`
-subcommand:
+subcommand. For a quick tour of the RL files, see the
+[RL code map](scripts/rl/README.md).
 
 ```bash
 .venv/bin/python -m scripts.rl.train \
@@ -185,30 +189,32 @@ if the output directory already contains `train_manifest.json` or
 
 ### Centralized multi-node control
 
-Setting `[rl] controlled_nodes` switches the bridge from the legacy
-single-node mode to centralized mode, where one MaskablePPO policy moves a
-fixed set of mesh nodes. The keys below apply only when `[rl] enabled = true`;
-all other `[rl]` keys keep their existing meaning.
+RL uses one MaskablePPO policy to move a selected set of mesh nodes in 2D.
+The keys below apply when `[rl] enabled = true` or `--rl-mode` is passed.
 
 | Key | Type / unit | Default | Mode |
 |---|---|---|---|
-| `controlled_nodes` | `all` or comma-separated node ids | absent (legacy mode) | centralized selector |
+| `controlled_nodes` | `all` or comma-separated node ids | required when enabled | centralized selector |
 | `max_controlled_nodes` | int, slot count `M` | `0` (auto-size to the resolved count), max `64` | centralized |
 | `action_profile` | enum | `move_2d` (only accepted value) | centralized |
 | `decision_interval_s` | seconds | `0` (means `tick_s`); must be an integer multiple of `tick_s` | centralized |
 
-`controlled_nodes` and the legacy `controlled_node_id` are mutually exclusive:
-setting both is a configuration error. The legacy key keeps `Discrete(7)` with
-`6:Stay`; `controlled_nodes` opts into `MultiDiscrete([5]*M)` with `4:hold`.
+`controlled_node_id`, `action_type`, and `arrival_threshold_m` are unsupported.
+Use `controlled_nodes` even for one node; actions use `MultiDiscrete([5]*M)`
+with `4:hold`. Continuous and 3D control are unsupported.
 
-`all` means every node listed in `nodes.json`, in file order. Jammers live in
+`all` means every node listed in `nodes.json`, in file order. If
+`traffic.flow_topology = gateway`, selecting `traffic.gateway_node_id` is an
+error, including via `all`; list the other nodes explicitly. Jammers live in
 `jammers.json`, are never mesh nodes, and can never be controlled — even if a
 jammer's `id` equals a node's `id`.
 
 In centralized mode `reward_type = all_links_los` is the conjunction over every
 controlled node (`+1` only if each one has at least one peer link and all of
 them are LOS), and the reward reported per decision is the mean of the per-tick
-rewards in that decision window.
+rewards at or after `[scenario] warmup_s` in that decision window. Decisions
+continue during warmup; windows with no scored ticks return zero. The
+`mesh_move_2d_v2` contract records the cutoff and scored tick count.
 
 `action_set` and `dimensions` are **not** accepted keys. The loader ignores
 unknown keys silently, so either spelling has no effect; `dimensions` is
@@ -254,8 +260,8 @@ ignores them*. They apply to centralized mode only.
 
 Each key resolves independently with precedence CLI > `run.ini` > default, and
 both manifests record the resolved value and its source. An unknown preset or
-component, a weight count that does not match the components, or any non-default
-value of these keys in legacy mode fails before the simulator starts.
+component, or a weight count that does not match the components fails before
+the simulator starts. RL requires centralized control, including one-slot runs.
 
 Observation presets:
 
@@ -351,12 +357,14 @@ From `scratch/mesh-sim/tests/`:
 
 ```bash
 make test                                   # standalone unit tests
-MESH_SIM_BIN=<BIN> make integration         # 8 real-binary CLI contracts
+MESH_SIM_BIN=<BIN> make integration         # 9 real-binary CLI contracts
 ```
 
 `make test` stops at the first failing suite. To inspect every suite despite a
 failure, run `make -C unit/config test`, `make -C unit/eval test`,
 `make -C unit/routing test`, and `make -C unit/traffic test` separately.
+The [RL test map](scripts/rl/tests/README.md) lists each centralized-control
+test, its input, and its expected output.
 
 For a quick check without cloud reference data, run two tiny synthetic
 simulations and check output contracts and same-seed repeatability:
