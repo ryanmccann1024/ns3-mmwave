@@ -29,13 +29,19 @@ def package_versions() -> dict:
     return versions
 
 
-def make_out_dir(output_dir: str) -> str:
+def resolve_out_dir(output_dir: str) -> str:
+    """Choose an output path without creating it."""
     if output_dir:
         out_dir = output_dir
     else:
         now = datetime.now()
         out_dir = os.path.join("outputs", now.strftime("%Y-%m"),
                                now.strftime("%d"), now.strftime("%H-%M-%S"))
+    return out_dir
+
+
+def make_out_dir(output_dir: str) -> str:
+    out_dir = resolve_out_dir(output_dir)
     os.makedirs(out_dir, exist_ok=True)
     return out_dir
 
@@ -52,17 +58,15 @@ def sha256_file(path) -> str:
 
 
 def write_json(path, payload) -> None:
-    """Write JSON atomically so a reader never sees a half-written manifest."""
     path = Path(path)
-    temp = path.with_name(path.name + ".tmp")
+    temporary = path.with_name(path.name + ".tmp")
     try:
-        with open(temp, "w") as fh:
+        with open(temporary, "w") as fh:
             json.dump(payload, fh, indent=2, allow_nan=False)
             fh.write("\n")
-    except BaseException:
-        temp.unlink(missing_ok=True)
-        raise
-    os.replace(temp, path)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def add_scenario_arguments(parser, run_config_required: bool = True) -> None:

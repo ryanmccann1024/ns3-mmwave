@@ -1,7 +1,7 @@
 """Composable reward components computed from the facts window sums."""
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Sequence
 
 from .observations import schema_sha256
@@ -17,18 +17,18 @@ def _delivery_ratio(window: dict, msg_reward: float, contract: dict) -> tuple[fl
 
 
 def _connectivity(window: dict, msg_reward: float, contract: dict) -> tuple[float, bool]:
-    pairs = int(window["ticks"]) * int(contract["num_links"])
+    pairs = int(window["scored_ticks"]) * int(contract["num_links"])
     if pairs <= 0:
         return 0.0, True
     return float(window["connected_pairs_sum"]) / pairs, True
 
 
 def _throughput_mbps(window: dict, msg_reward: float, contract: dict) -> tuple[float, bool]:
-    return float(window["delivered_mbps_sum"]) / int(window["ticks"]), True
+    return float(window["delivered_mbps_sum"]) / int(window["scored_ticks"]), True
 
 
 def _legacy(window: dict, msg_reward: float, contract: dict) -> tuple[float, bool]:
-    return float(window["legacy_reward_sum"]) / int(window["ticks"]), True
+    return float(window["legacy_reward_sum"]) / int(window["scored_ticks"]), True
 
 
 @dataclass(frozen=True)
@@ -37,17 +37,35 @@ class RewardComponent:
 
     name: str
     _value: Callable[[dict, float, dict], tuple[float, bool]]
-    range: tuple[float, float | None]
+    range: tuple[float | None, float | None]
+    required_facts: tuple[str, ...]
+    parameters: dict = field(default_factory=dict)
+    contract_fields: tuple[str, ...] = ()
 
     def value(self, window: dict, msg_reward: float, contract: dict) -> tuple[float, bool]:
+        if not window["scored_ticks"]:
+            return 0.0, False
         return self._value(window, msg_reward, contract)
+
+    def schema(self, contract: dict) -> dict:
+        return {"range": list(self.range), "required_facts": list(self.required_facts),
+                "parameters": dict(self.parameters),
+                "contract": {key: contract[key] for key in self.contract_fields}}
 
 
 COMPONENTS = {
-    "delivery_ratio": RewardComponent("delivery_ratio", _delivery_ratio, (0.0, 1.0)),
-    "connectivity": RewardComponent("connectivity", _connectivity, (0.0, 1.0)),
-    "throughput_mbps": RewardComponent("throughput_mbps", _throughput_mbps, (0.0, None)),
-    "legacy": RewardComponent("legacy", _legacy, (None, None)),
+    "delivery_ratio": RewardComponent(
+        "delivery_ratio", _delivery_ratio, (0.0, 1.0),
+        ("demand_mbps_sum", "delivered_mbps_sum"),
+        {"demand_epsilon_mbps_sum": DEMAND_EPS, "zero_demand_rule": "masked"}),
+    "connectivity": RewardComponent(
+        "connectivity", _connectivity, (0.0, 1.0), ("connected_pairs_sum",),
+        contract_fields=("num_links",)),
+    "throughput_mbps": RewardComponent(
+        "throughput_mbps", _throughput_mbps, (0.0, None), ("delivered_mbps_sum",)),
+    "legacy": RewardComponent(
+        "legacy", _legacy, (None, None), ("legacy_reward_sum",),
+        contract_fields=("reward_type", "reward_window")),
 }
 
 
@@ -107,14 +125,17 @@ class RewardComposer:
         return RewardBreakdown(float(total), values, valid, weights, float(msg_reward))
 
 
-def reward_schema(components: Sequence[str], weights: Sequence[float], *,
-                  reward_type: str, reward_window: str) -> dict:
-    """Reward identity; C++ authority (reward_type/reward_window from init) when empty."""
+def reward_schema(components: Sequence[str], weights: Sequence[float], *, contract: dict) -> dict:
+    """Reward identity includes scoring rules and each component's dependencies."""
+    scoring = {"warmup_s": float(contract["warmup_s"]),
+               "reward_warmup": contract["reward_warmup"],
+               "window": "sums_over_scored_ticks"}
     if not list(components):
         schema = {
             "authority": "cpp",
-            "reward_type": reward_type,
-            "reward_window": reward_window,
+            "reward_type": contract["reward_type"],
+            "reward_window": contract["reward_window"],
+            **scoring,
         }
         schema["sha256"] = schema_sha256(schema)
         return schema
@@ -124,7 +145,8 @@ def reward_schema(components: Sequence[str], weights: Sequence[float], *,
         "components": names,
         "weights": [float(w) for w in weights],
         "zero_demand_rule": "masked",
-        "window": "sums_over_window_ticks",
+        **scoring,
+        "component_details": {name: get_component(name).schema(contract) for name in names},
         "ranges": {name: list(get_component(name).range) for name in names},
     }
     schema["sha256"] = schema_sha256(schema)

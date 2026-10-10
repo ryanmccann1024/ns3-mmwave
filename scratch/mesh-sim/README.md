@@ -7,6 +7,9 @@ against an ns-3 propagation model, routes traffic, and writes metrics. It also
 supports an optional reinforcement-learning bridge and an optional jammer /
 interference model.
 
+For changes to configuration, the RL protocol, or saved results, see the
+[contributor checklist](CONTRIBUTING.md).
+
 @section build Build
 
 All commands run from the **ns3-mmwave repo root** (two levels above this directory).
@@ -167,7 +170,8 @@ can instead compose the reward from named components — see
 ### MaskablePPO smoke run
 
 Run from `scratch/mesh-sim/`, with global options before the `m-ppo`
-subcommand:
+subcommand. For a quick tour of the RL files, see the
+[RL code map](scripts/rl/README.md).
 
 ```bash
 .venv/bin/python -m scripts.rl.train \
@@ -185,30 +189,32 @@ if the output directory already contains `train_manifest.json` or
 
 ### Centralized multi-node control
 
-Setting `[rl] controlled_nodes` switches the bridge from the legacy
-single-node mode to centralized mode, where one MaskablePPO policy moves a
-fixed set of mesh nodes. The keys below apply only when `[rl] enabled = true`;
-all other `[rl]` keys keep their existing meaning.
+RL uses one MaskablePPO policy to move a selected set of mesh nodes in 2D.
+The keys below apply when `[rl] enabled = true` or `--rl-mode` is passed.
 
 | Key | Type / unit | Default | Mode |
 |---|---|---|---|
-| `controlled_nodes` | `all` or comma-separated node ids | absent (legacy mode) | centralized selector |
+| `controlled_nodes` | `all` or comma-separated node ids | required when enabled | centralized selector |
 | `max_controlled_nodes` | int, slot count `M` | `0` (auto-size to the resolved count), max `64` | centralized |
 | `action_profile` | enum | `move_2d` (only accepted value) | centralized |
 | `decision_interval_s` | seconds | `0` (means `tick_s`); must be an integer multiple of `tick_s` | centralized |
 
-`controlled_nodes` and the legacy `controlled_node_id` are mutually exclusive:
-setting both is a configuration error. The legacy key keeps `Discrete(7)` with
-`6:Stay`; `controlled_nodes` opts into `MultiDiscrete([5]*M)` with `4:hold`.
+`controlled_node_id`, `action_type`, and `arrival_threshold_m` are unsupported.
+Use `controlled_nodes` even for one node; actions use `MultiDiscrete([5]*M)`
+with `4:hold`. Continuous and 3D control are unsupported.
 
-`all` means every node listed in `nodes.json`, in file order. Jammers live in
+`all` means every node listed in `nodes.json`, in file order. If
+`traffic.flow_topology = gateway`, selecting `traffic.gateway_node_id` is an
+error, including via `all`; list the other nodes explicitly. Jammers live in
 `jammers.json`, are never mesh nodes, and can never be controlled — even if a
 jammer's `id` equals a node's `id`.
 
 In centralized mode `reward_type = all_links_los` is the conjunction over every
 controlled node (`+1` only if each one has at least one peer link and all of
 them are LOS), and the reward reported per decision is the mean of the per-tick
-rewards in that decision window.
+rewards at or after `[scenario] warmup_s` in that decision window. Decisions
+continue during warmup; windows with no scored ticks return zero. The
+`mesh_move_2d_v2` contract records the cutoff and scored tick count.
 
 `action_set` and `dimensions` are **not** accepted keys. The loader ignores
 unknown keys silently, so either spelling has no effect; `dimensions` is
@@ -254,8 +260,8 @@ ignores them*. They apply to centralized mode only.
 
 Each key resolves independently with precedence CLI > `run.ini` > default, and
 both manifests record the resolved value and its source. An unknown preset or
-component, a weight count that does not match the components, or any non-default
-value of these keys in legacy mode fails before the simulator starts.
+component, or a weight count that does not match the components fails before
+the simulator starts. RL requires centralized control, including one-slot runs.
 
 Observation presets:
 
@@ -321,10 +327,16 @@ Python never re-derives them.
 
 Four commands cover a centralized run from configuration to evaluation. Run
 them from `scratch/mesh-sim/`. All but `inspect_model` need a built simulator binary.
+Validation checks the proposed run; training saves a model and its manifest;
+inspection checks those saved files; evaluation loads the model and runs new
+episodes. The [lifecycle test map](src/rl/policy-lifecycle-tests.md) gives the
+purpose and expected result of each focused check.
 
 Check a configuration before spending simulator time. Without `--launch` every
-check is static (no simulator process); `--launch` additionally starts the
-simulator once under `<output-dir>/validate/` and reports the live contract:
+check is static (no simulator process). Static checks read explicit bounds;
+simulator defaults and centralized control are confirmed by `--launch`, which starts the
+simulator under `<output-dir>/validate/`, resets once, and reports the live
+contract. It does not complete an episode:
 
 ```bash
 .venv/bin/python -m scripts.rl.validate_config \
@@ -350,23 +362,66 @@ Train with bounded checkpoints and a masked during-training evaluation:
 `--keep-checkpoints` (default 3) prunes the oldest checkpoints. `--eval-seed`
 defaults to the training seed + 1. The units are SB3 timesteps, which equal
 policy decisions here because training uses one environment.
+[`callbacks.py`](scripts/rl/agents/callbacks.py) wires SB3's checkpoint
+callback (with bounded retention) and `MaskableEvalCallback` (masked,
+deterministic evaluation on a separate environment and seed). The latter saves
+`best_model.zip` when mean evaluation reward improves; neither callback
+changes the training reward or action rules.
+
+Resume from a retained checkpoint into a separate run directory:
+
+```bash
+.venv/bin/python -m scripts.rl.train \
+  --sim-binary <BIN> \
+  --run-config inputs/baselines/building-bypass-smoke/run.ini \
+  --output-dir outputs/bypass-resumed \
+  m-ppo --resume-run-dir outputs/bypass-train \
+  --resume-checkpoint checkpoints/checkpoint_512_steps.zip \
+  --total-timesteps 2048 --checkpoint-every-steps 512
+```
+
+Omit `--resume-checkpoint` to select the latest retained checkpoint. Stop the
+old training process before resuming; a `running` manifest may be left by an
+abrupt process exit. Failed and interrupted runs can also supply verified
+checkpoints. Evaluation still requires a completed training run.
+
+Recovery restores SB3's saved policy, optimizer, and timestep count, verifies
+the checkpoint digest, and checks the live contract and scenario. The saved
+seed, observation/reward selection, `n_steps`, `gamma`, and `ent_coef` cannot
+change. Omitted PPO settings come from the parent manifest. Checkpoint/evaluation
+flags describe the new segment; pass them again to enable those callbacks.
+Their cadence uses the restored global step count. Evaluation history and the
+best reward threshold restart, so `best_model.zip` describes the new segment.
+
+`--total-timesteps` is the cumulative target: restoring step 512 with target
+2048 requests 1536 additional steps. PPO completes whole rollouts, so this
+budget is a lower bound and the final count can exceed it. The new manifest
+links the parent manifest and checkpoint digests, restored count, remaining
+budget, and actual final count. This is approximate continuation: simulator
+state, partial rollouts, episodes, and random generator states restart.
+
+Checkpoint ZIPs and the manifest are replaced atomically. A checkpoint's digest
+and timestep count are recorded while training is running, before older
+checkpoints are removed. Recovery only accepts retained manifest entries;
+an unfinished ZIP is never treated as a recovery checkpoint.
 
 Summarize a finished (or failed) run without loading the model:
 
 ```bash
-.venv/bin/python -m scripts.rl.inspect_model --run-dir outputs/bypass-train [--json]
+.venv/bin/python -m scripts.rl.inspect_model --run-dir outputs/bypass-train
 ```
 
-It prints status, seed and seed source, control mode, the contract shape,
-selection, observation and reward schema digests, scenario digests, every model
+Add `--json` if you need machine-readable output. This command reads the
+manifest and saved files; it does not load or run the policy. It prints status,
+seed and seed source, control mode, the contract shape, selection, observation
+and reward schema digests, scenario digests, every model
 file with `exists`/`digest_ok`, the evaluation settings, and recorded versus
 installed package versions. Exit 0 means the manifest is readable and every
 recorded model file is present with a matching digest; exit 2 means a model file
 is missing or its digest differs; exit 1 means the manifest is missing or
 unreadable.
 
-Evaluate a saved model against the `hold` and seeded `random_valid` baselines,
-with masked deterministic actions:
+Evaluate a saved model against the `hold` and seeded `random_valid` baselines:
 
 ```bash
 .venv/bin/python -m scripts.rl.evaluate \
@@ -375,6 +430,16 @@ with masked deterministic actions:
   --output-dir outputs/bypass-eval \
   --seeds 11,12,13 --policies model,hold,random_valid
 ```
+
+`model` uses deterministic MaskablePPO predictions under the live action mask;
+`hold` stops every controlled node; `random_valid` chooses uniformly among
+each position's valid actions, restarting its random generator from each
+episode seed. [`bundle.py`](scripts/rl/policy/bundle.py) treats the training
+manifest plus a chosen final, best, or checkpoint ZIP as a saved model bundle,
+not a new archive.
+It checks run status and the selected ZIP's recorded digest before loading;
+[`compat.py`](scripts/rl/policy/compat.py) then checks the live scenario and
+policy contract.
 
 `--model` selects `final` (default), `best`, or `checkpoints/<file>.zip`. With
 `--run-dir` the run config, band, and selection come from the training manifest;
@@ -386,9 +451,9 @@ names the experiment row an evaluation belongs to, which is how
 `scripts.rl.compare` recognizes evaluations of independently trained models as
 one group.
 Evaluation writes `eval_manifest.json` plus one `<policy>/episode-NNNN/`
-directory per policy and seed, and refuses an `--output-dir` inside the training
-run. The manifest is rewritten after every episode, so a seed whose simulator
-dies mid-episode leaves the records of the seeds before and after it intact; its
+directory per policy and seed, and refuses an `--output-dir` equal to, inside,
+or above the training run. The manifest is rewritten after every episode, so
+a seed whose simulator dies mid-episode leaves the records of the seeds before and after it intact; its
 own record keeps the episode directory and the partial return but reports every
 metric as `null`, because a partial window spans less time than a full episode.
 Manifest `status` is `completed` when every expected episode completed,
@@ -398,7 +463,7 @@ Exit 0 means every episode completed with no revalidated slots and no
 masked actions, exit 2 means the episodes completed but one of those counters is
 non-zero, and exit 1 means an error or an episode that did not complete.
 
-`eval_manifest.json` is version 2. Beyond the version-1 fields it records
+`eval_manifest.json` is version 3. It records
 `label`; `seed_roles` (training seed, model-selection seed, held-out seeds, any
 overlap, whether the overlap was allowed, and whether the result is held out);
 `training`, copied from the training manifest (algorithm, seeds, scenario
@@ -407,22 +472,27 @@ digests, hyperparameters); `metric_source`; and `episodes_expected` /
 seed in seed order, with `status` `completed`, `failed`, or `not_run` (a seed the
 evaluation never reached), and each record adds `error`,
 `metrics.unroutable_fraction`, and a `summary_json` path that is only a pointer
-and is never parsed.
+and is never parsed. Metrics use `facts.window.scored_ticks`, excluding times
+before `warmup_s`; decisions and movement continue during warmup. An empty
+scored window has zero reward and null network metrics, including the first-LOS
+diagnostic. `metric_source` records `warmup_excluded: true`. Version-1 and
+version-2 evaluations must be regenerated, not relabeled.
 
-`train_manifest.json` is version 4. Besides the existing run identity it
+`train_manifest.json` is version 5. Besides the existing run identity it
 records `status`/`error`, `algorithm`, `seed` and `seed_source`, `control_mode`,
 the live `contract`, the resolved `selection`, `observation_schema` and
 `reward_schema` (with their SHA-256), `scenario_identity` (SHA-256 of the
 `run.ini`, `nodes.json`, and — when configured — `buildings.json` and
 `jammers.json`), `model_path`/`model_sha256`, `best_model_path`/
 `best_model_sha256`/`best_mean_reward`, a `checkpoints` list of
-`{path, sha256, num_timesteps}`, the `evaluation` block (cadence, episodes,
-seed, output dir, log path) or `null`, `hyperparameters`, `package_versions`,
+`{path, sha256, num_timesteps, evaluation_state}`, the current `num_timesteps`,
+`resume` provenance (or `null`), the `evaluation` block (cadence, episodes,
+seed, output dir, log path) or `null`, `evaluation_state`, `hyperparameters`, `package_versions`,
 `python_version`, and `platform`. Models trained with older tooling carry an
 older `manifest_version` and are not loadable: retrain with the current tooling.
 
-Seed discipline: keep the training seed, the during-training evaluation seed,
-and the standalone evaluation seeds disjoint. With `model` among `--policies`,
+For held-out results, keep training, model-selection, and evaluation seeds
+disjoint. Training-seed diagnostic evaluations are also supported. With `model` among `--policies`,
 `scripts.rl.evaluate` refuses to start when a requested seed is the training
 seed or the recorded model-selection seed, naming each seed and its role.
 `--allow-seed-overlap` downgrades that refusal to a stderr `WARNING:` line and
@@ -436,8 +506,9 @@ selection — only the during-training callback writes `best_model.zip`.
 Loading a model checks compatibility in a fixed order and stops at the first
 failure: structural contract fields, then the observation schema, then the
 reward schema, then scenario identity. `--allow-different-scenario` relaxes only
-the last step — it never bypasses the structural, schema, reward, or digest
-checks — and the evaluation manifest records the run as `overridden`. Checks
+the last step, including differences in scenario-input file digests. It never
+bypasses the model ZIP's digest, structural, observation-schema, or reward
+checks, and the evaluation manifest records the run as `overridden`. Checks
 that pass mean the shapes and declared meanings match; they are never evidence
 that a policy transfers to another scenario.
 
@@ -474,8 +545,8 @@ experiment_plan.json`, plus a required `--output-dir` that must not already
 contain a training or evaluation manifest. `--baselines a,b` restricts the
 baselines (the default is every non-`model` policy present) and `--json` prints
 `comparison.json` instead of the summary lines. It reads only
-`eval_manifest.json` files, refuses version-1 manifests, and writes
-`episodes.csv` (one row per evaluation directory, policy, and seed — the raw
+`eval_manifest.json` files, requires version 3 and matching scoring metadata, and writes
+`episodes.csv` (including `warmup_excluded`, one row per evaluation directory, policy, and seed — the raw
 record every aggregate traces back to) and `comparison.json`. Neither file
 carries a timestamp, so repeating the same command reproduces byte-identical
 output. A listed directory without a readable manifest becomes a
@@ -487,7 +558,10 @@ training and evaluation budgets. Each `rows` entry chooses one observation
 preset, action profile, and weighted reward; rows are explicit combinations,
 not an automatic Cartesian product. Add `--rows local-delivery` to both `plan`
 and `run` to select just that row; they must use the same filter for one output
-root.
+root. The matrix JSON already holds training hyperparameters; there is no
+second hyperparameter block in `run.ini`. Planning checks integer budgets and
+cadence, finite `gamma` in [0, 1], nonnegative finite `ent_coef`, and supported
+evaluation policy/model choices before writing the plan or starting a process.
 
 `experiment` writes `experiment_plan.json` under `--output-root` and keeps the
 runs beside it: `train/<row>/train-seed-<S>/`, `eval/<row>/train-seed-<S>/`, and
@@ -577,12 +651,14 @@ From `scratch/mesh-sim/tests/`:
 
 ```bash
 make test                                   # standalone unit tests
-MESH_SIM_BIN=<BIN> make integration         # 8 real-binary CLI contracts
+MESH_SIM_BIN=<BIN> make integration         # 9 real-binary CLI contracts
 ```
 
 `make test` stops at the first failing suite. To inspect every suite despite a
 failure, run `make -C unit/config test`, `make -C unit/eval test`,
 `make -C unit/routing test`, and `make -C unit/traffic test` separately.
+The [RL test map](scripts/rl/tests/README.md) lists each centralized-control
+test, its input, and its expected output.
 
 For a quick check without cloud reference data, run two tiny synthetic
 simulations and check output contracts and same-seed repeatability:

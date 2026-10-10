@@ -1,11 +1,10 @@
 """Resolve policy inputs, rewards, and telemetry: CLI > run.ini > default."""
 
-import math
 from dataclasses import dataclass, field
 
-from .config import read_control_mode, read_rl_selection
+from .config import read_rl_selection
 from .observations import DEFAULT_PRESET, PRESETS
-from .rewards import COMPONENTS
+from .rewards import RewardComposer
 
 TELEMETRY_MODES = ("none", "steps")
 _DEFAULTS = {
@@ -99,17 +98,6 @@ def resolve_selection(run_config: str, *, observation_preset=None,
     if "reward_components" in raw:
         names = _split_list("reward_components", str(raw["reward_components"]),
                             sources["reward_components"])
-        unknown = [name for name in names if name not in COMPONENTS]
-        if unknown:
-            raise ValueError(
-                f"reward_components has unknown entries {unknown} "
-                f"({sources['reward_components']}); valid choices: {sorted(COMPONENTS)}"
-            )
-        if len(set(names)) != len(names):
-            raise ValueError(
-                f"reward_components has duplicate entries: {names} "
-                f"({sources['reward_components']})"
-            )
         components = tuple(names)
 
     if "reward_weights" in raw:
@@ -126,19 +114,15 @@ def resolve_selection(run_config: str, *, observation_preset=None,
             raise ValueError(
                 f"reward_weights must be floats ({sources['reward_weights']}): {exc}"
             ) from exc
-        if any(not math.isfinite(w) for w in parsed):
-            raise ValueError(
-                f"reward_weights must all be finite, got {tokens} "
-                f"({sources['reward_weights']})"
-            )
-        if len(parsed) != len(components):
-            raise ValueError(
-                f"reward_weights has {len(parsed)} entries but reward_components has "
-                f"{len(components)} ({sources['reward_weights']})"
-            )
         weights = tuple(parsed)
     else:
         weights = tuple(1.0 for _ in components)
+
+    try:
+        RewardComposer(components, weights)
+    except ValueError as exc:
+        raise ValueError(f"{exc} ({sources['reward_components']}, "
+                         f"{sources['reward_weights']})") from exc
 
     mode = _DEFAULTS["telemetry"]
     if "telemetry" in raw:
@@ -171,22 +155,4 @@ def resolve_selection(run_config: str, *, observation_preset=None,
             )
 
     selection = RlSelection(preset, components, weights, mode, every, dict(sources))
-    _reject_legacy_mode(run_config, selection)
     return selection
-
-
-def _reject_legacy_mode(run_config: str, selection: RlSelection) -> None:
-    """Legacy control mode cannot honor fact-based policy options."""
-    if read_control_mode(run_config) == "centralized":
-        return
-    resolved = selection.describe()
-    offending = [
-        key for key, default in _DEFAULTS.items()
-        if selection.source.get(key, "default") != "default"
-        and resolved[key] != (list(default) if isinstance(default, tuple) else default)
-    ]
-    if offending:
-        raise ValueError(
-            f"{offending} require centralized control mode; {run_config} has no "
-            "[rl] controlled_nodes, and legacy mode exports no facts"
-        )

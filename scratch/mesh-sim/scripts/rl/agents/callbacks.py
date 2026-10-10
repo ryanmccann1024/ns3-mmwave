@@ -6,40 +6,44 @@ from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 from stable_baselines3.common.monitor import Monitor
 
-CHECKPOINT_DIR = "checkpoints"
-CHECKPOINT_PREFIX = "checkpoint"
-
-
-def list_checkpoints(directory, name_prefix: str = CHECKPOINT_PREFIX
-                     ) -> list[tuple[int, Path]]:
-    """Saved checkpoints as (num_timesteps, path), ascending; unparsable names ignored."""
-    found = []
-    for path in Path(directory).glob(f"{name_prefix}_*_steps.zip"):
-        steps = path.name[len(name_prefix) + 1:-len("_steps.zip")]
-        if steps.isdigit():
-            found.append((int(steps), path))
-    return sorted(found)
+from scripts.rl.agents.config import Cadence as Cadence
+from scripts.rl.policy.training_artifacts import (CHECKPOINT_DIR, CHECKPOINT_PREFIX,
+                                                  list_checkpoints)
 
 
 class BoundedCheckpointCallback(CheckpointCallback):
     """CheckpointCallback that keeps only the newest keep_last checkpoint files."""
 
-    def __init__(self, *args, keep_last: int = 3, **kwargs):
+    def __init__(self, *args, keep_last: int = 3, artifacts=None, restored_steps=0, **kwargs):
         super().__init__(*args, **kwargs)
         if int(keep_last) < 1:
             raise ValueError(f"keep_last must be >= 1, got {keep_last!r}")
         self.keep_last = int(keep_last)
+        self.artifacts = artifacts
+        self.n_calls = restored_steps
+
+    def _checkpoint_path(self, checkpoint_type="", extension=""):
+        path = Path(super()._checkpoint_path(checkpoint_type, extension))
+        return str(path.with_name(path.stem + ".tmp" + path.suffix))
 
     def _on_step(self) -> bool:
         result = super()._on_step()
-        retained = list_checkpoints(self.save_path, self.name_prefix)
-        for _, path in retained[:-self.keep_last]:
-            path.unlink(missing_ok=True)
+        if self.n_calls % self.save_freq != 0:
+            return result
+        temporary = Path(self._checkpoint_path(extension="zip"))
+        path = temporary.with_name(temporary.name.replace(".tmp.zip", ".zip"))
+        temporary.replace(path)
+        if self.artifacts is not None:
+            self.artifacts.record_checkpoint(path, self.num_timesteps, self.keep_last)
+        else:
+            for _, discarded in list_checkpoints(self.save_path, self.name_prefix)[:-self.keep_last]:
+                discarded.unlink(missing_ok=True)
         return result
 
 
 def build_callbacks(out_dir: str, checkpoint_every: int, keep_last: int,
-                    eval_env, eval_every: int, eval_episodes: int, verbose: int
+                    eval_env, eval_every: int, eval_episodes: int, verbose: int,
+                    artifacts=None, restored_steps=0
                     ) -> tuple[list[BaseCallback], MaskableEvalCallback | None]:
     """Wire the cadence options; all units are SB3 timesteps (one env, one decision each)."""
     callbacks: list[BaseCallback] = []
@@ -48,7 +52,7 @@ def build_callbacks(out_dir: str, checkpoint_every: int, keep_last: int,
             save_freq=checkpoint_every,
             save_path=str(Path(out_dir) / CHECKPOINT_DIR),
             name_prefix=CHECKPOINT_PREFIX,
-            keep_last=keep_last,
+            keep_last=keep_last, artifacts=artifacts, restored_steps=restored_steps,
             verbose=verbose,
         ))
 
@@ -66,5 +70,6 @@ def build_callbacks(out_dir: str, checkpoint_every: int, keep_last: int,
             use_masking=True,
             verbose=verbose,
         )
-        callbacks.append(eval_callback)
+        eval_callback.n_calls = restored_steps
+        callbacks.insert(0, eval_callback)
     return callbacks, eval_callback

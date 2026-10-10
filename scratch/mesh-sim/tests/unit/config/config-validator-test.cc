@@ -68,9 +68,11 @@ makeValid()
     NodeSpec n1;
     n1.id       = "node0";
     n1.mobility = "fixed";
+    n1.node_type = "drone";
     NodeSpec n2;
     n2.id       = "node1";
     n2.mobility = "fixed";
+    n2.node_type = "drone";
     cfg.nodes.push_back(n1);
     cfg.nodes.push_back(n2);
 
@@ -151,6 +153,19 @@ test_warmup_exceeds_duration()
     cfg.warmup_s = 10.0;  // == duration_s
     auto r = ValidateConfig(cfg);
     check(!r.ok(), "warmup >= duration rejected");
+}
+
+static void
+test_non_finite_warmup()
+{
+    for (double value : {std::numeric_limits<double>::infinity(),
+                         std::numeric_limits<double>::quiet_NaN()})
+    {
+        auto cfg = makeValid();
+        cfg.warmup_s = value;
+        check(hasError(ValidateConfig(cfg), "warmup_s must be finite"),
+              "non-finite warmup rejected before simulation");
+    }
 }
 
 static void
@@ -442,8 +457,7 @@ test_reward_legacy_name_not_valid()
 }
 
 // ---- rl z-bounds tests ----
-// makeValid() itself fails validation for an unrelated reason, so these assert on
-// the presence/absence of the specific error rather than r.ok().
+// Assert on the relevant bounds error independently of selector validation.
 
 static void
 test_rl_inverted_z_bounds()
@@ -533,13 +547,13 @@ hasResErr(const RlControlResolution& r, const std::string& substr)
 }
 
 static void
-test_rl_disabled_is_legacy()
+test_rl_disabled_has_no_control()
 {
     auto cfg = makeRlCfg();
     cfg.rl.enabled = false;
     auto r = ResolveRlControl(cfg);
     check(r.ok(), "disabled rl resolves without errors");
-    check(r.control_mode == "legacy", "disabled rl resolves to legacy mode");
+    check(r.control_mode == "disabled", "disabled rl resolves to disabled mode");
     check(r.controlled_indices.empty(), "disabled rl resolves no slots");
 }
 
@@ -615,14 +629,37 @@ test_rl_duplicate_token_rejected()
 }
 
 static void
-test_rl_both_selectors_rejected()
+test_rl_removed_keys_rejected()
+{
+    for (const auto& key : {"controlled_node_id", "action_type", "arrival_threshold_m"})
+    {
+        TempScenario s("", std::string(key) + " = continuous\n");
+        auto cfg = s.Load();
+        cfg.rl.enabled = true;
+        check(hasResErr(ResolveRlControl(cfg), std::string("rl.") + key + " is no longer supported"),
+              "removed RL key reported after enabling RL");
+        cfg.rl.enabled = false;
+        check(ResolveRlControl(cfg).ok(), "inactive old RL block does not affect simulation");
+    }
+}
+
+static void
+test_rl_gateway_selection_rejected()
 {
     auto cfg = makeRlCfg();
-    cfg.rl.controlled_nodes   = "node-a";
-    cfg.rl.controlled_node_id = "node-b";
-    auto r = ResolveRlControl(cfg);
-    check(hasResErr(r, "rl.controlled_node_id and rl.controlled_nodes are mutually exclusive"),
-          "both selectors rejected");
+    cfg.mesh.traffic.flow_topology = "gateway";
+    cfg.mesh.traffic.gateway_node_id = "node-a";
+    for (const auto& selector : {"all", "node-c, node-a"})
+    {
+        cfg.rl.controlled_nodes = selector;
+        check(hasResErr(ResolveRlControl(cfg), "active traffic gateway 'node-a'"),
+              "active gateway rejected for all and explicit selection");
+    }
+    cfg.rl.controlled_nodes = "node-b, node-c";
+    check(ResolveRlControl(cfg).ok(), "non-gateway nodes remain controllable");
+    cfg.mesh.traffic.flow_topology = "all_pairs";
+    cfg.rl.controlled_nodes = "all";
+    check(ResolveRlControl(cfg).ok(), "inactive gateway label does not block selection");
 }
 
 static void
@@ -636,23 +673,13 @@ test_rl_empty_selector_rejected()
 }
 
 static void
-test_rl_continuous_rejected()
-{
-    auto cfg = makeRlCfg();
-    cfg.rl.action_type = "continuous";
-    auto r = ResolveRlControl(cfg);
-    check(hasResErr(r, "rl.action_type 'continuous' is not supported with rl.controlled_nodes"),
-          "continuous action_type rejected in centralized mode");
-}
-
-static void
 test_rl_action_profile()
 {
     auto cfg = makeRlCfg();
     cfg.rl.action_profile = "move_3d";
     auto r3 = ResolveRlControl(cfg);
-    check(hasResErr(r3, "rl.action_profile 'move_3d' is reserved and not implemented"),
-          "move_3d reported as reserved");
+    check(hasResErr(r3, "rl.action_profile 'move_3d' is not supported; use 'move_2d'"),
+          "move_3d rejected");
 
     cfg.rl.action_profile = "teleport";
     auto ru = ResolveRlControl(cfg);
@@ -722,46 +749,26 @@ static void
 test_rl_tick_counts()
 {
     check(ComputeTickCount(0.3, 0.1, true) == 3, "robust tick count of 0.3/0.1 is 3");
-    check(ComputeTickCount(0.3, 0.1, false) == 2, "legacy tick count of 0.3/0.1 is 2");
+    check(ComputeTickCount(0.3, 0.1, false) == 2, "non-RL tick count of 0.3/0.1 is 2");
     check(ComputeTickCount(1.0, 0.1, true) == 10, "robust tick count of 1.0/0.1 is 10");
-    check(ComputeTickCount(0.6, 0.1, false) == 5, "legacy tick count of 0.6/0.1 is 5");
+    check(ComputeTickCount(0.6, 0.1, false) == 5, "non-RL tick count of 0.6/0.1 is 5");
 
     auto cfg = makeRlCfg();
     cfg.duration_s = 0.3;
     auto rc = ResolveRlControl(cfg);
     check(rc.num_ticks == 3, "centralized resolution uses the robust tick count");
 
-    cfg.rl.controlled_nodes_set = false;
-    auto rl = ResolveRlControl(cfg);
-    check(rl.num_ticks == 2, "legacy resolution keeps the truncating tick count");
 }
 
 static void
-test_rl_legacy_selection()
+test_rl_missing_selection_rejected()
 {
     auto cfg = makeRlCfg();
     cfg.rl.controlled_nodes_set = false;
-    cfg.rl.controlled_nodes     = "";
-
-    auto rdef = ResolveRlControl(cfg);
-    check(rdef.ok(), "legacy resolution has no errors");
-    check(rdef.control_mode == "legacy", "absent controlled_nodes stays legacy");
-    check(rdef.controlled_indices == std::vector<uint32_t>({2}),
-          "legacy default selects the last node");
-    check(rdef.num_slots == 1, "legacy resolves exactly one slot");
-
-    cfg.rl.controlled_node_id = "node-b";
-    check(ResolveRlControl(cfg).controlled_indices == std::vector<uint32_t>({1}),
-          "legacy selects the node matching controlled_node_id");
-
-    cfg.nodes.push_back(cfg.nodes[1]);  // duplicate id later in the list
-    check(ResolveRlControl(cfg).controlled_indices == std::vector<uint32_t>({1}),
-          "legacy duplicate ids keep first-match-wins");
-
-    cfg.rl.controlled_node_id = "ghost";
-    check(ResolveRlControl(cfg).controlled_indices ==
-              std::vector<uint32_t>({static_cast<uint32_t>(cfg.nodes.size() - 1)}),
-          "legacy unknown controlled_node_id falls back to the last node");
+    cfg.rl.controlled_nodes = "";
+    auto r = ResolveRlControl(cfg);
+    check(hasResErr(r, "rl.controlled_nodes is required"), "missing selector rejected");
+    check(r.controlled_indices.empty(), "no implicit last-node selection");
 }
 
 static void
@@ -774,9 +781,9 @@ test_rl_duplicate_node_ids()
                     "nodes.json has duplicate node id 'node-a'; ids must be unique"),
           "duplicate nodes.json ids rejected in centralized mode");
 
-    cfg.rl.controlled_nodes_set = false;
+    cfg.rl.enabled = false;
     check(!hasResErr(ResolveRlControl(cfg), "duplicate node id"),
-          "duplicate nodes.json ids accepted in legacy mode");
+          "RL selection checks skipped when disabled");
 }
 
 static void
@@ -957,6 +964,7 @@ main()
     test_tick_exceeds_duration();
     test_negative_warmup();
     test_warmup_exceeds_duration();
+    test_non_finite_warmup();
     test_too_few_nodes();
     test_unknown_traffic_model();
     test_unknown_flow_topology();
@@ -990,21 +998,21 @@ main()
     test_rl_valid_z_bounds();
 
     // RL centralized control resolution
-    test_rl_disabled_is_legacy();
+    test_rl_disabled_has_no_control();
     test_rl_selection_order();
     test_rl_selection_all();
     test_rl_all_with_ids_rejected();
     test_rl_jammer_id_rejected();
     test_rl_unknown_id_rejected();
     test_rl_duplicate_token_rejected();
-    test_rl_both_selectors_rejected();
+    test_rl_removed_keys_rejected();
+    test_rl_gateway_selection_rejected();
     test_rl_empty_selector_rejected();
-    test_rl_continuous_rejected();
     test_rl_action_profile();
     test_rl_max_controlled_nodes();
     test_rl_decision_interval();
     test_rl_tick_counts();
-    test_rl_legacy_selection();
+    test_rl_missing_selection_rejected();
     test_rl_duplicate_node_ids();
     test_rl_start_outside_bounds();
     test_rl_validator_reports_resolver_errors();
