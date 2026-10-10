@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from scripts.rl.experiment import PLAN_NAME, load_plan, step_state
+from scripts.rl.policy.experiment import PLAN_NAME, load_plan, step_state
 
 TASKS_VERSION = 1
 
