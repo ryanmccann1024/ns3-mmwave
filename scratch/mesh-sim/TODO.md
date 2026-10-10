@@ -152,14 +152,14 @@ explicit rule set, sketched as: a `completed` record supersedes a `failed` one
 for the same seed, and two `completed` records for one seed must agree on
 `actions_sha256` or the merge is refused. Owner: team — status: open.
 
-### TODO-RL-TUNE-1 — Further PPO knobs, budget search, and study resume
+### TODO-RL-TUNE-1 — Further PPO knobs and budget search
 `scripts/rl/ops/tune.py` can search only `n_steps`, `gamma`, and `ent_coef`,
 because those are the only values that reach `MaskablePPO`. Widening the search
 needs the whole chain first — constructor argument, `train.py` CLI flag,
 manifest field, and comparison group key — otherwise a searched value would not
 be recorded or checked anywhere. Searching `total_timesteps` is also deferred,
-since the budget is what makes trials comparable, and study resume is deferred
-because a seeded sampler restarts its sequence on reload.
+since the budget is what makes trials comparable. Study recovery now retains
+the seeded sampler and completed trials through the tuning checkpoint.
 Owner: team — status: open.
 
 

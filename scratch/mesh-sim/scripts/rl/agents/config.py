@@ -4,6 +4,10 @@ import math
 from dataclasses import dataclass
 
 
+PPO_SEARCH_PARAMETERS = {"n_steps": ("int", "categorical"),
+                         "gamma": ("float",), "ent_coef": ("float",)}
+
+
 def validate_training_settings(settings: dict) -> None:
     """Validate supplied settings; omitted values use the dataclass defaults."""
     minima = {"total_timesteps": 1, "n_steps": 2, "checkpoint_every_steps": 0,

@@ -95,3 +95,6 @@ window test (empty, crossing boundary, mean, reset), and real-binary coarse/fine
 window comparisons with `warmup_s = 0.25`. Real-binary gateway tests reject
 explicit selection and `all` while accepting the other nodes. Non-object JSON
 tests verify child/reader cleanup and a failed version-4 episode manifest.
+
+See [the operations test map](ops-tests.md) for task execution, benchmarking,
+tuning recovery, adaptive search and process cleanup checks.
