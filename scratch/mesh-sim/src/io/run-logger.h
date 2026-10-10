@@ -152,12 +152,7 @@ WriteRunLog(const std::string&       base_output_dir,
         << (cfg.rl.reward_type_alias.empty() ? "none" : cfg.rl.reward_type_alias) << "\n";
 
     // RL control provenance: resolved by ResolveRlControl before this is called.
-    std::string rlContract = "legacy_discrete7";
-    if (cfg.rl.control_mode == "centralized")
-        rlContract = "mesh_move_2d_v1";
-    else if (cfg.rl.action_type == "continuous")
-        rlContract = "legacy_continuous";
-
+    const std::string rlContract = cfg.rl.enabled ? "mesh_move_2d_v2" : "none";
     std::string rlControlled;
     for (uint32_t idx : cfg.rl.controlled_indices)
     {
@@ -169,6 +164,7 @@ WriteRunLog(const std::string&       base_output_dir,
     }
 
     out << "  rl.control_mode     = " << cfg.rl.control_mode                 << "\n";
+    out << "  rl.reward_warmup    = exclude\n";
     out << "  rl.contract         = " << rlContract                          << "\n";
     out << "  rl.controlled_nodes = "
         << (rlControlled.empty() ? "(none)" : rlControlled)                  << "\n";

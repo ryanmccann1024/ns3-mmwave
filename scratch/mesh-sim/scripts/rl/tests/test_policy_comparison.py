@@ -41,7 +41,7 @@ def _policy_block(values: dict) -> dict:
 
 
 def write_eval(path: Path, model=None, baselines=None, *, seeds=SEEDS, label=None,
-               training_seed=101, model_sha256="a" * 64, held_out=True, version=2,
+               training_seed=101, model_sha256="a" * 64, held_out=True, version=3,
                reward_sha="r" * 64, training_sha="t" * 64, gamma=0.99,
                selection_seed=201, mutate=None) -> str:
     """Write one eval_manifest.json built from per-seed delivery_ratio values."""
@@ -55,7 +55,7 @@ def write_eval(path: Path, model=None, baselines=None, *, seeds=SEEDS, label=Non
         "eval_manifest_version": version, "status": "completed", "label": label,
         "seeds": list(seeds), "episodes_expected": len(seeds) * len(policies),
         "episodes_completed": len(seeds) * len(policies),
-        "metric_source": {"kind": "telemetry_window", "warmup_excluded": False},
+        "metric_source": {"kind": "telemetry_window", "warmup_excluded": True},
         "seed_roles": {"training_seed": training_seed,
                        "model_selection_seed": selection_seed,
                        "selection_seed_used_for_model": True,
@@ -164,7 +164,7 @@ def test_paired_difference_across_evaluation_seeds(tmp_path):
     assert [row["seed"] for row in rows[:3]] == ["11", "12", "13"]
     assert {row["metric_source"] for row in rows} == {"telemetry_window"}
     assert payload["metric_source"] == {"kind": "telemetry_window",
-                                        "warmup_excluded": False}
+                                        "warmup_excluded": True}
 
 
 def test_a_health_counter_downgrades_a_clean_comparison(tmp_path):
@@ -484,3 +484,42 @@ def test_plan_mode_counts_a_missing_evaluation(tmp_path):
     assert (group["runs_expected"], group["runs_used"]) == (2, 1)
     assert {"training_seed": 102, "reason": "missing"} in group["excluded_runs"]
     assert len(rows) == 4
+
+
+@pytest.mark.parametrize("source", [None, {},
+    {"kind": "telemetry_window", "warmup_excluded": False},
+    {"kind": "telemetry_window", "warmup_excluded": 1},
+    {"kind": "summary", "warmup_excluded": True}])
+def test_comparison_refuses_obsolete_or_missing_scoring_source(tmp_path, capsys, source):
+    path = write_eval(tmp_path / "eval", {s: 0.8 for s in SEEDS},
+                      mutate=lambda m: m.update(metric_source=source))
+    out = tmp_path / "comparison"
+    assert _run(out, path) == 1
+    assert "metric_source" in capsys.readouterr().err
+    assert not (out / "comparison.json").exists()
+    assert not (out / "episodes.csv").exists()
+
+
+def test_comparison_refuses_version_two_even_with_new_source_label(tmp_path):
+    path = write_eval(tmp_path / "eval", {s: 0.8 for s in SEEDS}, version=2)
+    out = tmp_path / "comparison"
+    assert _run(out, path) == 1
+    assert not (out / "comparison.json").exists()
+
+
+def test_comparison_rejects_mixed_source_definitions(tmp_path):
+    paths = [write_eval(tmp_path / "eval-a", {s: 0.8 for s in SEEDS}),
+             write_eval(tmp_path / "eval-b", {s: 0.8 for s in SEEDS},
+                        mutate=lambda m: m["metric_source"].update(window="other"))]
+    assert _run(tmp_path / "comparison", *paths) == 1
+
+
+def test_csv_preserves_scoring_source(tmp_path):
+    source = {"kind": "telemetry_window", "warmup_excluded": True, "window": "scored"}
+    path = write_eval(tmp_path / "eval", {s: 0.8 for s in SEEDS},
+                      mutate=lambda m: m.update(metric_source=source))
+    out = tmp_path / "comparison"
+    assert _run(out, path) == 0
+    payload, rows = _outputs(out)
+    assert payload["metric_source"] == source
+    assert {row["warmup_excluded"] for row in rows} == {"true"}

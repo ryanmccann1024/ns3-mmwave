@@ -14,7 +14,7 @@ from .protocol import SLOT_ACTIONS
 SINR_CLIP_DB = (-20.0, 40.0)
 SINR_INVALID_DB = -900.0
 _SINR_SPAN = SINR_CLIP_DB[1] - SINR_CLIP_DB[0]
-_CAP_LOG_SCALE = 4.0
+_CAPACITY_LOG10_DENOMINATOR = 4.0
 
 
 class SchemaMismatchError(ValueError):
@@ -107,7 +107,7 @@ def _build_local_links_v1(facts: dict, contract: dict) -> np.ndarray:
             valid = _sinr_valid(sinr) and math.isfinite(capacity)
             sinr_n = _clip((sinr - SINR_CLIP_DB[0]) / _SINR_SPAN, 0.0, 1.0) if valid else 0.0
             cap_n = _clip(
-                math.log10(max(1.0 + capacity, 1.0)) / _CAP_LOG_SCALE, 0.0, 1.0
+                math.log10(max(1.0 + capacity, 1.0)) / _CAPACITY_LOG10_DENOMINATOR, 0.0, 1.0
             ) if valid else 0.0
             values.extend([1.0, 1.0 if valid else 0.0, sinr_n, cap_n])
     return np.asarray(values, dtype=np.float32)
@@ -170,6 +170,8 @@ class ObservationPreset:
     _space: Callable[[dict], spaces.Box]
     _features: Callable[[dict], list[str]]
     normalization: dict
+    required_facts: tuple[str, ...] = ("nodes", "links")
+    compatibility_fields: tuple[str, ...] = ()
 
     def build(self, facts: dict, contract: dict) -> np.ndarray:
         return self._build(facts, contract)
@@ -181,7 +183,7 @@ class ObservationPreset:
         return self._features(contract)
 
     def schema(self, contract: dict) -> dict:
-        return observation_schema(self.name, contract)
+        return _preset_schema(self, contract)
 
 
 PRESETS = {
@@ -200,7 +202,10 @@ PRESETS = {
         _space=_local_links_space,
         _features=_local_links_features,
         normalization={"position": "rl_bounds", "sinr_clip_db": list(SINR_CLIP_DB),
-                       "capacity": "log10(1+x)/4"},
+                       "capacity": "log10(1+x)/4",
+                       "capacity_log10_denominator": _CAPACITY_LOG10_DENOMINATOR,
+                       "sinr_invalid_db": SINR_INVALID_DB},
+        compatibility_fields=("bounds",),
     ),
 }
 
@@ -234,14 +239,14 @@ def _jsonable_bound(value: float) -> float | None:
 
 def observation_schema(preset_name: str, contract: dict) -> dict:
     """Structural + scenario identity of one preset against one init contract."""
-    preset = get_preset(preset_name)
+    return get_preset(preset_name).schema(contract)
+
+
+def _preset_schema(preset: ObservationPreset, contract: dict) -> dict:
     slots = _num_slots(contract)
-    if preset_name == "local_links_v1":
-        low, high = _local_links_bounds(contract)
-    else:
-        space = preset.space(contract)
-        low = [_jsonable_bound(v) for v in np.atleast_1d(space.low).tolist()]
-        high = [_jsonable_bound(v) for v in np.atleast_1d(space.high).tolist()]
+    space = preset.space(contract)
+    low = [_jsonable_bound(v) for v in np.atleast_1d(space.low).tolist()]
+    high = [_jsonable_bound(v) for v in np.atleast_1d(space.high).tolist()]
     features = preset.feature_names(contract)
     schema = {
         "schema_id": preset.name,
@@ -256,7 +261,9 @@ def observation_schema(preset_name: str, contract: dict) -> dict:
         "feature_names": features,
         "low": low,
         "high": high,
-        "normalization": preset.normalization,
+        "normalization": dict(preset.normalization),
+        "required_facts": list(preset.required_facts),
+        "compatibility_fields": list(preset.compatibility_fields),
         "bounds": dict(contract["bounds"]),
         "node_ids": _node_ids(contract),
         "slot_node_ids": list(contract["slot_node_ids"]),
@@ -267,17 +274,18 @@ def observation_schema(preset_name: str, contract: dict) -> dict:
 
 _STRUCTURAL_FIELDS = ("schema_id", "dtype", "obs_dim", "num_mesh_nodes",
                       "max_controlled_nodes", "feature_names", "contract_id",
-                      "dimensions", "action_meanings", "nvec", "normalization")
+                      "dimensions", "action_meanings", "nvec", "normalization",
+                      "required_facts", "compatibility_fields")
 _SCENARIO_FIELDS = ("node_ids", "slot_node_ids")
 
 
 def check_schema(saved: dict, live: dict) -> list[str]:
     """Raise on structural differences; return warnings for scenario identity."""
     fields = [f for f in _STRUCTURAL_FIELDS if saved.get(f) != live.get(f)]
-    # Bounds affect local_links_v1's coordinates, not raw_links_v1's raw values.
-    if "local_links_v1" in (saved.get("schema_id"), live.get("schema_id")):
-        if saved.get("bounds") != live.get("bounds"):
-            fields.append("bounds")
+    semantic_fields = set(saved.get("compatibility_fields", [])) | set(
+        live.get("compatibility_fields", []))
+    fields.extend(field for field in sorted(semantic_fields)
+                  if saved.get(field) != live.get(field))
     if fields:
         detail = "; ".join(
             f"{field}: saved={saved.get(field)!r} live={live.get(field)!r}"

@@ -6,22 +6,17 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 
-EVAL_MANIFEST_NAME = "eval_manifest.json"
-REQUIRED_MANIFEST_VERSION = 2
-METRIC_SOURCE = {"kind": "telemetry_window", "warmup_excluded": False}
+from scripts.rl.policy.evaluate import EVAL_MANIFEST_NAME, EVAL_MANIFEST_VERSION
+from scripts.rl.policy.metrics import (CSV_METRIC_COLUMNS, CSV_METRICS, GROUP_METRICS,
+                                       METRIC_SOURCE, METRICS, check_metric_source,
+                                       metric_value as _metric_value)
 
-# metric -> (higher_is_better, comparable_across_reward_definitions), lexicographic
-METRICS = {"connectivity": (True, True), "delivery_ratio": (True, True),
-           "los_fraction": (True, True), "return": (True, False),
-           "unroutable_fraction": (False, True)}
-GROUP_METRICS = tuple(name for name, (_, shared) in METRICS.items() if shared)
-CSV_METRICS = ("delivery_ratio", "connectivity", "los_fraction",
-               "unroutable_fraction", "first_all_los_decision")
-CSV_COLUMNS = ("label", "training_seed", "model_sha256", "eval_dir", "policy", "seed",
-               "status", "decisions", "return", "delivery_ratio", "connectivity",
-               "los_fraction", "unroutable_fraction", "first_all_los_decision",
-               "mask_violations", "revalidated_slots_total", "actions_sha256",
-               "held_out", "metric_source", "episode_dir", "summary_json", "error")
+REQUIRED_MANIFEST_VERSION = EVAL_MANIFEST_VERSION
+CSV_COLUMNS = (("label", "training_seed", "model_sha256", "eval_dir", "policy", "seed",
+                "status", "decisions") + CSV_METRIC_COLUMNS
+               + ("mask_violations", "revalidated_slots_total", "actions_sha256",
+                  "held_out", "metric_source", "warmup_excluded", "episode_dir",
+                  "summary_json", "error"))
 
 
 class ComparisonError(Exception):
@@ -42,12 +37,6 @@ class Evaluation:
     training_seed: int | None
     model_sha256: str | None
     held_out: bool | None
-
-
-def _metric_value(record, metric):
-    if metric == "return":
-        return record.get("return")
-    return (record.get("metrics") or {}).get(metric)
 
 
 def _policy_order(names) -> list:
@@ -95,6 +84,10 @@ def load_evaluation(eval_dir) -> Evaluation | None:
         raise ComparisonError(
             f"{path} has eval_manifest_version {version!r}, not "
             f"{REQUIRED_MANIFEST_VERSION}; re-evaluate with current tooling")
+    try:
+        check_metric_source(manifest.get("metric_source"))
+    except ValueError as exc:
+        raise ComparisonError(f"{path}: {exc}") from exc
     seeds, records = _records(manifest, path)
     return Evaluation(str(Path(eval_dir).resolve()), manifest,
                       hashlib.sha256(raw).hexdigest(), seeds, records,
@@ -123,16 +116,17 @@ def load_evaluations(entries) -> tuple:
 
 
 def _row(evaluation: Evaluation, policy: str, seed: int, record: dict) -> dict:
-    metrics = record.get("metrics") or {}
     row = {"label": evaluation.label, "training_seed": evaluation.training_seed,
            "model_sha256": evaluation.model_sha256, "eval_dir": evaluation.eval_dir,
            "policy": policy, "seed": seed, "status": record.get("status"),
-           "decisions": record.get("decisions"), "return": record.get("return")}
-    row.update({metric: metrics.get(metric) for metric in CSV_METRICS})
+           "decisions": record.get("decisions")}
+    row.update({metric: _metric_value(record, metric) for metric in CSV_METRIC_COLUMNS})
     row.update({"mask_violations": record.get("mask_violations"),
                 "revalidated_slots_total": record.get("revalidated_slots_total"),
                 "actions_sha256": record.get("actions_sha256"),
-                "held_out": evaluation.held_out, "metric_source": METRIC_SOURCE["kind"],
+                "held_out": evaluation.held_out,
+                "metric_source": evaluation.manifest["metric_source"]["kind"],
+                "warmup_excluded": evaluation.manifest["metric_source"]["warmup_excluded"],
                 "episode_dir": record.get("episode_dir"),
                 "summary_json": record.get("summary_json"), "error": record.get("error")})
     return row
