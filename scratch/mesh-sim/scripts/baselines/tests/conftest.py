@@ -23,7 +23,6 @@ controlled_nodes = uav-a, uav-b, uav-c, walker
 max_controlled_nodes = 4
 action_profile = move_2d
 decision_interval_s = 0.5
-action_type = discrete
 reward_type = all_links_los
 step_size_m = 1.0
 x_min = 0.0

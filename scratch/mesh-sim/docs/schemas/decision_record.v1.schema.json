@@ -748,30 +748,6 @@
                 },
                 "legacy": {
                   "type": "number"
-                },
-                "delivery_binary": {
-                  "type": "number"
-                },
-                "signed_delivery_ratio": {
-                  "type": "number"
-                },
-                "service_success": {
-                  "type": "number"
-                },
-                "service_failure": {
-                  "type": "number"
-                },
-                "travel_fraction": {
-                  "type": "number"
-                },
-                "origin_fraction": {
-                  "type": "number"
-                },
-                "sinr_quality": {
-                  "type": "number"
-                },
-                "unmet_sinr_quality": {
-                  "type": "number"
                 }
               },
               "additionalProperties": false
@@ -807,38 +783,6 @@
                     0,
                     1
                   ]
-                },
-                "delivery_binary": {
-                  "type": "integer",
-                  "enum": [0, 1]
-                },
-                "signed_delivery_ratio": {
-                  "type": "integer",
-                  "enum": [0, 1]
-                },
-                "service_success": {
-                  "type": "integer",
-                  "enum": [0, 1]
-                },
-                "service_failure": {
-                  "type": "integer",
-                  "enum": [0, 1]
-                },
-                "travel_fraction": {
-                  "type": "integer",
-                  "enum": [0, 1]
-                },
-                "origin_fraction": {
-                  "type": "integer",
-                  "enum": [0, 1]
-                },
-                "sinr_quality": {
-                  "type": "integer",
-                  "enum": [0, 1]
-                },
-                "unmet_sinr_quality": {
-                  "type": "integer",
-                  "enum": [0, 1]
                 }
               },
               "additionalProperties": false

@@ -41,3 +41,11 @@ fails with pytest output; its files are confined to pytest's temporary paths.
 | `test_policy_lifecycle.py`: `test_seed_roles_flag_training_and_selection_overlap`, `test_seed_roles_without_an_evaluation_block_only_checks_the_training_seed`, `test_seed_roles_without_a_bundle_are_unknown` | Training manifest and evaluation seeds → `seed_roles` flags overlap with the training or model-selection seed; no bundle → held-out status unknown (`None`). |
 | `test_real_binary.py`: `test_building_bypass_fixture_geometry` | Built binary and building fixture → scripted hold/movement produces expected LOS and positions. |
 | `test_real_binary.py`: `test_lifecycle_train_inspect_evaluate_in_fresh_processes` | Built binary and fixture → train, inspect, and evaluate in separate processes with verified artifacts and completed episodes. |
+
+Recovery checks in `test_policy_lifecycle.py` interrupt real SB3 training driven
+by the fake simulator, verify checkpoint records before failure, then restore
+optimizer state and continue from step 16 to cumulative step 24. They also
+cover stale-running manifests, corrupt archives, changed settings/scenarios,
+output overlap (including the generated default), empty warmup metrics, and
+publication failures that must leave the previous manifest/checkpoint intact.
+These tests do not establish simulator physics or exact replay after recovery.

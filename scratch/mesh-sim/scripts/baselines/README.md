@@ -1,3 +1,4 @@
+@page scripts_baselines Placement baselines
 # Placement baselines
 
 `scripts/baselines/` runs the supplied geometric and optimization placement
@@ -7,12 +8,20 @@ binary never plans; it only reads the prepared inputs.
 
 | File | Owns |
 | --- | --- |
-| `config.py` | Strict `[baseline]` parsing, the mapping file, explicit `[rl]` bounds. |
-| `adapter.py` | Node roles/platforms/radios, datum and result validation, `prepare()`. |
+| `config.py` / `mapping.py` | Strict INI/options parsing / versioned mapping and geofence validation. |
+| `adapter.py` | Node roles/platforms/radios, gateway authority, datum and result validation. |
+| `preparation.py` | `prepare()`: coordinate input loading, planning, snapshots and preparation metadata. |
 | `arpo_solver.py` | Planner source resolution, hashing, the import shim, projection, solving. The only module that imports the planner. |
 | `effective_inputs.py` | Source snapshots, line-preserving INI edits, the `nodes.json` rewrite. |
 | `artifacts.py` | `baseline_manifest.json` and `baseline-plan.json` schemas and status transitions. |
-| `runner.py` | The standalone command and the simulator child lifecycle. |
+| `execution.py` | Standalone settings, simulator child lifecycle, seed results and failure recording. |
+| `runner.py` | Parse CLI arguments and delegate to `execution.py`. |
+| `../artifact_io.py` | Shared atomic JSON I/O, hashes and timestamps. |
+
+RL placement setup lives in `scripts/rl/policy/evaluate.py`; experiment matrix
+validation and execution live in `scripts/rl/policy/experiment.py`. CLI modules
+delegate to those owners. The adapter's existing preparation imports remain
+available for downstream callers.
 
 No module here imports `scripts.rl.*`, Gymnasium, Torch, or Stable-Baselines3.
 With `algorithm = none`, no planner module or planner dependency is imported.
@@ -66,6 +75,7 @@ Evaluation: the placement methods are two more policy names in
 ```bash
 .venv/bin/python -m scripts.rl.evaluate \
   --sim-binary <BIN> --run-config <INI> \
+  --output-dir <FRESH-EVAL-DIR> \
   --seeds 1,2 --policies hold,random_valid,geometric,optimization
 ```
 
@@ -170,15 +180,24 @@ plan. That only preserves the plan for nodes whose mobility the RL bridge
 installs, so preparation requires:
 
 1. `[rl] controlled_nodes` is present (legacy single-node control is rejected);
-2. every id in `movable_nodes` is RL-controlled (`controlled_nodes = all`
-   satisfies this);
+2. every id in `movable_nodes` is RL-controlled;
 3. every planned position lies inside the `[rl]` x/y bounds.
 
 An RL-controlled node that was not selected holds at its original start. A node
 that is not RL-controlled follows its scenario mobility under every policy.
-The gateway may be RL-controlled; under `hold` it stays put. Standalone runs
-have none of these restrictions: a moved node starts at the plan and then
-follows its configured mobility.
+When `[traffic] flow_topology = gateway`, its `gateway_node_id` must be outside
+both baseline selection and RL control. `controlled_nodes = all` is refused
+for that topology. The version 1 planner's `[baseline] gateway_node_id` is a
+separate, fixed planning anchor; it does not select the traffic gateway.
+Standalone runs do not require RL control slots: a moved node starts at the
+plan and then follows its configured mobility. The active traffic gateway
+still cannot be selected.
+
+The plan's `slot` records a controlled node's index in the centralized
+control order for evaluation; it is `null` in standalone mode. Planner roles
+and radio names describe planner inputs, not simulator traffic roles or radio
+calibration. A random-walk node's initial placement must also fit its own
+mobility bounds, because those bounds govern its movement after startup.
 
 ## What preparation does
 
@@ -238,13 +257,18 @@ baseline manifest and plan.
 | `planner_source` | Origin, per-file SHA-256, and one aggregate hash. |
 | `rf` | RF file hash, `planner` (radio specs and settings actually used), and `simulator_channel` (the INI's `[channel]` values and effective band). |
 | `fingerprint` | Hash of method, objective, planner seed, `max_iterations`, waypoint policy, mapping/RF/source hashes, and the four effective-input hashes. `scripts.rl.compare` rejects a `--label` group whose placement fingerprints differ. |
-| `initial_displacement_m_total` | Sum of planned x/y displacement. `travel_m_total` and `displacement_m_final` in evaluation keep measuring motion after decision 0. |
+| `initial_displacement_m_total` | Sum of planned x/y displacement before the first decision. This is a placement cost, separate from motion during the episode; this PR does not export an episode travel total. |
 
 All paths are relative to the run directory, so a moved run stays readable;
 `source_run_config_abs` is the one informational absolute path.
 `baseline-plan.json` lists, per node, id, roster index, RL slot (evaluation),
 role, platform, radios, `selected`, `original` and `planned` x/y/z, and
 `displacement_m`, plus the planner's own diagnostics as `planner_predictions`.
+
+Evaluation manifest version 3 uses scored facts at `time_s >= warmup_s`.
+Decisions still run during warmup. Empty scored windows have zero reward and
+null measured metrics. Use the same scoring window when comparing policies;
+planning predictions cannot substitute for measured delivered demand.
 
 ## Planner limits
 
@@ -254,8 +278,9 @@ role, platform, radios, `selected`, `original` and `planned` x/y/z, and
 - The supplied optimizer's `swap` move exchanges two nodes' positions **and
   altitudes**. When the selected nodes have different z, a swap can return a
   z that fails the unchanged-z check, and preparation fails; nothing is
-  clamped. This is a current limit; how to handle it is an open decision.
-  Selected nodes that share one z avoid it.
+  clamped. Selected nodes that share one z avoid it. The active planner ports
+  in [PR #26](https://github.com/ryanmccann1024/ns3-mmwave/pull/26) replace this
+  with x/y-only swaps; that downstream fix is not duplicated here.
 - The planner seed does not follow the simulation seed. Same-machine
   determinism is tested; determinism across platforms or numpy versions is not
   claimed.
@@ -266,6 +291,8 @@ role, platform, radios, `selected`, `original` and `planned` x/y/z, and
   is not the simulator's channel model. The manifest records both side by side under
   `rf.planner` and `rf.simulator_channel`; no equivalence is claimed, and
   `planner_predictions` are predictions, not measurements.
+  [PR #25](https://github.com/ryanmccann1024/ns3-mmwave/pull/25) adds simulator
+  channel queries and PR #26 uses them instead of this RF/Friis runtime path.
 
 ## What may not be committed
 
@@ -290,3 +317,6 @@ selected by `FAKE_CHILD_MODE`. `test_real_binary.py` covers the guard, the
 standalone runner, and the evaluation suite on a real binary; without
 `MESH_SIM_BIN` each test is skipped with a reason starting `BLOCKED:`, which is
 missing evidence, not a pass.
+
+See [the worked input guide](input-guide.md) for a small configuration, coordinate
+explanations, and active-planner extension steps.

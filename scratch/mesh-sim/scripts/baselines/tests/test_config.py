@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from scripts.baselines import config
+from scripts.baselines import config, mapping as mapping_config
 from scripts.baselines.config import ConfigError
 from scripts.baselines.tests.conftest import (MAPPING, SCENARIO_SECTIONS, baseline_section,
                                               scenario_ini, write_scenario)
@@ -201,7 +201,7 @@ def _mapping(tmp_path, payload, ini_text=None):
 
 
 def test_mapping_valid(tmp_path):
-    mapping = config.load_mapping(*_mapping(tmp_path, MAPPING))
+    mapping = mapping_config.load_mapping(*_mapping(tmp_path, MAPPING))
     assert mapping.origin == {"lat": 10.0, "lon": 20.0, "synthetic": True}
     assert mapping.geofence == {"source": "rl_bounds", "x_min": 0.0, "x_max": 400.0,
                                 "y_min": 0.0, "y_max": 400.0}
@@ -212,14 +212,14 @@ def test_mapping_rectangle(tmp_path):
     payload = copy.deepcopy(MAPPING)
     payload["geofence"] = {"source": "rectangle_xy_m", "x_min": 10, "x_max": 20,
                            "y_min": -5, "y_max": 5}
-    mapping = config.load_mapping(*_mapping(tmp_path, payload))
+    mapping = mapping_config.load_mapping(*_mapping(tmp_path, payload))
     assert mapping.rectangle == {"x_min": 10.0, "x_max": 20.0, "y_min": -5.0, "y_max": 5.0}
 
 
 def test_rl_bounds_requires_explicit_keys(tmp_path):
     text = scenario_ini().replace("y_max = 400.0\n", "")
     with pytest.raises(ConfigError, match="y_max.*loader defaults are not used"):
-        config.load_mapping(*_mapping(tmp_path, MAPPING, ini_text=text))
+        mapping_config.load_mapping(*_mapping(tmp_path, MAPPING, ini_text=text))
 
 
 @pytest.mark.parametrize("geofence", [
@@ -235,7 +235,7 @@ def test_polygon_geofence_rejected_with_rectangle_limit(tmp_path, geofence):
     payload = copy.deepcopy(MAPPING)
     payload["geofence"] = geofence
     with pytest.raises(ConfigError) as err:
-        config.load_mapping(*_mapping(tmp_path, payload))
+        mapping_config.load_mapping(*_mapping(tmp_path, payload))
     message = str(err.value)
     assert "only axis-aligned rectangle" in message
     assert "polygon geofences are a documented TODO" in message
@@ -265,14 +265,45 @@ def test_mapping_invalid(tmp_path, mutate, match):
     payload = copy.deepcopy(MAPPING)
     mutate(payload)
     with pytest.raises(ConfigError, match=match):
-        config.load_mapping(*_mapping(tmp_path, payload))
+        mapping_config.load_mapping(*_mapping(tmp_path, payload))
 
 
 def test_mapping_missing_or_malformed(tmp_path):
     ini = config.read_ini(write_scenario(tmp_path / "s"))
     with pytest.raises(ConfigError, match="not found"):
-        config.load_mapping(tmp_path / "absent.json", ini)
+        mapping_config.load_mapping(tmp_path / "absent.json", ini)
     bad = tmp_path / "bad.json"
     bad.write_text("{not json")
     with pytest.raises(ConfigError, match="not valid JSON"):
-        config.load_mapping(bad, ini)
+        mapping_config.load_mapping(bad, ini)
+
+
+@pytest.mark.parametrize("section", ("scenario", "rl", "channel", "DEFAULT"))
+@pytest.mark.parametrize("padding", (" {} ", " {}", "{} "))
+def test_every_padded_section_header_is_rejected(tmp_path, section, padding):
+    with pytest.raises(ConfigError, match="surrounding whitespace"):
+        config.read_ini(_ini(tmp_path, f"[{padding.format(section)}]\nseed = 3\n"))
+
+
+def test_padded_scenario_cannot_select_default_nodes(tmp_path):
+    from scripts.baselines.effective_inputs import scenario_files
+
+    (tmp_path / "nodes.json").write_text("[]")
+    (tmp_path / "custom.json").write_text('[{"id": "requested-node"}]')
+    ini_path = _ini(tmp_path, "[ scenario ]\nnodes_file = custom.json\n")
+    with pytest.raises(ConfigError, match="use '\\[scenario\\]'"):
+        cfg = config.load_baseline(ini_path)
+        scenario_files(config.read_ini(ini_path), cfg)
+
+    ini_path.write_text("[scenario]\nnodes_file = custom.json\n")
+    cfg = config.load_baseline(ini_path)
+    assert scenario_files(config.read_ini(ini_path), cfg).nodes == tmp_path / "custom.json"
+
+
+def test_downstream_mapping_imports_remain_available():
+    from scripts.baselines.config import Mapping, PLATFORMS, load_mapping
+
+    assert PLATFORMS == ("ground", "aerial")
+    assert PLATFORMS is mapping_config.PLATFORMS
+    assert Mapping is mapping_config.Mapping
+    assert load_mapping is mapping_config.load_mapping

@@ -1,5 +1,7 @@
 """Node mapping, result validation, prepare() lifecycle, and the import boundary."""
 
+from scripts.baselines import preparation
+
 import copy
 import json
 import math
@@ -210,7 +212,7 @@ def test_random_walk_default_bounds_mirror_simulator(tmp_path):
 
 def _prepare_eval(tmp_path, ini, method="geometric", **kwargs):
     out = tmp_path / "eval"
-    return adapter.prepare(ini, method, out / method / "baseline", mode="evaluation", **kwargs)
+    return preparation.prepare(ini, method, out / method / "baseline", mode="evaluation", **kwargs)
 
 
 def test_prepare_evaluation_with_stub(tmp_path, stub_planner):
@@ -266,7 +268,7 @@ def test_prepare_standalone_resolves_method(tmp_path, stub_planner):
     ini = write_scenario(tmp_path / "s", overrides={"algorithm": "optimization"})
     binary = tmp_path / "fake-bin"
     binary.write_bytes(b"binary")
-    prepared = adapter.prepare(ini, None, tmp_path / "run", mode="standalone",
+    prepared = preparation.prepare(ini, None, tmp_path / "run", mode="standalone",
                                sim_binary=binary)
     manifest = artifacts.read_json(prepared.manifest_path)
     assert (manifest["status"], manifest["ended_at"]) == ("prepared", None)
@@ -279,7 +281,7 @@ def test_prepare_standalone_resolves_method(tmp_path, stub_planner):
     assert manifest["eval_manifest"] is None
     assert manifest["sim_binary_sha256"] == artifacts.sha256_file(binary)
     assert prepared.metadata["manifest"] == "baseline_manifest.json"
-    override = adapter.prepare(ini, "geometric", tmp_path / "run2", mode="standalone")
+    override = preparation.prepare(ini, "geometric", tmp_path / "run2", mode="standalone")
     assert artifacts.read_json(override.manifest_path)["method"] == "geometric"
 
 
@@ -289,7 +291,7 @@ def test_prepare_none_standalone(tmp_path, monkeypatch):
     for name in ("solve", "inspect_rf", "resolve_source_dir", "source_hashes"):
         monkeypatch.setattr(f"scripts.baselines.arpo_solver.{name}", forbidden)
     ini = write_scenario(tmp_path / "s", overrides={"algorithm": "none"})
-    prepared = adapter.prepare(ini, None, tmp_path / "run", mode="standalone")
+    prepared = preparation.prepare(ini, None, tmp_path / "run", mode="standalone")
     manifest = artifacts.read_json(prepared.manifest_path)
     assert manifest["method"] == "none"
     assert manifest["planner_source"] is None
@@ -302,8 +304,8 @@ def test_prepare_none_imports_no_planner_module(tmp_path):
     ini = write_scenario(tmp_path / "s", overrides={"algorithm": "none"})
     script = textwrap.dedent(f"""
         import sys
-        from scripts.baselines import adapter
-        adapter.prepare({str(ini)!r}, None, {str(tmp_path / 'run')!r}, mode="standalone")
+        from scripts.baselines import adapter, preparation
+        preparation.prepare({str(ini)!r}, None, {str(tmp_path / 'run')!r}, mode="standalone")
         loaded = sorted(m for m in sys.modules if m.split('.')[0] in
                         ('models', 'core', 'planners', 'pydantic', 'shapely', 'pyproj',
                          'yaml') or m == 'scripts.baselines.arpo_solver')
@@ -394,7 +396,7 @@ def test_prepare_argument_rules(tmp_path, stub_planner):
     busy.mkdir()
     (busy / "keep.txt").write_text("x")
     with pytest.raises(BaselinePreparationError, match="not empty"):
-        adapter.prepare(ini, "geometric", busy, mode="standalone")
+        preparation.prepare(ini, "geometric", busy, mode="standalone")
     assert sorted(p.name for p in busy.iterdir()) == ["keep.txt"]
 
 
@@ -453,3 +455,27 @@ def test_baseline_modules_do_not_import_rl_or_ml_stacks():
     result = subprocess.run([sys.executable, "-c", script], cwd=MESH_ROOT, text=True,
                             capture_output=True, check=True)
     assert result.stdout.splitlines() == ["[]", "[]"]
+
+
+@pytest.mark.parametrize("controlled", (("gw", "uav-a", "uav-c"), ("all",)))
+def test_active_traffic_gateway_cannot_be_rl_controlled(tmp_path, stub_planner, controlled):
+    text = scenario_ini().replace("controlled_nodes = uav-a, uav-b, uav-c, walker",
+                                   "controlled_nodes = " + ",".join(controlled))
+    text += "\n[traffic]\nflow_topology = gateway\ngateway_node_id = gw\n"
+    ini = write_scenario(tmp_path / "s", ini_text=text)
+    with pytest.raises(preparation.BaselinePreparationError, match="active traffic gateway.*RL-controlled"):
+        preparation.prepare(ini, "geometric", tmp_path / "eval/geometric/baseline")
+
+
+def test_active_traffic_gateway_cannot_be_selected_for_standalone_placement(tmp_path, stub_planner):
+    text = scenario_ini() + "\n[traffic]\nflow_topology = gateway\ngateway_node_id = uav-a\n"
+    ini = write_scenario(tmp_path / "s", ini_text=text)
+    with pytest.raises(preparation.BaselinePreparationError, match="active traffic gateway.*baseline-movable"):
+        preparation.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
+
+
+def test_gateway_topology_accepts_the_other_nodes(tmp_path, stub_planner):
+    text = scenario_ini() + "\n[traffic]\nflow_topology = gateway\ngateway_node_id = gw\n"
+    ini = write_scenario(tmp_path / "s", ini_text=text)
+    prepared = preparation.prepare(ini, "geometric", tmp_path / "eval/geometric/baseline")
+    assert artifacts.read_json(prepared.manifest_path)["status"] == "prepared"

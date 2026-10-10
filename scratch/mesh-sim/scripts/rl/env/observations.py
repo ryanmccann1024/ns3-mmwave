@@ -1,22 +1,16 @@
 """Named observation presets built from the simulator's per-decision facts."""
 
-import hashlib
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import Callable
 
 import numpy as np
 from gymnasium import spaces
 
+from scripts.artifact_io import canonical_sha256
+from .normalization import LINK_FIELDS, Normalization
 from .protocol import SLOT_ACTIONS
-
-SINR_CLIP_DB = (-20.0, 40.0)
-SINR_INVALID_DB = -900.0
-_SINR_SPAN = SINR_CLIP_DB[1] - SINR_CLIP_DB[0]
-_CAP_LOG_SCALE = 4.0
-_VELOCITY_SCALE_MPS = 40.0  # largest relative speed of two 20 m/s drones
-
 
 class SchemaMismatchError(ValueError):
     """A saved observation schema is structurally incompatible with a live one."""
@@ -62,10 +56,6 @@ def _normalize_axis(value: float, low: float, high: float) -> float:
     return _clip(2.0 * (value - low) / (high - low) - 1.0, -1.0, 1.0)
 
 
-def _sinr_valid(sinr: float) -> bool:
-    return math.isfinite(sinr) and sinr > SINR_INVALID_DB
-
-
 def _peer_indices(contract: dict, index: int) -> list[int]:
     return [p for p in range(_num_nodes(contract)) if p != index]
 
@@ -87,7 +77,7 @@ def _build_raw_links(facts: dict, contract: dict) -> np.ndarray:
     return np.asarray(values, dtype=np.float64)
 
 
-def _build_local_links_v1(facts: dict, contract: dict) -> np.ndarray:
+def _build_local_links_v1(facts: dict, contract: dict, scales: Normalization) -> np.ndarray:
     n = _num_nodes(contract)
     bounds = contract["bounds"]
     nodes, links = facts["nodes"], facts["links"]
@@ -105,11 +95,9 @@ def _build_local_links_v1(facts: dict, contract: dict) -> np.ndarray:
         for peer in _peer_indices(contract, index):
             link = links[_link_index(n, index, peer)]
             sinr, capacity = float(link[0]), float(link[1])
-            valid = _sinr_valid(sinr) and math.isfinite(capacity)
-            sinr_n = _clip((sinr - SINR_CLIP_DB[0]) / _SINR_SPAN, 0.0, 1.0) if valid else 0.0
-            cap_n = _clip(
-                math.log10(max(1.0 + capacity, 1.0)) / _CAP_LOG_SCALE, 0.0, 1.0
-            ) if valid else 0.0
+            valid = scales.sinr_valid(sinr) and math.isfinite(capacity)
+            sinr_n = scales.sinr_quality(sinr) if valid else 0.0
+            cap_n = scales.capacity(capacity) if valid else 0.0
             values.extend([1.0, 1.0 if valid else 0.0, sinr_n, cap_n])
     return np.asarray(values, dtype=np.float32)
 
@@ -138,15 +126,15 @@ def _build_geometry_v1(facts: dict, contract: dict) -> np.ndarray:
     return np.asarray(values, dtype=np.float32)
 
 
-def _service_values(window: dict, contract: dict) -> list[float]:
+def _service_values(window: dict, contract: dict, scales: Normalization) -> list[float]:
     demand = float(window["demand_mbps_sum"])
     delivered = float(window["delivered_mbps_sum"])
-    ticks = max(1, int(window["ticks"]))
+    ticks = max(1, int(window["scored_ticks"]))
     pair_ticks = ticks * int(contract["num_links"])
     flow_ticks = int(window["flow_ticks_with_demand"])
     return [
-        _clip(math.log10(1.0 + demand / ticks) / _CAP_LOG_SCALE, 0.0, 1.0),
-        _clip(math.log10(1.0 + delivered / ticks) / _CAP_LOG_SCALE, 0.0, 1.0),
+        _clip(math.log10(1.0 + demand / ticks) / scales.capacity_log10_denominator, 0.0, 1.0),
+        _clip(math.log10(1.0 + delivered / ticks) / scales.capacity_log10_denominator, 0.0, 1.0),
         _clip(delivered / demand, 0.0, 1.0) if demand > 1e-9 else 0.0,
         _clip(float(window["connected_pairs_sum"]) / pair_ticks, 0.0, 1.0)
         if pair_ticks else 0.0,
@@ -155,10 +143,10 @@ def _service_values(window: dict, contract: dict) -> list[float]:
     ]
 
 
-def _build_service_v1(facts: dict, contract: dict) -> np.ndarray:
-    local = _build_local_links_v1(facts, contract)
+def _build_service_v1(facts: dict, contract: dict, scales: Normalization) -> np.ndarray:
+    local = _build_local_links_v1(facts, contract, scales)
     local_width = 4 + 4 * (_num_nodes(contract) - 1)
-    service = _service_values(facts["window"], contract)
+    service = _service_values(facts["window"], contract, scales)
     values: list[float] = []
     for slot in range(_num_slots(contract)):
         values.extend(local[slot * local_width:(slot + 1) * local_width])
@@ -167,8 +155,8 @@ def _build_service_v1(facts: dict, contract: dict) -> np.ndarray:
     return np.asarray(values, dtype=np.float32)
 
 
-def _build_full_facts_v1(facts: dict, contract: dict) -> np.ndarray:
-    service = _build_service_v1(facts, contract)
+def _build_full_facts_v1(facts: dict, contract: dict, scales: Normalization) -> np.ndarray:
+    service = _build_service_v1(facts, contract, scales)
     service_width = 9 + 4 * (_num_nodes(contract) - 1)
     nodes, bounds = facts["nodes"], contract["bounds"]
     spans = [float(bounds[f"{axis}_max"]) - float(bounds[f"{axis}_min"])
@@ -186,14 +174,14 @@ def _build_full_facts_v1(facts: dict, contract: dict) -> np.ndarray:
             values.extend(_clip((float(other[axis]) - float(row[axis])) / spans[axis],
                                 -1.0, 1.0) for axis in range(3))
             values.extend(_clip((float(other[axis]) - float(row[axis])) /
-                                _VELOCITY_SCALE_MPS, -1.0, 1.0)
+                                scales.velocity_scale_mps, -1.0, 1.0)
                           for axis in range(3, 6))
             values.append(float(facts["links"][_link_index(_num_nodes(contract),
                                                           index, peer)][2]))
         window = facts["window"]
         gap = max(0.0, float(window["demand_mbps_sum"]) -
-                  float(window["delivered_mbps_sum"])) / max(1, int(window["ticks"]))
-        values.append(_clip(math.log10(1.0 + gap) / _CAP_LOG_SCALE, 0.0, 1.0))
+                  float(window["delivered_mbps_sum"])) / max(1, int(window["scored_ticks"]))
+        values.append(_clip(math.log10(1.0 + gap) / scales.capacity_log10_denominator, 0.0, 1.0))
     return np.asarray(values, dtype=np.float32)
 
 
@@ -260,12 +248,27 @@ def _full_facts_features(contract: dict) -> list[str]:
     return names
 
 
-def _feature_space(contract: dict, names: list[str]) -> spaces.Box:
-    low = [0.0 if name.endswith((".active", ".present", ".is_los", "_log_n", "_ratio",
-                                       "_fraction", ".sinr_valid", ".sinr_n",
-                                       ".cap_n")) else -1.0 for name in names]
+def _bounded_space(contract, slot_low):
+    low = slot_low * _num_slots(contract)
     return spaces.Box(low=np.asarray(low, dtype=np.float32),
-                      high=np.ones(len(names), dtype=np.float32), dtype=np.float32)
+                      high=np.ones(len(low), dtype=np.float32), dtype=np.float32)
+
+
+def _geometry_space(contract):
+    return _bounded_space(contract, [0, -1, -1] + [0, -1, -1] * (_num_nodes(contract) - 1))
+
+
+def _service_slot_low(contract):
+    return [0, -1, -1, -1] + [0] * (4 * (_num_nodes(contract) - 1) + 5)
+
+
+def _service_space(contract):
+    return _bounded_space(contract, _service_slot_low(contract))
+
+
+def _full_facts_space(contract):
+    return _bounded_space(contract, _service_slot_low(contract) +
+                          ([-1] * 6 + [0]) * (_num_nodes(contract) - 1) + [0])
 
 
 def _raw_links_space(contract: dict) -> spaces.Box:
@@ -300,9 +303,15 @@ class ObservationPreset:
     _build: Callable[[dict, dict], np.ndarray]
     _space: Callable[[dict], spaces.Box]
     _features: Callable[[dict], list[str]]
-    normalization: dict
+    normalization: dict | Callable
+    normalization_fields: tuple[str, ...] = ()
+    parameters: dict = field(default_factory=dict)
+    required_facts: tuple[str, ...] = ("nodes", "links")
+    compatibility_fields: tuple[str, ...] = ()
 
     def build(self, facts: dict, contract: dict) -> np.ndarray:
+        if self.normalization_fields:
+            return self._build(facts, contract, Normalization(**self.parameters))
         return self._build(facts, contract)
 
     def space(self, contract: dict) -> spaces.Box:
@@ -312,65 +321,61 @@ class ObservationPreset:
         return self._features(contract)
 
     def schema(self, contract: dict) -> dict:
-        return observation_schema(self.name, contract)
+        return _preset_schema(self, contract)
+
+
+def _link_normalization(parameters):
+    return {**parameters, "position": "rl_bounds",
+            "sinr_clip_db": [parameters["sinr_min_db"], parameters["sinr_max_db"]],
+            "capacity": f"log10(1+x)/{parameters['capacity_log10_denominator']:g}"}
+
+
+def _service_normalization(parameters):
+    return {**_link_normalization(parameters),
+            "demand": f"log10(1+Mbps)/{parameters['capacity_log10_denominator']:g}",
+            "window": "sums_over_scored_ticks", "service_ratios": "unit ratios"}
+
+
+def _full_normalization(parameters):
+    return {**_service_normalization(parameters),
+            "peer_relative_xyz": "(peer-self)/(max-min), clipped [-1,1]",
+            "peer_relative_velocity": f"(peer-self)/{parameters['velocity_scale_mps']:g} mps, clipped [-1,1]"}
 
 
 PRESETS = {
     "raw_links_v1": ObservationPreset(
-        name="raw_links_v1",
-        dtype="float64",
-        _build=_build_raw_links,
-        _space=_raw_links_space,
-        _features=_raw_links_features,
-        normalization={"position": "raw", "sinr_clip_db": None, "capacity": "raw"},
-    ),
+        "raw_links_v1", "float64", _build_raw_links, _raw_links_space, _raw_links_features,
+        {"position": "raw", "sinr_clip_db": None, "capacity": "raw"}),
     "local_links_v1": ObservationPreset(
-        name="local_links_v1",
-        dtype="float32",
-        _build=_build_local_links_v1,
-        _space=_local_links_space,
-        _features=_local_links_features,
-        normalization={"position": "rl_bounds", "sinr_clip_db": list(SINR_CLIP_DB),
-                       "capacity": "log10(1+x)/4"},
-    ),
+        "local_links_v1", "float32", _build_local_links_v1, _local_links_space,
+        _local_links_features, _link_normalization, normalization_fields=LINK_FIELDS,
+        compatibility_fields=("bounds",)),
     "geometry_v1": ObservationPreset(
-        name="geometry_v1", dtype="float32", _build=_build_geometry_v1,
-        _space=lambda c: _feature_space(c, _geometry_features(c)),
-        _features=_geometry_features,
-        normalization={"self_xy": "2*(value-min)/(max-min)-1",
-                       "peer_relative_xy": "(peer-self)/(max-min), clipped [-1,1]"},
-    ),
+        "geometry_v1", "float32", _build_geometry_v1, _geometry_space, _geometry_features,
+        {"self_xy": "2*(value-min)/(max-min)-1",
+         "peer_relative_xy": "(peer-self)/(max-min), clipped [-1,1]"},
+        required_facts=("nodes",), compatibility_fields=("bounds",)),
     "service_v1": ObservationPreset(
-        name="service_v1", dtype="float32", _build=_build_service_v1,
-        _space=lambda c: _feature_space(c, _service_features(c)),
-        _features=_service_features,
-        normalization={"position": "rl_bounds", "sinr_clip_db": list(SINR_CLIP_DB),
-                       "capacity": "log10(1+x)/4", "demand": "log10(1+Mbps)/4",
-                       "delivery_connectivity_unroutable": "unit ratios"},
-    ),
+        "service_v1", "float32", _build_service_v1, _service_space, _service_features,
+        _service_normalization, normalization_fields=LINK_FIELDS,
+        required_facts=("nodes", "links", "window"), compatibility_fields=("bounds",)),
     "full_facts_v1": ObservationPreset(
-        name="full_facts_v1", dtype="float32", _build=_build_full_facts_v1,
-        _space=lambda c: _feature_space(c, _full_facts_features(c)),
-        _features=_full_facts_features,
-        normalization={"position": "rl_bounds", "sinr_clip_db": list(SINR_CLIP_DB),
-                       "capacity_demand_gap": "log10(1+Mbps)/4",
-                       "peer_relative_xyz": "(peer-self)/(max-min), clipped [-1,1]",
-                       "peer_relative_velocity": "(peer-self)/40 mps, clipped [-1,1]",
-                       "service_ratios": "unit ratios"},
-    ),
+        "full_facts_v1", "float32", _build_full_facts_v1, _full_facts_space,
+        _full_facts_features, _full_normalization,
+        normalization_fields=LINK_FIELDS + ("velocity_scale_mps",),
+        required_facts=("nodes", "links", "window"), compatibility_fields=("bounds",)),
 }
 
 DEFAULT_PRESET = "raw_links_v1"
 
 
-def get_preset(name: str) -> ObservationPreset:
-    """Look up a registered preset by name."""
+def get_preset(name: str, parameters=None) -> ObservationPreset:
     preset = PRESETS.get(name)
     if preset is None:
-        raise ValueError(
-            f"Unknown observation_preset {name!r}; valid choices: {sorted(PRESETS)}"
-        )
-    return preset
+        raise ValueError(f"Unknown observation_preset {name!r}; valid choices: {sorted(PRESETS)}")
+    resolved = Normalization.resolve({} if parameters is None else parameters,
+                                     preset.normalization_fields)
+    return replace(preset, parameters=resolved)
 
 
 def canonical_json(payload: dict) -> str:
@@ -379,25 +384,23 @@ def canonical_json(payload: dict) -> str:
 
 
 def schema_sha256(payload: dict) -> str:
-    """SHA-256 over the canonical JSON of a schema without its own hash field."""
-    body = {key: value for key, value in payload.items() if key != "sha256"}
-    return hashlib.sha256(canonical_json(body).encode("utf-8")).hexdigest()
+    return canonical_sha256({key: value for key, value in payload.items() if key != "sha256"})
 
 
 def _jsonable_bound(value: float) -> float | None:
     return None if not math.isfinite(value) else float(value)
 
 
-def observation_schema(preset_name: str, contract: dict) -> dict:
+def observation_schema(preset_name: str, contract: dict, parameters=None) -> dict:
     """Structural + scenario identity of one preset against one init contract."""
-    preset = get_preset(preset_name)
+    return get_preset(preset_name, parameters).schema(contract)
+
+
+def _preset_schema(preset: ObservationPreset, contract: dict) -> dict:
     slots = _num_slots(contract)
-    if preset_name == "local_links_v1":
-        low, high = _local_links_bounds(contract)
-    else:
-        space = preset.space(contract)
-        low = [_jsonable_bound(v) for v in np.atleast_1d(space.low).tolist()]
-        high = [_jsonable_bound(v) for v in np.atleast_1d(space.high).tolist()]
+    space = preset.space(contract)
+    low = [_jsonable_bound(v) for v in np.atleast_1d(space.low).tolist()]
+    high = [_jsonable_bound(v) for v in np.atleast_1d(space.high).tolist()]
     features = preset.feature_names(contract)
     schema = {
         "schema_id": preset.name,
@@ -412,7 +415,11 @@ def observation_schema(preset_name: str, contract: dict) -> dict:
         "feature_names": features,
         "low": low,
         "high": high,
-        "normalization": preset.normalization,
+        "normalization": (preset.normalization(preset.parameters) if callable(preset.normalization)
+                          else dict(preset.normalization)),
+        "parameters": dict(preset.parameters),
+        "required_facts": list(preset.required_facts),
+        "compatibility_fields": list(preset.compatibility_fields),
         "bounds": dict(contract["bounds"]),
         "node_ids": _node_ids(contract),
         "slot_node_ids": list(contract["slot_node_ids"]),
@@ -423,18 +430,18 @@ def observation_schema(preset_name: str, contract: dict) -> dict:
 
 _STRUCTURAL_FIELDS = ("schema_id", "dtype", "obs_dim", "num_mesh_nodes",
                       "max_controlled_nodes", "feature_names", "contract_id",
-                      "dimensions", "action_meanings", "nvec", "normalization")
+                      "dimensions", "action_meanings", "nvec", "normalization",
+                      "required_facts", "compatibility_fields", "parameters", "low", "high")
 _SCENARIO_FIELDS = ("node_ids", "slot_node_ids")
 
 
 def check_schema(saved: dict, live: dict) -> list[str]:
     """Raise on structural differences; return warnings for scenario identity."""
     fields = [f for f in _STRUCTURAL_FIELDS if saved.get(f) != live.get(f)]
-    # Bounds affect local_links_v1's coordinates, not raw_links_v1's raw values.
-    if {saved.get("schema_id"), live.get("schema_id")} & {
-            "local_links_v1", "geometry_v1", "service_v1", "full_facts_v1"}:
-        if saved.get("bounds") != live.get("bounds"):
-            fields.append("bounds")
+    semantic_fields = set(saved.get("compatibility_fields", [])) | set(
+        live.get("compatibility_fields", []))
+    fields.extend(field for field in sorted(semantic_fields)
+                  if saved.get(field) != live.get(field))
     if fields:
         detail = "; ".join(
             f"{field}: saved={saved.get(field)!r} live={live.get(field)!r}"

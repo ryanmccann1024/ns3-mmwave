@@ -7,32 +7,29 @@ import os
 import sys
 from pathlib import Path
 
-from scripts.rl.cli_common import (MANIFEST_NAME, add_decision_record_arguments,
-                                   add_scenario_arguments, add_selection_arguments,
-                                   automatic_output_root,
-                                   decision_records_from_args, package_versions,
-                                   selection_from_args, sha256_file)
-from scripts.rl.env.config import read_scenario_identity
+from scripts.rl.cli_common import (MANIFEST_NAME, add_scenario_arguments,
+                                   add_selection_arguments, selection_from_args,
+                                   add_decision_record_arguments, decision_records_from_args,
+                                   automatic_output_root)
 from scripts.rl.env.decisions import DecisionContext, DecisionRecording
+from scripts.rl.policy.preferences import PreferenceCapture
+from scripts.rl.env.config import read_scenario_identity
 from scripts.rl.env.mesh_env import MeshRlEnv
-from scripts.rl.policy.bundle import (eval_selection, load_model, policy_weights_sha256,
-                                      read_bundle, seed_roles, selection_from_manifest,
+from scripts.rl.policy.bundle import (check_run_overlap, eval_selection, load_model, read_bundle,
+                                      seed_roles, selection_from_manifest, model_identity,
                                       training_provenance)
 from scripts.rl.policy.compat import check_compatibility
-from scripts.rl.policy.evaluate import (EVAL_MANIFEST_NAME, HoldPolicy, ModelPolicy,
+from scripts.rl.policy.evaluate import (DEFAULT_POLICIES, EVAL_MANIFEST_NAME, POLICY_NAMES, HoldPolicy, ModelPolicy,
                                         PolicySpec, Prepared, RandomValidPolicy,
-                                        evaluate)
-from scripts.rl.policy.preferences import PreferenceCapture
+                                        evaluate, placement_spec, prepare_placements)
 from scripts.sim_support import parse_seed_spec
 
-DEFAULT_POLICIES = ("model", "hold", "random_valid")
-PLACEMENT_POLICIES = ("geometric", "optimization")
-POLICY_NAMES = DEFAULT_POLICIES + PLACEMENT_POLICIES
 SELECTION_FLAGS = ("observation_preset", "reward_components", "reward_weights",
-                   "telemetry", "telemetry_every")
+                   "telemetry", "telemetry_every", "observation_parameters", "reward_parameters")
 
 
 def mask_fn(env):
+    """Action-mask accessor used by ActionMasker."""
     return env.unwrapped.action_masks()
 
 
@@ -52,11 +49,7 @@ def _parse_policies(raw: str) -> list[str]:
 def _check_output_dir(output_dir: str, run_dir: str | None) -> None:
     out = Path(output_dir).resolve()
     if run_dir:
-        run = Path(run_dir).resolve()
-        if out == run or run in out.parents:
-            raise ValueError(
-                f"--output-dir {out} is inside the training run {run}; "
-                "evaluation never writes into a training directory")
+        check_run_overlap(out, run_dir)
     for name in (MANIFEST_NAME, EVAL_MANIFEST_NAME):
         if (out / name).exists():
             raise ValueError(f"Refusing to start: {out} already contains {name}")
@@ -67,31 +60,8 @@ def _baseline_spec(name: str) -> PolicySpec:
     return PolicySpec(name, lambda env, first_seed: Prepared(policy))
 
 
-def _placement_spec(prepared) -> PolicySpec:
-    """Hold the prepared layout; the plan is applied through the effective run.ini."""
-    policy = HoldPolicy()
-    return PolicySpec(prepared.method, lambda env, first_seed: Prepared(policy),
-                      metadata=prepared.metadata)
-
-
-def _prepare_placements(args, policies: list[str], run_config: str, band: str | None,
-                        seeds: list[int]) -> dict:
-    """Plan every requested placement method before any episode runs."""
-    methods = [name for name in policies if name in PLACEMENT_POLICIES]
-    if not methods:
-        return {}
-    from scripts.baselines import adapter
-
-    return {method: adapter.prepare(
-                run_config, method, Path(args.output_dir) / method / "baseline",
-                mode="evaluation", eval_root=args.output_dir, band=band,
-                simulation_seeds=seeds, sim_binary=args.sim_binary)
-            for method in methods}
-
-
 def _model_spec(bundle, live_identity: dict, band: str | None,
-                allow_different_scenario: bool,
-                capture: PreferenceCapture | None = None) -> PolicySpec:
+                allow_different_scenario: bool, capture=None) -> PolicySpec:
     def build(env, first_seed: int) -> Prepared:
         # The compatibility reset is the first model episode; no extra episode is left.
         initial = env.reset(seed=first_seed, options={"seed_source": "eval"})
@@ -105,29 +75,6 @@ def _model_spec(bundle, live_identity: dict, band: str | None,
     return PolicySpec("model", build)
 
 
-def _model_identity(bundle) -> dict:
-    """Decision-record identity of the evaluated model file."""
-    path = Path(bundle.model_path)
-    run_dir = Path(bundle.run_dir)
-    try:
-        recorded = str(path.resolve().relative_to(run_dir.resolve()))
-    except ValueError:
-        recorded = str(path.resolve())
-    versions = package_versions()
-    return {
-        "model_sha256": bundle.model_sha256,
-        "policy_weights_sha256": policy_weights_sha256(path),
-        "model_selection": bundle.selection,
-        "model_path_recorded": recorded,
-        "num_timesteps": bundle.num_timesteps,
-        "train_manifest_sha256": sha256_file(run_dir / MANIFEST_NAME),
-        "inference": {"deterministic": True, "device": "cpu",
-                      "stable_baselines3": versions["stable_baselines3"],
-                      "sb3_contrib": versions["sb3_contrib"],
-                      "torch": versions["torch"]},
-    }
-
-
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Evaluate mesh-sim policies")
     add_scenario_arguments(p, run_config_required=False)
@@ -138,7 +85,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--model", default="final",
                    help="final, best, or checkpoints/<file>.zip inside --run-dir")
     p.add_argument("--output-dir", default=None,
-                   help="Override the automatic timestamped evaluation output root")
+                   help="Evaluation output root; must be outside --run-dir")
     p.add_argument("--seeds", required=True,
                    help="Comma-separated distinct episode seeds; A-B is an inclusive range")
     p.add_argument("--label", default=None,
@@ -208,21 +155,19 @@ def _exit_code(manifest: dict, expected_episodes: int) -> int:
 
 def main(argv=None) -> int:
     args = _build_parser().parse_args(argv)
-    automatic = args.output_dir is None
-    if automatic:
+    if args.output_dir is None:
         args.output_dir = str(automatic_output_root("rl-evaluation"))
+        print(f"Evaluation output: {args.output_dir}", flush=True)
     try:
+        records = decision_records_from_args(args)
         seeds = parse_seed_spec(args.seeds)
         policies = _parse_policies(args.policies)
         _check_output_dir(args.output_dir, args.run_dir)
-        records = decision_records_from_args(args)
     except ValueError as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
 
-    if automatic:
-        print(f"Evaluation output: {Path(args.output_dir).resolve()}", flush=True)
-
+    capture = None
     try:
         bundle, run_config, band, selection = _resolve_run(args, policies)
         train_manifest = bundle.manifest if bundle is not None else None
@@ -250,33 +195,34 @@ def main(argv=None) -> int:
             "scenario_identity": identity,
             "bundle": bundle.describe() if bundle is not None else None,
         }
-        placements = _prepare_placements(args, policies, run_config, band, seeds)
+        placements = prepare_placements(policies, run_config, args.output_dir,
+                                        args.sim_binary, band, seeds)
         capture = (PreferenceCapture() if "model" in policies and records.enabled
                    and records.preferences != "off" else None)
-        model_identity = (_model_identity(bundle) if "model" in policies and records.enabled
-                          else None)
         specs = [_model_spec(bundle, identity, band, args.allow_different_scenario, capture)
                  if name == "model"
-                 else _placement_spec(placements[name]) if name in placements
+                 else placement_spec(placements[name]) if name in placements
                  else _baseline_spec(name) for name in policies]
         configs = {name: str(prepared.effective_run_config)
                    for name, prepared in placements.items()}
 
         def make_env(name: str) -> MeshRlEnv:
-            is_model = name == "model"
-            context = DecisionContext(
-                mode="evaluation", source="evaluate", policy=name,
-                model=model_identity if is_model else None,
-                preference_source=capture.take if is_model and capture is not None else None)
             return MeshRlEnv(args.sim_binary, configs.get(name, run_config), seed=seeds[0],
                              output_dir=os.path.join(args.output_dir, name),
                              band=band, selection=selection,
-                             decision_records=DecisionRecording(records, context))
+                             decision_records=DecisionRecording(records, DecisionContext(
+                                 "evaluation", "evaluate", policy=name,
+                                 model=model_identity(bundle) if name == "model" else None,
+                                 preference_source=capture.take if name == "model" and capture else None)))
 
         manifest = evaluate(make_env, specs, seeds, args.output_dir, base)
     except Exception as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
+
+    finally:
+        if capture is not None:
+            capture.detach()
 
     if args.json:
         print(json.dumps(manifest, indent=2))

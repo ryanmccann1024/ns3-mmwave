@@ -1,5 +1,7 @@
 """Planner loader, projection, and solver runs against the committed planner source."""
 
+from scripts.baselines import preparation
+
 import dataclasses
 import hashlib
 import io
@@ -223,7 +225,7 @@ def test_unselected_nodes_round_trip_within_tolerance(tmp_path):
 @pytest.mark.parametrize("mode", ["standalone", "evaluation"])
 def test_prepare_with_real_planner(tmp_path, method, mode):
     ini = write_scenario(tmp_path / "scenario", overrides={"objective": "resilience"})
-    prepared = adapter.prepare(ini, method, tmp_path / "out" / method / "baseline", mode=mode)
+    prepared = preparation.prepare(ini, method, tmp_path / "out" / method / "baseline", mode=mode)
     manifest = artifacts.read_json(prepared.manifest_path)
     assert manifest["status"] == "prepared"
     assert manifest["planner_source"]["files"] == _provenance_hashes()
@@ -247,4 +249,4 @@ def test_blos_radio_rejected_with_real_rf(tmp_path):
     mapping = dict(MAPPING, radios={"default": ["meshradio"], "nodes": {"gw": ["satlink"]}})
     ini = write_scenario(tmp_path / "scenario", mapping=mapping)
     with pytest.raises(BaselinePreparationError, match="'satlink', marked blos"):
-        adapter.prepare(ini, "geometric", tmp_path / "run", mode="standalone")
+        preparation.prepare(ini, "geometric", tmp_path / "run", mode="standalone")

@@ -32,7 +32,7 @@ def _plan(root: Path) -> dict:
                            "--output-dir", str(root / "comparison")],
                   "output_dir": str(root / "comparison"),
                   "manifest": "comparison.json", "needs": []})
-    return {"experiment_plan_version": 1, "steps": steps}
+    return {"experiment_plan_version": 2, "steps": steps}
 
 
 def _written_plan(tmp_path: Path) -> Path:

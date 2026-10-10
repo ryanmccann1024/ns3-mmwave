@@ -29,7 +29,8 @@ SAMPLING_NOTE = "sampled; spikes shorter than the interval can be missed"
 
 PS_ARGV = ("ps", "-A", "-o", "pid=,ppid=,rss=")
 
-_SELECTION_KEYS = ("observation_preset", "reward_components", "reward_weights")
+_SELECTION_KEYS = ("observation_preset", "reward_components", "reward_weights",
+                   "observation_parameters", "reward_parameters")
 _SELECTION_WARNING = ("observation or reward selection differs from the benchmarked "
                       "row; its Python and agent work was not measured")
 
@@ -343,13 +344,19 @@ def _peak_tree_rss_kb(benchmark: dict):
 def _selection_fields(source) -> dict | None:
     if not isinstance(source, dict):
         return None
-    return {key: source.get(key) for key in _SELECTION_KEYS}
+    from scripts.rl.env.selection import RlSelection
+    try:
+        selected = RlSelection(source["observation_preset"],
+                               tuple(source["reward_components"]), tuple(source["reward_weights"]),
+                               observation_parameters=source.get("observation_parameters", {}),
+                               reward_parameters=source.get("reward_parameters", {})).describe()
+    except (KeyError, TypeError, ValueError):
+        return None
+    return {key: selected[key] for key in _SELECTION_KEYS}
 
 
 def _row_selection(row: dict) -> dict:
-    return {"observation_preset": row["observation_preset"],
-            "reward_components": list(row["reward_components"]),
-            "reward_weights": [float(weight) for weight in row["reward_weights"]]}
+    return _selection_fields(row)
 
 
 def _same_scenario(identity, other) -> bool:

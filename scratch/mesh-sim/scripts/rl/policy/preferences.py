@@ -3,6 +3,7 @@
 import numpy as np
 
 
+
 class PreferenceCapture:
     """Forward hook on ``policy.action_net``; no extra forward, RNG, or parameter access."""
 
@@ -13,6 +14,7 @@ class PreferenceCapture:
         self._last: np.ndarray | None = None
 
     def attach(self, model) -> None:
+        self.detach()
         try:
             import torch
 
@@ -30,7 +32,15 @@ class PreferenceCapture:
 
     def _hook(self, module, inputs, output) -> None:
         # Copy out: the tensor's storage may be reused or mutated after predict returns.
-        self._last = output.detach().cpu().numpy().astype(np.float32, copy=True).reshape(-1)
+        # A failed optional copy must not abort the policy's forward pass. Stop capture
+        # after failure and retain the reason for the episode's manifest.
+        if self.error is not None:
+            return
+        try:
+            self._last = output.detach().cpu().numpy().astype(np.float32, copy=True).reshape(-1)
+        except Exception as exc:
+            self._last = None
+            self.error = f"{type(exc).__name__}: {exc}"[:1000]
 
     def take(self) -> np.ndarray | None:
         last, self._last = self._last, None
@@ -41,3 +51,4 @@ class PreferenceCapture:
             self._handle.remove()
             self._handle = None
         self.registered = False
+        self._last = None

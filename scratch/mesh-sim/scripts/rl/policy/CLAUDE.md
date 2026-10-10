@@ -41,3 +41,9 @@ codes; this package owns the logic.
 - Tests: `tests/test_policy_lifecycle.py`, `test_lifecycle_cli.py`,
   `test_evaluation_pipeline.py`, `test_policy_comparison.py`; their maps are
   `src/rl/policy-lifecycle-tests.md` and `src/rl/policy-comparison-tests.md`.
+
+- `metrics.py` owns each metric's units, direction, export behavior, and accumulator.
+  Register a metric and its accumulator; do not add parallel metric-name lists to
+  evaluation, comparison, or CSV export. Per-node maps remain JSON diagnostics.
+  Movement measures controlled nodes only, excludes warmup, and is null for
+  missing/partial boundary data rather than inferred from sparse endpoints.

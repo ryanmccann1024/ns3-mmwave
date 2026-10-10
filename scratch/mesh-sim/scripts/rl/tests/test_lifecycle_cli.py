@@ -25,7 +25,6 @@ controlled_nodes = node-b, node-c
 max_controlled_nodes = 3
 action_profile = move_2d
 decision_interval_s = 0.5
-action_type = discrete
 reward_type = all_links_los
 step_size_m = 1.0
 x_min = 0.0
@@ -79,7 +78,8 @@ def test_static_validation_passes(sim_binary, multi_run_config, capsys):
     assert payload["status"] == "ok"
     assert payload["launch"] is None
     names = {check["check"]: check for check in payload["checks"]}
-    assert names["control_mode"]["detail"] == "centralized"
+    assert names["control_mode"]["status"] == "warning"
+    assert "validated by --launch" in names["control_mode"]["detail"]
     assert names["seed"]["detail"].startswith("1 (source: run.ini)")
     assert all(check["kind"] == "static" for check in payload["checks"])
 
@@ -129,7 +129,7 @@ def test_launch_reports_the_live_contract(sim_binary, multi_run_config, tmp_path
     payload = json.loads(capsys.readouterr().out)
     assert code == 0
     launch = payload["launch"]
-    assert launch["contract"] == "mesh_move_2d_v1"
+    assert launch["contract"] == "mesh_move_2d_v2"
     assert launch["num_decisions"] == 2
     assert launch["num_mesh_nodes"] == 3 and launch["max_controlled_nodes"] == 3
     assert launch["cpp_obs_dim"] == launch["preset_obs_dim"]
@@ -151,7 +151,7 @@ def test_missing_manifest_is_reported(tmp_path, capsys):
 
 def test_missing_model_file_exits_two(tmp_path, capsys):
     manifest = {
-        "manifest_version": 4, "status": "completed", "algorithm": "MaskablePPO",
+        "manifest_version": 6, "status": "completed", "algorithm": "MaskablePPO",
         "seed": 1, "seed_source": "run.ini", "control_mode": "centralized",
         "model_path": str(tmp_path / "maskable_ppo_mesh.zip"),
         "model_sha256": "0" * 64, "checkpoints": [],
@@ -180,9 +180,9 @@ def test_inspect_a_training_run(sim_binary, multi_run_config, tmp_path, monkeypa
 
     assert inspect_model.main(["--run-dir", str(out_dir), "--json"]) == 0
     report = json.loads(capsys.readouterr().out)
-    assert report["manifest_version"] == 4
+    assert report["manifest_version"] == 6
     assert report["status"] == "completed"
-    assert report["contract"]["contract"] == "mesh_move_2d_v1"
+    assert report["contract"]["contract"] == "mesh_move_2d_v2"
     assert report["observation_schema"]["note"] == "bounds not structural for raw_links_v1"
     final = [entry for entry in report["models"] if entry["role"] == "final"]
     assert len(final) == 1
