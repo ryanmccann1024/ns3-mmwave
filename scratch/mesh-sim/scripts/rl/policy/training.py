@@ -60,4 +60,3 @@ def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
                     instance.close()
                 except Exception:
                     pass
-

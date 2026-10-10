@@ -333,7 +333,8 @@ episodes. The [lifecycle test map](src/rl/policy-lifecycle-tests.md) gives the
 purpose and expected result of each focused check.
 
 Check a configuration before spending simulator time. Without `--launch` every
-check is static (no simulator process); `--launch` additionally starts the
+check is static (no simulator process). Static checks read explicit bounds;
+simulator defaults and centralized control are confirmed by `--launch`, which starts the
 simulator under `<output-dir>/validate/`, resets once, and reports the live
 contract. It does not complete an episode:
 
@@ -366,6 +367,43 @@ callback (with bounded retention) and `MaskableEvalCallback` (masked,
 deterministic evaluation on a separate environment and seed). The latter saves
 `best_model.zip` when mean evaluation reward improves; neither callback
 changes the training reward or action rules.
+
+Resume from a retained checkpoint into a separate run directory:
+
+```bash
+.venv/bin/python -m scripts.rl.train \
+  --sim-binary <BIN> \
+  --run-config inputs/baselines/building-bypass-smoke/run.ini \
+  --output-dir outputs/bypass-resumed \
+  m-ppo --resume-run-dir outputs/bypass-train \
+  --resume-checkpoint checkpoints/checkpoint_512_steps.zip \
+  --total-timesteps 2048 --checkpoint-every-steps 512
+```
+
+Omit `--resume-checkpoint` to select the latest retained checkpoint. Stop the
+old training process before resuming; a `running` manifest may be left by an
+abrupt process exit. Failed and interrupted runs can also supply verified
+checkpoints. Evaluation still requires a completed training run.
+
+Recovery restores SB3's saved policy, optimizer, and timestep count, verifies
+the checkpoint digest, and checks the live contract and scenario. The saved
+seed, observation/reward selection, `n_steps`, `gamma`, and `ent_coef` cannot
+change. Omitted PPO settings come from the parent manifest. Checkpoint/evaluation
+flags describe the new segment; pass them again to enable those callbacks.
+Their cadence uses the restored global step count. Evaluation history and the
+best reward threshold restart, so `best_model.zip` describes the new segment.
+
+`--total-timesteps` is the cumulative target: restoring step 512 with target
+2048 requests 1536 additional steps. PPO completes whole rollouts, so this
+budget is a lower bound and the final count can exceed it. The new manifest
+links the parent manifest and checkpoint digests, restored count, remaining
+budget, and actual final count. This is approximate continuation: simulator
+state, partial rollouts, episodes, and random generator states restart.
+
+Checkpoint ZIPs and the manifest are replaced atomically. A checkpoint's digest
+and timestep count are recorded while training is running, before older
+checkpoints are removed. Recovery only accepts retained manifest entries;
+an unfinished ZIP is never treated as a recovery checkpoint.
 
 Summarize a finished (or failed) run without loading the model:
 
@@ -408,23 +446,24 @@ policy contract.
 `--run-config`/`--band` may override them. The scenario check always runs for
 the model; an override may cause a mismatch.
 Evaluation writes `eval_manifest.json` plus one `<policy>/episode-NNNN/`
-directory per policy and seed, and refuses an `--output-dir` inside the training
-run. Inspect `eval_manifest.json` for returns, per-seed metrics, and action
+directory per policy and seed, and refuses an `--output-dir` equal to, inside,
+or above the training run. Inspect `eval_manifest.json` for returns, per-seed metrics, and action
 validity counts; each episode's `steps.jsonl` has the decision trace. Exit 0
 means every episode completed with no revalidated slots or attempts to use
 masked-out actions;
 exit 2 means the episodes completed but one of those counters is non-zero; exit
 1 is an error.
 
-`train_manifest.json` is version 4. Besides the existing run identity it
+`train_manifest.json` is version 5. Besides the existing run identity it
 records `status`/`error`, `algorithm`, `seed` and `seed_source`, `control_mode`,
 the live `contract`, the resolved `selection`, `observation_schema` and
 `reward_schema` (with their SHA-256), `scenario_identity` (SHA-256 of the
 `run.ini`, `nodes.json`, and — when configured — `buildings.json` and
 `jammers.json`), `model_path`/`model_sha256`, `best_model_path`/
 `best_model_sha256`/`best_mean_reward`, a `checkpoints` list of
-`{path, sha256, num_timesteps}`, the `evaluation` block (cadence, episodes,
-seed, output dir, log path) or `null`, `hyperparameters`, `package_versions`,
+`{path, sha256, num_timesteps, evaluation_state}`, the current `num_timesteps`,
+`resume` provenance (or `null`), the `evaluation` block (cadence, episodes,
+seed, output dir, log path) or `null`, `evaluation_state`, `hyperparameters`, `package_versions`,
 `python_version`, and `platform`. Models trained with older tooling carry an
 older `manifest_version` and are not loadable: retrain with the current tooling.
 

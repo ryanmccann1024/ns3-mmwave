@@ -21,7 +21,7 @@ action meaning. Change it for incompatible protocol semantics or layout, not
 for a refactor that preserves behavior. A saved JSON `manifest_version`
 describes a file's schema: increment the *relevant* version when fields or
 their meanings change, then update writers, readers, examples, and tests.
-Currently `train_manifest.json` uses version 4;
+Currently `train_manifest.json` uses version 5;
 `rl_episode.json` uses version 4, including scored tick counts and a consistent
 pre-handshake failure schema. Versions do not increment for each run. The SHA-256
 fields in `scenario_identity` are file fingerprints, not schema versions;
