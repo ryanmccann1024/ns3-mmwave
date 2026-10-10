@@ -3,7 +3,7 @@
 Run from `scratch/mesh-sim/`:
 
 ```bash
-.venv/bin/python -m pytest scripts/rl/tests/test_ops_tasks.py scripts/rl/tests/test_ops_benchmark.py scripts/rl/tests/test_ops_tune.py scripts/rl/tests/test_ops_process.py -q -rs
+.venv/bin/python -m pytest scripts/rl/tests/test_ops_tasks.py scripts/rl/tests/test_ops_benchmark.py scripts/rl/tests/test_ops_tune.py scripts/rl/tests/test_ops_process.py scripts/rl/tests/test_ops_cluster.py scripts/rl/tests/test_cluster_recovery.py -q -rs
 ```
 
 | Test group | Input and expected behavior |
@@ -27,3 +27,19 @@ Stub training and synthetic objectives establish orchestration and sampler behav
 not simulator integration or learning. No test here runs a real simulator.
 Real process sampling and target-cluster benchmarking need their own environment;
 a laptop measurement does not predict cluster throughput.
+
+| Cluster group | Input and expected behavior |
+| --- | --- |
+| `test_ops_cluster.py` | Fake sbatch/squeue/sacct/scancel: closed config, argv/scripts, task states, submissions, assertions, cancellation and comparison exits. No real scheduler jobs or simulator run. |
+| `test_foreign_receipts_refuse_mutations_without_side_effects` | Another receipt owner: plan/submit/resume/assert/cancel/compare refuse before scheduler calls or artifact writes. |
+| `test_status_queries_the_recorded_owner_without_writing` | Foreign receipt inspected read-only: scheduler uses recorded user, filesystem unchanged. |
+| Compare-only tests | Covered/finished tasks, missing comparison, refused/lost response: queue only comparison; retain no-ID intents; recover accepted jobs without duplicates; record explicit abandonment before replacement. |
+| Lock tests | Existing operation lock or comparison executing: every mutation refuses; local and scheduled comparison hold the same lock; exceptions release it. |
+| Termination tests | Successful cancellation without terminal evidence, unfamiliar state, delayed cancellation: writer remains blocked until recognized termination or checked assertion. |
+| Historical recovery | Explicit `sacct --starttime` before intent creation: prior-day jobs remain searchable in recovery and abandonment checks. |
+| Script/runtime checks | Scheduled comparison verifies its receipt/job ID and records results; quoted scripts invoke the locked cluster path. |
+
+Receipt version 2 adds a compare-only kind; owned version 1 receipts remain
+readable. Status version 2 removes cancellation-request-as-termination inference.
+Live-site scheduler/account visibility and shared-filesystem locking remain
+unverified; see `TODO-RL-OPS-1`.

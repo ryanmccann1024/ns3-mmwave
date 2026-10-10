@@ -167,9 +167,9 @@ A plan with more tasks than the configured `max_array_size` is refused rather
 than chunked across several arrays. A task blocked by a populated step directory
 is reported with `move or delete <dir> to retry` and is never moved, renamed, or
 deleted by the tooling; an archive helper that does it safely is not
-implemented. Submitting a compare-only SLURM job after task submission succeeds
-but compare submission is refused is also deferred; `resume` with no pending
-tasks does not queue one. Owner: team — status: open.
+implemented. Compare-only submission and recovery are available through
+`submit-compare` and `resume`; live-site evidence remains tracked above.
+Owner: team — status: open.
 
 ### TODO-RL-TUNE-1 — Further PPO knobs and budget search
 `scripts/rl/ops/tune.py` can search only `n_steps`, `gamma`, and `ent_coef`,

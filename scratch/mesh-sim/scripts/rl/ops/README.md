@@ -16,9 +16,20 @@ Tools around an existing `experiment_plan.json`. Create the plan before executin
 | `../tuning/study.py` | Pinned Optuna sampling and seeded sampler state. |
 | `../tuning/driver.py` | Trial execution and explicit recovery. |
 | `../tuning/artifacts.py` | Versioned trial/study records and atomic checkpoints. |
+| `../cluster/config.py` | Cluster resource validation. |
+| `../cluster/jobs.py` | Scheduler arguments and rendered scripts. |
+| `../cluster/slurm.py` | Scheduler access and response parsing. |
+| `../cluster/receipts.py` | Receipt layout, account ownership and operation locks. |
+| `../cluster/reconcile.py` | Filesystem/scheduler state and termination evidence. |
+| `../cluster/recovery.py` | No-ID recovery and checked assertions. |
+| `../cluster/submission.py` | Task and compare-only submission workflows. |
+| `../cluster/operations.py` | Status, cancellation and local/scheduled comparison. |
+| `../cluster/plan.py`, `reporting.py` | Cluster preflight, task table and previews. |
 | `../../artifact_io.py` | Shared atomic JSON I/O, content hashes and UTC timestamps. |
 
-`run_task.py`, `benchmark.py`, and `tune.py` parse commands and delegate. Writing
+`run_task.py`, `benchmark.py`, `tune.py`, and `cluster.py` parse commands and delegate.
+The old `ops/slurm.py`, `receipts.py` and `reconcile.py` imports delegate to
+the cluster owners for existing callers. Writing
 an operational record belongs in operations; it is not part of argument parsing.
 The command paths and existing task/tuning helper imports remain available.
 
@@ -419,10 +430,14 @@ process cleanup and estimate eligibility checks and their evidence limits.
 
 ## Cluster runs
 
-For now, use one SLURM account per output root. Scheduler lookups use the
-current account, so a second operator may not see an existing job and could
-incorrectly abandon its receipt and submit a duplicate task. This is a known
-limitation, not a substitute for the planned code safeguard.
+Use one OS/SLURM user per output root. Before any receipt, task-table or
+comparison mutation, the tool checks every receipt against the account obtained
+from the OS user database, rather than `USER`/`LOGNAME`. A different owner is
+a refusal before scheduler calls or writes; use that owning account or another
+output root. The SLURM resource `account` is a billing/project choice and is not
+this user identity. Read-only status queries each receipt's recorded owner;
+limited scheduler visibility remains `unknown`. Version 1 receipts with an
+owner remain readable; ownerless or unsupported receipts require human repair.
 
 ### Commands
 
@@ -432,7 +447,8 @@ limitation, not a substitute for the planned code safeguard.
 <venv>/bin/python -m scripts.rl.ops.cluster plan   --output-root R --cluster-config C
 <venv>/bin/python -m scripts.rl.ops.cluster submit --output-root R --cluster-config C [--tasks 0] [--no-compare] [--dry-run]
 <venv>/bin/python -m scripts.rl.ops.cluster status --output-root R [--json]
-<venv>/bin/python -m scripts.rl.ops.cluster resume --output-root R --cluster-config C [--inactive-job ID] [--abandon-intent NNNN:tasks] [--dry-run]
+<venv>/bin/python -m scripts.rl.ops.cluster resume --output-root R --cluster-config C [--inactive-job ID] [--abandon-intent NNNN:tasks] [--no-compare] [--dry-run]
+<venv>/bin/python -m scripts.rl.ops.cluster submit-compare --output-root R --cluster-config C [--dry-run]
 <venv>/bin/python -m scripts.rl.ops.cluster cancel --output-root R (--submission 0001 | --tasks 2,5) [--dry-run]
 <venv>/bin/python -m scripts.rl.ops.cluster compare --output-root R [--allow-incomplete]
 ```
@@ -449,22 +465,29 @@ did what was asked; exit 1 is a refusal or an error, with the reason on stderr.
 - **submit** submits tasks whose state is `unsubmitted`, optionally narrowed by
   `--tasks`; naming a task in any other state is refused and points at `resume`.
 - **resume** submits every `unsubmitted`, `failed`, or `canceled` task whose
-  remaining step directories are clean.
+  remaining step directories are clean. Unless `--no-compare`, it also queues
+  missing comparison when no tasks need submission and every task is covered.
+- **submit-compare** queues comparison alone, after every task is completed,
+  partial, or covered by an active array. It never submits training/evaluation.
+  A complete comparison or active compare job requires no new submission; an
+  unresolved intent or unknown prior writer is a refusal.
 - **cancel** requires exactly one of `--submission` or `--tasks`.
 - **compare** runs the compare step on the current host.
 
-Validation shared by `plan`, `submit`, and `resume`, all refusals: the plan's
+Validation shared by `plan`, `submit`, `resume`, and `submit-compare`, all refusals: the plan's
 own root differs from `--output-root` (the plan was copied from another
 filesystem — regenerate it here instead); `sim_binary` is not absolute, missing,
 or not executable; a row's `run_config` is missing; the task count exceeds
 `max_array_size`; the config is invalid; and, for a non-dry-run `submit` or
 `resume`, `sbatch` is not on `PATH`.
 
-`--dry-run` on `submit`/`resume` prints the state table and, when something
+`--dry-run` on `submit`/`resume`/`submit-compare` prints the state table and, when something
 would be submitted, the provisional argv and scripts. It takes no lock, writes
 no receipt, script, or `tasks.json`, and **does not query the scheduler** — its
 state table is computed against an offline snapshot, so every receipt-covered
-task reads as `unknown` there.
+task reads as `unknown` there. A compare-only preview does not claim that the
+tasks are covered; actual submission checks the scheduler. Dry runs touch no
+lock or artifacts, even when previewing a comparison.
 
 ### Cluster config
 
@@ -511,7 +534,12 @@ Job scripts run `set -euo pipefail`, the configured `setup_lines`, export
 `OMP_NUM_THREADS` and `MKL_NUM_THREADS` equal to `cpus_per_task` and an empty
 `CUDA_VISIBLE_DEVICES`, `cd` to the mesh root recorded at submit time, run
 `bootstrap_venv.py --venv <venv> --check` so a pin mismatch fails before any
-step starts, and then `exec` the runner. Every interpolated path is quoted with
+step starts, and then `exec` the runner. Task scripts use `ops.run_task`; compare scripts
+use `ops.cluster compare --scheduled-job "$SLURM_JOB_ID" --record ...`. The
+scheduled comparison validates its receipt and takes the same operation lock
+as local comparison, ignoring only its own recorded job as a blocker. It waits
+up to 30 seconds for an in-progress operation to release that lock, then
+refuses if still held; this wait does not resume any training. Every interpolated path is quoted with
 `shlex.quote`. Jobs are submitted with `--no-requeue`: a requeued task would
 restart into a dirty directory and be refused anyway, so a silent scheduler
 retry is worse than an explicit failure.
@@ -522,7 +550,7 @@ retry is worse than an explicit failure.
 <root>/experiment_plan.json                    existing, immutable, never written here
 <root>/train/… <root>/eval/… <root>/comparison/ existing, guarded step directories
 <root>/cluster/tasks.json                      deterministic task table
-<root>/cluster/submit.lock                     present only during submit/resume
+<root>/cluster/submit.lock                     held during every mutation and comparison execution
 <root>/cluster/receipts/0001.json
 <root>/cluster/scripts/0001-tasks.sh  0001-compare.sh
 <root>/cluster/logs/0001/slurm-%A_%a.out  compare-%j.out
@@ -540,7 +568,7 @@ than overwritten.
 One receipt per submission, `cluster/receipts/NNNN.json`:
 
 ```json
-{"receipt_version": 1, "submission": "0001", "state": "submitting|submitted|submit_uncertain|abandoned",
+{"receipt_version": 2, "kind": "tasks", "submission": "0001", "state": "submitting|submitted|submit_uncertain|abandoned",
  "created_at": "...", "host": "...", "user": "...",
  "job_name": "meshops-<32 hex chars>-tasks", "indices": [0, 1],
  "array_spec": "0-1", "plan_sha256": "...", "cluster_config": {…},
@@ -552,15 +580,25 @@ One receipt per submission, `cluster/receipts/NNNN.json`:
 "script", "argv", "depends_on"}` with the same state values and its own random
 job name.
 
-`submit` and `resume` follow the same order:
+Compare-only submissions use `kind: "compare"`, `indices: []`, a null array
+job/name/script, and top-level `state: "not_applicable"`. Their actual job intent
+is in `compare`. They retain the same config and plan provenance without
+inventing a training submission.
+
+`submit`, `resume`, and `submit-compare` follow the same order:
 
 1. Create `cluster/submit.lock` with `O_CREAT|O_EXCL`. An existing lock is a
-   refusal that prints the holder's pid, host, and time; a stale lock is removed
+   refusal that prints the holder's pid, host, and time; ownership is checked
+   before locking and again under the lock. `plan`, cancellation, and local
+   and scheduled comparison use this lock too. A stale lock is removed
    by hand after confirming no submit is running. The lock is released in a
    `finally` block.
 2. Recover any no-ID intents by exact job name, take a scheduler snapshot,
    apply any `--inactive-job` / `--abandon-intent` assertions, reconcile, and
-   compute the indices. Nothing to submit prints the state table and exits 0.
+   compute the indices. With no task indices, `resume` checks whether it can
+   queue comparison; `--no-compare` leaves it alone. `submit-compare` never
+   computes a new task submission. A fresh scheduler check confirms coverage
+   before comparison submission.
 3. Allocate `NNNN` by exclusive creation of the receipt file, then write the
    **intent** — including a random 128-bit job name
    (`meshops-<token>-tasks`) — *before* `sbatch` runs, so an accepted job is
@@ -574,13 +612,14 @@ job name.
 5. Unless `--no-compare`, and only when every task is finished or covered by an
    active job, queue the compare job (below). When some tasks are uncovered —
    for example after a `--tasks 0` canary — the command says so and queues no
-   compare job. If the array was submitted but compare submission is refused
-   or its outcome is uncertain, a later `resume` with no tasks left to submit
-   does **not** queue compare by itself. Check `status` and the receipts first.
-   Once every evaluation is complete and no compare job can still write, use
-   `cluster compare` on a host where the site permits it. There is currently no
-   CLI command to submit a compare-only SLURM job; do not assume the comparison
-   will appear automatically.
+   compare job. If the array succeeds but compare submission is refused or
+   uncertain, inspect `status`. `resume` recovers an accepted compare by exact
+   name and does not duplicate it. A truly unaccepted no-ID compare remains
+   blocked until the owning user confirms it never reached SLURM and uses
+   `resume --abandon-intent NNNN:compare`. `submit-compare` can queue comparison
+   alone once uncertainty is cleared and every task is covered. Its dependency
+   includes every currently active array; with all tasks finished, it has no
+   dependency flag.
 
 The `sbatch` argv is
 `sbatch --parsable --no-requeue --job-name=J [--array=SPEC] --output=<log pattern>
@@ -591,6 +630,10 @@ The `sbatch` argv is
 
 Recovery of a no-ID intent is by exact job name only: `squeue --name=…` and
 `sacct --name=…` are filtered for exact equality, and their matches are merged.
+Accounting queries use an explicit start date before the intent's creation date,
+so recovery also searches prior days; unknown timestamps fall back to epoch.
+Slurm otherwise defaults name-only searches to today, as described in its
+[accounting time-window documentation](https://slurm.schedmd.com/sacct.html#SECTION_DEFAULT-TIME-WINDOW).
 An id is written back **only when exactly one job matches across the two
 queries** — one exact match is a positive observation even if the other query
 failed. Several matches are reported as too ambiguous and nothing is written.
@@ -623,13 +666,16 @@ Eight states, first match wins. `unsubmitted` is separate from `pending` so
 | `completed` | train `done` and evaluate `done` |
 | `partial` | train `done` and evaluate `partial` |
 | `unknown` | a receipt covers the task and the queue query failed; or an unresolved no-ID intent covers it; or a submitted element is absent from the queue and accounting holds no terminal record for it; or accounting says `COMPLETED` while the filesystem is incomplete; or no receipt covers the task and its train manifest says `running` |
-| `canceled` | the latest covering receipt's element is `CANCELLED` in accounting; or accounting is unavailable, the queue query succeeded without the element, and the receipt records a cancellation covering it |
+| `canceled` | the latest covering receipt's element is `CANCELLED` in accounting |
 | `failed` | the latest covering receipt's element has an explicit terminal failure in accounting; or no receipt covers the task and a step directory is `blocked`; or every known job id of an otherwise-`unknown` task carries a recorded `--inactive-job` assertion (the row then also reports `asserted_inactive: true`) |
 | `unsubmitted` | no receipt covers the task and both step directories are `pending` |
 
 Each row carries a `detail` — the scheduler state and reason, the blocked
 directory's `move or delete <dir> to retry` message, or why it is unknown — and
 a queued row adds the scheduler's own estimated start when it is not `N/A`.
+A recorded cancellation request alone cannot prove termination. Unrecognized
+scheduler states remain `unknown`, and JSON status uses `status_version: 2`
+to distinguish these stricter evidence rules.
 A parent-array accounting row is not evidence that each element finished:
 elements are reconciled by exact `<array_job_id>_<index>` records, or left
 `unknown`.
@@ -665,24 +711,27 @@ nothing is cancelled and nothing is recorded.
 
 ### Only one writer of `comparison.json`
 
-If a compare submission is lost after the array is queued, the same safety
-checks can prevent another automatic submission. Inspect the compare receipt
-and scheduler state before using `cluster compare`; an unresolved no-ID intent
-or a job that may still be active blocks it. The deferred compare-only
-submission path is tracked in `TODO-RL-OPS-2`.
+If a compare response is lost after the array is queued, an unresolved intent
+blocks another submission. Use the recovery paths above. Local and scheduled
+comparisons hold the operation lock from their receipt checks until their
+managed child process has stopped and been reaped. Cancellation cannot race
+receipt recovery, and two cooperating comparison commands cannot write together.
 
 Before queuing a new compare job, an earlier compare job that is still active is
 cancelled, the `scancel` call must have succeeded, and a fresh queue snapshot
 must show no remaining blocker; otherwise the new compare job is refused rather
-than risking two writers. `cluster compare` applies the same check.
+than risking two writers. Compare-only submission and local comparison refuse
+existing writers rather than canceling them.
 
 A compare job blocks both of them while it is active, while it is an unresolved
 no-ID intent, or — for any non-abandoned compare job carrying a job id — while
 nothing has been observed that proves it can no longer write. Evidence of
-termination is a non-active state in the queue snapshot, a non-active accounting
-state, a recorded cancel request naming that job id (recorded only after a
-verified `scancel`), or a recorded `resume --inactive-job <compare job id>`
-assertion. A failed queue query blocks on its own once any compare element
+termination is a recognized terminal state in the queue/accounting snapshot
+(`COMPLETED`, `CANCELLED`, `FAILED`, `TIMEOUT`, `NODE_FAIL`, `OUT_OF_MEMORY`,
+`PREEMPTED`, `BOOT_FAIL`, `DEADLINE`, or `REVOKED`) or a recorded
+`resume --inactive-job <compare job id>` assertion. Successful `scancel` records
+a request; it is not terminal evidence. Unknown states remain blockers. A failed
+queue query blocks on its own once any compare element
 exists. The consequence: where `sacct` accounting is unavailable, a compare job
 that has simply left the queue keeps blocking until the human asserts it
 inactive.
@@ -690,7 +739,7 @@ inactive.
 ### `cluster compare` versus `fetch`
 
 `cluster compare` computes statistics **where the plan lives**: it runs the
-compare step in-process on the current host, and transfers nothing. With every
+compare step in a managed child process on the current host, and transfers nothing. With every
 evaluation done it may simply run; otherwise it needs `--allow-incomplete`, and
 even then refuses while any task is `pending`, `running`, or `unknown`. It
 prints one line from the comparison outcome plus the raw exit code:
@@ -699,3 +748,52 @@ prints one line from the comparison outcome plus the raw exit code:
 
 `fetch` copies files **to another machine** and computes nothing.
 
+
+### First task through results
+
+Run from `scratch/mesh-sim` on the cluster, using a human-built binary and a
+prepared venv. Edit the example cluster JSON for the site's partition, project,
+limits and resource requests. Generate the plan on its final shared filesystem;
+do not copy a laptop plan with embedded absolute paths.
+
+```bash
+<venv>/bin/python -m scripts.rl.experiment plan --matrix M --output-root R --sim-binary /abs/BIN
+<venv>/bin/python -m scripts.rl.ops.cluster plan --output-root R --cluster-config C
+<venv>/bin/python -m scripts.rl.ops.cluster submit --output-root R --cluster-config C --tasks 0 --no-compare
+<venv>/bin/python -m scripts.rl.ops.cluster status --output-root R --json
+```
+
+Wait for task 0 to finish, then inspect its train/evaluation manifests and
+`cluster/logs/0001/slurm-<array>_0.out`. Completed training is not evidence of
+completed evaluation. A failed or unknown task needs the receipt/scheduler
+checks described above; populated step directories are never removed for you.
+Once the first task is satisfactory, queue the rest:
+
+```bash
+<venv>/bin/python -m scripts.rl.ops.cluster submit --output-root R --cluster-config C
+<venv>/bin/python -m scripts.rl.ops.cluster status --output-root R
+# If tasks are already covered but comparison is missing:
+<venv>/bin/python -m scripts.rl.ops.cluster submit-compare --output-root R --cluster-config C
+# Recover tasks/uncertain submission responses and any missing comparison:
+<venv>/bin/python -m scripts.rl.ops.cluster resume --output-root R --cluster-config C
+```
+
+Inspect `comparison/comparison.json`, the comparison tables and
+`cluster/records/NNNN/compare.json`. The strict scheduled comparison refuses
+missing/partial evaluations. For a deliberately partial local comparison,
+first settle every task, then use `cluster compare --allow-incomplete`.
+Use `resume --no-compare` when recording assertions before a local comparison.
+
+Result retrieval is supplied by the next stacked PR #11. Once that entry point
+is present, run on your laptop with a separate destination:
+
+```bash
+.venv/bin/python -m scripts.rl.ops.fetch --remote user@login:/absolute/R \
+  --dest outputs/fetched/my-study --select comparison,manifests
+```
+
+Retrieval copies saved artifacts; it does not train, submit jobs or recompute
+comparison. Keep the independent training/model-selection/held-out seed roles
+from the experiment matrix. Offline fake-scheduler tests do not verify the
+site's flags, permissions, filesystem locking or accounting latency. Live-site
+validation stays in `TODO-RL-OPS-1` and requires a separate cluster exercise.

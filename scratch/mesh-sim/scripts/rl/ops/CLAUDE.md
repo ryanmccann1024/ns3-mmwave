@@ -13,7 +13,8 @@ Read [README.md](README.md) and [the test map](../tests/ops-tests.md).
   require successful, complete measurements; label missing memory evidence.
 - Never overwrite step directories or silently resume training checkpoints.
   Keep task resume, study resume and training resume separate.
-- Preserve exit tolerance and compare prerequisite rules used downstream by
-  cluster jobs. Scheduler behavior remains in the separate cluster review.
+- Preserve exit tolerance and compare prerequisite rules used by cluster jobs.
+  Cluster workflows live in `../cluster/`; read its guide before scheduler edits.
+  Keep ownership, intent recovery and writer locking out of the CLI.
 - Tests use fake processes and scheduler-independent data. Never run `./ns3
   build`, `./ns3 run`, or a real simulator as part of these checks.
