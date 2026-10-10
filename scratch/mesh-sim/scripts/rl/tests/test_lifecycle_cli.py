@@ -79,7 +79,8 @@ def test_static_validation_passes(sim_binary, multi_run_config, capsys):
     assert payload["status"] == "ok"
     assert payload["launch"] is None
     names = {check["check"]: check for check in payload["checks"]}
-    assert names["control_mode"]["detail"] == "centralized"
+    assert names["control_mode"]["status"] == "warning"
+    assert "validated by --launch" in names["control_mode"]["detail"]
     assert names["seed"]["detail"].startswith("1 (source: run.ini)")
     assert all(check["kind"] == "static" for check in payload["checks"])
 
@@ -129,7 +130,7 @@ def test_launch_reports_the_live_contract(sim_binary, multi_run_config, tmp_path
     payload = json.loads(capsys.readouterr().out)
     assert code == 0
     launch = payload["launch"]
-    assert launch["contract"] == "mesh_move_2d_v1"
+    assert launch["contract"] == "mesh_move_2d_v2"
     assert launch["num_decisions"] == 2
     assert launch["num_mesh_nodes"] == 3 and launch["max_controlled_nodes"] == 3
     assert launch["cpp_obs_dim"] == launch["preset_obs_dim"]
@@ -182,7 +183,7 @@ def test_inspect_a_training_run(sim_binary, multi_run_config, tmp_path, monkeypa
     report = json.loads(capsys.readouterr().out)
     assert report["manifest_version"] == 4
     assert report["status"] == "completed"
-    assert report["contract"]["contract"] == "mesh_move_2d_v1"
+    assert report["contract"]["contract"] == "mesh_move_2d_v2"
     assert report["observation_schema"]["note"] == "bounds not structural for raw_links_v1"
     final = [entry for entry in report["models"] if entry["role"] == "final"]
     assert len(final) == 1

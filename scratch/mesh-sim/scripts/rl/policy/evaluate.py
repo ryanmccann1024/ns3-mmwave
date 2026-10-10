@@ -147,13 +147,14 @@ def episode_metrics(episode_dir: Path, num_links: int) -> dict:
     ticks = demand = delivered = connected = los = 0.0
     for record in records:
         window = record["facts"]["window"]
-        ticks += int(window["ticks"])
+        ticks += int(window["scored_ticks"])
         demand += float(window["demand_mbps_sum"])
         delivered += float(window["delivered_mbps_sum"])
         connected += int(window["connected_pairs_sum"])
         los += int(window["los_pairs_sum"])
         if (metrics["first_all_los_decision"] is None
-                and int(window["los_pairs_sum"]) == int(window["ticks"]) * num_links):
+                and int(window["scored_ticks"]) > 0 and num_links > 0
+                and int(window["los_pairs_sum"]) == int(window["scored_ticks"]) * num_links):
             metrics["first_all_los_decision"] = int(record["decision"])
 
     pairs = ticks * num_links

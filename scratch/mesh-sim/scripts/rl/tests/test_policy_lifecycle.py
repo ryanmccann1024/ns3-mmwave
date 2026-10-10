@@ -88,7 +88,7 @@ def _contract(node_ids=("node-a", "node-b", "node-c"),
               slot_node_ids=("node-b", "node-c", None), reward_type="all_links_los"):
     nodes, slots = len(node_ids), len(slot_node_ids)
     return {
-        "contract": "mesh_move_2d_v1",
+        "contract": "mesh_move_2d_v2",
         "dimensions": 2,
         "action_meanings": ["west", "east", "south", "north", "hold"],
         "max_controlled_nodes": slots,
@@ -98,11 +98,12 @@ def _contract(node_ids=("node-a", "node-b", "node-c"),
         "slot_node_ids": list(slot_node_ids),
         "obs_dim": slots * (4 + 2 * (nodes - 1)),
         "mask_dim": 5 * slots,
-        "facts_schema": "mesh_facts_v1",
+        "facts_schema": "mesh_facts_v2",
         "bounds": {"x_min": 0.0, "x_max": 100.0, "y_min": -50.0, "y_max": 100.0,
                    "z_min": 0.0, "z_max": 50.0},
         "reward_type": reward_type,
         "reward_window": "mean",
+        "tick_s": 0.1, "warmup_s": 0.0, "reward_warmup": "exclude",
     }
 
 
@@ -118,8 +119,7 @@ class _StubEnv:
         self.contract = contract
         self.observation_schema = observation_schema(preset, contract)
         self.reward_schema = reward_schema(components, weights,
-                                           reward_type=contract["reward_type"],
-                                           reward_window=contract["reward_window"])
+                                           contract=contract)
 
 
 def _manifest(contract, preset="raw_links_v1", components=(), weights=(),
@@ -134,8 +134,7 @@ def _manifest(contract, preset="raw_links_v1", components=(), weights=(),
         "selection": RlSelection(preset, tuple(components), tuple(weights)).describe(),
         "observation_schema": observation_schema(preset, contract),
         "reward_schema": reward_schema(components, weights,
-                                       reward_type=contract["reward_type"],
-                                       reward_window=contract["reward_window"]),
+                                       contract=contract),
     }
 
 
@@ -159,7 +158,7 @@ def test_matching_bundle_and_env_are_compatible():
     ("num_mesh_nodes", 4),
     ("obs_dim", 99),
     ("mask_dim", 20),
-    ("facts_schema", "mesh_facts_v2"),
+    ("facts_schema", "mesh_facts_v3"),
 ])
 def test_structural_field_change_is_refused(field, value):
     saved = _contract()
@@ -191,7 +190,7 @@ def test_different_reward_composition_is_refused():
 def test_legacy_component_requires_the_same_cpp_reward():
     saved = _contract(reward_type="all_links_los")
     live = _contract(reward_type="delivery_ratio")
-    with pytest.raises(RewardMismatchError, match="reward_type"):
+    with pytest.raises(RewardMismatchError, match="reward_schema.sha256"):
         _check(_manifest(saved, components=["legacy"], weights=[1.0]),
                _StubEnv(live, components=["legacy"], weights=[1.0]))
 
@@ -407,7 +406,7 @@ def test_baseline_evaluation_writes_a_completed_manifest(sim_binary, multi_run_c
     assert manifest["deterministic"] is True and manifest["bundle"] is None
     assert manifest["selection"]["telemetry"] == "steps"
     assert manifest["selection"]["telemetry_every"] == 1
-    assert manifest["contract"]["contract"] == "mesh_move_2d_v1"
+    assert manifest["contract"]["contract"] == "mesh_move_2d_v2"
     assert set(manifest["policies"]) == {"hold", "random_valid"}
 
     for name, block in manifest["policies"].items():
