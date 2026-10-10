@@ -31,7 +31,7 @@ MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary make -C tests integration
 | `test_observations_rewards.py` and policy-input cases in `test_mesh_env.py` / `test_real_binary.py` | [policy-input-tests.md](@ref src_rl_policy_input_tests) |
 | `test_lifecycle_cli.py`, `test_policy_lifecycle.py` | [policy-lifecycle-tests.md](@ref src_rl_policy_lifecycle_tests) |
 | `test_evaluation_pipeline.py`, `test_experiment_matrix.py`, `test_policy_comparison.py` | [policy-comparison-tests.md](@ref src_rl_policy_comparison_tests) |
-| `test_decision_records.py` and `test_decision_records_join_real_steps` in `test_real_binary.py` | [decision-records.md](../../../src/rl/decision-records.md) |
+| `test_decision_records.py`, `test_decision_record_contract.py`, and `test_decision_records_join_real_steps` in `test_real_binary.py` | [decision-records.md](../../../src/rl/decision-records.md) |
 
 ## Python adapter: `test_mesh_env.py`
 

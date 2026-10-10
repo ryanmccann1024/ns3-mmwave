@@ -17,14 +17,16 @@ from scripts.rl.env.decisions import (DECISIONS_FILE, DECISIONS_MANIFEST,
                                       DecisionContext, DecisionRecorder,
                                       DecisionRecording, applied_action,
                                       coverage_gaps, coverage_ranges, mask_sha256,
-                                      masked_probs, resolve_decision_records)
+                                      masked_probs)
+from scripts.rl.env.decision_settings import resolve_decision_records
 from scripts.rl.env.mesh_env import MeshRlEnv
 from scripts.rl.env.selection import resolve_selection
 from scripts.rl.env.telemetry import obs_sha256
 from scripts.rl.tests.conftest import FAKE_SIM, MULTI_RUN_INI, NODES_JSON
 
 MESH_ROOT = Path(__file__).resolve().parents[3]
-SCHEMA_PATH = MESH_ROOT / "docs" / "schemas" / "decision_record.v1.schema.json"
+SCHEMA_V1_PATH = MESH_ROOT / "docs" / "schemas" / "decision_record.v1.schema.json"
+SCHEMA_PATH = MESH_ROOT / "docs" / "schemas" / "decision_record.v2.schema.json"
 SCHEMA_V1_SHA256 = "cbd03e343bcedcccb747db444d37d0ed0d2b0e9a9ed4f55ed07c6fcfa7ca49eb"
 
 DEFAULT_MAX_BYTES = 67108864
@@ -307,7 +309,7 @@ def test_records_join_previous_step_at_every_one(sim_binary, long_run_config, tm
         assert record["action"]["revalidated_slots"] == [] == steps[n]["revalidated_slots"]
         assert record["preferences"] is None
 
-    assert manifest["contract"] == "decision_record" and manifest["version"] == 1
+    assert manifest["contract"] == "decision_record" and manifest["version"] == 2
     assert manifest["status"] == "complete" and manifest["error"] is None
     assert manifest["settings"] == records.describe()
     assert manifest["coverage"] == {"decisions_expected": 9, "decision_0_retained": True,
@@ -806,6 +808,77 @@ def test_capture_on_off_parity(trained_run, tmp_path):
             np.asarray(record["preferences"]["per_slot"], dtype=np.float32))
 
 
+@pytest.mark.parametrize("failed_call", [1, 2])
+def test_failed_preference_copy_keeps_actions_and_telemetry(
+        trained_run, tmp_path, monkeypatch, failed_call):
+    """A copy failure preserves inference and reports unavailable or partial capture."""
+    from scripts.rl.policy.preferences import PreferenceCapture
+
+    off = _evaluate(trained_run, tmp_path / "off")
+    original_hook = PreferenceCapture._hook
+    captures = []
+
+    class BrokenCopy:
+        def detach(self):
+            raise RuntimeError("injected preference copy failure")
+
+    def hook(self, module, inputs, output):
+        if self not in captures:
+            captures.append(self)
+        calls = getattr(self, "_test_calls", 0) + 1
+        self._test_calls = calls
+        original_hook(self, module, inputs, BrokenCopy() if calls == failed_call else output)
+
+    monkeypatch.setattr(PreferenceCapture, "_hook", hook)
+    on = _evaluate(trained_run, tmp_path / "on", "--decision-records")
+    for policy in ("model", "hold"):
+        left, = off["policies"][policy]["episodes"]
+        right, = on["policies"][policy]["episodes"]
+        assert left["actions_sha256"] == right["actions_sha256"]
+        assert ((Path(left["episode_dir"]) / "steps.jsonl").read_bytes()
+                == (Path(right["episode_dir"]) / "steps.jsonl").read_bytes())
+    manifest, lines = _check_sidecar(_episode_dir_of(on, "model"))
+    assert manifest["status"] == "complete"
+    assert manifest["preferences"]["captured"] is (failed_call == 2)
+    assert manifest["preferences"]["error"] == "RuntimeError: injected preference copy failure"
+    if failed_call == 2:
+        assert lines[1]["preferences"] is not None
+    assert all(line["preferences"] is None for line in lines[failed_call:])
+    assert len(captures) == 1 and captures[0].registered is False
+    assert captures[0].take() is None
+    _assert_documents_valid(_load_schema(), manifest, lines)
+
+
+def test_evaluation_failure_removes_preference_hook(trained_run, tmp_path, monkeypatch):
+    from scripts.rl.policy.preferences import PreferenceCapture
+
+    captures = []
+    attach = PreferenceCapture.attach
+
+    def track(self, model):
+        attach(self, model)
+        captures.append(self)
+
+    def abort(make_env, specs, seeds, output_dir, base):
+        model_spec = next(spec for spec in specs if spec.name == "model")
+        env = make_env("model")
+        try:
+            model_spec.build(env, seeds[0])
+            assert captures[0].registered is True
+            raise RuntimeError("injected evaluation failure")
+        finally:
+            env.close()
+
+    monkeypatch.setattr(PreferenceCapture, "attach", track)
+    monkeypatch.setattr(evaluate_cli, "evaluate", abort)
+    code = evaluate_cli.main(["--sim-binary", trained_run.sim_binary,
+        "--run-dir", str(trained_run.run_dir), "--output-dir", str(tmp_path / "failed"),
+        "--seeds", "11", "--policies", "model", "--decision-records"])
+    assert code == 1
+    assert len(captures) == 1 and captures[0].registered is False
+    assert captures[0]._handle is None
+
+
 # 18-19. Schema -------------------------------------------------------------------
 
 SCHEMA_DEFS = ("manifest", "reset_record", "decision_record", "steps_ref", "reward",
@@ -861,7 +934,7 @@ def _same(a, b) -> bool:
 
 
 def _errors(value, schema, root: dict, path: str = "$") -> list[str]:
-    """Mini draft 2020-12 validator for the keyword subset the v1 schema may use."""
+    """Mini draft 2020-12 validator for the keyword subset used by these schemas."""
     if schema is True:
         return []
     if schema is False:
@@ -1038,7 +1111,7 @@ def test_schema_v1_is_frozen():
         pytest.fail("SCHEMA_V1_SHA256 is not pinned yet: fill at publication with "
                     "`shasum -a 256 docs/schemas/decision_record.v1.schema.json`")
     assert HEX64.match(SCHEMA_V1_SHA256)
-    assert _sha256(SCHEMA_PATH.read_bytes()) == SCHEMA_V1_SHA256
+    assert _sha256(SCHEMA_V1_PATH.read_bytes()) == SCHEMA_V1_SHA256
 
 
 # 20-22. Training context, legacy refusal, CLI ------------------------------------

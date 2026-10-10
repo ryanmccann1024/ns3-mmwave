@@ -17,8 +17,8 @@ from scripts.rl.cli_common import (MANIFEST_NAME, MODEL_BASENAME,
                                    package_versions, resolve_seed, selection_from_args,
                                    sha256_file, write_json)
 from scripts.rl.env.config import read_scenario_identity
-from scripts.rl.env.decisions import (DecisionContext, DecisionRecording,
-                                      DecisionRecordSettings)
+from scripts.rl.env.decision_settings import DecisionRecordSettings
+from scripts.rl.env.decisions import DecisionContext, DecisionRecording
 from scripts.rl.env.mesh_env import MeshRlEnv
 
 MANIFEST_VERSION = 4

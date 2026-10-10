@@ -784,8 +784,8 @@ def test_experiment_matrix_smoke_in_fresh_processes(tmp_path):
 
 def test_decision_records_join_real_steps(tmp_path):
     from scripts.rl.env.decisions import (DECISIONS_FILE, DECISIONS_MANIFEST,
-                                          DecisionContext, DecisionRecording,
-                                          resolve_decision_records)
+                                          DecisionContext, DecisionRecording)
+    from scripts.rl.env.decision_settings import resolve_decision_records
 
     out_dir = tmp_path / "decisions"
     selection = resolve_selection(str(RUN_CONFIG), telemetry="steps")

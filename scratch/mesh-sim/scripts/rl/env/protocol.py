@@ -11,7 +11,7 @@ _CONTRACTS = {
     },
 }
 SLOT_ACTIONS = 5
-_HOLD_ACTION = 4
+HOLD_ACTION = 4
 _SLOT_STATE_VALUES = 4
 _MAX_SLOTS = 64
 _PADDED_SLOT_MASK = [0, 0, 0, 0, 1]
@@ -281,7 +281,7 @@ class CentralizedProtocol:
                 )
         for slot in range(self._num_slots):
             window = mask[slot * SLOT_ACTIONS:(slot + 1) * SLOT_ACTIONS]
-            if window[_HOLD_ACTION] != 1:
+            if window[HOLD_ACTION] != 1:
                 _fail(f"hold is masked out in slot {slot}: {window!r}")
             if slot >= self._num_controlled and window != _PADDED_SLOT_MASK:
                 _fail(

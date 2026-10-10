@@ -3,21 +3,19 @@
 import hashlib
 import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
 import numpy as np
 
+from .decision_settings import DecisionRecordSettings
+from .protocol import HOLD_ACTION as HOLD_INDEX, SLOT_ACTIONS
 from .telemetry import TELEMETRY_FILE, obs_sha256, reward_field
 
 DECISIONS_FILE = "policy_decisions.jsonl"
 DECISIONS_MANIFEST = "policy_decisions_manifest.json"
-DECISION_RECORD_VERSION = 1
-OBS_VECTOR_MODES = ("auto", "always")
-PREFERENCE_MODES = ("auto", "off")
-DEFAULT_MAX_BYTES = 64 * 1024 * 1024
-HOLD_INDEX = 4
+DECISION_RECORD_VERSION = 2
 MODEL_INPUT_CONVERSION = "torch.Tensor.float() == numpy.astype(float32)"
 PREPROCESS_NOTE = "stable_baselines3.common.preprocessing.preprocess_obs: obs.float()"
 CONTEXT_MODES = ("training", "evaluation")
@@ -25,44 +23,7 @@ CONTEXT_SOURCES = ("train", "train_eval", "evaluate")
 PREFERENCE_REPRESENTATION = "raw_action_net_logits_float32"
 PREFERENCE_CAPTURE = "action_net_forward_hook"
 RESET_NOTE = "reset snapshot; no policy inference"
-_SLOT_ACTIONS = 5
 _MAX_ERROR_CHARS = 1000
-_FLAGS = {
-    "enabled": "--decision-records",
-    "obs_vector": "--decision-records-obs-vector",
-    "preferences": "--decision-records-preferences",
-    "record_every": "--decision-records-every",
-    "max_bytes_per_episode": "--decision-records-max-bytes",
-}
-_DEFAULTS = {
-    "enabled": False,
-    "obs_vector": "auto",
-    "preferences": "auto",
-    "record_every": 1,
-    "max_bytes_per_episode": DEFAULT_MAX_BYTES,
-}
-
-
-@dataclass(frozen=True)
-class DecisionRecordSettings:
-    """Validated decision-record settings with the source of every key."""
-
-    enabled: bool = False
-    obs_vector: str = "auto"
-    preferences: str = "auto"
-    record_every: int = 1
-    max_bytes_per_episode: int = DEFAULT_MAX_BYTES
-    source: dict = field(default_factory=dict)
-
-    def describe(self) -> dict:
-        return {
-            "enabled": bool(self.enabled),
-            "obs_vector": self.obs_vector,
-            "preferences": self.preferences,
-            "record_every": int(self.record_every),
-            "max_bytes_per_episode": int(self.max_bytes_per_episode),
-            "source": {key: self.source.get(key, "default") for key in _DEFAULTS},
-        }
 
 
 @dataclass(frozen=True)
@@ -91,61 +52,6 @@ class DecisionRecording:
     context: DecisionContext
 
 
-def _int_setting(key: str, value, minimum: int, source: str) -> int:
-    if isinstance(value, bool):
-        raise ValueError(f"{key} must be an integer >= {minimum}, got {value!r} ({source})")
-    try:
-        number = int(str(value).strip())
-    except ValueError as exc:
-        raise ValueError(
-            f"{key} must be an integer >= {minimum}, got {value!r} ({source})") from exc
-    if number < minimum:
-        raise ValueError(f"{key} must be an integer >= {minimum}, got {number} ({source})")
-    return number
-
-
-def resolve_decision_records(*, enabled=None, obs_vector=None, preferences=None,
-                             record_every=None,
-                             max_bytes_per_episode=None) -> DecisionRecordSettings:
-    """Validate decision-record settings before any simulator process exists."""
-    given = {
-        "enabled": enabled,
-        "obs_vector": obs_vector,
-        "preferences": preferences,
-        "record_every": record_every,
-        "max_bytes_per_episode": max_bytes_per_episode,
-    }
-    sources = {key: ("cli" if value is not None else "default")
-               for key, value in given.items()}
-    values = {key: (value if value is not None else _DEFAULTS[key])
-              for key, value in given.items()}
-
-    if not isinstance(values["enabled"], bool):
-        raise ValueError(
-            f"enabled must be a boolean, got {values['enabled']!r} ({sources['enabled']})")
-    if not values["enabled"]:
-        dependent = [key for key in _DEFAULTS
-                     if key != "enabled" and given[key] is not None]
-        if dependent:
-            flags = ", ".join(f"{_FLAGS[key]} ({key})" for key in dependent)
-            raise ValueError(
-                f"{flags} requires {_FLAGS['enabled']} ({sources[dependent[0]]})")
-
-    for key, modes in (("obs_vector", OBS_VECTOR_MODES),
-                       ("preferences", PREFERENCE_MODES)):
-        values[key] = str(values[key]).strip()
-        if values[key] not in modes:
-            raise ValueError(
-                f"{key} {values[key]!r} is not valid ({sources[key]}); valid choices: "
-                f"{list(modes)}")
-    values["record_every"] = _int_setting(
-        "record_every", values["record_every"], 1, sources["record_every"])
-    values["max_bytes_per_episode"] = _int_setting(
-        "max_bytes_per_episode", values["max_bytes_per_episode"], 0,
-        sources["max_bytes_per_episode"])
-    return DecisionRecordSettings(source=sources, **values)
-
-
 def mask_sha256(mask) -> str:
     """SHA-256 of the mask as compact JSON integers."""
     # Cast to int: bool or int8 JSON would give a different digest than the published form.
@@ -163,20 +69,20 @@ def applied_action(requested, revalidated_slots, hold=HOLD_INDEX) -> list[int]:
 
 def _slot_rows(values, slots: int) -> np.ndarray:
     array = np.asarray(values, dtype=np.float32).reshape(-1)
-    if array.size != slots * _SLOT_ACTIONS:
+    if array.size != slots * SLOT_ACTIONS:
         raise ValueError(
-            f"preferences have {array.size} values, expected {slots * _SLOT_ACTIONS}")
-    return array.reshape(slots, _SLOT_ACTIONS)
+            f"preferences have {array.size} values, expected {slots * SLOT_ACTIONS}")
+    return array.reshape(slots, SLOT_ACTIONS)
 
 
 def masked_probs(per_slot: np.ndarray, mask) -> list[list[float]]:
     """Per-slot softmax over unmasked actions, 6 dp; masked actions are exactly 0.0."""
     flat_mask = np.asarray(mask).reshape(-1).astype(bool)
-    rows = _slot_rows(per_slot, flat_mask.size // _SLOT_ACTIONS).astype(np.float64)
+    rows = _slot_rows(per_slot, flat_mask.size // SLOT_ACTIONS).astype(np.float64)
     allowed = flat_mask.reshape(rows.shape)
     result = []
     for logits, keep in zip(rows, allowed):
-        probs = np.zeros(_SLOT_ACTIONS, dtype=np.float64)
+        probs = np.zeros(SLOT_ACTIONS, dtype=np.float64)
         if keep.any():
             shifted = np.exp(logits[keep] - logits[keep].max())
             probs[keep] = shifted / shifted.sum()
@@ -233,7 +139,7 @@ def _preferences_field(values, mask) -> dict | None:
     if values is None:
         return None
     # Copy: the capture buffer belongs to the policy and may be reused by its next forward.
-    rows = _slot_rows(np.array(values, dtype=np.float32, copy=True), len(mask) // _SLOT_ACTIONS)
+    rows = _slot_rows(np.array(values, dtype=np.float32, copy=True), len(mask) // SLOT_ACTIONS)
     return {
         "representation": PREFERENCE_REPRESENTATION,
         "capture": PREFERENCE_CAPTURE,
@@ -282,6 +188,7 @@ def decision_record(msg, pre, reward, obs_dtype, steps_saved, store_vector,
             "tick": int(msg["tick"]),
             "time_s": outcome_time,
             "ticks_in_step": int(msg["ticks_in_step"]),
+            "scored_ticks": msg.get("scored_ticks"),
             "interval_s": {"start_exclusive": input_time, "end_inclusive": outcome_time},
             "done": bool(msg["done"]),
             "legacy_reward": float(msg["reward"]),
@@ -313,6 +220,12 @@ def _dumps(record: dict) -> str:
 def _source_error(source) -> str | None:
     detail = getattr(getattr(source, "__self__", None), "error", None)
     return str(detail) if detail else None
+
+
+def _scoring_metadata(contract) -> dict | None:
+    """Copy scoring semantics from newer validated contracts; never infer old ones."""
+    keys = ("warmup_s", "reward_warmup", "reward_window")
+    return {key: contract[key] for key in keys} if all(key in contract for key in keys) else None
 
 
 class DecisionRecorder:
@@ -376,6 +289,7 @@ class DecisionRecorder:
                 "lossless_from_obs": observation_schema["dtype"] == "float32",
             },
             "reward_schema_sha256": reward_schema["sha256"],
+            "scoring": _scoring_metadata(contract),
             "contract_identity": {
                 "contract_id": contract["contract"],
                 "node_ids": [str(node) for node in contract["node_ids"]],
@@ -510,10 +424,10 @@ class DecisionRecorder:
 
     def _preferences_block(self) -> dict:
         source = self._context.preference_source
-        error = None
-        if (self._capture_allowed and source is not None and not self._captured
+        error = _source_error(source) if self._capture_allowed else None
+        if (error is None and self._capture_allowed and source is not None and not self._captured
                 and self._saved):
-            error = _source_error(source) or "preference source produced no capture"
+            error = "preference source produced no capture"
         return {
             "captured": self._captured,
             "representation": PREFERENCE_REPRESENTATION if self._captured else None,

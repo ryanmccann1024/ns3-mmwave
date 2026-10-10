@@ -215,6 +215,7 @@ def main(argv=None) -> int:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
 
+    capture = None
     try:
         bundle, run_config, band, selection = _resolve_run(args, policies)
         train_manifest = bundle.manifest if bundle is not None else None
@@ -269,6 +270,9 @@ def main(argv=None) -> int:
     except Exception as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
+    finally:
+        if capture is not None:
+            capture.detach()
 
     if args.json:
         print(json.dumps(manifest, indent=2))

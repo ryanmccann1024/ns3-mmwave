@@ -9,7 +9,7 @@ from pathlib import Path
 
 from scripts.rl.bootstrap_venv import DIRECT_DEPS
 from scripts.rl.env.config import read_scenario_seed
-from scripts.rl.env.decisions import (OBS_VECTOR_MODES, PREFERENCE_MODES,
+from scripts.rl.env.decision_settings import (OBS_VECTOR_MODES, PREFERENCE_MODES,
                                       DecisionRecordSettings, resolve_decision_records)
 from scripts.rl.env.selection import TELEMETRY_MODES, RlSelection, resolve_selection
 

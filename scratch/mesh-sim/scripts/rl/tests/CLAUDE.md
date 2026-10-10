@@ -48,5 +48,5 @@ added to the matching map:
   `test_policy_lifecycle.py`.
 - `src/rl/policy-comparison-tests.md` -- `test_evaluation_pipeline.py`,
   `test_experiment_matrix.py`, `test_policy_comparison.py`.
-- `src/rl/decision-records.md` -- `test_decision_records.py` and
+- `src/rl/decision-records.md` -- `test_decision_records.py`, `test_decision_record_contract.py`, and
   `test_decision_records_join_real_steps` in `test_real_binary.py`.
