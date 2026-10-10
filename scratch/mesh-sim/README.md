@@ -205,6 +205,8 @@ MaskablePPO policies that move mesh nodes. Run from `scratch/mesh-sim/`:
   m-ppo --total-timesteps 16 --n-steps 16 --seed 1
 ```
 
+- [scripts/baselines](@ref scripts_baselines): placement configuration walkthrough,
+  coordinates, artifacts, and adding active baselines.
 - [scripts/rl](@ref scripts_rl): RL guide and code map (`[rl]`
   keys, observation/reward/telemetry selection, train, evaluate, compare,
   experiment matrices).

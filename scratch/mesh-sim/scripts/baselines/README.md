@@ -1,3 +1,4 @@
+@page scripts_baselines Placement baselines
 # Placement baselines
 
 `scripts/baselines/` runs the supplied geometric and optimization placement
@@ -290,3 +291,6 @@ selected by `FAKE_CHILD_MODE`. `test_real_binary.py` covers the guard, the
 standalone runner, and the evaluation suite on a real binary; without
 `MESH_SIM_BIN` each test is skipped with a reason starting `BLOCKED:`, which is
 missing evidence, not a pass.
+
+See [the worked input guide](input-guide.md) for a small configuration, coordinate
+explanations, and active-planner extension steps.

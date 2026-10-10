@@ -1,12 +1,11 @@
-"""baseline_manifest.json and baseline-plan.json schemas, status transitions, and I/O helpers."""
+"""baseline_manifest.json and baseline-plan.json schemas and status transitions."""
 
-import hashlib
 import importlib.metadata
-import json
 import os
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
+
+from scripts.artifact_io import canonical_sha256, now_iso, read_json, sha256_file, write_json
 
 MANIFEST_NAME = "baseline_manifest.json"
 PLAN_NAME = "baseline-plan.json"
@@ -26,39 +25,6 @@ SEED_STATUSES = ("complete", "missing", "failed")
 PACKAGE_DISTRIBUTIONS = ("numpy", "pydantic", "shapely", "pyproj", "PyYAML")
 IDENTITY_HASH_KEYS = ("run_ini_sha256", "nodes_json_sha256", "buildings_json_sha256",
                       "jammers_json_sha256")
-
-
-def now_iso() -> str:
-    """UTC timestamp in the same format as the RL manifests."""
-    return datetime.now(timezone.utc).isoformat()
-
-
-def sha256_file(path: str | Path) -> str:
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
-def write_json(path: str | Path, payload) -> None:
-    """Write JSON atomically so a reader never sees a half-written file."""
-    path = Path(path)
-    temp = path.with_name(path.name + ".tmp")
-    try:
-        with open(temp, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, indent=2, allow_nan=False)
-            handle.write("\n")
-    except BaseException:
-        temp.unlink(missing_ok=True)
-        raise
-    os.replace(temp, path)
-
-
-def read_json(path: str | Path):
-    return json.loads(Path(path).read_text(encoding="utf-8"))
-
-
-def canonical_sha256(payload) -> str:
-    """SHA-256 of sorted-key, whitespace-free JSON."""
-    text = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def package_versions() -> dict:
