@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "mesh-sim policy decision records v1",
-  "description": "Opt-in per-episode decision records: policy_decisions_manifest.json (manifest) and each line of policy_decisions.jsonl (reset or decision record). Frozen; any change is a new versioned file. See src/rl/decision-records.md.",
+  "title": "mesh-sim policy decision records v2",
+  "description": "Opt-in per-episode decision records with extensible reward maps and explicit scored-window metadata. Frozen; any change is a new versioned file. See src/rl/decision-records.md.",
   "oneOf": [
     {
       "$ref": "#/$defs/manifest"
@@ -32,7 +32,8 @@
         "jsonl_sha256",
         "bytes",
         "error",
-        "writer"
+        "writer",
+        "scoring"
       ],
       "properties": {
         "contract": {
@@ -41,7 +42,7 @@
         },
         "version": {
           "type": "integer",
-          "const": 1
+          "const": 2
         },
         "episode": {
           "type": "object",
@@ -337,6 +338,37 @@
             }
           },
           "additionalProperties": false
+        },
+        "scoring": {
+          "description": "Scoring semantics supplied by the validated simulator contract; null when an older contract does not supply them.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "warmup_s",
+                "reward_warmup",
+                "reward_window"
+              ],
+              "properties": {
+                "warmup_s": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "reward_warmup": {
+                  "type": "string",
+                  "const": "exclude"
+                },
+                "reward_window": {
+                  "type": "string",
+                  "const": "mean"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
         }
       },
       "additionalProperties": false
@@ -596,7 +628,8 @@
             "done",
             "legacy_reward",
             "reward",
-            "reward_schema_sha256"
+            "reward_schema_sha256",
+            "scored_ticks"
           ],
           "properties": {
             "tick": {
@@ -639,6 +672,18 @@
             "reward_schema_sha256": {
               "type": "string",
               "pattern": "^[0-9a-f]{64}$"
+            },
+            "scored_ticks": {
+              "description": "Scored ticks reported by the validated outcome message; null when unavailable. Zero means no scored time, including a wholly warmup window.",
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              ]
             }
           },
           "additionalProperties": false
@@ -735,57 +780,21 @@
             },
             "components": {
               "type": "object",
-              "required": [],
-              "properties": {
-                "delivery_ratio": {
-                  "type": "number"
-                },
-                "connectivity": {
-                  "type": "number"
-                },
-                "throughput_mbps": {
-                  "type": "number"
-                },
-                "legacy": {
-                  "type": "number"
-                }
-              },
-              "additionalProperties": false
+              "description": "Resolved reward component names and numeric values; verify names against the pinned reward schema.",
+              "additionalProperties": {
+                "type": "number"
+              }
             },
             "valid": {
               "type": "object",
-              "required": [],
-              "properties": {
-                "delivery_ratio": {
-                  "type": "integer",
-                  "enum": [
-                    0,
-                    1
-                  ]
-                },
-                "connectivity": {
-                  "type": "integer",
-                  "enum": [
-                    0,
-                    1
-                  ]
-                },
-                "throughput_mbps": {
-                  "type": "integer",
-                  "enum": [
-                    0,
-                    1
-                  ]
-                },
-                "legacy": {
-                  "type": "integer",
-                  "enum": [
-                    0,
-                    1
-                  ]
-                }
-              },
-              "additionalProperties": false
+              "description": "The same component names with integer validity flags. Readers must check matching keys and the pinned reward schema.",
+              "additionalProperties": {
+                "type": "integer",
+                "enum": [
+                  0,
+                  1
+                ]
+              }
             }
           },
           "additionalProperties": false

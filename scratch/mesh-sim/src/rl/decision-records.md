@@ -6,7 +6,9 @@ This file records what the policy saw and chose; it does not explain why. No inf
 Each record pairs one centralized decision's pre-action observation identity and
 joint mask with the requested action, its revalidation, and the outcome window that
 followed. Recording never changes actions, observations, rewards, `rl_episode.json`
-totals, or `steps.jsonl`. Legacy control mode is refused.
+totals, or `steps.jsonl`. Obsolete single-node control is refused.
+`outcome.legacy_reward` is the original simulator-computed reward used in
+centralized runs; it is independent of the retired control protocol and stays available.
 
 ## Files
 
@@ -70,6 +72,30 @@ slot indexes the simulator replaced by hold (`hold_index = 4`). `applied` is
 `requested` with 4 at those slots; `applied_status` is always `derived`. An empty
 `revalidated_slots` proves `applied == requested` only for `MeshRlEnv` senders.
 
+## Read one node's decision
+
+This is an illustrative model-evaluation example, not an explanation of the
+model's reasoning. Suppose `slot_node_ids[0]` is `node-b` and the contract's
+action order is west, east, south, north, hold:
+
+| Read | Example | Interpretation |
+| --- | --- | --- |
+| `input.source_decision`, `input.tick` | `7`, `35` | This is the observation before action 8. Join telemetry decision 7, not 8. |
+| Slot 0's five `input.mask` entries | `[1, 0, 1, 1, 1]` | East is unavailable; west, south, north, and hold are allowed. |
+| `preferences.masked_probs[0]` | `[0.60, 0.00, 0.10, 0.10, 0.20]` | West ranks highest among allowed moves. These are reconstructed probabilities, not influence scores. |
+| `action.requested[0]` | `0` | The deterministic policy requested west for `node-b`. |
+| `action.revalidated_slots`, `action.applied[0]` | `[0]`, `4` | The simulator replaced that request with hold. Read revalidation separately from the model's preference. |
+| `outcome.tick`, `outcome.ticks_in_step` | `40`, `5` | The outcome covers ticks 36–40 after the request. |
+
+Decode observation features using the pinned observation schema in
+`rl_episode.json` or the telemetry header. Follow `input.steps_ref` and verify
+its hash; when it is null, use `input.obs_vector`. Inspect telemetry's node
+positions and link facts alongside that input and the later outcome. A higher
+reward or better link after a move is an observed result; this record does not
+establish that the move caused it. If preferences are null, show them as
+unavailable, and inspect the manifest's preference error and coverage before
+interpreting an absent record.
+
 ## Sampling, caps, coverage, status
 
 Records are skipped only at whole-line boundaries. When the next line would exceed a
@@ -110,6 +136,11 @@ them as `per_slot` (exact float32 values) plus `masked_probs` (softmax over
 unmasked entries, masked entries exactly 0, 6 decimal places). The hook adds no
 forward pass, RNG draw, or parameter access, so recording on or off yields the
 same actions and identical `steps.jsonl` bytes (tests 16–17). Other policies record `preferences: null`.
+If the optional copy fails, the hook keeps the inference output untouched,
+clears its capture buffer, stops further captures, and stores the error in the
+manifest. Earlier rows can have preferences while later rows have null;
+`preferences.captured` means at least one row captured them, not that every row
+did. Evaluation removes the hook on success or failure.
 
 ## Consumer rules
 
@@ -121,20 +152,59 @@ same actions and identical `steps.jsonl` bytes (tests 16–17). Other policies r
 - Render unavailable states: `writing`, `failed`, `interrupted`, `capped` (show `gaps`),
   `record_every > 1` (gaps by design), `steps_ref == null` (use `input.obs_vector`),
   `preferences == null`, `model == null`.
-- Influence unavailable: show "Influence unavailable"; no v1 field carries or implies it.
+- Influence unavailable: show "Influence unavailable"; no decision-record field carries or implies it.
 
-## Schema and pin
+## Schema versions and consumer checks
 
-[`docs/schemas/decision_record.v1.schema.json`](../../docs/schemas/decision_record.v1.schema.json)
-(JSON Schema 2020-12) validates the manifest and each JSONL line. Its SHA-256 is
+The writer emits manifest `version: 2`. Validate it and every JSONL line with
+[`docs/schemas/decision_record.v2.schema.json`](../../docs/schemas/decision_record.v2.schema.json)
+(Draft 2020-12). JSONL rows inherit the version from their episode manifest.
+The frozen schemas and SHA-256 pins are:
 
-```text
-2855e03eacb33acdb654d7115ee77b23500428e5916f1942459350def5a12f79
-```
+| Version | Schema SHA-256 |
+| --- | --- |
+| Historical v1 | `cbd03e343bcedcccb747db444d37d0ed0d2b0e9a9ed4f55ed07c6fcfa7ca49eb` |
+| Current v2 | `2a150730e842974897ddbb4518d2028be210dc200cc66b3890d9235fe7f4be29` |
 
-A consumer vendors the file byte-for-byte and checks this digest in its own test;
-`test_schema_v1_is_frozen` pins the same value. v1 never changes: any edit
-is `decision_record.v2.schema.json` with `"version": 2`.
+Keep [`decision_record.v1.schema.json`](../../docs/schemas/decision_record.v1.schema.json)
+unchanged for historical records. A consumer chooses the schema by the manifest
+version and checks the pinned file digest; unknown versions are unsupported.
+Do not overwrite an old schema or silently validate v2 output with v1.
+
+V2 replaces the fixed reward-name tables with numeric `components` and integer
+0/1 `valid` maps. Consumers must check that both maps have identical keys and
+that these keys match the resolved reward schema in `rl_episode.json`; verify
+its SHA-256 against `reward_schema_sha256`. Adding a registered reward component
+does not require adding its name to several decision-record tables.
+
+V2 also records `manifest.scoring` (`warmup_s`, `reward_warmup`, `reward_window`)
+when those fields are supplied by the validated simulator contract, and
+`outcome.scored_ticks` when supplied by its validated outcome. The older bridge
+on this review branch supplies neither, so they are null. Null means unknown,
+not zero warmup or an unscored window. A zero scored-tick count means that no
+time in that window contributed to scoring. `ticks_in_step` still describes
+elapsed simulation ticks, including decisions during warmup. Readers check
+`0 <= scored_ticks <= ticks_in_step` when the count is available.
+
+### Downstream migration
+
+PR #24 expanded the frozen v1 reward-name tables. When updating that PR, preserve
+the historical v1 file and pin from here, use v2 for new records, and remove its
+duplicate v1 reward-name additions. Carry the upstream protocol/scoring changes
+through the review stack; do not infer scored time from the elapsed window.
+Update writer, schema validation, replay/reader expectations, documentation, and
+the GUI consumer together. The GUI consumer is outside this repository and must
+explicitly adopt the pinned v2 schema before reading these new records.
+
+### Ownership and extension
+
+`env/decision_settings.py` owns recording defaults, allowed settings, provenance,
+and validation. `cli_common.py` only exposes flags and delegates resolution.
+`env/decisions.py` owns record construction, coverage, and persistence; record
+format strings stay there. Action count and hold index come from `env/protocol.py`.
+`policy/preferences.py` owns the optional model hook, with no simulator or
+record-writer responsibility. Add format changes in a new versioned schema,
+writer, consumer guide, and tests together; keep the v1 and v2 pins unchanged.
 
 ## Test map
 
@@ -151,7 +221,9 @@ All in `scripts/rl/tests/test_decision_records.py` unless noted; 16, 17, and 20 
 | 13 `test_writer_failure_is_isolated`, 14 `test_interrupted_episode_status` | Failure isolation and `interrupted` status. |
 | 15 `test_string_ids_and_null_padding`, 20 `test_training_context_records`, 21 `test_legacy_mode_is_refused` | String IDs with `null` padding; training/callback labelling; legacy refusal. |
 | 16 `test_model_evaluation_records_preferences_and_identity`, 17 `test_capture_on_off_parity` | Model identity, preference capture, on/off action and trace parity. |
-| 18 `test_schema_well_formed_and_documents_validate`, 19 `test_schema_v1_is_frozen` | Produced documents validate; schema digest pinned. |
+| 18 `test_schema_well_formed_and_documents_validate`, `test_schema_matches_jsonschema_when_installed`, 19 `test_schema_v1_is_frozen` | Produced documents validate; independent Draft 2020-12 checks when installed; historical schema stays pinned. |
+| `test_failed_preference_copy_keeps_actions_and_telemetry`, `test_evaluation_failure_removes_preference_hook` | Copy failure before/after the first capture preserves actions and telemetry, reports unavailable preferences, and removes the hook; cleanup also runs on evaluation failure. |
+| `test_decision_record_contract.py` | Archived v1 documents/pin, v2 pin and extensible typed reward maps, explicit unavailable/zero/partial/full scored ticks; independent schema checks when installed. |
 | `test_real_binary.py`: `test_decision_records_join_real_steps` | n−1 join and revalidation on the real bridge; skips without `MESH_SIM_BIN`. |
 
 ## TODO

@@ -32,6 +32,8 @@ specified in `src/rl/policy-inputs.md`. Read those before changing anything here
 - `selection.py` -- `RlSelection`, resolved CLI > `run.ini [rl]` > default, with
   a per-key `source`. Non-default selections are rejected in legacy mode.
 - `telemetry.py` -- optional `steps.jsonl` writer and replay (`TELEMETRY_VERSION`).
+- `decision_settings.py` -- recording defaults, allowed settings, and validation;
+  CLI helpers delegate here and do not duplicate the rules.
 - `decisions.py` -- opt-in decision records (`policy_decisions*`), independent of
   `[rl] telemetry`; recorder failures must never raise into the env.
 - `config.py` -- `run.ini` readers (seed, bounds, action profile, control mode,
@@ -51,3 +53,9 @@ specified in `src/rl/policy-inputs.md`. Read those before changing anything here
   preset instead of editing an existing one.
 - `mesh_env` / `episode` / `protocol` changes need `tests/test_mesh_env.py` and,
   against a fresh build, `tests/test_real_binary.py` (see `../tests/CLAUDE.md`).
+
+- Decision records: keep settings with `decision_settings.py`, record format and
+  writing with `decisions.py`, and action definitions with `protocol.py`. Preserve
+  published schema files/pins; current output is v2. Preference hooks must isolate
+  capture errors from inference and report unavailable captures. The original
+  simulator `legacy_reward` is independent of obsolete control compatibility.
