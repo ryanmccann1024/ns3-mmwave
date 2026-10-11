@@ -13,9 +13,10 @@ import numpy as np
 from scripts.rl.cli_common import now_iso, package_versions, write_json
 from scripts.rl.env.protocol import SLOT_ACTIONS
 from scripts.rl.env.telemetry import TELEMETRY_FILE
+from .reward_matrix import write_reward_matrix
 
 EVAL_MANIFEST_NAME = "eval_manifest.json"
-EVAL_MANIFEST_VERSION = 2
+EVAL_MANIFEST_VERSION = 3
 METRIC_SOURCE = {"kind": "telemetry_window", "warmup_excluded": False}
 HOLD_ACTION = 4
 _RETURN_TOL = 1e-9
@@ -64,18 +65,23 @@ class RandomValidPolicy:
 
 
 class ModelPolicy:
-    """Deterministic MaskablePPO prediction under the live mask."""
+    """MaskablePPO prediction under the live mask, deterministic or seeded sampling."""
 
     name = "model"
 
-    def __init__(self, model, capture=None):
+    def __init__(self, model, capture=None, deterministic=True):
         self._model = model
+        self.deterministic = deterministic
         if capture is not None:
             capture.attach(model)
 
+    def start_episode(self, seed):
+        from stable_baselines3.common.utils import set_random_seed
+        set_random_seed(seed)
+
     def act(self, obs, mask, contract) -> np.ndarray:
         action, _ = self._model.predict(obs, action_masks=np.asarray(mask, dtype=bool),
-                                        deterministic=True)
+                                        deterministic=self.deterministic)
         return np.asarray(action, dtype=np.int64).reshape(-1)
 
 
@@ -205,6 +211,67 @@ def episode_metrics(episode_dir: Path, num_links: int) -> dict:
         metrics["displacement_m_final"] = sum(displacement.values())
         metrics["per_node_travel_m"] = travel
         metrics["per_node_displacement_m"] = displacement
+    measured = [record for record in records if record.get("decision", 0) > 0]
+    coverage = [record["facts"]["coverage"]["fraction"] for record in measured
+                if "coverage" in record["facts"]]
+    if coverage:
+        metrics["coverage_fraction_mean"] = sum(coverage)/len(coverage)
+        metrics["coverage_fraction_final"] = coverage[-1]
+    unsafe = sum(record["facts"].get("safety", {}).get("unsafe_ticks", 0)
+                 for record in measured)
+    ticks = sum(record["ticks_in_step"] for record in measured)
+    if ticks:
+        metrics["unsafe_proximity_fraction"] = unsafe/ticks
+    distances = [record["facts"].get("safety", {}).get("min_pair_distance_m") for record in measured]
+    distances = [value for value in distances if value is not None]
+    metrics["min_pair_distance_m"] = min(distances) if distances else None
+    node_service = [record["facts"].get("node_service") for record in measured]
+    if node_service and all(value is not None for value in node_service):
+        ids = header["contract"]["node_ids"]
+        offered = [sum(value[i][0] for value in node_service) for i in range(len(ids))]
+        received = [sum(value[i][1] for value in node_service) for i in range(len(ids))]
+        ratios = {node: received[i]/offered[i] if offered[i] > _DEMAND_EPS else None for i,node in enumerate(ids)}
+        valid = [value for value in ratios.values() if value is not None]
+        metrics["per_node_delivery_fraction"] = ratios
+        metrics["worst_node_delivery_fraction_episode"] = min(valid) if valid else None
+        minima = [min((got/demand for demand,got in value if demand > _DEMAND_EPS), default=None) for value in node_service]
+        minima = [value for value in minima if value is not None]
+        metrics["worst_node_delivery_fraction"] = sum(minima)/len(minima) if minima else None
+        isolation = {node: 0 for node in ids}
+        for record in measured:
+            linked = [False]*len(ids); index = 0
+            for i in range(len(ids)):
+                for j in range(i+1,len(ids)):
+                    if record["facts"]["links"][index][1] > 0: linked[i]=linked[j]=True
+                    index += 1
+            for i,node in enumerate(ids): isolation[node] += int(not linked[i])
+        metrics["per_node_isolated_decisions"] = isolation
+    episode = json.loads((episode_dir/"rl_episode.json").read_text())
+    onset = next((float(token.split("=",1)[1]) for token in episode.get("command",[]) if token.startswith("--jammer-onset-s=")), None)
+    if onset is not None:
+        before = [record for record in measured if record["time_s"] < onset]
+        after = [record for record in measured
+                 if record["time_s"] - record["ticks_in_step"]*header["contract"]["tick_s"] >= onset]
+        def delivered_share(batch):
+            demand = sum(record["facts"]["window"]["demand_mbps_sum"] for record in batch)
+            delivered = sum(record["facts"]["window"]["delivered_mbps_sum"] for record in batch)
+            return delivered/demand if demand > _DEMAND_EPS else None
+        metrics["jammer_onset_s"] = onset
+        metrics["pre_jammer_delivery_ratio"] = delivered_share(before)
+        metrics["post_jammer_delivery_ratio"] = delivered_share(after)
+        metrics["recovery_time_s"] = None
+        streak = 0
+        start_time = None
+        for record in after:
+            window = record["facts"]["window"]
+            ratio = window["delivered_mbps_sum"]/window["demand_mbps_sum"] if window["demand_mbps_sum"] > _DEMAND_EPS else 0
+            if ratio >= .9:
+                if streak == 0: start_time = record["time_s"] - record["ticks_in_step"]*header["contract"]["tick_s"]
+                streak += 1
+                if streak == 30:
+                    metrics["recovery_time_s"] = max(0, start_time-onset)
+                    break
+            else: streak=0
     return metrics
 
 
@@ -337,10 +404,11 @@ def _initial_manifest(base: dict, seeds: list[int]) -> dict:
         "selection": None,
         "observation_schema": None,
         "reward_schema": None,
-        "deterministic": True,
+        "deterministic": base.get("deterministic", True),
         "seeds": [int(s) for s in seeds],
         "seed_source": "eval",
         "policies": {},
+        "baseline_cache": None,
         "python_version": platform.python_version(),
         "platform": {"system": platform.system(), "machine": platform.machine()},
         "package_versions": package_versions(),
@@ -367,7 +435,7 @@ def evaluate(make_env, policies: list[PolicySpec], seeds: list[int], out_dir,
     seeds = [int(seed) for seed in seeds]
     manifest_path = out_dir / EVAL_MANIFEST_NAME
     manifest = _initial_manifest(base, seeds)
-    manifest["episodes_expected"] = len(policies) * len(seeds)
+    manifest["episodes_expected"] = len(policies) * len(seeds) + base.get("baseline_expected_episodes", 0)
     write_json(manifest_path, manifest)
     collected: dict[str, list[EpisodeResult]] = {spec.name: [] for spec in policies}
     metadata = {spec.name: spec.metadata for spec in policies}
@@ -395,6 +463,7 @@ def evaluate(make_env, policies: list[PolicySpec], seeds: list[int], out_dir,
                         manifest["observation_schema"] = env.observation_schema
                         manifest["reward_schema"] = env.reward_schema
                     results.append(result)
+                    write_reward_matrix(results, out_dir/spec.name)
                     _store(manifest, spec.name, results, len(seeds), metadata)
                     write_json(manifest_path, manifest)
             finally:

@@ -115,7 +115,14 @@ When `reward_components` is set, Python computes these components from the
 | `delivery_ratio` | `delivered_mbps_sum / demand_mbps_sum`; marked invalid and contributes zero if demand sum ≤ `1e-9` |
 | `connectivity` | `connected_pairs_sum / (window.ticks × num_links)` |
 | `throughput_mbps` | `delivered_mbps_sum / window.ticks`; not scaled to `[0,1]` |
+| `throughput_log_mbps` | `ln(1 + delivered_mbps_sum / window.ticks)`; a scale-compressed throughput utility, not raw Mbps |
 | `legacy` | `legacy_reward_sum / window.ticks`; C++ reward, **not** legacy control mode |
+| `sinr_quality` | Mean link SINR clipped to [-20,40] dB and mapped to [0,1]; invalid links score zero |
+| `travel_fraction` | Mean controlled-slot actual XY travel divided by each slot's speed limit times window duration, clipped to [0,1] |
+| `span_travel_fraction` | Mean over controlled slots of actual XY distance traveled this decision divided by a type-specific reference span: drone 500 m, pedestrian/vehicle 300 m. This is a soft cost, not a movement limit; an out-and-back trip is charged twice. Requires a simulator that emits `node_types`. |
+| `drone_travel_fraction`, `pedestrian_travel_fraction`, `vehicle_travel_fraction` | Sum of the corresponding type's normalized slot travel, divided by the number of all active controlled slots; zero when that type is absent |
+| `unsafe_proximity_fraction` | `facts.safety.unsafe_ticks / window.ticks`; a tick is unsafe when any two mesh nodes are closer than `[rl] unsafe_separation_m` (default 1 m) in 3D |
+| `peer_cohesion` | For each controlled node, compare its current 3D distance to its nearest other mesh node at reset with that initial distance. Both have a 20 m floor; divide `(initial − current)` by the node type's 500 m drone or 300 m pedestrian/vehicle span, clip to `[-1,1]`, then average over controlled nodes. The peer identity stays fixed, so the signal rewards moving together without rewarding crowding below 20 m. Requires `node_types`. |
 
 For five ticks, suppose demand sums to 150, delivery to 120, and 12 of the
 possible `5 × 3 = 15` pair/tick observations are connected. Then delivery
@@ -238,6 +245,11 @@ measurements over the ticks since the previous decision. For example,
 `ticks=5` and `connected_pairs_sum=15` means three connected pairs in each of
 five ticks, **not** 15 distinct links. Demand/delivery sums have units of
 Mbps·tick, not transferred bytes; the reward formulas above use these sums.
+`init.node_types` identifies each node in `node_ids` order. `facts.safety`
+counts pair proximity below the configured threshold at every simulator tick, including uncontrolled
+mesh nodes but excluding jammers. It is a near-collision proxy, not a physical
+collision detector. A scenario that starts with overlapping nodes can incur
+this penalty before any policy could move them; inspect the starting layout.
 
 Decision 0 is the reset observation. No action was sent yet, so
 `action_sent=null` and the **policy** `reward=null`. A nonzero `legacy_reward`
@@ -247,3 +259,35 @@ has one entry per control slot, including a padded slot's required hold (`4`).
 Training may first reset solely to learn the simulator-dependent spaces before
 PPO starts; that probe can be saved as `episode-0000` with `status=interrupted`,
 `stop_reason=reset`, and zero policy steps. It is not a lost training action.
+
+## Live coverage and proximity settings
+
+`coverage_fraction` is measured at each decision endpoint, using the same
+clipped-cell receiver grid and connected-core union as the placement planners.
+Enable it with `[rl] coverage_enabled=true`. Grid cells, minimum resolution,
+probe height/gain and SINR threshold come from the corresponding `[baseline]`
+keys. Probe evaluation follows mesh-link evaluation, node-major then
+probe-major. It shares the configured propagation model, so enabling coverage
+can affect subsequent random draws; every compared policy must enable it.
+The new reward schema stores grid settings and the proximity threshold.
+
+`[rl] unsafe_separation_m` is positive and defaults to 1 m. With
+`avoid_buildings=true`, centralized masks reject axis-aligned XY paths that
+intersect a building within a decision; tick revalidation also prevents entry.
+These opt-in changes add fields to init/facts without changing action shape.
+
+## Episode progress cadence
+
+`[rl] manifest_every_decisions` is read by the Python episode writer, with a
+positive-integer default of 1. Set it to 50 to reduce in-progress manifest
+writes; reset and finalization still save complete totals. This does not
+sample `steps.jsonl`: evaluation matrices require every decision. An abrupt
+OS kill can leave up to cadence−1 decisions absent from the disk snapshot.
+
+## Weakest-node service reward
+
+`worst_node_delivery_fraction` is the minimum `delivered_mbps_sum / demand_mbps_sum` over positive-demand rows of `facts.node_service`. With no offered incident demand it returns 0 with validity 0. It requires a service-enabled rebuilt simulator and has range [0,1]. The additive facts columns do not expose jammer state or alter the observation preset.
+
+### Dynamic balance components
+
+`fair_node_service` is mean sqrt(clip(node incident delivered/offered, 0, 1)), excluding nodes without demand; no demanded nodes masks this term. `adaptive_movement_cost` is `(0.02 + 0.08 * H_previous) * travel_fraction`, where H is min(clipped delivery, fair node service, coverage). It requires node_service and live coverage facts. Health is zero on reset, updates after reward composition, and never carries between episodes. Coefficients and lag are declared in the reward schema. This Python composition uses the existing bridge facts and does not change the action or observation wire contract.

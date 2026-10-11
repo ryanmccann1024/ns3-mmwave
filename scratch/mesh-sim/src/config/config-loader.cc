@@ -357,6 +357,16 @@ ConfigLoader::Load(const std::string& run_config_path,
     cfg.rl.action_profile       = iniGet(ini, "rl", "action_profile", "move_2d");
     cfg.rl.decision_interval_s  = std::stod(iniGet(ini, "rl", "decision_interval_s", "0.0"));
 
+    cfg.rl.unsafe_separation_m = std::stod(iniGet(ini, "rl", "unsafe_separation_m", "1.0"));
+    cfg.rl.avoid_buildings = iniGetBool(ini, "rl", "avoid_buildings", false);
+    cfg.rl.avoid_node_collisions = iniGetBool(ini, "rl", "avoid_node_collisions", false);
+    cfg.rl.coverage_enabled = iniGetBool(ini, "rl", "coverage_enabled", false);
+    cfg.rl.coverage_grid_cells = std::stoi(iniGet(ini, "baseline", "coverage_grid_cells", "100"));
+    cfg.rl.coverage_min_resolution_m = std::stod(iniGet(ini, "baseline", "grid_min_resolution_m", "5.0"));
+    cfg.rl.coverage_probe_height_m = std::stod(iniGet(ini, "baseline", "coverage_probe_height_m", "1.5"));
+    cfg.rl.coverage_probe_rx_gain_dbi = std::stod(iniGet(ini, "baseline", "coverage_probe_rx_gain_dbi", std::to_string(cfg.channel.rx_array_gain_dbi)));
+    cfg.rl.coverage_sinr_db = std::stod(iniGet(ini, "baseline", "coverage_sinr_db", "-6.7"));
+
     // [baseline] — only the selector; scripts/baselines/config.py owns the other keys.
     cfg.baseline.algorithm = iniGet(ini, "baseline", "algorithm", "none");
     if (cfg.baseline.algorithm.empty())

@@ -16,7 +16,7 @@ namespace mesh_sim
  * @brief Receive-only probe points evaluated against every mesh node.
  *
  * Probes are not mesh nodes: they get no traffic, routing or RL slot, and
- * exist only in a channel-query child process.
+ * serve channel queries and opt-in live RL coverage measurements.
  */
 struct ProbeGrid
 {

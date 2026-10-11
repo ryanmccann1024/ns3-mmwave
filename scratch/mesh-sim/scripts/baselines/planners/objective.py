@@ -192,6 +192,8 @@ class ScoringContext:
     waypoint_policy: str
     balanced_core_fraction: float
     penalties: dict
+    forbidden_buildings: tuple = ()
+    minimum_separation_m: float = 0.0
 
     @classmethod
     def build(cls, request, scorer) -> "ScoringContext":
@@ -248,13 +250,19 @@ class ScoringContext:
             mobility=tuple(node.mobility for node in nodes),
             waypoint_policy=request.waypoint_policy,
             balanced_core_fraction=float(request.balanced_core_fraction),
-            penalties=dict(request.penalties))
+            penalties=dict(request.penalties),
+            forbidden_buildings=getattr(request, "forbidden_buildings", ()),
+            minimum_separation_m=getattr(request, "minimum_separation_m", 0.0))
 
     def allowed(self, node: int, x: float, y: float) -> bool:
         """Rectangle, evaluation [rl] bounds and the node's random-walk bounds."""
         if not inside(x, y, self.rectangle):
             return False
         if self.rl_bounds is not None and not inside(x, y, self.rl_bounds):
+            return False
+        z = self.starts[node, 2]
+        if any(b["x_min"] <= x <= b["x_max"] and b["y_min"] <= y <= b["y_max"]
+               and b["z_min"] <= z <= b["z_max"] for b in self.forbidden_buildings):
             return False
         walk = self.walk_bounds[node]
         return walk is None or inside(x, y, walk)
@@ -281,6 +289,14 @@ def covered_mask(ctx: ScoringContext, result: LayoutResult, core_members) -> np.
     return mask
 
 
+def layout_separated(ctx: ScoringContext, layout: np.ndarray) -> bool:
+    for i in range(len(layout)):
+        for j in range(i+1, len(layout)):
+            if np.linalg.norm(layout[i]-layout[j]) < ctx.minimum_separation_m:
+                return False
+    return True
+
+
 def check_layout(ctx: ScoringContext, layout: np.ndarray) -> None:
     """Unselected nodes keep their start exactly and no z ever changes."""
     layout = np.asarray(layout, dtype=float)
@@ -289,6 +305,8 @@ def check_layout(ctx: ScoringContext, layout: np.ndarray) -> None:
     if not np.array_equal(layout[:, 2], ctx.starts[:, 2]):
         raise PlannerError("planner changed a node's z")
     fixed = [k for k in range(len(ctx.ids)) if k not in ctx.selected]
+    if not layout_separated(ctx, layout):
+        raise PlannerError("layout violates the minimum 3D node separation")
     if not np.array_equal(layout[fixed], ctx.starts[fixed]):
         raise PlannerError("planner moved an unselected node")
 

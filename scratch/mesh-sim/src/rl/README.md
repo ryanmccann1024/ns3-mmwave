@@ -10,6 +10,13 @@ which moves are allowed (`mask`), its reward, and raw measurements (`facts`).
 The Gymnasium environment validates that message, selects the configured
 observation and reward, and passes them to MaskablePPO. The chosen joint action
 returns through the bridge; the simulator applies it until the next decision.
+A centralized `init` also reports `node_types` in `node_ids` order. Each `step`
+reports `facts.safety`: `[rl] unsafe_separation_m` (default 1 m), the count of simulator ticks in
+the completed decision window with any mesh-node pair closer than that threshold
+in 3D, and the minimum pair distance in metres. This is a proximity proxy, not
+a physical collision engine; jammers are excluded. The minimum is null at reset
+or if there are fewer than two mesh nodes. These additive facts do not change
+the action or observation vector.
 A decision window is the simulator ticks between those chances to change
 direction. Each tick still updates movement, links, traffic, and reward.
 
@@ -315,3 +322,9 @@ saved separately in the manifest's `contract` field.
 
 For the checklist when changing the protocol or saved-file format, see
 [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
+
+## Additive per-node service and joint movement safety
+
+Init may declare `node_service_columns=["demand_mbps_sum","delivered_mbps_sum"]`. Every facts message then contains `node_service`, one row per `node_ids` entry. Routed flow demand and actual delivered traffic are accumulated at both endpoints; column sums equal twice the network window sums. The Python reader validates this capability while accepting older peers without it. Observation/action shapes are unchanged.
+
+Opt-in `avoid_node_collisions` checks continuous joint movement paths, splits at wall-arrival times, and holds unsafe moving participants before advancement. Holding can change another path, so the joint set is checked again. Rejected slots appear in `revalidated_slots` and applied actions are holds. Building masks still apply. Pure movement tests are in `tests/unit/rl`.

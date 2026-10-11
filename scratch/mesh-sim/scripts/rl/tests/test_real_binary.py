@@ -365,6 +365,7 @@ def _play(env: MeshRlEnv) -> float:
 
 def test_facts_rows_window_and_raw_links_rebuild(facts_run):
     init, steps, _ = facts_run
+    assert init["node_types"] == ["drone", "drone", "drone"]
     raw_links = get_preset("raw_links_v1")
     legacy = RewardComposer(["legacy"], [1.0])
 
@@ -374,6 +375,10 @@ def test_facts_rows_window_and_raw_links_rebuild(facts_run):
         assert len(facts["nodes"]) == init["num_mesh_nodes"] == 3
         assert len(facts["links"]) == init["num_links"] == NUM_LINKS
         assert window["ticks"] == step["ticks_in_step"]
+        safety = facts["safety"]
+        assert safety["threshold_m"] == 1.0
+        assert 0 <= safety["unsafe_ticks"] <= window["ticks"]
+        assert safety["min_pair_distance_m"] >= 0.0
         assert step["reward"] == pytest.approx(
             window["legacy_reward_sum"] / window["ticks"], abs=1e-9)
         assert legacy.compose(window, step["reward"], init).total == pytest.approx(
@@ -834,3 +839,100 @@ def test_decision_records_join_real_steps(tmp_path):
     assert manifest["coverage"]["gaps"] == [] and manifest["coverage"]["records"] == 3
     assert manifest["jsonl_sha256"] == hashlib.sha256(raw).hexdigest()
     assert _drain_threads() == []
+
+
+def test_live_coverage_and_building_mask(tmp_path):
+    scenario=tmp_path/"coverage-scenario"; scenario.mkdir()
+    nodes=[{"id":"a","node_type":"drone","mobility":"constant_velocity",
+            "position":{"x":10,"y":20,"z":10}},
+           {"id":"b","node_type":"drone","mobility":"constant_velocity",
+            "position":{"x":35,"y":20,"z":10}}]
+    (scenario/"nodes.json").write_text(json.dumps(nodes))
+    (scenario/"buildings.json").write_text(json.dumps([{"id":"wall",
+      "bounds":{"x_min":15,"x_max":25,"y_min":10,"y_max":30,"z_min":0,"z_max":40},
+      "type":"Office","ext_walls":"ConcreteWithoutWindows"}]))
+    ini=scenario/"run.ini"
+    ini.write_text("""[scenario]
+name=live-coverage-mask
+seed=1
+duration_s=1.0
+tick_s=0.5
+nodes_file=nodes.json
+buildings_file=buildings.json
+[channel]
+band=sub-6
+frequency_ghz=5.8
+scenario=UMi
+[rl]
+enabled=true
+controlled_nodes=all
+max_controlled_nodes=2
+step_size_m=10
+x_min=0
+x_max=50
+y_min=0
+y_max=50
+z_min=0
+z_max=50
+decision_interval_s=1
+unsafe_separation_m=1
+avoid_buildings=true
+coverage_enabled=true
+[baseline]
+coverage_grid_cells=4
+coverage_probe_height_m=1.5
+coverage_probe_rx_gain_dbi=3
+coverage_sinr_db=-6.7
+""")
+    _,messages=_run_binary(ini,tmp_path/"live-coverage",[_action([1,0])])
+    assert messages[0]["unsafe_separation_m"] == 1
+    steps=_steps(messages)
+    assert steps[0]["mask"][1] == 0 and steps[0]["mask"][5] == 0
+    for step in steps:
+        assert 0 <= step["facts"]["coverage"]["fraction"] <= 1
+        assert step["facts"]["safety"]["threshold_m"] == 1
+    assert steps[-1]["facts"]["nodes"][0][:3] == [10,20,10]
+    assert steps[-1]["facts"]["nodes"][1][:3] == [35,20,10]
+    from scripts.baselines.planners.channel import ChannelScorer
+    from scripts.baselines.planners.objective import components
+    starts=np.array([[10,20,10],[35,20,10]],dtype=float)
+    probes=np.array([[12.5,12.5],[37.5,12.5],[12.5,37.5],[37.5,37.5]])
+    with ChannelScorer(Path(MESH_SIM_BIN),ini,1,1,"sub-6","evaluation",
+                       ["a","b"],starts.tolist(),jammer_seed=1) as scorer:
+        scorer.set_probes(probes,height_m=1.5,rx_gain_dbi=3,sinr_db=-6.7)
+        result=scorer.evaluate([starts])[0]
+        core=max(components(result.connected),key=len)
+        covered=set().union(*(result.coverage[k] for k in core))
+        assert steps[0]["facts"]["coverage"]["fraction"] == pytest.approx(len(covered)/4)
+
+
+def test_strong_jammer_preserves_negative_sinr_and_outage(tmp_path):
+    """Near-jammer peers lose links/coverage; removing interference restores service."""
+    import configparser
+    import shutil
+    source = MESH_ROOT / "inputs/custom/10-09/local-fast/small-jammer"
+    if not source.is_dir():
+        pytest.skip("local jammer fixture is not present")
+    for filename in ("run.ini", "nodes.json", "jammers.json"):
+        shutil.copyfile(source/filename, tmp_path/filename)
+    config = tmp_path/"run.ini"
+    for jammed in (True, False):
+        ini = configparser.ConfigParser(); ini.read(config)
+        ini["scenario"]["jammers_file"] = "jammers.json" if jammed else ""
+        ini["output"]["dir"] = str(tmp_path/"native-output")
+        with config.open("w") as handle:
+            ini.write(handle)
+        env = MeshRlEnv(MESH_SIM_BIN, str(config), seed=201,
+                        output_dir=str(tmp_path/str(jammed)))
+        try:
+            env.reset()
+            env.step([4,4,4])
+            facts = env._protocol.facts
+            if jammed:
+                assert any(link[0] < -6.7 and link[1] == 0 for link in facts["links"])
+                assert facts["coverage"]["fraction"] < 1
+            else:
+                window = facts["window"]
+                assert window["delivered_mbps_sum"]/window["demand_mbps_sum"] >= .999
+        finally:
+            env.close()

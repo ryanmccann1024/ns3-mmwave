@@ -8,8 +8,8 @@ import os
 import sys
 from pathlib import Path
 
-VALUE_FLAGS = ("--run-config", "--seed", "--output-dir", "--band")
-BOOL_FLAGS = ("--rl-mode",)
+VALUE_FLAGS = ("--run-config", "--seed", "--output-dir", "--band", "--jammer-onset-s")
+BOOL_FLAGS = ("--rl-mode", "--no-viz")
 STEP_M = 5.0
 STDERR_MARKER = "fake-sim: simulated fatal error"
 
@@ -37,7 +37,7 @@ def parse_args(argv: list[str]) -> dict:
         token = argv[i]
         name, sep, value = token.partition("=")
         if name in BOOL_FLAGS and not sep:
-            args["rl-mode"] = True
+            args[name.lstrip("-")] = True
         elif name in VALUE_FLAGS:
             if not sep:
                 i += 1
@@ -109,12 +109,13 @@ def _load_nodes(run_config: str, ini: configparser.ConfigParser) -> list[dict]:
         path = Path(run_config).resolve().parent / path
     nodes = []
     for entry in json.loads(path.read_text()):
-        position = entry.get("position")
-        if position is None and entry.get("waypoints"):
-            position = entry["waypoints"][0]
+        position = (entry["waypoints"][0]
+                    if entry.get("mobility") == "waypoint" and entry.get("waypoints")
+                    else entry.get("position"))
         position = position or {}
         nodes.append({
             "id": entry["id"],
+            "node_type": entry.get("node_type", "vehicle"),
             "pos": [float(position.get("x", 0.0)), float(position.get("y", 0.0)),
                     float(position.get("z", 0.0))],
         })
@@ -189,6 +190,9 @@ def _facts(nodes: list[dict], slots: list[int], velocities: dict, ticks: int,
     flows = len(fact_links)
     flow_ticks = flows * ticks if demand_mbps > 0.0 else 0
     demand_sum = demand_mbps * flow_ticks
+    min_distance = min((math.dist(nodes[i]["pos"], nodes[j]["pos"])
+                        for i in range(len(nodes)) for j in range(i + 1, len(nodes))),
+                       default=None)
     return {
         "nodes": fact_nodes,
         "links": fact_links,
@@ -202,6 +206,9 @@ def _facts(nodes: list[dict], slots: list[int], velocities: dict, ticks: int,
             "los_pairs_sum": connected * ticks,
             "legacy_reward_sum": reward_tick * ticks,
         },
+        "safety": {"threshold_m": 1.0,
+                   "unsafe_ticks": ticks if min_distance is not None and min_distance < 1.0 else 0,
+                   "min_pair_distance_m": min_distance},
     }
 
 
@@ -260,11 +267,21 @@ def _init_message(mode: str, num_slots: int, count: int, nodes: list[dict],
         "reward_window": "mean",
         "wall_policy": "clip",
     }
+    init["node_service_columns"] = ["demand_mbps_sum", "delivered_mbps_sum"]
+    init["unsafe_separation_m"] = ini.getfloat("rl", "unsafe_separation_m", fallback=1.0)
+    if ini.getboolean("rl", "coverage_enabled", fallback=False):
+        init["coverage"] = {"grid_cells": ini.getint("baseline", "coverage_grid_cells", fallback=100),
+            "min_resolution_m": ini.getfloat("baseline", "grid_min_resolution_m", fallback=5),
+            "probe_height_m": ini.getfloat("baseline", "coverage_probe_height_m", fallback=1.5),
+            "probe_rx_gain_dbi": ini.getfloat("baseline", "coverage_probe_rx_gain_dbi", fallback=0),
+            "sinr_db": ini.getfloat("baseline", "coverage_sinr_db", fallback=-6.7),
+            "measurement": "decision_endpoint_connected_core"}
     if mode != "no_facts":
         init.update({
             "facts_schema": FACTS_SCHEMA,
             "facts_columns": FACTS_COLUMNS,
             "node_ids": [node["id"] for node in nodes],
+            "node_types": [node["node_type"] for node in nodes],
             "num_links": len(nodes) * (len(nodes) - 1) // 2,
             "bounds": {f"{axis}_{end}": bounds[axis][i]
                        for axis in ("x", "y", "z")
@@ -343,6 +360,14 @@ def run_centralized(args: dict, ini: configparser.ConfigParser, mode: str,
         if mode != "no_facts":
             step["facts"] = _facts(nodes, slots, node_velocities, window_len,
                                    demand_mbps, reward_tick)
+            window = step["facts"]["window"]
+            step["facts"]["node_service"] = [[2*window["demand_mbps_sum"]/len(nodes),
+                                              2*window["delivered_mbps_sum"]/len(nodes)] for _ in nodes]
+            safety = step["facts"]["safety"]
+            safety["threshold_m"] = ini.getfloat("rl", "unsafe_separation_m", fallback=1.0)
+            safety["unsafe_ticks"] = window_len if safety["min_pair_distance_m"] is not None and safety["min_pair_distance_m"] < safety["threshold_m"] else 0
+            if ini.getboolean("rl", "coverage_enabled", fallback=False):
+                step["facts"]["coverage"] = {"fraction": 0.75}
         emit(json.dumps(step))
         if decision == 1 and seed in _fail_seeds():
             print(STDERR_MARKER, file=sys.stderr, flush=True)

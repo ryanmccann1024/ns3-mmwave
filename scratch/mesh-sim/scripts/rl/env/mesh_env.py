@@ -29,7 +29,8 @@ class MeshRlEnv(gymnasium.Env):
                  output_dir: str = "", band: str | None = None,
                  render_mode: str | None = None,
                  selection: RlSelection | None = None,
-                 decision_records: DecisionRecording | None = None):
+                 decision_records: DecisionRecording | None = None,
+                 record_viz: bool = True):
         super().__init__()
         if not output_dir:
             raise ValueError("MeshRlEnv requires output_dir (the training output root)")
@@ -54,7 +55,7 @@ class MeshRlEnv(gymnasium.Env):
                                    if decision_records is not None else None)
         self._last_obs: np.ndarray | None = None
         self._session = EpisodeSession(sim_binary, run_config, self._output_dir, band,
-                                       decision_records=decision_records)
+                                       decision_records=decision_records, record_viz=record_viz)
         if seed is not None:
             self.seed_value = int(seed)
             self.seed_source = "cli"
@@ -123,6 +124,8 @@ class MeshRlEnv(gymnasium.Env):
             self.seed_value = int(seed)
             self.seed_source = "gym"
 
+        if self._composer is not None:
+            self._composer.reset()
         self._session.stop("interrupted", "reset")
         self._session.start(self.seed_value, self.seed_source)
         first = self._session.read_message()
@@ -321,6 +324,9 @@ class MeshRlEnv(gymnasium.Env):
             "reward_type": init["reward_type"],
             "reward_window": init["reward_window"],
             "wall_policy": init["wall_policy"],
+            "unsafe_separation_m": init.get("unsafe_separation_m"),
+            "avoid_buildings": init.get("avoid_buildings", False),
+            "coverage": init.get("coverage"),
         }
         self._check_signature(signature)
         self._control_mode = "centralized"
@@ -338,7 +344,9 @@ class MeshRlEnv(gymnasium.Env):
             self._selection.observation_preset, init)
         self._reward_schema = reward_schema(
             self._selection.reward_components, self._selection.reward_weights,
-            reward_type=init["reward_type"], reward_window=init["reward_window"])
+            reward_type=init["reward_type"], reward_window=init["reward_window"],
+            unsafe_separation_m=init.get("unsafe_separation_m", 2.0),
+            coverage=init.get("coverage"))
         self._session.set_selection(self._selection, self._observation_schema,
                                     self._reward_schema)
 

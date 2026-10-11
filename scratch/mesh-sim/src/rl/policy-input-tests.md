@@ -23,6 +23,7 @@ simulator. No reference snapshots are created or changed by these tests.
 | `test_observations_rewards.py`: `test_local_links_v1_exact_slot_vector`, `test_local_links_v1_padded_slot_is_zero`, `test_local_links_v1_clips_extreme_links`, `test_raw_links_matches_cpp_layout` | Raw facts → exact preset values, bounded local features, zero padding, unchanged raw layout. |
 | `test_observations_rewards.py`: `test_schema_hash_is_deterministic_and_strict_json`, `test_raw_links_schema_uses_null_bounds_but_infinite_box`, `test_check_schema_rejects_structural_change`, `test_check_schema_reports_identity_change_as_warning` | Saved/live schemas → stable fingerprint, correct Box bounds, structural rejection and identity warnings. |
 | `test_observations_rewards.py`: `test_delivery_ratio_masks_zero_demand`, `test_other_components`, `test_composer_total_is_weighted_sum_over_valid_components`, `test_legacy_component_reproduces_cpp_reward`, `test_composer_rejects_bad_configuration`, `test_reward_schema_authorities` | Synthetic window sums/configuration → component formulas, validity, weighted total, C++ alias, schema authority, and errors for invalid weights/names. |
+| `test_observations_rewards.py`: `test_peer_cohesion_tracks_original_nearest_peer_without_collapse_bonus`, `test_peer_cohesion_floor_allows_initially_close_nodes_to_separate_safely`, `test_log_throughput_has_bounded_safety_scale_and_schema` | Initial and current positions → fixed-peer cohesion, no reward for crowding below 20 m, and scale-compressed throughput/schema identity. |
 | `test_observations_rewards.py`: `test_resolve_selection_precedence`, `test_resolve_selection_rejects_invalid_keys`, `test_resolve_selection_rejects_p2_selection_in_legacy_mode` | CLI/INI/default choices → recorded precedence or a pre-launch validation error. |
 | `test_observations_rewards.py`: `test_telemetry_records_replay_without_mismatch`, `test_should_save_sampling` | Synthetic steps → header and sampled records; replay reports zero observation/reward mismatches. |
 | `test_mesh_env.py`: `test_custom_preset_and_reward_block`, `test_negative_legacy_reward_window`, `test_zero_demand_masks_delivery_ratio` | Fake decisions → local observation shape, inspectable reward parts, preserved negative reward, zero-demand validity flag. |
@@ -30,3 +31,14 @@ simulator. No reference snapshots are created or changed by these tests.
 | `test_mesh_env.py`: `test_binary_without_facts_is_rejected`, `test_training_records_selection_and_schema_hashes` | Old fake protocol or tiny training run → clear missing-facts failure or matching saved selection/schema fingerprints; training check skips without `sb3_contrib`. |
 | `test_real_binary.py`: `test_facts_rows_window_and_raw_links_rebuild`, `test_window_sums_match_the_run_summary` | Real simulator facts → correct row/window sizes, C++ reward mean, rebuilt raw observation, summary totals. |
 | `test_real_binary.py`: `test_custom_selection_observations_rewards_and_replay`, `test_telemetry_is_reproducible_and_cadence_bounded`, `test_training_run_writes_matching_schema_hashes` | Real run with custom selection → finite policy inputs, saved reward/trace replay, repeatable/strided telemetry, matching manifest fingerprints; training check skips without `sb3_contrib`. |
+
+
+`test_reward_matrix.py::test_coverage_reward_replays` checks simulator facts →
+coverage reward → telemetry replay. The C++ eval suite verifies clipped-cell
+area, connected-core union, no double counting and deterministic core ties.
+`test_live_coverage_and_building_mask` in `test_real_binary.py` checks receiver
+coverage facts and swept building masks after the user rebuilds the binary.
+
+Iteration-two additive `node_service` facts are checked for row count, nonnegative demand, delivered <= demand and double-counted endpoint conservation. `test_iteration_two.py` checks weakest-node reward masking and old-peer rejection when the new component is requested.
+
+Iteration-three reward cases in `scripts/rl/tests/test_iteration_three.py` verify zero-demand exclusion, nonzero fair feedback while the minimum is zero, previous-condition movement charges, and reset isolation.

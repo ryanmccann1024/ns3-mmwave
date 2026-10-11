@@ -24,7 +24,8 @@ ACROSS_RUNS_KIND = "t_across_training_runs"
 _SHA_FIELDS = ("run_ini_sha256", "nodes_json_sha256", "buildings_json_sha256",
                "jammers_json_sha256")
 _TRAINING_SETTINGS = ("total_timesteps", "n_steps", "gamma", "ent_coef",
-                      "eval_every_steps", "eval_episodes")
+                      "eval_every_steps", "eval_episodes", "learning_rate", "batch_size",
+                      "gae_lambda", "clip_range", "n_epochs", "target_kl", "net_arch", "ent_coef_final")
 
 
 def _sample_std(values) -> float:
@@ -125,7 +126,9 @@ def _group_key(evaluation: Evaluation) -> dict:
         key[f"scenario_{field}"] = identity.get(field)
         key[f"training_scenario_{field}"] = training_identity.get(field)
     for setting in _TRAINING_SETTINGS:
-        key[f"training_{setting}"] = hyper.get(setting)
+        if setting not in ("total_timesteps", "n_steps", "gamma", "ent_coef", "eval_every_steps", "eval_episodes") and setting not in hyper:
+            continue
+        key[f"training_{setting}"] = tuple(hyper[setting]) if setting == "net_arch" and hyper.get(setting) else hyper.get(setting)
     if key["model_selection"] not in ("final", "best", None):
         key["bundle_num_timesteps"] = (manifest.get("bundle") or {}).get("num_timesteps")
     for policy, block in (manifest.get("policies") or {}).items():

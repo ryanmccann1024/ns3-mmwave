@@ -11,6 +11,7 @@
 #include "src/config/rl-control.h"
 
 #include <algorithm>
+#include <cmath>
 #include <initializer_list>
 
 namespace mesh_sim
@@ -208,6 +209,25 @@ ValidateConfig(const SimConfig& cfg)
         checkOneOf(r, "rl.reward_type", cfg.rl.reward_type,
                    {"throughput", "all_links_los"});
 
+        checkPositive(r, "rl.unsafe_separation_m", cfg.rl.unsafe_separation_m);
+        if (!std::isfinite(cfg.rl.unsafe_separation_m))
+            r.errors.push_back("rl.unsafe_separation_m must be finite");
+        if (cfg.rl.coverage_enabled)
+        {
+            if (!cfg.rl.controlled_nodes_set)
+                r.errors.push_back("rl.coverage_enabled requires centralized control");
+            if (cfg.rl.coverage_grid_cells < 1 || cfg.rl.coverage_grid_cells > 10000)
+                r.errors.push_back("baseline.coverage_grid_cells must be in [1,10000] for RL coverage");
+            checkPositive(r, "baseline.grid_min_resolution_m", cfg.rl.coverage_min_resolution_m);
+            if (!std::isfinite(cfg.rl.coverage_min_resolution_m))
+                r.errors.push_back("baseline.grid_min_resolution_m must be finite");
+            if (!std::isfinite(cfg.rl.coverage_probe_height_m) || cfg.rl.coverage_probe_height_m < 0)
+                r.errors.push_back("baseline.coverage_probe_height_m must be finite and nonnegative");
+            if (!std::isfinite(cfg.rl.coverage_probe_rx_gain_dbi) || cfg.rl.coverage_probe_rx_gain_dbi < 0)
+                r.errors.push_back("baseline.coverage_probe_rx_gain_dbi must be finite and nonnegative");
+            if (!std::isfinite(cfg.rl.coverage_sinr_db))
+                r.errors.push_back("baseline.coverage_sinr_db must be finite");
+        }
         if (cfg.rl.action_type == "discrete")
         {
             checkPositive(r, "rl.step_size_m", cfg.rl.step_size_m);
@@ -240,6 +260,22 @@ ValidateConfig(const SimConfig& cfg)
                 r.errors.push_back(
                     "rl.controlled_node_id '" + cfg.rl.controlled_node_id +
                     "' does not match any node ID");
+            }
+        }
+
+        if (cfg.rl.avoid_node_collisions)
+        {
+            if (!cfg.rl.controlled_nodes_set)
+                r.errors.push_back("rl.avoid_node_collisions requires centralized control");
+            for (size_t i = 0; i < cfg.nodes.size(); ++i)
+            {
+                const auto a = ControlledStartPosition(cfg.nodes[i]);
+                for (size_t j = i + 1; j < cfg.nodes.size(); ++j)
+                {
+                    const auto b = ControlledStartPosition(cfg.nodes[j]);
+                    if (std::hypot(std::hypot(a.x-b.x, a.y-b.y), a.z-b.z) < cfg.rl.unsafe_separation_m)
+                        r.errors.push_back("unsafe initial node separation: " + cfg.nodes[i].id + " / " + cfg.nodes[j].id);
+                }
             }
         }
 

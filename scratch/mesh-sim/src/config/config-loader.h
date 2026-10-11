@@ -18,7 +18,7 @@
  * | @c [traffic]     | @c model=constant, @c demand_mbps=10.0, @c arrival_rate_hz=1.0, @c on_time_s=1.0, @c off_time_s=1.0, @c holding_time_s=0.0, @c flow_topology=all_pairs, @c random_pair_count=3, @c gateway_node_id (empty) |
  * | @c [routing]     | @c algorithm=shortest_path, @c max_hops=5 |
  * | @c [rl]          | @c enabled=false, @c controlled_node_id (empty), @c action_type=discrete, @c reward_type=throughput (@c "mean_sinr" is rewritten to @c "all_links_los" and the old name kept in @c reward_type_alias), @c step_size_m=50.0, @c arrival_threshold_m=1.0, @c x_min=-1000, @c x_max=2000, @c y_min=-1000, @c y_max=1000, @c z_min=0, @c z_max=100 (m) |
- * | @c [rl] (centralized) | @c controlled_nodes (empty), @c max_controlled_nodes=0, @c action_profile=move_2d, @c decision_interval_s=0.0. Mere presence of the @c controlled_nodes key sets @c controlled_nodes_set and selects centralized mode |
+ * | @c [rl] (centralized) | @c controlled_nodes (empty), @c max_controlled_nodes=0, @c action_profile=move_2d, @c decision_interval_s=0.0, @c avoid_buildings=false, @c unsafe_separation_m=1.0, @c avoid_node_collisions=false, @c coverage_enabled=false. Mere presence of the @c controlled_nodes key sets @c controlled_nodes_set and selects centralized mode |
  *
  * **JSON files** (paths resolved against the run.ini directory; each file is a
  * top-level array)

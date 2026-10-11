@@ -41,8 +41,7 @@ after the jammers (mesh and jammer node IDs are unchanged), get a directly
 created `ConstantPositionMobilityModel`, and are included in
 `BuildingsHelper::Install`. They are created without `MobilityHelper`, whose
 constructor allocates random position allocators and would consume automatic
-RNG stream indices before the propagation model is created. Live runs never
-set probes.
+RNG stream indices before the propagation model is created. Coverage-enabled live RL runs also request these probes.
 
 ## Output
 

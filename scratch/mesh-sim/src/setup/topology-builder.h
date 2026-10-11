@@ -25,7 +25,7 @@
  * component is non-zero, else @c ConstantPositionMobilityModel. Jammer
  * @c random_walk settings are not used here.
  *
- * **Probes** (optional, channel query only; see @ref SetProbes): one ns-3 node
+ * **Probes** (optional, channel queries and RL coverage; see @ref SetProbes): one ns-3 node
  * with a directly created @c ConstantPositionMobilityModel per probe point,
  * appended after the jammers so mesh and jammer node IDs are unchanged.
  * Probe creation draws no random variables.
@@ -94,8 +94,7 @@ class TopologyBuilder
      * @fn TopologyBuilder::SetProbes
      * @brief Request receive-only probe nodes; call before @ref Build.
      *
-     * Each point keeps its x/y/z. Live runs never call this, so their
-     * topology is unchanged.
+     * Each point keeps its x/y/z. Coverage-enabled RL runs also request probes.
      *
      * @param probes  Probe grid copied into the builder.
      */

@@ -4,7 +4,8 @@ ROOT     := ../../..
 COMMON   := ../../common
 
 SRCS := eval-test.cc \
-        $(ROOT)/src/eval/link-table.cc
+        $(ROOT)/src/eval/link-table.cc \
+        $(ROOT)/src/eval/coverage-grid.cc
 
 OUT := eval-test
 

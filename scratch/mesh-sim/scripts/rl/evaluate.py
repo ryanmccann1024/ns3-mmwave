@@ -91,7 +91,7 @@ def _prepare_placements(args, policies: list[str], run_config: str, band: str | 
 
 def _model_spec(bundle, live_identity: dict, band: str | None,
                 allow_different_scenario: bool,
-                capture: PreferenceCapture | None = None) -> PolicySpec:
+                capture: PreferenceCapture | None = None, deterministic=True) -> PolicySpec:
     def build(env, first_seed: int) -> Prepared:
         # The compatibility reset is the first model episode; no extra episode is left.
         initial = env.reset(seed=first_seed, options={"seed_source": "eval"})
@@ -99,13 +99,13 @@ def _model_spec(bundle, live_identity: dict, band: str | None,
             bundle.manifest, env, live_identity=live_identity, live_band=band,
             allow_different_scenario=allow_different_scenario)
         model = load_model(bundle, env, mask_fn)
-        return Prepared(ModelPolicy(model, capture), initial,
+        return Prepared(ModelPolicy(model, capture, deterministic=deterministic), initial,
                         {"compatibility": report.describe()})
 
     return PolicySpec("model", build)
 
 
-def _model_identity(bundle) -> dict:
+def _model_identity(bundle, deterministic=True) -> dict:
     """Decision-record identity of the evaluated model file."""
     path = Path(bundle.model_path)
     run_dir = Path(bundle.run_dir)
@@ -121,7 +121,7 @@ def _model_identity(bundle) -> dict:
         "model_path_recorded": recorded,
         "num_timesteps": bundle.num_timesteps,
         "train_manifest_sha256": sha256_file(run_dir / MANIFEST_NAME),
-        "inference": {"deterministic": True, "device": "cpu",
+        "inference": {"deterministic": deterministic, "device": "cpu",
                       "stable_baselines3": versions["stable_baselines3"],
                       "sb3_contrib": versions["sb3_contrib"],
                       "torch": versions["torch"]},
@@ -149,6 +149,9 @@ def _build_parser() -> argparse.ArgumentParser:
                    help=f"Comma-separated subset of {list(POLICY_NAMES)}")
     p.add_argument("--allow-different-scenario", action="store_true",
                    help="Record a scenario mismatch instead of refusing; behavior unproven")
+    p.add_argument("--stochastic-model", action="store_true", help="Sample the saved model instead of choosing its highest probability action")
+    p.add_argument("--decision-record-seeds", help="Write detailed decision sidecars only for these evaluation seeds")
+    p.add_argument("--baseline-cache-dir", help="Reuse reward-independent baseline trajectories across reward variants")
     p.add_argument("--json", action="store_true", help="Print the eval manifest as JSON")
     return p
 
@@ -216,6 +219,9 @@ def main(argv=None) -> int:
         policies = _parse_policies(args.policies)
         _check_output_dir(args.output_dir, args.run_dir)
         records = decision_records_from_args(args)
+        record_seeds = tuple(parse_seed_spec(args.decision_record_seeds)) if args.decision_record_seeds else None
+        if record_seeds is not None and (not records.enabled or not set(record_seeds) <= set(seeds)):
+            raise ValueError("--decision-record-seeds requires enabled records and a subset of --seeds")
     except ValueError as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
@@ -240,6 +246,7 @@ def main(argv=None) -> int:
         selection = eval_selection(selection)
         identity = read_scenario_identity(run_config)
         base = {
+            "deterministic": not args.stochastic_model,
             "sim_binary": os.path.abspath(args.sim_binary),
             "run_config": os.path.abspath(run_config),
             "band": band,
@@ -250,15 +257,32 @@ def main(argv=None) -> int:
             "scenario_identity": identity,
             "bundle": bundle.describe() if bundle is not None else None,
         }
-        placements = _prepare_placements(args, policies, run_config, band, seeds)
+        cached = None
+        baseline_names = [name for name in policies if name != "model"]
+        if args.baseline_cache_dir and baseline_names:
+            from scripts.rl.policy.baseline_cache import ensure_baselines, cache_signature, merge_baselines
+            signature = cache_signature(args.sim_binary, identity, band, seeds, baseline_names, selection.observation_preset)
+            def run_baselines(destination):
+                command = ["--sim-binary", args.sim_binary, "--run-config", run_config,
+                           "--output-dir", str(destination), "--seeds", args.seeds,
+                           "--policies", ",".join(baseline_names),
+                           "--observation-preset", selection.observation_preset]
+                if band: command += ["--band", band]
+                if selection.reward_components:
+                    command += ["--reward-components", ",".join(selection.reward_components),
+                                "--reward-weights", ",".join(map(str, selection.reward_weights))]
+                return main(command)
+            cached = ensure_baselines(args.baseline_cache_dir, signature, run_baselines)
+        active_policies = [name for name in policies if name == "model"] if cached else policies
+        placements = _prepare_placements(args, active_policies, run_config, band, seeds)
         capture = (PreferenceCapture() if "model" in policies and records.enabled
                    and records.preferences != "off" else None)
-        model_identity = (_model_identity(bundle) if "model" in policies and records.enabled
+        model_identity = (_model_identity(bundle, not args.stochastic_model) if "model" in policies and records.enabled
                           else None)
-        specs = [_model_spec(bundle, identity, band, args.allow_different_scenario, capture)
+        specs = [_model_spec(bundle, identity, band, args.allow_different_scenario, capture, not args.stochastic_model)
                  if name == "model"
                  else _placement_spec(placements[name]) if name in placements
-                 else _baseline_spec(name) for name in policies]
+                 else _baseline_spec(name) for name in active_policies]
         configs = {name: str(prepared.effective_run_config)
                    for name, prepared in placements.items()}
 
@@ -271,9 +295,12 @@ def main(argv=None) -> int:
             return MeshRlEnv(args.sim_binary, configs.get(name, run_config), seed=seeds[0],
                              output_dir=os.path.join(args.output_dir, name),
                              band=band, selection=selection,
-                             decision_records=DecisionRecording(records, context))
+                             decision_records=DecisionRecording(records, context, record_seeds))
 
+        if cached: base["baseline_expected_episodes"] = cached["episodes_expected"]
         manifest = evaluate(make_env, specs, seeds, args.output_dir, base)
+        if cached:
+            manifest = merge_baselines(manifest, cached, args.output_dir, selection, args.baseline_cache_dir)
     except Exception as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return 1

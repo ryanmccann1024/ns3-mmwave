@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 EVAL_MANIFEST_NAME = "eval_manifest.json"
-REQUIRED_MANIFEST_VERSION = 2
+REQUIRED_MANIFEST_VERSION = 3
 METRIC_SOURCE = {"kind": "telemetry_window", "warmup_excluded": False}
 
 # metric -> (higher_is_better, comparable_across_reward_definitions), lexicographic
@@ -93,7 +93,7 @@ def load_evaluation(eval_dir) -> Evaluation | None:
     if not isinstance(manifest, dict):
         return None
     version = manifest.get("eval_manifest_version")
-    if version != REQUIRED_MANIFEST_VERSION:
+    if version not in (2, REQUIRED_MANIFEST_VERSION):
         raise ComparisonError(
             f"{path} has eval_manifest_version {version!r}, not "
             f"{REQUIRED_MANIFEST_VERSION}; re-evaluate with current tooling")

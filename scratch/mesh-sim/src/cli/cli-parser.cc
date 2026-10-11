@@ -43,6 +43,8 @@ ParseCommandLine(int argc, char* argv[])
     cmd.AddValue("output-dir",
                  "Override the output directory (default: auto-generated timestamp).",
                  args.output_dir);
+    cmd.AddValue("no-viz", "Disable replay CSV files; keep summary metrics.", args.no_viz);
+    cmd.AddValue("jammer-onset-s", "Override enabled jammer start time (seconds); active until episode end.", args.jammer_onset_s);
     cmd.AddValue("debug-links",
                  "Enable verbose link-evaluation debug logging.",
                  args.debug_links);

@@ -33,10 +33,12 @@ _SAMPLER_KEYS = ("type", "seed")
 _ENTRY_KEYS = {"categorical": ("type", "choices"),
                "int": ("type", "low", "high", "log"),
                "float": ("type", "low", "high", "log")}
-# Only these reach MaskablePPO today (mask_ppo.py); widening needs the whole
-# constructor/CLI/manifest chain, tracked by TODO-RL-TUNE-1.
+# Scalar constructor settings exposed to Optuna; network layouts use explicit matrices.
 _SEARCHABLE = {"n_steps": ("int", "categorical"), "gamma": ("float",),
-               "ent_coef": ("float",)}
+               "ent_coef": ("float",), "learning_rate": ("float",),
+               "batch_size": ("int", "categorical"), "n_epochs": ("int", "categorical"),
+               "gae_lambda": ("float",), "clip_range": ("float",),
+               "target_kl": ("float",), "ent_coef_final": ("float",)}
 # Seed-carrying flags of the train step built by experiment._train_args.
 _SEED_FLAGS = ("--seed", "--eval-seed")
 _INSTALL_HINT = ("install with: .venv/bin/python -m pip install -r "
@@ -66,15 +68,17 @@ def _number(value, where: str):
 
 def _bounds(key: str, entry: dict, where: str) -> None:
     low, high, log = entry["low"], entry["high"], entry["log"]
-    if key == "n_steps":
+    if key in ("n_steps", "batch_size", "n_epochs"):
         _int(low, f"{where}.low")
         _int(high, f"{where}.high")
         if low < 2:
             raise ValueError(f"{where}.low must be >= 2, got {low}")
-    if key == "gamma" and not (0 < low and high <= 1):
+    if key in ("gamma", "gae_lambda", "clip_range") and not (0 < low and high <= 1):
         raise ValueError(f"{where} must stay inside (0, 1], got low={low}, high={high}")
-    if key == "ent_coef" and low < 0:
+    if key in ("ent_coef", "ent_coef_final") and low < 0:
         raise ValueError(f"{where}.low must be >= 0, got {low}")
+    if key in ("learning_rate", "target_kl") and low <= 0:
+        raise ValueError(f"{where}.low must be > 0")
     if log and low <= 0:
         raise ValueError(f"{where}.log requires low > 0, got {low}")
 

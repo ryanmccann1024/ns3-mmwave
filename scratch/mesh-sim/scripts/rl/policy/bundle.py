@@ -13,7 +13,7 @@ from scripts.rl.env.rewards import COMPONENTS
 from scripts.rl.env.selection import TELEMETRY_MODES, RlSelection
 from scripts.rl.policy.compat import BundleError
 
-MANIFEST_VERSION = 4
+MANIFEST_VERSION = 6
 CHECKPOINT_DIR = "checkpoints"
 _SELECTION_KEYS = ("observation_preset", "reward_components", "reward_weights",
                    "telemetry", "telemetry_every")
@@ -88,7 +88,7 @@ def read_bundle(run_dir, model: str = "final") -> ModelBundle:
     manifest = read_manifest(run_dir)
 
     version = manifest.get("manifest_version")
-    if version != MANIFEST_VERSION:
+    if version not in (4, 5, MANIFEST_VERSION):
         raise BundleError(
             f"train manifest version {version!r} is not {MANIFEST_VERSION}; "
             "retrain with current tooling")
@@ -153,6 +153,7 @@ def seed_roles(manifest: dict | None, model_selection: str | None,
     roles["model_selection_seed"] = None if selection_seed is None else int(selection_seed)
     reserved = {seed for seed in (roles["training_seed"], roles["model_selection_seed"])
                 if seed is not None}
+    reserved.update((evaluation or {}).get("seeds") or [])
     roles["overlap"] = [seed for seed in held_out_seeds if seed in reserved]
     roles["held_out"] = not roles["overlap"]
     return roles

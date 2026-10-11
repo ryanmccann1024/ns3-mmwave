@@ -173,10 +173,10 @@ def _mutate(data: dict, path: tuple, value) -> dict:
 MATRIX_REFUSALS = [
     ("list axis", ("rows", 0, "observation_preset"), ["local_links_v1", "raw_links_v1"],
      "no product expansion"),
-    ("list scalar seed", ("seeds", "model_selection"), [1, 2], "no product expansion"),
+    ("selection without cadence", ("seeds", "model_selection"), [1, 2], "requires training.eval_every_steps"),
     ("unknown top key", ("colour",), "red", "unknown keys"),
     ("unknown row key", ("rows", 0, "epochs"), 3, "unknown keys"),
-    ("unknown training key", ("training", "learning_rate"), 0.1, "unknown keys"),
+    ("unknown training key", ("training", "unknown_parameter"), 0.1, "unknown keys"),
     ("bad version", ("matrix_version",), 2, "matrix_version"),
     ("bad name", ("name",), "Stub Matrix", "a-z0-9"),
     ("bad row name", ("rows", 1, "name"), "Row B", "a-z0-9"),
@@ -195,6 +195,8 @@ MATRIX_REFUSALS = [
      "must contain 'model'"),
     ("policies without baseline", ("evaluation", "policies"), ["model"],
      "at least one baseline"),
+    ("non-boolean decision records", ("evaluation", "decision_records"), "yes",
+     "must be a boolean"),
     ("best without cadence", ("evaluation", "model"), "best",
      "requires training.eval_every_steps"),
     ("selection without cadence", ("seeds", "model_selection"), 5,
@@ -387,6 +389,23 @@ def test_every_evaluation_policy_name_is_accepted(tmp_path):
     evaluate = next(step for step in plan["steps"] if step["kind"] == "evaluate")
     args = evaluate["args"]
     assert args[args.index("--policies") + 1] == ",".join(names)
+
+
+def test_decision_records_are_opt_in_for_matrix_evaluation(tmp_path):
+    data = _matrix_data(_run_ini(tmp_path))
+    off = experiment.load_matrix(_write_matrix(tmp_path, data))
+    assert "decision_records" not in off["evaluation"]
+    off_plan = experiment.build_plan(off, tmp_path / "off", SIM_BINARY)
+    assert all("--decision-records" not in step["args"]
+               for step in off_plan["steps"] if step["kind"] == "evaluate")
+
+    data["evaluation"]["decision_records"] = True
+    on = experiment.load_matrix(_write_matrix(tmp_path, data, "on.json"))
+    on_plan = experiment.build_plan(on, tmp_path / "on", SIM_BINARY)
+    assert all("--decision-records" in step["args"]
+               for step in on_plan["steps"] if step["kind"] == "evaluate")
+    assert all("--decision-records" not in step["args"]
+               for step in on_plan["steps"] if step["kind"] == "train")
 
 
 def test_existing_matrices_keep_their_policies(tmp_path):

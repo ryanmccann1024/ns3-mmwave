@@ -36,6 +36,8 @@ class PlanRequest:
     band: str | None
     query_run_config: Path
     sim_binary: Path
+    forbidden_buildings: tuple = ()
+    minimum_separation_m: float = 0.0
 
 
 @dataclass(frozen=True)

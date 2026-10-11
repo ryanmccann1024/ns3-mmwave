@@ -51,6 +51,23 @@ Reuse these instead of re-implementing them in a subpackage:
 Any launcher that spawns the simulator should use `simulator_env` (the binary
 needs ns-3's shared libraries) and close its stdin unless it is the RL bridge.
 
+## Responsibility boundaries
+
+- CLI entry points parse arguments, coordinate domain modules, and report
+  results/errors. Keep configuration rules, protocol parsing, subprocess
+  lifecycle, and artifact persistence with their respective owners.
+- Validate at the boundary that owns the input: configuration in its loader,
+  simulator messages in the protocol module. Keep necessary checks; avoid
+  duplicating domain validation across commands. CLI usage checks belong in
+  the CLI.
+- Keep private constants local. Shared defaults, limits, artifact names, and
+  schema versions have one domain owner that callers/readers reuse; avoid
+  copied values and a catch-all constants module.
+- Expose settings users need to tune through configuration and record resolved
+  values in run provenance. Fixed diagnostic limits can remain private.
+- Reuse existing owners first. Extract a cohesive responsibility when unrelated
+  logic accumulates or is repeated; do not split every helper or add a framework.
+
 ## Conventions
 
 - `requirements.txt` is the recorded dependency set for RL manifests; add

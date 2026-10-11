@@ -404,7 +404,7 @@ def test_baseline_evaluation_writes_a_completed_manifest(sim_binary, multi_run_c
     assert evaluate_cli.main(_eval_argv(sim_binary, multi_run_config, out_dir)) == 0
 
     manifest = json.loads((out_dir / "eval_manifest.json").read_text())
-    assert manifest["eval_manifest_version"] == 2 and manifest["status"] == "completed"
+    assert manifest["eval_manifest_version"] == 3 and manifest["status"] == "completed"
     assert manifest["metric_source"] == {"kind": "telemetry_window",
                                          "warmup_excluded": False}
     assert manifest["label"] is None and manifest["training"] is None

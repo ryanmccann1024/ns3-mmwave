@@ -19,6 +19,7 @@ set(MESH_SIM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/setup/topology-builder.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/eval/link-evaluator.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/eval/link-table.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/eval/coverage-grid.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/traffic/traffic-matrix.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/routing/mesh-router.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/viz-writer.cc

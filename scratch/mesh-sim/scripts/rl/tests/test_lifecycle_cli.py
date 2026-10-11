@@ -180,7 +180,7 @@ def test_inspect_a_training_run(sim_binary, multi_run_config, tmp_path, monkeypa
 
     assert inspect_model.main(["--run-dir", str(out_dir), "--json"]) == 0
     report = json.loads(capsys.readouterr().out)
-    assert report["manifest_version"] == 4
+    assert report["manifest_version"] == 6
     assert report["status"] == "completed"
     assert report["contract"]["contract"] == "mesh_move_2d_v1"
     assert report["observation_schema"]["note"] == "bounds not structural for raw_links_v1"

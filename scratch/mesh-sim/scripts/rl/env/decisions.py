@@ -89,6 +89,7 @@ class DecisionRecording:
 
     settings: DecisionRecordSettings
     context: DecisionContext
+    seeds: tuple[int, ...] | None = None
 
 
 def _int_setting(key: str, value, minimum: int, source: str) -> int:

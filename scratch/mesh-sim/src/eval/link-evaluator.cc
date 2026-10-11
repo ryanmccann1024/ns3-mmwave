@@ -200,11 +200,10 @@ LinkEvaluator::EvaluateLink(ns3::Ptr<ns3::MobilityModel> txMob,
     {
 	    r.sinr_db = r.rx_power_dbm - m_noiseFloorDbm;
     }
-    else{
-	    r.sinr_db = 10.0 * std::log10(signalWatt / (noiseWatt + jamWatt));
-	    r.sinr_db = r.sinr_db < 0.0 ? 0.0 : r.sinr_db;
- 	
-	}
+    else
+    {
+        r.sinr_db = 10.0 * std::log10(signalWatt / (noiseWatt + jamWatt));
+    }
     r.capacity_mbps            = SinrToCapacity(r.sinr_db, m_bandwidthHz, m_amcModel);
     r.mcs_index                = McsIndexForModel(r.sinr_db, m_amcModel);
     r.condition_from_buildings = m_buildingsEnabled;

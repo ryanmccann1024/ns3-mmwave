@@ -175,6 +175,9 @@ WriteRunLog(const std::string&       base_output_dir,
         rlControlled += cfg.nodes[idx].id;
     }
 
+    out << "  output.viz_enabled = " << (cfg.viz_enabled ? "true" : "false") << "\n";
+    out << "  rl.unsafe_separation_m = " << cfg.rl.unsafe_separation_m << "\n";
+    out << "  rl.avoid_node_collisions = " << (cfg.rl.avoid_node_collisions ? "true" : "false") << "\n";
     out << "  rl.control_mode     = " << cfg.rl.control_mode                 << "\n";
     out << "  rl.contract         = " << rlContract                          << "\n";
     out << "  rl.controlled_nodes = "

@@ -383,3 +383,14 @@ the gateway-free all-movable and partial-selection acceptance rows) and
 channel-query parity on a real binary;
 without `MESH_SIM_BIN` each test is skipped with a reason starting `BLOCKED:`,
 which is missing evidence, not a pass.
+
+## Buildings as physical obstacles
+
+With `[rl] avoid_buildings=true`, both planners exclude candidate destinations
+inside configured buildings at the node's fixed altitude. Online movement
+masks also reject swept paths through buildings. Initial placement remains
+instantaneous: these planners do not compute a travel route around obstacles.
+
+## Optional node separation
+
+When centralized `[rl] avoid_node_collisions=true`, planner requests carry `minimum_separation_m=unsafe_separation_m`. Geometric candidate filtering, optimization proposals and final layout checks enforce 3D pairwise separation; the setting is recorded in planner settings. Default 0 preserves older planner behavior. Placement baselines choose initial positions and then hold; this does not make them reactive to delayed interference.

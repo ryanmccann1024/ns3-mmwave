@@ -6,3 +6,5 @@ traffic-matrix-test
 
 # ns3/ stub symlink directories (created by Makefiles)
 ns3/
+
+joint-motion-test

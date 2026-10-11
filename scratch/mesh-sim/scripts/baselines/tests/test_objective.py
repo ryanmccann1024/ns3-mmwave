@@ -376,3 +376,15 @@ def test_check_layout_and_cache():
     assert len(cache.evaluate([ctx.starts])) == 1
     assert stub.calls == [("evaluate", 2)]
     assert isinstance(LayoutScore(0.0, 0.0, 0.0, 0, 0, 0.0).as_dict(), dict)
+
+
+def test_building_destination_exclusion_respects_altitude(tmp_path, monkeypatch):
+    entries=[entry("ground",100,100,10),entry("above",100,100,50)]
+    request=make_request(entries,{"ground","above"})
+    request.forbidden_buildings=({"x_min":150,"x_max":250,"y_min":150,"y_max":250,
+                                 "z_min":0,"z_max":40},)
+    with planning_scorer(tmp_path,monkeypatch,entries,request,100) as (scorer,log):
+        ctx=ScoringContext.build(request,scorer)
+        assert not ctx.allowed(0,200,200)
+        assert ctx.allowed(1,200,200)
+        assert ctx.allowed(0,100,100)

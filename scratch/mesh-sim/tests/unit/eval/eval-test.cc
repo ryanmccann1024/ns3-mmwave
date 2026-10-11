@@ -9,6 +9,7 @@
 
 #include "src/eval/sinr-capacity.h"
 #include "src/eval/link-table.h"
+#include "src/eval/coverage-grid.h"
 
 #include <cassert>
 #include <cmath>
@@ -311,6 +312,31 @@ test_link_table_diagonal_is_default()
 
 // ---- main ----
 
+static void
+test_connected_coverage()
+{
+    RlConfig cfg;
+    cfg.x_min=0; cfg.x_max=11; cfg.y_min=0; cfg.y_max=7;
+    cfg.coverage_grid_cells=4; cfg.coverage_min_resolution_m=5;
+    auto grid=BuildCoverageGrid(cfg);
+    double area=0;
+    for (auto weight:grid.areas) area+=weight;
+    check(approx(area,77), "coverage clipped-cell weights sum to AOI");
+    check(grid.areas.size()==6, "coverage keeps clipped edge cells");
+    LinkResult ab; ab.tx_id=0; ab.rx_id=1; ab.sinr_db=0;
+    LinkResult ac; ac.tx_id=0; ac.rx_id=2; ac.sinr_db=-100;
+    LinkResult bc; bc.tx_id=1; bc.rx_id=2; bc.sinr_db=-100;
+    LinkTable links; links.Update(3,{ab,ac,bc});
+    std::vector<std::vector<bool>> covered(3,std::vector<bool>(grid.areas.size(),false));
+    covered[0][0]=true; covered[1][0]=true;
+    for (size_t p=0;p<grid.areas.size();++p) covered[2][p]=true;
+    check(approx(ConnectedCoverage(links,grid,covered),25.0/77.0),
+          "coverage unions core nodes and excludes disconnected node");
+    ab.sinr_db=-100; links.Update(3,{ab,ac,bc});
+    check(approx(ConnectedCoverage(links,grid,covered),25.0/77.0),
+          "equal-size cores choose lowest roster index");
+}
+
 int
 main()
 {
@@ -325,6 +351,8 @@ main()
     test_table_highest_mcs();
     test_table_increases_monotonically();
     test_unknown_amc_throws();
+
+    test_connected_coverage();
 
     // SinrToMcsIndex
     test_mcs_index_below_min();

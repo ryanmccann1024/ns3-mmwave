@@ -52,6 +52,8 @@ struct CliArgs
                                           ///<   Negative means not set.
     int         run_id_override = -1;     ///< Run-ID override from @c --run-id.
                                           ///<   Negative means not set.
+    bool        no_viz          = false; ///< Disable CSV replay output.
+    double      jammer_onset_s  = -1.0; ///< Override enabled jammers to one interval ending at duration_s.
     bool        debug_links     = false;  ///< Enable verbose per-link debug logging when @c true.
     bool        rl_mode         = false;  ///< Enable RL mode (stdin/stdout JSON exchange) when @c true.
     std::string band;                     ///< Radio band override: @c "mmwave" or @c "sub-6".
@@ -82,7 +84,11 @@ struct CliArgs
  * | @c --channel-query      | bool   | no       | Serve candidate-layout channel queries on    |
  * |                         |        |          | stdin/stdout; no outputs are written.        |
  *
- * Flags are written @c --name=value. The three bool flags may be given bare
+ * Additional options: @c --no-viz (bool, default false) disables visualization CSVs;
+ * @c --jammer-onset-s (double, default -1 = configured intervals) overrides
+ * enabled jammer intervals from the specified onset until episode end.
+ *
+ * Flags are written @c --name=value. The bool flags may be given bare
  * (e.g. @c --rl-mode) and default to @c false. @c --help is handled by
  * @c ns3::CommandLine. With @c --channel-query a non-empty @c --output-dir
  * is ignored with a note on @c stderr.

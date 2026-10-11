@@ -11,6 +11,8 @@ from pathlib import Path
 
 from scripts.sim_support import find_mesh_root, simulator_env, tail_lines
 
+from .config import read_manifest_every_decisions, read_jammer_onsets
+from .jammer_motion import motion_enabled, prepare_motion_config
 from .decisions import (DECISIONS_FILE, DECISIONS_MANIFEST, DecisionRecorder,
                         DecisionRecording)
 from .telemetry import TELEMETRY_FILE, StepRecorder, make_header, make_record
@@ -33,9 +35,15 @@ class EpisodeSession:
     """Owns one simulator subprocess and its `rl_episode.json` manifest."""
 
     def __init__(self, sim_binary: str, run_config: str, output_dir: Path,
-                 band: str | None, decision_records: DecisionRecording | None = None):
+                 band: str | None, decision_records: DecisionRecording | None = None,
+                 record_viz: bool = True):
         self._sim_binary = sim_binary
+        self._record_viz = record_viz
+        self._jammer_onsets = read_jammer_onsets(run_config)
+        motion_enabled(run_config)
+        self._training_resets = 0
         self._run_config = run_config
+        self._manifest_every = read_manifest_every_decisions(run_config)
         self._output_dir = output_dir
         self._band = band
         self._next_index: int | None = None
@@ -71,13 +79,22 @@ class EpisodeSession:
         self._episode_dir, self._episode_index = self._allocate_episode_dir()
         self._last_action = None
         self._steps_saved_decision = None
+        resolved_config, motion = prepare_motion_config(
+            self._run_config, self._episode_dir, seed, self._training_resets, seed_source == "eval")
         self._cmd = [
             self._sim_binary,
-            f"--run-config={self._run_config}",
+            f"--run-config={resolved_config}",
             "--rl-mode",
             f"--seed={seed}",
             f"--output-dir={self._episode_dir}",
         ]
+        if not self._record_viz:
+            self._cmd.append("--no-viz")
+        schedule = self._jammer_onsets[1 if seed_source == "eval" else 0]
+        if schedule:
+            index = int(seed) if seed_source == "eval" else self._training_resets
+            self._cmd.append(f"--jammer-onset-s={schedule[index % len(schedule)]:g}")
+        if seed_source != "eval": self._training_resets += 1
         if self._band is not None:
             self._cmd.append(f"--band={self._band}")
         self._manifest = {
@@ -93,6 +110,8 @@ class EpisodeSession:
             "steps": 0,
             "cumulative_reward": 0.0,
         }
+        if motion is not None:
+            self._manifest["jammer_motion"] = motion
         self._write_manifest()
         self._stderr_path = self._episode_dir / "sim_stderr.log"
         self._stderr_file = open(self._stderr_path, "w")
@@ -131,7 +150,7 @@ class EpisodeSession:
         if self._manifest is None:
             return
         self._manifest.update({
-            "manifest_version": 3,
+            "manifest_version": 4 if self._manifest.get("jammer_motion") else 3,
             "selection": selection.describe(),
             "observation_schema_sha256": observation_schema["sha256"],
             "reward_schema_sha256": reward_schema["sha256"],
@@ -148,7 +167,8 @@ class EpisodeSession:
             self._manifest["telemetry"] = {"file": TELEMETRY_FILE, "records": 0,
                                            "every": selection.telemetry_every}
         records = self._decision_records
-        if records is not None and records.settings.enabled and self._episode_dir is not None:
+        if (records is not None and records.settings.enabled and self._episode_dir is not None
+                and (records.seeds is None or self._manifest["seed"] in records.seeds)):
             self._decisions = self._guard(
                 DecisionRecorder, self._episode_dir, records.settings, records.context,
                 episode={"dir_name": self._episode_dir.name, "index": self._episode_index,
@@ -191,7 +211,8 @@ class EpisodeSession:
             self._append_record(msg, breakdown if breakdown is not None else reward,
                                 (detail or {}).get("obs"),
                                 (detail or {}).get("reward_context"))
-        self._write_manifest()
+        if msg["done"] or self._manifest["steps"] % self._manifest_every == 0:
+            self._write_manifest()
         pre = (detail or {}).get("decision")
         if self._decisions is not None and pre is not None:
             self._guard(self._decisions.record_decision, msg, pre,

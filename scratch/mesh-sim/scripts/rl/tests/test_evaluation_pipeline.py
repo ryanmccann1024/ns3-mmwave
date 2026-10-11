@@ -175,7 +175,7 @@ def test_placement_policies_start_from_their_plans(sim_binary, tmp_path, monkeyp
         "--policies", "hold,geometric,optimization"]) == 0
 
     manifest = json.loads((eval_dir / "eval_manifest.json").read_text())
-    assert manifest["status"] == "completed" and manifest["eval_manifest_version"] == 2
+    assert manifest["status"] == "completed" and manifest["eval_manifest_version"] == 3
     assert manifest["run_config"] == str(Path(run_config).resolve())
     assert manifest["scenario_identity"] == read_scenario_identity(run_config)
     assert list(manifest["policies"]) == ["hold", "geometric", "optimization"]
@@ -186,7 +186,7 @@ def test_placement_policies_start_from_their_plans(sim_binary, tmp_path, monkeyp
     for snapshot in episode_writes:
         _assert_placement_blocks(snapshot["policies"], ("geometric", "optimization"))
 
-    original = {node["id"]: tuple(node["position"][axis] for axis in ("x", "y", "z"))
+    original = {node["id"]: tuple((node["waypoints"][0] if node.get("mobility") == "waypoint" else node["position"])[axis] for axis in ("x", "y", "z"))
                 for node in BASELINE_NODES}
     for episode in manifest["policies"]["hold"]["episodes"]:
         assert _decision_zero(episode["episode_dir"]) == pytest.approx(original)

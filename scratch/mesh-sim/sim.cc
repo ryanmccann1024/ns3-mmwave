@@ -8,6 +8,7 @@
 #include "src/config/rl-control.h"
 #include "src/eval/link-evaluator.h"
 #include "src/eval/link-table.h"
+#include "src/eval/coverage-grid.h"
 #include "src/io/metrics-writer.h"
 #include "src/io/progress-logger.h"
 #include "src/io/run-logger.h"
@@ -22,6 +23,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
@@ -72,6 +74,18 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
     if (!args.output_dir.empty())
     {
         cfg.output_dir = args.output_dir;
+    }
+
+    cfg.viz_enabled = !args.no_viz;
+    if (args.jammer_onset_s != -1.0)
+    {
+        if (!std::isfinite(args.jammer_onset_s) || args.jammer_onset_s < 0.0 || args.jammer_onset_s >= cfg.duration_s || cfg.jammers.empty())
+        {
+            std::cerr << "Error: jammer-onset-s requires jammers and a finite time in [0,duration_s).\n";
+            return 1;
+        }
+        for (auto& jammer : cfg.jammers)
+            if (jammer.enabled) jammer.intervals = {{args.jammer_onset_s, cfg.duration_s}};
     }
 
     if (args.rl_mode)
@@ -190,7 +204,14 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
         /// @brief Build ns-3 nodes, mobility models, buildings, and the
         ///        propagation/condition models for this seed's topology.
         mesh_sim::TopologyBuilder topo(cfg);
+        mesh_sim::CoverageGrid coverageGrid;
+        if (cfg.rl.enabled && cfg.rl.coverage_enabled)
+        {
+            coverageGrid = mesh_sim::BuildCoverageGrid(cfg.rl);
+            topo.SetProbes(coverageGrid.probes);
+        }
         topo.Build();
+        auto probeMobs = topo.GetProbeMobilityModels();
         auto mobs = topo.GetMobilityModels();
         auto jammerMobs = topo.GetJammerMobilityModels();
         uint32_t N = static_cast<uint32_t>(mobs.size());
@@ -209,7 +230,7 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
 
         /// @brief Output writers: live viz stream and accumulated metrics.
         mesh_sim::VizWriter vizWriter(cfg);
-        vizWriter.Open();
+        if (cfg.viz_enabled) vizWriter.Open();
 
         mesh_sim::MetricsWriter metricsWriter(cfg);
 
@@ -283,7 +304,7 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
                         << "  demand=" << std::setprecision(1) << totalDemand
                         << "  delivered=" << totalDelivered << " Mbps");
 
-            vizWriter.WriteTick(t, mobs, linkTable, flowResults);
+            if (cfg.viz_enabled) vizWriter.WriteTick(t, mobs, linkTable, flowResults);
             metricsWriter.AccumulateTick(t, linkTable, flowResults, N);
             progress.Tick(ti);
 
@@ -294,9 +315,18 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
                 bool done = (ti == numTicks);
                 if (centralizedRl)
                 {
-                    rlBridge->AccumulateTick(linkTable, flowResults);
+                    rlBridge->AccumulateTick(linkTable, flowResults, mobs);
                     if (done || rlBridge->IsDecisionTick(ti))
                     {
+                        if (cfg.rl.coverage_enabled)
+                        {
+                            std::vector<std::vector<bool>> covered(N, std::vector<bool>(probeMobs.size()));
+                            for (uint32_t i = 0; i < N; ++i)
+                                for (size_t p = 0; p < probeMobs.size(); ++p)
+                                    covered[i][p] = linkEval.EvaluateProbe(mobs[i], probeMobs[p], i,
+                                        coverageGrid.probes.rx_gain_dbi, t).sinr_db >= coverageGrid.probes.sinr_db;
+                            rlBridge->SetCoverage(mesh_sim::ConnectedCoverage(linkTable, coverageGrid, covered));
+                        }
                         rlBridge->Step(ti, t, mobs, linkTable, flowResults, done);
                         if (!done)
                         {
@@ -315,7 +345,7 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
             }
         }
 
-        vizWriter.Close();
+        if (cfg.viz_enabled) vizWriter.Close();
 
         /// @brief Record wall-clock timing and flush accumulated metrics
         ///        for this seed before moving to the next.

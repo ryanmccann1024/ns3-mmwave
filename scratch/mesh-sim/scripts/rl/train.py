@@ -6,7 +6,7 @@ import math
 import os
 import platform
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from scripts.rl.agents.callbacks import CHECKPOINT_DIR, build_callbacks, list_checkpoints
 from scripts.rl.agents.mask_ppo import MaskablePPOConfig, MaskablePpoTrainer
@@ -16,12 +16,16 @@ from scripts.rl.cli_common import (MANIFEST_NAME, MODEL_BASENAME,
                                    has_previous_run, make_out_dir, now_iso,
                                    package_versions, resolve_seed, selection_from_args,
                                    sha256_file, write_json)
-from scripts.rl.env.config import read_scenario_identity
+from scripts.rl.env.config import read_scenario_identity, read_episode_output
+from scripts.sim_support import parse_seed_spec
 from scripts.rl.env.decisions import (DecisionContext, DecisionRecording,
                                       DecisionRecordSettings)
 from scripts.rl.env.mesh_env import MeshRlEnv
+from scripts.rl.policy.bundle import eval_selection
+from pathlib import Path
+from stable_baselines3.common.logger import configure
 
-MANIFEST_VERSION = 4
+MANIFEST_VERSION = 6
 BEST_MODEL_NAME = "best_model.zip"
 EVAL_LOG_NAME = "evaluations.npz"
 EVAL_DIR = "eval"
@@ -37,6 +41,7 @@ class Cadence:
     eval_every: int = 0
     eval_episodes: int = 1
     eval_seed: int = 0
+    eval_seeds: tuple[int, ...] = ()
 
 
 def mask_fn(env):
@@ -54,6 +59,7 @@ def _evaluation_block(out_dir: str, cadence: Cadence) -> dict | None:
         "every_steps": cadence.eval_every,
         "episodes": cadence.eval_episodes,
         "seed": cadence.eval_seed,
+        "seeds": list(cadence.eval_seeds or tuple(cadence.eval_seed+i for i in range(cadence.eval_episodes))),
         "seed_source": "eval",
         "output_dir": os.path.abspath(os.path.join(out_dir, EVAL_DIR)),
         "log_path": os.path.abspath(os.path.join(out_dir, EVAL_LOG_NAME)),
@@ -113,6 +119,14 @@ def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
             "n_steps": cfg.n_steps,
             "gamma": cfg.gamma,
             "ent_coef": cfg.ent_coef,
+            "learning_rate": cfg.learning_rate,
+            "batch_size": cfg.batch_size,
+            "gae_lambda": cfg.gae_lambda,
+            "clip_range": cfg.clip_range,
+            "n_epochs": cfg.n_epochs,
+            "target_kl": cfg.target_kl,
+            "net_arch": list(cfg.net_arch),
+            "ent_coef_final": cfg.ent_coef_final,
             "verbose": cfg.verbose,
             "tensorboard_log": cfg.tensorboard_log,
             "checkpoint_every_steps": cadence.checkpoint_every,
@@ -140,7 +154,8 @@ def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
         # Let the env resolve the run.ini seed itself so episode manifests report
         # the same seed_source as this training manifest.
         env_seed = cfg.seed if seed_source == "cli" else None
-        env = MeshRlEnv(sim_binary, run_config, seed=env_seed,
+        compact = read_episode_output(run_config)["compact_training"]
+        env = MeshRlEnv(sim_binary, run_config, seed=env_seed, record_viz=not compact,
                         output_dir=out_dir, band=band, selection=selection,
                         decision_records=_recording(records,
                                                     DecisionContext("training", "train")))
@@ -158,18 +173,24 @@ def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
         _write_manifest(out_dir, manifest)
 
         if cadence.eval_every > 0:
-            eval_env = MeshRlEnv(sim_binary, run_config, seed=cadence.eval_seed,
+            validation_selection = eval_selection(selection) if env.control_mode == "centralized" else selection
+            if compact: validation_selection = replace(validation_selection, telemetry="none")
+            eval_env = MeshRlEnv(sim_binary, run_config, seed=cadence.eval_seed, record_viz=not compact,
                                  output_dir=os.path.join(out_dir, EVAL_DIR), band=band,
-                                 selection=selection,
+                                 selection=validation_selection,
                                  decision_records=_recording(records, DecisionContext(
                                      "evaluation", "train_eval", policy="model")))
             eval_env.reset(seed=cadence.eval_seed, options={"seed_source": "eval"})
 
         callbacks, eval_callback = build_callbacks(
             out_dir, cadence.checkpoint_every, cadence.keep_checkpoints,
-            eval_env, cadence.eval_every, cadence.eval_episodes, cfg.verbose)
+            eval_env, cadence.eval_every, cadence.eval_episodes, cfg.verbose,
+            cadence.eval_seeds)
 
         trainer = MaskablePpoTrainer(cfg, env, mask_fn)
+        if cfg.tensorboard_log is None:
+            formats = ["csv"] + (["stdout"] if cfg.verbose else [])
+            trainer.model.set_logger(configure(str(Path(out_dir)/"ppo"), formats))
         trainer.train(callback=callbacks or None)
         trainer.save(os.path.join(out_dir, MODEL_BASENAME))
     except Exception as exc:
@@ -229,6 +250,14 @@ def main() -> int:
     ppo.add_argument("--n-steps", type=int, default=1024)
     ppo.add_argument("--gamma", type=float, default=0.95)
     ppo.add_argument("--ent-coef", type=float, default=0.01)
+    ppo.add_argument("--learning-rate", type=float, default=0.0003)
+    ppo.add_argument("--batch-size", type=int, default=64)
+    ppo.add_argument("--gae-lambda", type=float, default=0.95)
+    ppo.add_argument("--clip-range", type=float, default=0.2)
+    ppo.add_argument("--n-epochs", type=int, default=10)
+    ppo.add_argument("--target-kl", type=float, default=None)
+    ppo.add_argument("--net-arch", default="64,64", help="Actor and critic layer widths, comma separated")
+    ppo.add_argument("--ent-coef-final", type=float, default=None)
     ppo.add_argument("--seed", type=int, default=None,
                      help="Training seed; defaults to [scenario] seed in run.ini")
     ppo.add_argument("--tensorboard-log", default=None)
@@ -242,6 +271,9 @@ def main() -> int:
                      help="Episodes per evaluation (>= 1)")
     ppo.add_argument("--eval-seed", type=int, default=None,
                      help="Seed for the evaluation env; defaults to the training seed + 1")
+
+    ppo.add_argument("--eval-seeds", default=None,
+                     help="Distinct validation seed list/range; overrides --eval-seed; count must equal --eval-episodes")
 
     # QR-DQN (disabled for now — kept so the CLI shape is stable)
     qr = sub.add_parser("qr-dqn", help="Quantile-Regression DQN (disabled)")
@@ -277,6 +309,39 @@ def main() -> int:
         print(f"Invalid decision-record settings: {exc}", file=sys.stderr)
         return 1
     cadence.eval_seed = args.eval_seed if args.eval_seed is not None else seed + 1
+    try:
+        cadence.eval_seeds = tuple(parse_seed_spec(args.eval_seeds)) if args.eval_seeds else tuple(
+            cadence.eval_seed + i for i in range(cadence.eval_episodes))
+        if len(cadence.eval_seeds) != cadence.eval_episodes:
+            raise ValueError("--eval-seeds count must equal --eval-episodes")
+        if cadence.eval_every > 0 and seed in cadence.eval_seeds:
+            raise ValueError("training and validation seeds must be disjoint")
+        cadence.eval_seed = cadence.eval_seeds[0]
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    try:
+        cfg = MaskablePPOConfig(
+            total_timesteps=args.total_timesteps,
+            n_steps=args.n_steps,
+            gamma=args.gamma,
+            ent_coef=args.ent_coef,
+            learning_rate=args.learning_rate,
+            batch_size=args.batch_size,
+            gae_lambda=args.gae_lambda,
+            clip_range=args.clip_range,
+            n_epochs=args.n_epochs,
+            target_kl=args.target_kl,
+            net_arch=tuple(int(n) for n in args.net_arch.split(",")),
+            ent_coef_final=args.ent_coef_final,
+            seed=seed,
+            verbose=args.verbose,
+            tensorboard_log=args.tensorboard_log,
+        )
+    except ValueError as exc:
+        print(f"Invalid PPO configuration: {exc}", file=sys.stderr)
+        return 1
 
     out_dir = make_out_dir(args.output_dir)
     existing = has_previous_run(out_dir)
@@ -286,15 +351,7 @@ def main() -> int:
         return 1
 
     print("Creating Maskable-PPO model ...")
-    cfg = MaskablePPOConfig(
-        total_timesteps=args.total_timesteps,
-        n_steps=args.n_steps,
-        gamma=args.gamma,
-        ent_coef=args.ent_coef,
-        seed=seed,
-        verbose=args.verbose,
-        tensorboard_log=args.tensorboard_log,
-    )
+
     try:
         train_mppo(cfg, args.sim_binary, args.run_config, out_dir,
                    args.band, seed_source, selection, cadence, records)

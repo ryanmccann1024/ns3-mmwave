@@ -452,7 +452,7 @@ and is never parsed.
 Inspect `eval_manifest.json` for returns, per-seed metrics, and action
 validity counts; each episode's `steps.jsonl` has the decision trace.
 
-`train_manifest.json` is version 4. Besides the existing run identity it
+`train_manifest.json` is version 5. Besides the existing run identity it
 records `status`/`error`, `algorithm`, `seed` and `seed_source`, `control_mode`,
 the live `contract`, the resolved `selection`, `observation_schema` and
 `reward_schema` (with their SHA-256), `scenario_identity` (SHA-256 of the
@@ -460,9 +460,9 @@ the live `contract`, the resolved `selection`, `observation_schema` and
 `jammers.json`), `model_path`/`model_sha256`, `best_model_path`/
 `best_model_sha256`/`best_mean_reward`, a `checkpoints` list of
 `{path, sha256, num_timesteps}`, the `evaluation` block (cadence, episodes,
-seed, output dir, log path) or `null`, `hyperparameters`, `package_versions`,
+seed and the complete validation `seeds` list, output dir, log path) or `null`, `hyperparameters`, `package_versions`,
 `python_version`, and `platform`. Models trained with older tooling carry an
-older `manifest_version` and are not loadable: retrain with the current tooling.
+older `manifest_version`; version 4 remains readable, subject to normal contract and reward-schema compatibility. Earlier versions require retraining.
 
 Seed discipline: keep the training seed, the during-training evaluation seed,
 and the standalone evaluation seeds disjoint. With `model` among `--policies`,
@@ -801,3 +801,7 @@ pages and the per-file API docs.
 @section about About
 
 This sim is being worked on by the University of Massachusetts's ACNL.
+
+## October 9 second iteration
+
+The main-only 40-model campaign, one-command incremental launcher, saved-model diagnostics, matched traffic and output-retention details are documented in [inputs/custom/10-09-2/README.md](inputs/custom/10-09-2/README.md). Results use `outputs/custom/10-09-2`; the first iteration is preserved.

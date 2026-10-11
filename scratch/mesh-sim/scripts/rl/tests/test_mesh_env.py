@@ -302,7 +302,7 @@ def test_tiny_training_run(sim_binary, run_config, tmp_path, monkeypatch):
     assert manifest["status"] == "completed"
     assert manifest["seed"] == 1 and manifest["seed_source"] == "run.ini"
     assert manifest["package_versions"]["sb3_contrib"]
-    assert manifest["manifest_version"] == 4
+    assert manifest["manifest_version"] == 6
     assert manifest["control_mode"] == "legacy"
     assert all(manifest[key] is None for key in
                ("selection", "observation_schema", "reward_schema", "telemetry"))
@@ -674,7 +674,7 @@ def test_centralized_tiny_training_run(sim_binary, multi_run_config, tmp_path,
     assert train.main() == 0
 
     manifest = json.loads((out_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 4
+    assert manifest["manifest_version"] == 6
     assert manifest["status"] == "completed"
     assert manifest["control_mode"] == "centralized"
     assert manifest["contract"]["contract"] == "mesh_move_2d_v1"
@@ -803,6 +803,24 @@ def test_custom_preset_and_reward_block(sim_binary, multi_run_config, tmp_path):
     assert block["legacy"] == 1.0
     assert obs.shape == (36,) and not terminated
     env.close()
+
+
+def test_type_and_proximity_rewards_round_trip_from_fake_sim(sim_binary,
+                                                             multi_run_config, tmp_path):
+    env = _custom_env(
+        sim_binary, multi_run_config, tmp_path,
+        reward_components="drone_travel_fraction,unsafe_proximity_fraction",
+        reward_weights="-0.2,-2.0", telemetry="steps")
+    try:
+        env.reset()
+        assert env.contract["node_types"] == ["drone", "drone", "drone"]
+        _, reward, _, _, info = env.step([4, 4, 4])
+        assert reward == pytest.approx(0.0)
+        assert info["reward"]["components"]["drone_travel_fraction"] == 0.0
+        assert info["reward"]["components"]["unsafe_proximity_fraction"] == 0.0
+        assert env._protocol.facts["safety"]["threshold_m"] == 1.0
+    finally:
+        env.close()
 
 
 @pytest.mark.parametrize("components", [None, "legacy"])
@@ -937,7 +955,7 @@ def test_training_records_selection_and_schema_hashes(sim_binary, multi_run_conf
     assert train.main() == 0
 
     manifest = json.loads((out_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 4
+    assert manifest["manifest_version"] == 6
     selection = manifest["selection"]
     assert selection["observation_preset"] == "local_links_v1"
     assert selection["reward_components"] == ["delivery_ratio", "connectivity"]
@@ -999,7 +1017,7 @@ def test_checkpoint_and_eval_cadence(sim_binary, multi_run_config, tmp_path, mon
     assert train.main() == 0
 
     manifest = json.loads((out_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 4 and manifest["status"] == "completed"
+    assert manifest["manifest_version"] == 6 and manifest["status"] == "completed"
     assert manifest["hyperparameters"]["checkpoint_every_steps"] == 8
     assert manifest["hyperparameters"]["keep_checkpoints"] == 1
     assert manifest["hyperparameters"]["eval_episodes"] == 1

@@ -142,3 +142,12 @@ simulator. No reference snapshots are created or changed by these tests.
 | `test_mesh_env.py`: `test_binary_without_facts_is_rejected`, `test_training_records_selection_and_schema_hashes` | Old fake protocol or tiny training run → clear missing-facts failure or matching saved selection/schema fingerprints; training check skips without `sb3_contrib`. |
 | `test_real_binary.py`: `test_facts_rows_window_and_raw_links_rebuild`, `test_window_sums_match_the_run_summary` | Real simulator facts → correct row/window sizes, C++ reward mean, rebuilt raw observation, summary totals. |
 | `test_real_binary.py`: `test_custom_selection_observations_rewards_and_replay`, `test_telemetry_is_reproducible_and_cadence_bounded`, `test_training_run_writes_matching_schema_hashes` | Real run with custom selection → finite policy inputs, saved reward/trace replay, repeatable/strided telemetry, matching manifest fingerprints; training check skips without `sb3_contrib`. |
+
+
+The config suite checks configurable proximity and live-coverage grid validity.
+The eval suite checks coverage-cell area and largest-component union semantics.
+Python `scripts/rl/tests/test_reward_matrix.py` covers validation seed cycling
+and reward matrices. The real-binary coverage/building-mask case requires a
+fresh user build; syntax checks and fake simulator tests do not prove RF fidelity.
+
+`unit/rl` checks continuous joint motion safety, crossing paths, altitude, wall clipping and cascading holds without ns-3. Config validation checks opt-in initial separation, including 3D altitude.

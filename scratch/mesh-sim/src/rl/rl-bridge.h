@@ -18,6 +18,7 @@
 #include "ns3/constant-velocity-mobility-model.h"
 
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -37,6 +38,8 @@ struct ControlSlot
 struct WindowFacts
 {
     uint32_t ticks = 0;
+    std::vector<double> node_demand_mbps_sum;
+    std::vector<double> node_delivered_mbps_sum;
     double   demand_mbps_sum = 0.0;
     double   delivered_mbps_sum = 0.0;
     uint64_t flow_ticks_with_demand = 0;
@@ -44,6 +47,8 @@ struct WindowFacts
     uint64_t connected_pairs_sum = 0;
     uint64_t los_pairs_sum = 0;
     double   legacy_reward_sum = 0.0;
+    uint32_t unsafe_ticks = 0;
+    double   min_pair_distance_m = std::numeric_limits<double>::infinity();
 };
 
 /// Owns RL IPC and physics for the controlled node(s); legacy and centralized modes.
@@ -51,6 +56,8 @@ class RlBridge
 {
   public:
     explicit RlBridge(const SimConfig& cfg);
+
+    void SetCoverage(double fraction) { m_coverageFraction = fraction; }
 
     // Write the centralized `init` contract line. Call once before the tick loop.
     void WriteInit() const;
@@ -62,7 +69,8 @@ class RlBridge
     void BeforeAdvance(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs);
 
     // Add this tick's reward and fact sums to the current decision window (centralized).
-    void AccumulateTick(const LinkTable& linkTable, const std::vector<FlowResult>& flows);
+    void AccumulateTick(const LinkTable& linkTable, const std::vector<FlowResult>& flows,
+                        const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs);
 
     // Write obs+reward to stdout, read action from stdin (none is read when done).
     void Step(uint32_t tick,
@@ -77,6 +85,10 @@ class RlBridge
 
   private:
     RlConfig    m_rl;
+    double m_coverageFraction = 0.0;
+    std::vector<BuildingSpec> m_buildings;
+    bool CrossesBuilding(const ns3::Vector& a, const ns3::Vector& b) const;
+    void RevalidateJointMotion(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs, double horizon_s);
     double      m_tickS;
     uint32_t    m_controlledIdx;
     uint32_t    m_numNodes;
@@ -98,6 +110,7 @@ class RlBridge
 
     // Copied from SimConfig at construction: WriteInit runs after cfg is gone.
     std::vector<std::string> m_nodeIds;              ///< nodes.json ids in file order.
+    std::vector<std::string> m_nodeTypes;            ///< nodes.json types in file order.
     std::string              m_band;
     double                   m_warmupS = 0.0;
     bool                     m_jammerPathEnabled = false;

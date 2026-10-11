@@ -593,6 +593,11 @@ def _prepare(run_config: Path, method: str | None, prep_dir: Path, mode: str,
 def _plan(cfg: config.BaselineConfig, method: str, mode: str, band, setup: _Setup,
           staged_ini: Path, sim_binary: Path, log, manifest_path: Path) -> tuple:
     solver = _solver()
+    ini = config.read_ini(staged_ini)
+    buildings_file = config.scenario_file(ini, staged_ini, "buildings_file")
+    forbidden = ()
+    if ini.getboolean("rl", "avoid_buildings", fallback=False) and buildings_file:
+        forbidden = tuple(b["bounds"] for b in json.loads(buildings_file.read_text()))
     request = solver.PlanRequest(
         method=method, objective=cfg.objective, nodes=setup.records,
         rectangle=setup.rectangle, rl_bounds=setup.region, mode=mode,
@@ -601,7 +606,10 @@ def _plan(cfg: config.BaselineConfig, method: str, mode: str, band, setup: _Setu
         max_iterations=cfg.max_iterations if method == "optimization" else None,
         balanced_core_fraction=cfg.balanced_core_fraction,
         waypoint_policy=cfg.waypoint_policy, planning_seed=setup.planning_seed,
-        run_id=setup.run_id, band=band, query_run_config=staged_ini, sim_binary=sim_binary)
+        run_id=setup.run_id, band=band, query_run_config=staged_ini, sim_binary=sim_binary,
+        forbidden_buildings=forbidden,
+        minimum_separation_m=(ini.getfloat("rl", "unsafe_separation_m", fallback=1.0)
+                              if ini.getboolean("rl", "avoid_node_collisions", fallback=False) else 0.0))
     log.write(f"method={method} objective={cfg.objective} "
               f"planner_seed={request.planner_seed} max_iterations={request.max_iterations} "
               f"planning_seed={request.planning_seed} run_id={request.run_id} mode={mode}\n")
