@@ -306,5 +306,3 @@ def run_benchmark(output_root, task_index: int, interval_s: float = DEFAULT_INTE
     write_json(out_path, _benchmark_payload(plan, task, task_index, interval_s, steps))
     print(f"wrote {out_path}")
     return exit_code
-
-

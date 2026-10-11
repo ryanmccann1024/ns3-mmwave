@@ -100,5 +100,3 @@ def run_compare(output_root, allow_incomplete: bool = False, record_path=None,
     _write_record(record_path, "compare", None, [_entry(step, "executed", code)],
                   started_at, exit_code)
     return exit_code
-
-

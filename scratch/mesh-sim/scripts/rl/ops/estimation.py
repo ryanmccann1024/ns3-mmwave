@@ -182,5 +182,3 @@ def run_estimate(benchmark_path, matrix_path, safety_factor: float, output) -> i
           f"not a cluster estimate")
     print(f"wrote {out_path}")
     return 0
-
-

@@ -797,3 +797,146 @@ comparison. Keep the independent training/model-selection/held-out seed roles
 from the experiment matrix. Offline fake-scheduler tests do not verify the
 site's flags, permissions, filesystem locking or accounting latency. Live-site
 validation stays in `TODO-RL-OPS-1` and requires a separate cluster exercise.
+
+## Fetch
+
+The intended cluster workflow is Unity with SLURM. Scheduler settings come from
+the required cluster config; this command uses SSH/rsync to retrieve files from
+the chosen transfer host. The host, username, and absolute output path must come
+from your Unity setup. Fetch does not query SLURM, load modules, or choose a
+partition; it also accepts a local source directory for testing and local copies.
+
+```bash
+.venv/bin/python -m scripts.rl.ops.fetch --remote user@host:/abs/output-root \
+  --dest outputs/fetched/bypass-first --select comparison,manifests
+
+# Preview the same transfer without creating output or contacting the host.
+.venv/bin/python -m scripts.rl.ops.fetch --remote user@host:/abs/output-root \
+  --dest outputs/fetched/bypass-first --select comparison,manifests --dry-run
+```
+
+`--remote` and `--dest` are required. Without `--select`, only the
+always-included files are copied: `experiment_plan.json`, `cluster/tasks.json`,
+and `cluster/receipts/*.json`. Unknown categories are refused.
+
+| Category | Included |
+|---|---|
+| `comparison` | `comparison/comparison.json`, `comparison/episodes.csv` |
+| `manifests` | Train/evaluation manifests, episode manifests, decision-record manifests, evaluation baseline manifests/plans, `cluster/records/**`, `benchmark/**` |
+| `models` | Final and best PPO ZIPs, plus retained `train/**/checkpoints/*.zip` |
+| `selection-logs` | `train/**/evaluations.npz` |
+| `inputs` | Episode input snapshots and evaluation baselines' `source-inputs/` and `effective-inputs/` trees |
+| `telemetry` | Episode `steps.jsonl` files |
+| `decision-records` | Episode `policy_decisions.jsonl` traces; explicit opt-in |
+| `episode-data` | Whole episode trees, including decision traces; potentially large |
+| `logs` | `cluster/logs/**`, `eval/**/baseline/planner.log` |
+
+`retrieval.CATEGORY_INCLUDES` holds the exact patterns. Episode patterns include
+callback evaluations under `train/` as well as standalone evaluations under
+`eval/`. Baseline metadata lives beside episode directories under
+`eval/<row>/train-seed-<S>/<method>/baseline/`, with its plan at
+`effective-inputs/baseline-plan.json`; selecting whole episodes alone
+does not include that sibling baseline tree. Use `manifests,inputs` for its
+metadata and source/effective inputs. Use `models,manifests` when retained
+checkpoint metadata is needed alongside its ZIP; fetching files does not itself
+rebase or validate a model bundle for recovery.
+
+### Add missing files or take a fresh snapshot
+
+Every transfer uses `rsync -a --prune-empty-dirs --ignore-existing` with include
+rules followed by `--include='*/' --exclude='*'`. Existing local files are never
+replaced. A non-empty destination requires `--update`, which **adds missing
+files only**. It does not refresh a running manifest, append a growing trace, or
+replace an incomplete comparison. It can therefore mix old files with newly
+arrived files. The command prints a reminder and records `files_may_be_stale`.
+
+To add missing categories to the first copy:
+
+```bash
+.venv/bin/python -m scripts.rl.ops.fetch --remote user@host:/abs/output-root \
+  --dest outputs/fetched/bypass-first --select models,manifests --update
+```
+
+After the remote run finishes, use a new destination for fresh results:
+
+```bash
+.venv/bin/python -m scripts.rl.ops.fetch --remote user@host:/abs/output-root \
+  --dest outputs/fetched/bypass-finished --select comparison,manifests,inputs
+```
+
+The first directory stays intact. Even a new destination is a file-by-file
+copy, not an atomic snapshot of an actively changing remote run; fetch after
+completion for a consistent finished result.
+
+Destinations cannot be a filesystem root, a home directory, the mesh-sim root,
+or an existing non-directory. Local source and destination trees must not
+overlap in either direction; symlinks are checked after resolution. A missing
+rsync or nonzero transfer exit gives exit 1. On transfer failure, no new fetch
+manifest is published or rotated, but rsync may have left partial files. Use a
+new destination for a fresh retry; `--update` retains any existing partial files.
+
+### Fetch manifest
+
+`<dest>/fetch_manifest.json` uses version 2:
+
+```json
+{"fetch_manifest_version": 2, "remote": "...", "selection": ["manifests"],
+ "argv": [], "fetched_at": "...", "transfer_mode": "new_destination",
+ "files_may_be_stale": false, "inventory_scope": "destination",
+ "state_basis": "local_manifests",
+ "files": [{"path": "...", "bytes": 0, "sha256": "..."}],
+ "tasks": [{"index": 0, "id": "...", "state": "running"}],
+ "comparison": "not_fetched", "snapshot_of_incomplete_run": true}
+```
+
+`transfer_mode` is `new_destination` or `add_missing`. `fetched_at` is the time
+this inspection was recorded; it is not the transfer time of every listed file.
+`files` inventories the destination, including files retained from earlier
+copies, excluding current and rotated fetch manifests. It is not a count of new
+files transferred. A successful update keeps the previous manifest as
+`fetch_manifest.<n>.json`; older version-1 history stays intact.
+
+Task states describe **copied local manifests**, not live scheduler state:
+
+| State | Meaning |
+|---|---|
+| `completed` / `partial` | Copied evaluation reports that status |
+| `running` | Copied training or evaluation reports running; it may be stale |
+| `failed` | Copied training or evaluation explicitly reports failed/interrupted |
+| `missing` | Neither step directory exists locally |
+| `incomplete` | Other unfinished, unreadable, or unrecognized copied state |
+| `not_fetched` | The current transfer did not select `manifests` |
+
+`snapshot_of_incomplete_run` is null when task state cannot be inspected, and
+otherwise says whether any copied task is not completed. `comparison` is
+`not_fetched` unless selected, then `absent`, `complete`, `incomplete`, or
+`unreadable`. Selected-but-absent means absent in the local inventory; it does
+not prove what currently exists remotely. Inspection rebases step output paths
+in memory without changing the copied plan. Fetched trees belong under the
+git-ignored `outputs/` directory.
+
+### Extending retrieval and testing it
+
+Keep new artifact rules in `retrieval.py`, with the category and output owner
+documented here. Check the writer's actual directory layout first, including
+callback evaluation nesting. Update the local-rsync fixture with a small example
+and an expected selected/unselected result. Do not add a second category table
+to the CLI or repeat production rules in fake tests. When fetch manifest meanings
+change, update its version, this schema description, and the state/history tests.
+
+```bash
+.venv/bin/python -m pytest -q scripts/rl/tests/test_ops_fetch.py \
+  scripts/rl/tests/test_ops_fetch_local.py scripts/rl/tests/test_ops_tasks.py
+```
+
+| Tests | What they verify |
+|---|---|
+| `test_ops_fetch.py` | CLI/category refusals, argv, destination and symlink checks, copied task/comparison states, local inventory/digests, manifest history, dry-run and transfer failures |
+| `test_ops_fetch_local.py` | Installed rsync's real include/exclude behavior for every category, checkpoint/baseline/decision artifacts, unchanged local files on update, fresh destination refresh, and malformed copied states |
+| `test_ops_tasks.py` | Shared plan/task mapping and comparison outcomes used during inspection |
+
+The fake transfer tool stages controlled fixtures and failures without network
+access; it does not implement rsync filtering. Real transfer tests use only
+pytest's temporary local directories and skip if rsync is unavailable. They do
+not verify SSH, Unity transfer-host permissions, or live SLURM behavior.
+
