@@ -242,3 +242,5 @@ Parametrized tests cover several inputs each; only the pattern is listed.
 | --- | --- |
 | `test_direct_pins_match_probe_dependencies` | `requirements.txt` → pinned names equal `DIRECT_DEPS`. |
 | `test_version_probe_rejects_mismatch` | Wrong expected version → probe exits 1 and reports `expected 0.0.invalid`. |
+
+See [operations tests](ops-tests.md) for task execution, measurement, persisted tuning and cluster recovery coverage.

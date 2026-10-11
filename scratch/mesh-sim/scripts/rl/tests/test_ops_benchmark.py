@@ -1,6 +1,7 @@
 """Process-tree sampling, benchmark records, and the arithmetic resource estimate."""
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -61,6 +62,11 @@ class _FakeProcess:
 
 @pytest.mark.skipif(shutil.which("ps") is None, reason="ps is not on PATH")
 def test_a_real_process_tree_is_measured(tmp_path):
+    from scripts.rl.ops.measurement import read_ps
+    try:
+        read_ps()
+    except benchmark.PsError as exc:
+        pytest.skip(f"BLOCKED: live process-tree sampling: {exc}")
     child = "import time; time.sleep(3)"
     parent = (f"import subprocess, sys, time;"
               f"p = subprocess.Popen([sys.executable, '-c', {child!r}]);"
@@ -122,7 +128,7 @@ def _plan(root: Path) -> dict:
                    "--output-dir", str(root / "comparison")],
                   "output_dir": str(root / "comparison"),
                   "manifest": "comparison.json", "needs": []})
-    return {"experiment_plan_version": 2,
+    return {"experiment_plan_version": 1,
             "matrix": {"name": "bypass-smoke", "sha256": "abc"}, "steps": steps}
 
 
@@ -191,7 +197,7 @@ def test_a_measured_task_records_both_steps(tmp_path, capsys):
     assert _run(root, launcher) == 0
     assert launcher.launched == [f"train/{LEAF}", f"evaluate/{LEAF}"]
     payload = json.loads((root / "benchmark" / "task-0000.json").read_text())
-    assert payload["benchmark_version"] == 1
+    assert payload["benchmark_version"] == 2
     assert payload["task_index"] == 0 and payload["task_id"] == LEAF
     assert payload["sampling"]["method"] == "ps-process-tree"
     assert payload["sampling"]["interval_s"] == 0.05
@@ -246,7 +252,7 @@ def _benchmark_record(per_timestep: float = 0.5, per_episode: float = 2.0,
                       **train_overrides) -> dict:
     manifest = _train_manifest()
     train = {"id": f"train/{LEAF}", "kind": "train", "exit_code": 0, "tolerated": True,
-             "wall_seconds": 128.0, "peak_tree_rss_kb": 500_000,
+             "manifest_status": "completed", "wall_seconds": 128.0, "peak_tree_rss_kb": 500_000,
              "peak_process_count": 3, "peak_single_process_rss_kb": 300_000,
              "samples": 10, "requested_timesteps": 256, "n_steps": 64,
              "effective_timesteps": 256, "seconds_per_timestep": per_timestep,
@@ -255,10 +261,10 @@ def _benchmark_record(per_timestep: float = 0.5, per_episode: float = 2.0,
              "eval_episodes": 1}
     train.update(train_overrides)
     evaluate = {"id": f"evaluate/{LEAF}", "kind": "evaluate", "exit_code": 0,
-                "tolerated": True, "wall_seconds": 18.0,
+                "tolerated": True, "manifest_status": "completed", "wall_seconds": 18.0,
                 "episodes_expected": 9, "episodes_completed": 9,
                 "seconds_per_episode": per_episode}
-    return {"benchmark_version": 1, "task_index": 0, "task_id": LEAF,
+    return {"benchmark_version": 2, "task_index": 0, "task_id": LEAF,
             "measured_at": "2026-01-01T00:00:00+00:00",
             "host": {"system": "Darwin", "machine": "arm64"},
             "steps": [train, evaluate]}
@@ -380,3 +386,65 @@ def test_a_non_positive_safety_factor_is_refused(tmp_path):
     matrix = experiment.load_matrix(TRACKED_MATRIX)
     with pytest.raises(ValueError, match="safety-factor"):
         benchmark.build_estimate(_benchmark_record(), matrix, 0.0)
+
+
+@pytest.mark.parametrize("fault", ["failed_train", "failed_eval", "partial_eval", "old_schema"])
+def test_estimate_rejects_failed_or_incomplete_measurements(fault):
+    record = _benchmark_record()
+    if fault == "failed_train":
+        record["steps"][0].update(tolerated=False, manifest_status="failed")
+    elif fault == "failed_eval":
+        record["steps"][1].update(tolerated=False, manifest_status="failed")
+    elif fault == "partial_eval":
+        record["steps"][1]["episodes_completed"] = 1
+    else:
+        record["benchmark_version"] = 1
+    with pytest.raises(ValueError):
+        benchmark.build_estimate(record, {}, 2.0)
+
+
+def test_estimate_uses_configured_evaluation_cadence(tmp_path):
+    matrix = experiment.load_matrix(TRACKED_MATRIX)
+    matrix["training"]["eval_episodes"] = 3
+    record = _benchmark_record(eval_episodes=3)
+    estimate = benchmark.build_estimate(record, matrix, 2.0)
+    assert estimate["estimated_task_count"] > 0
+
+
+@pytest.mark.parametrize("fault", ["wait", "sampler_start"])
+def test_benchmark_failure_stops_and_reaps_process_group(tmp_path, monkeypatch, fault):
+    from scripts.rl.ops import measurement
+    process = None
+    original_wait = subprocess.Popen.wait
+
+    def launch(step):
+        nonlocal process
+        process = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"],
+                                   start_new_session=True)
+        if fault == "wait":
+            first = True
+
+            def wait(timeout=None):
+                nonlocal first
+                if first and timeout is None:
+                    first = False
+                    raise RuntimeError("ordinary wait failure")
+                return original_wait(process, timeout=timeout)
+
+            monkeypatch.setattr(process, "wait", wait)
+        return process
+
+    if fault == "sampler_start":
+        def start(self):
+            raise RuntimeError("sampler startup failure")
+        monkeypatch.setattr(measurement.TreeSampler, "start", start)
+    try:
+        with pytest.raises(RuntimeError):
+            benchmark.measure_step(_step("train", tmp_path), launch=launch, read=lambda: "")
+        assert process.returncode is not None
+        with pytest.raises(ProcessLookupError):
+            os.killpg(process.pid, 0)
+    finally:
+        if process is not None and process.poll() is None:
+            process.kill()
+            original_wait(process)

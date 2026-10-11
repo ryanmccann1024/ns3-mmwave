@@ -10,7 +10,8 @@ import pytest
 
 from scripts.rl import experiment
 from scripts.rl.cli_common import write_json
-from scripts.rl.ops import cluster, reconcile, receipts, slurm, tasks
+from scripts.rl.ops import cluster, slurm, tasks
+from scripts.rl.cluster import receipts, reconcile, operations
 from scripts.rl.tests import fake_slurm
 
 ROWS = ("local-delivery", "raw-delivery", "local-connectivity", "local-legacy")
@@ -38,7 +39,7 @@ def _plan(root: Path, binary: Path, run_config: Path) -> dict:
                            "--output-dir", str(root / "comparison")],
                   "output_dir": str(root / "comparison"),
                   "manifest": "comparison.json", "needs": []})
-    return {"experiment_plan_version": 2, "sim_binary": str(binary),
+    return {"experiment_plan_version": 1, "sim_binary": str(binary),
             "rows": [{"name": row, "run_config": str(run_config)} for row in ROWS],
             "steps": steps}
 
@@ -82,7 +83,7 @@ def env(tmp_path: Path, venv: Path, monkeypatch) -> SimpleNamespace:
 
 def _run(env: SimpleNamespace, command: str, *extra: str) -> int:
     argv = [command, "--output-root", str(env.root)]
-    if command in ("plan", "submit", "resume"):
+    if command in ("plan", "submit", "resume", "submit-compare"):
         argv += ["--cluster-config", str(env.config)]
     return cluster.main([*argv, *extra])
 
@@ -258,7 +259,8 @@ def test_the_job_script_quotes_paths_and_exports_threads(tmp_path, venv):
 
     compare = slurm.render_compare_script(config, tmp_path / "mesh", root,
                                           root / "cluster/records/0001")
-    assert "--compare" in compare and "SLURM_ARRAY_TASK_ID" not in compare
+    assert "scripts.rl.ops.cluster compare" in compare and "SLURM_ARRAY_TASK_ID" not in compare
+    assert '--scheduled-job "$SLURM_JOB_ID"' in compare
     assert "--allow-incomplete" not in compare
     assert "compare.json" in compare
 
@@ -358,9 +360,9 @@ RECONCILE_CASES = [
     ("canceled from accounting", {}, [_receipt()],
      _snapshot(accounting={"1000_0": {"state": "CANCELLED", "exit": "0:15"}}),
      "canceled"),
-    ("canceled from a recorded request when accounting is unavailable", {},
+    ("unknown after a cancellation request without terminal evidence", {},
      [_receipt(cancel_requests=[{"job_ids": ["1000_0"], "indices": [0]}])],
-     _snapshot(accounting_ok=False), "canceled"),
+     _snapshot(accounting_ok=False), "unknown"),
     ("failed from accounting", {}, [_receipt()],
      _snapshot(accounting={"1000_0": {"state": "TIMEOUT", "exit": "0:1"}}), "failed"),
     ("failed for an unowned blocked directory", {"train": None}, [], _snapshot(),
@@ -763,7 +765,7 @@ def test_status_json_lists_every_task_and_the_comparison(env, capsys):
     capsys.readouterr()
     assert _run(env, "status", "--json") == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["status_version"] == 1
+    assert payload["status_version"] == 2
     assert payload["scheduler"] == {"queue_ok": True, "accounting_ok": True,
                                     "queue_error": "", "accounting_error": ""}
     assert [row["index"] for row in payload["tasks"]] == list(range(8))
@@ -825,7 +827,7 @@ def test_manual_compare_reports_each_outcome(env, monkeypatch, capsys, status, r
     for index in range(8):
         _complete(env.root, index)
     stub = _CompareStub(status, raw)
-    monkeypatch.setattr(cluster, "_compare_executor", stub)
+    monkeypatch.setattr(operations, "_compare_executor", stub)
     assert _run(env, "compare") == exit_code
     out = capsys.readouterr().out
     assert line in out and f"raw exit code: {raw}" in out
@@ -834,7 +836,7 @@ def test_manual_compare_reports_each_outcome(env, monkeypatch, capsys, status, r
 def test_manual_compare_refuses_unfinished_evaluations(env, monkeypatch, capsys):
     _complete(env.root, 0)
     stub = _CompareStub("complete", 0)
-    monkeypatch.setattr(cluster, "_compare_executor", stub)
+    monkeypatch.setattr(operations, "_compare_executor", stub)
     assert _run(env, "compare") == 1
     assert stub.calls == 0
     assert not (env.root / "comparison").exists()
@@ -845,7 +847,7 @@ def test_manual_compare_refuses_allow_incomplete_while_a_task_is_active(env, mon
                                                                        capsys):
     assert _run(env, "submit", "--tasks", "0") == 0
     stub = _CompareStub("incomplete", 1)
-    monkeypatch.setattr(cluster, "_compare_executor", stub)
+    monkeypatch.setattr(operations, "_compare_executor", stub)
     assert _run(env, "compare", "--allow-incomplete") == 1
     assert stub.calls == 0
     assert "needs every task to be settled" in capsys.readouterr().err
@@ -857,7 +859,7 @@ def test_manual_compare_refuses_while_a_scheduled_compare_is_active(env, monkeyp
     for index in range(8):
         _complete(env.root, index)
     stub = _CompareStub("complete", 0)
-    monkeypatch.setattr(cluster, "_compare_executor", stub)
+    monkeypatch.setattr(operations, "_compare_executor", stub)
     assert _run(env, "compare") == 1
     assert stub.calls == 0
     assert "compare job" in capsys.readouterr().err
@@ -873,7 +875,7 @@ def test_manual_compare_refuses_while_a_compare_intent_is_unresolved(env, monkey
     for index in range(8):
         _complete(env.root, index)
     stub = _CompareStub("complete", 0)
-    monkeypatch.setattr(cluster, "_compare_executor", stub)
+    monkeypatch.setattr(operations, "_compare_executor", stub)
     assert _run(env, "compare") == 1
     assert stub.calls == 0
     assert "no job id" in capsys.readouterr().err
@@ -886,7 +888,7 @@ def test_manual_compare_refuses_while_a_compare_job_has_no_terminal_record(
     for index in range(8):
         _complete(env.root, index)
     stub = _CompareStub("complete", 0)
-    monkeypatch.setattr(cluster, "_compare_executor", stub)
+    monkeypatch.setattr(operations, "_compare_executor", stub)
     assert _run(env, "compare") == 1
     assert stub.calls == 0
     assert "no record of having finished" in capsys.readouterr().err
@@ -919,12 +921,12 @@ def test_evidence_that_a_compare_job_ended_unblocks_manual_compare(env, monkeypa
     env.fake.set_job(array, "COMPLETED")
     if evidence == "human assertion":
         env.fake.drop_job(compare_job)
-        assert _run(env, "resume", f"--inactive-job={compare_job}") == 0
+        assert _run(env, "resume", f"--inactive-job={compare_job}", "--no-compare") == 0
     else:
         env.fake.set_job(compare_job, "COMPLETED")
 
     stub = _CompareStub("complete", 0)
-    monkeypatch.setattr(cluster, "_compare_executor", stub)
+    monkeypatch.setattr(operations, "_compare_executor", stub)
     assert _run(env, "compare") == 0
     assert stub.calls == 1
 
