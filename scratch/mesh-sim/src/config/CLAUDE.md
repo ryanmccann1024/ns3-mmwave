@@ -19,7 +19,7 @@ and tested standalone.
   even when the value is empty (then it is an error).
 - `ResolveRlControl` is the single source of RL slot, cadence, and tick rules. The validator
   reports its errors; `sim.cc` calls `ApplyRlControl`, which throws if errors exist.
-- Legacy mode truncates the tick count; centralized mode rounds with a 1e-6 tolerance.
+- Only centralized control is supported; tick counts round with a 1e-6 tolerance.
 - `[channel] band` absent keeps `SimConfig`'s `"mmwave"` / `"default"`; `sim.cc` applies `--band`.
 - Empty `[output] dir` derives the timestamped path from the run.ini location (three levels
   below the mesh-sim root).
@@ -41,3 +41,6 @@ Update together: the `SimConfig` field in `domain/`, the read in `Load`, a rule 
 ## Dependencies
 - Depends on: `domain/`, `util/` (`ini-parser.h`, `string-utils.h`), `third_party/json.hpp`
 - Depended on by: `sim.cc`, `setup/` (`rl-control.h`), `query/` (`layout-override.h`, `rl-control.h`), `tests/unit/config`
+
+- `query-config.h/cc` owns strict `[channel_query]` parsing and budget validation;
+  use `domain/query-config.h` defaults and advertise resolved values in query init.

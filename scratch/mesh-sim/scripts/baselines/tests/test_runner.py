@@ -1,5 +1,7 @@
 """Standalone runner lifecycle against fake_child.py; no real simulator is started."""
 
+from scripts.baselines import preparation, execution, mapping as mapping_config, runtime_identity
+
 import json
 import os
 import shutil
@@ -38,8 +40,7 @@ def record(tmp_path, monkeypatch) -> Path:
     return path
 
 
-def test_argv_environment_and_complete_run(tmp_path, fake_child, record, stub_planner,
-                                           monkeypatch):
+def test_argv_environment_and_complete_run(tmp_path, fake_child, record, stub_planner, monkeypatch):
     monkeypatch.setenv("FAKE_CHILD_MARKER", "passed-through")
     ini = write_scenario(tmp_path / "s")
     out = tmp_path / "run"
@@ -47,8 +48,12 @@ def test_argv_environment_and_complete_run(tmp_path, fake_child, record, stub_pl
 
     run = out.resolve()
     seen = json.loads(record.read_text())
-    assert seen["argv"] == [f"--run-config={run}/effective-inputs/run.ini",
-                            f"--output-dir={run}", "--seeds=1,2", "--band=sub-6"]
+    assert seen["argv"] == [
+        f"--run-config={run}/effective-inputs/run.ini",
+        f"--output-dir={run}",
+        "--seeds=1,2",
+        "--band=sub-6",
+    ]
     assert seen["env"]["LD_LIBRARY_PATH"].split(os.pathsep)[0] == str(BUILD_LIB)
     assert seen["env"]["FAKE_CHILD_MARKER"] == "passed-through"
     assert seen["stdin_devnull"] is True
@@ -56,22 +61,36 @@ def test_argv_environment_and_complete_run(tmp_path, fake_child, record, stub_pl
 
     manifest = _manifest(out)
     assert (manifest["status"], manifest["mode"], manifest["executor"]) == (
-        "complete", "standalone", "none")
+        "complete",
+        "standalone",
+        "none",
+    )
     assert (manifest["method"], manifest["requested_algorithm"]) == ("geometric", "geometric")
     assert manifest["simulation_seeds"] == [1, 2]
     assert manifest["seeds"] == [
         {"seed": 1, "status": "complete", "summary": "seed-1/summary.json"},
-        {"seed": 2, "status": "complete", "summary": "seed-2/summary.json"}]
+        {"seed": 2, "status": "complete", "summary": "seed-2/summary.json"},
+    ]
     assert manifest["sim_binary_sha256"] == artifacts.sha256_file(fake_child)
-    assert manifest["baseline_manifest_version"] == 2
-    assert (manifest["channel_scoring"]["band"],
-            manifest["channel_scoring"]["band_source"]) == ("sub-6", "cli")
-    assert manifest["channel_scoring"]["planning_seed"] == 1
+    assert manifest["baseline_manifest_version"] == 3
+    assert (manifest["channel_scoring"]["band"], manifest["channel_scoring"]["band_source"]) == (
+        "sub-6",
+        "cli",
+    )
+    assert manifest["channel_scoring"]["planning_seed"] == 101
     assert manifest["error"] is None and manifest["ended_at"] is not None
     assert "fake_child: mode=ok" in (out / "sim.log").read_text()
-    assert {"baseline_manifest.json", "planner.log", "sim.log", "source-inputs",
-            "effective-inputs", "inputs", "run.log", "seed-1", "seed-2"} <= {
-        p.name for p in out.iterdir()}
+    assert {
+        "baseline_manifest.json",
+        "planner.log",
+        "sim.log",
+        "source-inputs",
+        "effective-inputs",
+        "inputs",
+        "run.log",
+        "seed-1",
+        "seed-2",
+    } <= {p.name for p in out.iterdir()}
     assert not list(out.rglob("rl_episode.json")) and not list(out.rglob("steps.jsonl"))
 
     plan = artifacts.read_json(out / "effective-inputs/baseline-plan.json")
@@ -233,13 +252,13 @@ def test_planner_source_option_is_gone(tmp_path, fake_child, capsys):
 
 def test_seed_resolution(tmp_path):
     ini = write_scenario(tmp_path / "s")
-    assert runner.resolve_seeds(None, ini) == [1]
-    assert runner.resolve_seeds("3-4", ini) == [3, 4]
+    assert execution.resolve_seeds(None, ini) == [1]
+    assert execution.resolve_seeds("3-4", ini) == [3, 4]
     bare = write_scenario(tmp_path / "b", ini_text="[scenario]\nname = x\n")
-    assert runner.resolve_seeds(None, bare) == [runner.DEFAULT_SCENARIO_SEED] == [42]
+    assert execution.resolve_seeds(None, bare) == [execution.DEFAULT_SCENARIO_SEED] == [42]
     bad = write_scenario(tmp_path / "c", ini_text="[scenario]\nseed = -1\n")
     with pytest.raises(ValueError, match="seed"):
-        runner.resolve_seeds(None, bad)
+        execution.resolve_seeds(None, bad)
 
 
 def test_runner_import_loads_no_rl_or_ml_stack():
@@ -317,7 +336,7 @@ def test_stop_child_terminates_then_kills_and_reaps(tmp_path, monkeypatch, mode,
     try:
         _wait_for(pid_file)
         started = time.monotonic()
-        runner.stop_child(proc, wait_s=0.5)
+        execution.stop_child(proc, wait_s=0.5)
         assert proc.returncode == expected
         assert time.monotonic() - started < 10
     finally:
@@ -385,6 +404,7 @@ def test_stop_process_group_mode_reaches_grandchildren(tmp_path, process_group):
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
+
 
 EXITING_LEADER = """
 import subprocess, sys
@@ -456,8 +476,8 @@ def test_stop_process_group_mode_falls_back_when_killpg_is_refused(tmp_path, mon
 
 def test_automatic_output_root_naming(tmp_path):
     now = datetime(2026, 9, 29, 13, 5, 7)
-    first = runner.automatic_output_root(tmp_path, now)
+    first = execution.automatic_output_root(tmp_path, now)
     assert first == tmp_path / "outputs/2026-09/29/13-05-07-baseline"
     first.mkdir(parents=True)
-    assert runner.automatic_output_root(tmp_path, now) == first.with_name(
+    assert execution.automatic_output_root(tmp_path, now) == first.with_name(
         "13-05-07-baseline-2")

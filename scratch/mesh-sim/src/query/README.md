@@ -13,7 +13,12 @@ Python client is `scripts/baselines/planners/channel.py` (`ChannelScorer`).
 | File | Role |
 |------|------|
 | @ref channel-query.h "channel-query.h" | `RunChannelQuery(cfg, args, in, out)`. |
-| @ref channel-query.cc "channel-query.cc" | Request loop, validation, fork-per-layout child, pipe draining, reaping, JSON framing. |
+| `channel-query.cc` | Bounded serving loop and orchestration. |
+| `query-protocol.h/cc` | NDJSON framing, request envelope/layout validation, init and error serialization. |
+| `layout-evaluation.h/cc` | Layout application and simulator evaluation in the child. |
+| `child-process.h/cc` | Fork, pipe draining, deadlines, termination and reaping; callback executes only after fork. |
+| `../eval/probe-diagnostics.h/cc` | Pure diagnostics for resolved propagation-model height assumptions. |
+| `../config/query-config.h/cc` | Strict worker setting parsing and validation. |
 | `CLAUDE.md` | Scope and invariants for contributors. |
 
 ## Run
@@ -50,7 +55,8 @@ One JSON object per line in each direction.
             "tx_array_gain_dbi":12.0,"rx_array_gain_dbi":12.0},
  "limits":{"max_layouts":1024,"max_probes":10000,
            "max_request_line_bytes":16777216,"max_child_response_bytes":16777216,
-           "child_deadline_s":60.0},
+           "child_deadline_s":60.0,"terminate_grace_s":1.0,
+           "max_response_bytes":67108864},
  "time_s":0.0}
 ```
 
@@ -86,7 +92,7 @@ worker with exit code 0.
 with each `L` either
 
 ```json
-{"links":[[i,j,sinr_db,capacity_mbps,is_los,connected],...],"coverage":[[k,...],...],"wall_s":0.01}
+{"links":[[i,j,sinr_db,capacity_mbps,is_los,connected],...],"coverage":[[k,...],...],"wall_s":0.01,"diagnostics":[]}
 ```
 
 or `{"error":"..."}`. `links` has N(N-1)/2 rows in `EvaluateAll` order
@@ -103,7 +109,7 @@ config, applies the layout (`ApplyLayout`), sets `cfg.seed` to the planning
 seed, calls `RngSeedManager::SetSeed(seed)` / `SetRun(run_id)`, builds the topology
 (`TopologyBuilder`, with probes when requested), configures `LinkEvaluator`
 like `sim.cc`, runs `EvaluateAll(mobs, 0.0)` first, then probe links
-node-major (node 0..N-1, probe 0..G-1), writes one JSON object to its pipe and
+node-major (node 0..N-1, probe 0..G-1), writes one JSON object (including height diagnostics) to its pipe and
 `_exit`s. The event loop never runs before scoring and jammer power is taken
 at `t = 0`.
 
@@ -137,10 +143,11 @@ indices, so every layout is a full `EvaluateAll` plus all probe links.
 | Limit | Value |
 |-------|-------|
 | Request line | 16 MiB; reading stops buffering at the limit and discards the rest of the line. |
-| Child response | 16 MiB per layout. |
+| Child response | 16 MiB default and maximum; configurable down to 1024 bytes. |
+| Aggregate response | 64 MiB default, at most 256 MiB; must hold one maximum child plus framing. |
 | Layouts per request | 1024 |
 | Probe points | 10000 |
-| Child deadline | 60 s (the child also arms a 65 s `alarm` as a backstop). |
+| Child deadline | 60 s by default; `[channel_query] child_deadline_s`, finite in (0,86400]. The alarm backstop is ceil(deadline + grace + 5) seconds. |
 
 Request-level problems (malformed JSON, non-object, bad `request_id`, unknown
 `type`, wrong shapes, limits exceeded, non-finite numbers, oversized line)
@@ -158,8 +165,39 @@ signal, or prints unparsable output.
   pipe.
 - The parent closes the pipe's write end, drains the read end with `poll`
   while the child runs (large responses cannot deadlock), then `waitpid`s.
-  On deadline, oversize or read failure it sends `SIGTERM`, waits 1 s, sends
+  On deadline, oversize or read failure it sends `SIGTERM`, waits the resolved grace (default 1 s), sends
   `SIGKILL` and reaps. Every child is reaped; no zombie remains.
 - `SIGTERM` / `SIGINT` / `SIGHUP` to the parent kill the active child before
   the parent exits. Clients should still run the worker in its own process
   group and clean up the whole group on cancellation.
+
+
+## Configurable budgets and model diagnostics
+
+Worker settings live in `[channel_query]`: `child_deadline_s` (default 60),
+`terminate_grace_s` (default 1; in (0,60]), `max_child_response_bytes`
+(default/max 16777216; minimum 1024), and `max_response_bytes`
+(default 67108864; max 268435456). Unknown keys and trailing numeric text
+are errors. Limits are advertised in init; clients derive serial batch
+budgets from them rather than copying worker deadlines. A response overflow
+returns a request error asking for smaller batches; the worker keeps serving.
+The matching client/configuration example is in the
+[planner guide](../../scripts/baselines/planners/README.md).
+
+`diagnostics` is an additive string array in each successful layout result.
+It is also logged on stderr once per request, before model evaluation, and
+is retained in final planning diagnostics. For 3GPP RMa, the lower endpoint
+must be 1..10 m and the higher 10..150 m; a zero-height probe is outside those
+assumptions. UMa expects a lower endpoint 1.5..22.5 m and higher endpoint
+25 m; UMi expects lower [1.5,10) m and higher 10 m. Choose probe and node
+heights together for the resolved model. No coordinate is silently changed.
+NYU and indoor height validity is not assessed by this diagnostic; absence
+of a warning is not full physical validation. Existing free-space floors
+and propagation behavior remain the evaluator's responsibility.
+
+The v1 contract remains compatible: existing required fields and evaluation
+order are unchanged; the additional budget and diagnostic fields are
+advisory. The parent remains free of ns-3 objects and RNG work. Pure protocol,
+process and diagnostic tests run via `make -C tests/unit/query test`, with a
+stub scorer for the serving loop. Real binary parity/isolation/timing and
+cleanup checks remain separate and unverified here.

@@ -8,9 +8,6 @@ from pathlib import Path
 
 from scripts.rl.cli_common import MANIFEST_NAME, package_versions, sha256_file
 
-# raw_links_v1 records bounds that check_schema does not treat as structural.
-_UNBOUNDED_PRESET = "raw_links_v1"
-
 
 def _model_entry(run_dir: Path, role: str, path, recorded: str | None,
                  num_timesteps=None) -> dict:
@@ -60,8 +57,8 @@ def build_report(run_dir: Path, manifest: dict) -> dict:
     observation = manifest.get("observation_schema") or {}
     reward = manifest.get("reward_schema") or {}
     note = None
-    if observation.get("schema_id") == _UNBOUNDED_PRESET:
-        note = f"bounds not structural for {_UNBOUNDED_PRESET}"
+    if observation and "bounds" not in observation.get("compatibility_fields", []):
+        note = f"bounds not structural for {observation.get('schema_id')}"
     models = _models(run_dir, manifest)
     return {
         "run_dir": str(run_dir),
@@ -69,6 +66,9 @@ def build_report(run_dir: Path, manifest: dict) -> dict:
         "manifest_version": manifest.get("manifest_version"),
         "status": manifest.get("status"),
         "error": manifest.get("error"),
+        "num_timesteps": manifest.get("num_timesteps"),
+        "resume": manifest.get("resume"),
+        "evaluation_state": manifest.get("evaluation_state"),
         "algorithm": manifest.get("algorithm"),
         "seed": manifest.get("seed"),
         "seed_source": manifest.get("seed_source"),
@@ -128,6 +128,9 @@ def print_report(report: dict) -> None:
     print(f"run dir         {report['run_dir']}")
     print(f"manifest        version {_fmt(report['manifest_version'])}, "
           f"status {_fmt(report['status'])}")
+    print(f"timesteps       {_fmt(report['num_timesteps'])}")
+    if report["resume"]:
+        print(f"resumed from    {_fmt(report['resume']['parent']['model_path'])}")
     if report["error"]:
         print(f"error           {report['error']}")
     print(f"algorithm       {_fmt(report['algorithm'])}")

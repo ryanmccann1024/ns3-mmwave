@@ -1,23 +1,20 @@
 """Gymnasium adapter for the mesh simulator's RL protocol."""
 
-import math
 import warnings
+
 from pathlib import Path
 
 import gymnasium
 import numpy as np
 from gymnasium import spaces
 
-from .config import read_control_mode, read_rl_bounds, read_scenario_seed
+from .config import read_scenario_seed
 from .decisions import DecisionRecording
 from .episode import EpisodeSession
 from .observations import get_preset, observation_schema
-from .protocol import CentralizedProtocol, LegacyProtocol, ProtocolError, SLOT_ACTIONS
-from .rewards import RewardComposer, position_context, reward_schema
-from .selection import (RlSelection, resolve_selection, uses_composed_reward,
-                        uses_custom_observation)
-
-_TOTAL_TOL = 1e-9
+from .protocol import CentralizedProtocol, ProtocolError, SLOT_ACTIONS, validate_message
+from .rewards import RewardComposer, reward_schema
+from .selection import RlSelection, resolve_selection, uses_composed_reward
 
 
 class MeshRlEnv(gymnasium.Env):
@@ -37,24 +34,18 @@ class MeshRlEnv(gymnasium.Env):
         self._run_config = run_config
         self._selection = (selection if selection is not None
                            else resolve_selection(run_config))
-        self._preset = (get_preset(self._selection.observation_preset)
-                        if uses_custom_observation(self._selection) else None)
+        self._preset = get_preset(self._selection.observation_preset, self._selection.observation_parameters)
         self._composer = (RewardComposer(self._selection.reward_components,
-                                         self._selection.reward_weights)
+                                         self._selection.reward_weights, self._selection.reward_parameters)
                           if uses_composed_reward(self._selection) else None)
+        self._recording = bool(decision_records and decision_records.settings.enabled)
+        self._preference_source = (decision_records.context.preference_source if self._recording else None)
+        self._last_obs = None
+        self._initial_nodes = self._previous_nodes = None
         self._observation_schema: dict | None = None
         self._reward_schema: dict | None = None
         self._output_dir = Path(output_dir)
-        self._recording = decision_records is not None and decision_records.settings.enabled
-        if self._recording and read_control_mode(run_config) == "legacy":
-            raise ValueError(
-                f"Decision records require centralized control mode; {run_config} has no "
-                "[rl] controlled_nodes")
-        self._preference_source = (decision_records.context.preference_source
-                                   if decision_records is not None else None)
-        self._last_obs: np.ndarray | None = None
-        self._session = EpisodeSession(sim_binary, run_config, self._output_dir, band,
-                                       decision_records=decision_records)
+        self._session = EpisodeSession(sim_binary, run_config, self._output_dir, band, decision_records)
         if seed is not None:
             self.seed_value = int(seed)
             self.seed_source = "cli"
@@ -70,18 +61,11 @@ class MeshRlEnv(gymnasium.Env):
 
         self.action_space: spaces.Space | None = None
         self.observation_space: spaces.Space | None = None
-        self._action_type: str | None = None
         self._signature: dict | None = None
         self._control_mode: str | None = None
         self._contract: dict | None = None
-        self._protocol: CentralizedProtocol | LegacyProtocol | None = None
+        self._protocol: CentralizedProtocol | None = None
 
-        self._x_range: tuple[float, float] | None = None
-        self._y_range: tuple[float, float] | None = None
-        self._z_range: tuple[float, float] | None = None
-        self._ctrl_pos: np.ndarray | None = None
-        self._initial_nodes: list | None = None
-        self._previous_nodes: list | None = None
 
         self.window_size = 512
         self.render_mode = render_mode
@@ -126,77 +110,60 @@ class MeshRlEnv(gymnasium.Env):
         self._session.stop("interrupted", "reset")
         self._session.start(self.seed_value, self.seed_source)
         first = self._session.read_message()
-        kind = first.get("type")
-        if kind == "init":
+        try:
+            validate_message(first)
+        except ProtocolError as exc:
+            self._session.protocol_error(str(exc))
+        if first.get("type") != "init":
+            self._session.protocol_error("Expected an 'init' message; legacy control is unsupported")
+        try:
             return self._reset_centralized(first)
-        if kind == "step":
-            return self._reset_legacy(first)
-        self._session.protocol_error(
-            f"Unexpected first message type {kind!r}; expected 'init' (centralized) "
-            "or 'step' (legacy)"
-        )
+        except Exception as exc:
+            self._session.protocol_error(str(exc))
 
     def step(self, action):
-        """Send one action, validate the reply, and return (obs, reward, terminated, False, info)."""
-        if self._control_mode == "centralized":
-            assert isinstance(self._protocol, CentralizedProtocol)
-            action_value = self._protocol.joint_action(action)
-            preferences = self._take_preferences()
-            pre = None
-            if self._recording:
-                pre = {"obs": self._last_obs, "mask": self._protocol.mask,
-                       "requested": list(action_value), "preferences": preferences}
-        elif self._action_type == "continuous":
-            action_value = [float(action[0]), float(action[1])]
-        else:
-            action_value = int(action)
+        if self._protocol is None:
+            raise RuntimeError("reset() must succeed before step()")
+        action_value = self._protocol.joint_action(action)
+        pre = ({"obs": self._last_obs, "mask": self._protocol.mask.copy(),
+                "requested": list(action_value), "preferences": self._take_preferences()}
+               if self._recording else None)
         self._session.send_action(action_value)
         msg = self._session.read_message()
 
-        detail = None
-        if self._control_mode == "centralized":
-            assert isinstance(self._protocol, CentralizedProtocol)
-            obs = self._validated_step(self._protocol, msg)
+        try:
+            self._protocol.validate_step(msg)
             info = self._centralized_info(msg)
-            if self._preset is not None:
-                obs = self._preset.build(self._protocol.facts, self._contract)
+            obs = self._preset.build(self._protocol.facts, self._contract)
             reward = float(msg["reward"])
-            current_nodes = self._protocol.facts["nodes"]
-            reward_context = position_context(
-                self._protocol.facts, self._previous_nodes, self._initial_nodes,
-                self._contract)
-            self._previous_nodes = [list(row) for row in current_nodes]
+            detail = {"obs": obs}
             if self._composer is not None:
+                inputs = {"previous_nodes": self._previous_nodes, "initial_nodes": self._initial_nodes,
+                          "elapsed_ticks": msg["ticks_in_step"]}
+                context = self._composer.context(self._protocol.facts, self._contract, inputs)
+                if self._composer.context_fields - set(self._protocol.facts):
+                    detail["reward_context"] = inputs
                 breakdown = self._composer.compose(
-                    self._protocol.facts["window"], reward, self._contract,
-                    reward_context)
-                self._check_total(breakdown)
+                    self._protocol.facts["window"], reward, self._contract, context)
                 reward = breakdown.total
                 info["reward"] = {
-                    "total": breakdown.total,
+                    "total": reward,
                     "components": dict(breakdown.components),
                     "valid": dict(breakdown.valid),
                     "weights": dict(breakdown.weights),
                     "legacy": breakdown.legacy,
                 }
-                detail = {"obs": obs, "breakdown": breakdown,
-                          "reward_context": reward_context}
-            else:
-                detail = {"obs": obs, "reward_context": reward_context}
+                detail["breakdown"] = breakdown
             if pre is not None:
                 detail["decision"] = pre
             self._last_obs = obs
-        else:
-            assert isinstance(self._protocol, LegacyProtocol)
-            self._validated_step(self._protocol, msg)
-            obs = self._protocol.parse_obs(msg)
-            self._ctrl_pos = np.asarray(msg["obs"]["controlled_pos"], dtype=float)
-            info = {"time_s": msg["time_s"], "tick": msg["tick"]}
-            reward = float(msg["reward"])
-        terminated = bool(msg["done"])
-        self._session.record_step(msg, reward, detail)
-        if terminated:
-            self._session.stop("completed", "done")
+            self._previous_nodes = [list(row) for row in self._protocol.facts["nodes"]]
+            terminated = bool(msg["done"])
+            self._session.record_step(msg, reward, detail)
+            if terminated:
+                self._session.stop("completed", "done")
+        except Exception as exc:
+            self._session.protocol_error(str(exc))
         return obs, reward, terminated, False, info
 
     def _take_preferences(self):
@@ -205,8 +172,8 @@ class MeshRlEnv(gymnasium.Env):
         try:
             return self._preference_source()
         except Exception as exc:
-            warnings.warn(f"Decision-record preference capture failed: {exc}",
-                          RuntimeWarning, stacklevel=2)
+            warnings.warn(f"Decision-record preference capture failed: {exc}", RuntimeWarning,
+                          stacklevel=2)
             return None
 
     def render(self):
@@ -216,36 +183,9 @@ class MeshRlEnv(gymnasium.Env):
         pass
 
     def action_masks(self) -> np.ndarray:
-        """Simulator mask in centralized mode; bounds-derived Discrete(7) mask in legacy mode."""
-        if self._control_mode == "centralized":
-            assert isinstance(self._protocol, CentralizedProtocol)
-            mask = self._protocol.mask
-            if mask is None:
-                return np.ones(self._protocol.mask_dim, dtype=bool)
-            return mask.astype(bool)
-
-        n = self.action_space.n if isinstance(self.action_space, spaces.Discrete) else 7
-        mask = np.ones(n, dtype=bool)
-        if self._ctrl_pos is None or self._x_range is None:
-            return mask
-
-        x, y = float(self._ctrl_pos[0]), float(self._ctrl_pos[1])
-        xmin, xmax = self._x_range
-        ymin, ymax = self._y_range
-        if n > 0:
-            mask[0] = x > xmin
-        if n > 1:
-            mask[1] = x < xmax
-        if n > 2:
-            mask[2] = y > ymin
-        if n > 3:
-            mask[3] = y < ymax
-        if n > 5 and self._z_range is not None and self._ctrl_pos.shape[0] >= 3:
-            z = float(self._ctrl_pos[2])
-            zmin, zmax = self._z_range
-            mask[4] = z > zmin
-            mask[5] = z < zmax
-        return mask
+        if self._protocol is None or self._protocol.mask is None:
+            raise RuntimeError("reset() must succeed before action_masks()")
+        return self._protocol.mask.astype(bool)
 
     def valid_action_mask(self) -> np.ndarray:
         """Alias of `action_masks`."""
@@ -255,48 +195,8 @@ class MeshRlEnv(gymnasium.Env):
         """Stop the simulator and mark the episode interrupted."""
         self._session.stop("interrupted", "close")
 
-    def _reset_legacy(self, msg: dict):
-        width = self.observation_space.shape[0] if self.observation_space else None
-        protocol = LegacyProtocol(width)
-        self._validated_step(protocol, msg, first=True)
-        action_type = msg.get("action_type", "discrete")
-        if action_type not in ("discrete", "continuous"):
-            self._session.protocol_error(f"Unknown legacy action_type {action_type!r}")
-
-        obs = protocol.parse_obs(msg)
-        signature = {
-            "control_mode": "legacy",
-            "action_type": action_type,
-            "obs_dim": int(obs.shape[0]),
-        }
-        self._check_signature(signature)
-        self._control_mode = "legacy"
-        self._contract = None
-        self._action_type = action_type
-        self._protocol = protocol
-        self._ctrl_pos = np.asarray(msg["obs"]["controlled_pos"], dtype=float)
-        info = {"time_s": msg["time_s"], "tick": msg["tick"]}
-
-        if self._x_range is None:
-            self._x_range, self._y_range, self._z_range = read_rl_bounds(self._run_config)
-        if self.observation_space is None:
-            self.observation_space = spaces.Box(
-                low=-np.inf, high=np.inf, shape=(obs.shape[0],), dtype=np.float64
-            )
-        if self.action_space is None:
-            if action_type == "continuous":
-                self.action_space = spaces.Box(
-                    low=-np.inf, high=np.inf, shape=(2,), dtype=np.float64
-                )
-            else:
-                self.action_space = spaces.Discrete(7)
-        return obs, info
-
     def _reset_centralized(self, init: dict):
-        try:
-            protocol = CentralizedProtocol(init)
-        except ProtocolError as exc:
-            self._session.protocol_error(str(exc))
+        protocol = CentralizedProtocol(init)
         slots = int(init["max_controlled_nodes"])
         signature = {
             "control_mode": "centralized",
@@ -320,52 +220,31 @@ class MeshRlEnv(gymnasium.Env):
             "num_decisions": init["num_decisions"],
             "reward_type": init["reward_type"],
             "reward_window": init["reward_window"],
+            "warmup_s": init["warmup_s"],
+            "reward_warmup": init["reward_warmup"],
             "wall_policy": init["wall_policy"],
         }
         self._check_signature(signature)
         self._control_mode = "centralized"
         self._contract = dict(init)
-        self._action_type = "discrete"
         self._protocol = protocol
-        self.observation_space = (
-            self._preset.space(init) if self._preset is not None
-            else spaces.Box(low=-np.inf, high=np.inf, shape=(init["obs_dim"],),
-                            dtype=np.float64)
-        )
+        self.observation_space = self._preset.space(init)
         self.action_space = spaces.MultiDiscrete([SLOT_ACTIONS] * slots)
         self._session.set_contract(init)
         self._observation_schema = observation_schema(
-            self._selection.observation_preset, init)
-        self._reward_schema = reward_schema(
-            self._selection.reward_components, self._selection.reward_weights,
-            reward_type=init["reward_type"], reward_window=init["reward_window"])
+            self._selection.observation_preset, init, self._selection.observation_parameters)
+        self._reward_schema = reward_schema(self._selection.reward_components, self._selection.reward_weights, contract=init, parameters=self._selection.reward_parameters)
         self._session.set_selection(self._selection, self._observation_schema,
                                     self._reward_schema)
 
         msg = self._session.read_message()
-        obs = self._validated_step(protocol, msg, first=True)
+        obs = protocol.validate_step(msg, first=True)
+        obs = self._preset.build(protocol.facts, init)
         self._initial_nodes = [list(row) for row in protocol.facts["nodes"]]
-        self._previous_nodes = [list(row) for row in protocol.facts["nodes"]]
-        if self._preset is not None:
-            obs = self._preset.build(protocol.facts, init)
+        self._previous_nodes = [list(row) for row in self._initial_nodes]
         self._last_obs = obs
         self._session.record_reset(msg, obs)
         return obs, self._centralized_info(msg)
-
-    @staticmethod
-    def _check_total(breakdown) -> None:
-        expected = sum(breakdown.weights[name] * value
-                       for name, value in breakdown.components.items()
-                       if breakdown.valid[name])
-        if (not math.isfinite(breakdown.total) or not math.isfinite(expected)
-                or abs(breakdown.total - expected) >= _TOTAL_TOL):
-            raise ValueError("Composed reward does not match its weighted components")
-
-    def _validated_step(self, protocol, msg: dict, first: bool = False):
-        try:
-            return protocol.validate_step(msg, first=first)
-        except ProtocolError as exc:
-            self._session.protocol_error(str(exc))
 
     @staticmethod
     def _centralized_info(msg: dict) -> dict:
@@ -374,6 +253,7 @@ class MeshRlEnv(gymnasium.Env):
             "time_s": msg["time_s"],
             "decision": msg["decision"],
             "ticks_in_step": msg["ticks_in_step"],
+            "scored_ticks": msg["scored_ticks"],
             "revalidated_slots": list(msg["revalidated_slots"]),
         }
 
@@ -388,6 +268,4 @@ class MeshRlEnv(gymnasium.Env):
             f"{key}: first={self._signature.get(key)!r} now={signature.get(key)!r}"
             for key in keys if self._signature.get(key) != signature.get(key)
         )
-        self._session.protocol_error(
-            f"Simulator contract changed between resets ({diffs})"
-        )
+        raise ProtocolError(f"Simulator contract changed between resets ({diffs})")

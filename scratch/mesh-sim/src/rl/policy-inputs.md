@@ -23,12 +23,11 @@ telemetry_every = 2
 ```
 
 Then run the training command in the [RL setup guide](../../README.md#selecting-observations-rewards-and-telemetry).
-Its five matching CLI flags can override these keys independently; resolution
+Its matching CLI flags can override these keys independently; resolution
 is CLI > `run.ini` > default. The resolved values and their sources go into
 `train_manifest.json` and each `episode-NNNN/rl_episode.json`. Omitting
 `reward_components` returns the C++ reward; omitting `telemetry` writes no
-`steps.jsonl`. These choices require centralized mode because legacy mode does
-not export `facts`.
+`steps.jsonl`. These choices use centralized control and its validated `facts`.
 
 Follow one policy step:
 
@@ -105,7 +104,7 @@ counts flow/tick pairs with positive demand; `unroutable_flow_ticks` counts
 those that could not be routed. `connected_pairs_sum` and `los_pairs_sum` sum
 counts of node pairs over ticks. `legacy_reward_sum` sums C++'s per-tick
 `reward_type` values. The C++ message reward is always
-`legacy_reward_sum / window.ticks`.
+`legacy_reward_sum / window.scored_ticks`.
 
 When `reward_components` is set, Python computes these components from the
 *same* window, then returns the weighted sum to Gymnasium:
@@ -113,9 +112,9 @@ When `reward_components` is set, Python computes these components from the
 | Component | Value for one window |
 | --- | --- |
 | `delivery_ratio` | `delivered_mbps_sum / demand_mbps_sum`; marked invalid and contributes zero if demand sum ≤ `1e-9` |
-| `connectivity` | `connected_pairs_sum / (window.ticks × num_links)` |
-| `throughput_mbps` | `delivered_mbps_sum / window.ticks`; not scaled to `[0,1]` |
-| `legacy` | `legacy_reward_sum / window.ticks`; C++ reward, **not** legacy control mode |
+| `connectivity` | `connected_pairs_sum / (window.scored_ticks × num_links)` |
+| `throughput_mbps` | `delivered_mbps_sum / window.scored_ticks`; not scaled to `[0,1]` |
+| `legacy` | `legacy_reward_sum / window.scored_ticks`; C++ reward, **not** legacy control mode |
 
 For five ticks, suppose demand sums to 150, delivery to 120, and 12 of the
 possible `5 × 3 = 15` pair/tick observations are connected. Then delivery
@@ -247,3 +246,73 @@ has one entry per control slot, including a padded slot's required hold (`4`).
 Training may first reset solely to learn the simulator-dependent spaces before
 PPO starts; that probe can be saved as `episode-0000` with `status=interrupted`,
 `stop_reason=reset`, and zero policy steps. It is not a lost training action.
+
+
+## Configurable service and geometry inputs
+
+| Preset | Per-slot layout | Width |
+| --- | --- | --- |
+| `geometry_v1` | Self xy and relative peer xy, with active/present flags | `3 + 3(N-1)` |
+| `service_v1` | Local links plus demand/delivery logs, delivery/connectivity/unroutable ratios | `9 + 4(N-1)` |
+| `full_facts_v1` | Service features plus relative peer xyz/velocity, LOS, and service gap | `10 + 11(N-1)` |
+
+All three use float32 and zero padding. Each preset owns its ordered features,
+Box bounds, required facts, and compatibility fields. Service-window features
+use scored tick sums; zero scored windows have zero service values. Geometry
+and current link facts remain available during warmup so decisions can settle.
+
+The following `[rl]` options are JSON objects, also accepted as
+`--observation-parameters` and `--reward-parameters`. Resolution remains
+CLI > run.ini > default for each complete object; objects are not merged across
+sources. Unknown, unused, nonnumeric, and nonfinite parameters fail before launch.
+
+```ini
+observation_preset = full_facts_v1
+observation_parameters = {"capacity_log10_denominator": 6, "velocity_scale_mps": 60}
+reward_components = service_success, unmet_sinr_quality
+reward_weights = 1, 0.2
+reward_parameters = {"service_success": {"delivery_threshold": 0.9, "routable_threshold": 0.95}, "unmet_sinr_quality": {"delivery_threshold": 0.9}}
+```
+
+Normalized link presets accept `sinr_min_db` (-20), `sinr_max_db` (40),
+`sinr_invalid_db` (-900), and `capacity_log10_denominator` (4).
+`full_facts_v1` also accepts `velocity_scale_mps` (40). SINR requires
+invalid < min < max; capacity/velocity denominators must be positive.
+Raw and geometry presets accept no normalization overrides.
+
+| Reward | Behavior and owned parameters |
+| --- | --- |
+| `delivery_binary` | +1 for any delivery, else -1; zero demand masked |
+| `signed_delivery_ratio` | `2*clip(delivered/demand,0,1)-1`; zero demand masked |
+| `service_success` | +1 if delivery and routable fractions meet thresholds, else -1 |
+| `service_failure` | 1 on service failure, else 0 |
+| `travel_fraction` | Mean controlled-slot endpoint xy distance divided by speed × elapsed duration |
+| `origin_fraction` | Mean controlled-slot distance from reset divided by the bounds xy diagonal |
+| `sinr_quality` | Mean normalized current link SINR; invalid links score zero |
+| `unmet_sinr_quality` | SINR quality × `clip((delivery_threshold-delivery_ratio)/delivery_threshold,0,1)` |
+
+Service components own `delivery_threshold` and `routable_threshold`, both 0.95
+by default and in (0,1]. Scored zero-demand service is failure. SINR components
+own the three SINR parameters above; `unmet_sinr_quality` also owns its delivery
+threshold, and zero demand uses delivery ratio zero. These reward scales are
+independent of observation scales. All components mask zero scored windows.
+`travel_fraction` also masks a mixed warmup window because endpoint data cannot
+separate its scored movement. `origin_fraction` is a scored endpoint state cost
+relative to reset, including any relocation during warmup.
+
+Resolved numeric values and formula descriptions are saved in the schemas and
+fingerprints, selection, and manifests. Saved-model checks reject changed input
+or reward identity. Telemetry v3 replay uses saved resolved parameters and,
+for movement rewards, saved previous/reset position inputs plus elapsed ticks.
+It recomputes context instead of trusting precomputed scores. Registered components
+own their calculation, dependencies, validation, and schema; the composer and
+replay do not dispatch on component names. Shared SINR normalization belongs to
+`env/normalization.py`.
+
+Evaluation v4 streams telemetry through the accumulator declared by each metric.
+Travel and displacement cover controlled nodes only; travel is the sum of xy
+endpoint distances, and displacement is measured from the last unscored endpoint
+(or reset). Initial baseline placement is excluded. Per-node maps stay in JSON;
+scalar travel participates in comparison and CSV export. With no scored windows,
+a mixed warmup window, missing reset, or sparse records, movement metrics are
+null. They do not claim a per-tick path length that telemetry cannot supply.

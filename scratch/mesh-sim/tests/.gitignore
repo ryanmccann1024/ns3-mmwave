@@ -6,3 +6,6 @@ traffic-matrix-test
 
 # ns3/ stub symlink directories (created by Makefiles)
 ns3/
+
+query-test
+reward-window-test

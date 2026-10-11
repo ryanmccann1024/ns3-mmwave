@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import math
 import os
 import sys
 from pathlib import Path
@@ -11,7 +12,7 @@ from scripts.rl.bootstrap_venv import DIRECT_DEPS, MESH_SIM_ROOT, read_pins
 from scripts.rl.cli_common import (add_scenario_arguments, add_selection_arguments,
                                    has_previous_run, package_versions, resolve_seed,
                                    selection_from_args)
-from scripts.rl.env.config import (read_control_mode, read_rl_bounds,
+from scripts.rl.env.config import (read_explicit_rl_bounds,
                                    read_scenario_identity)
 
 VALIDATE_DIR = "validate"
@@ -47,12 +48,12 @@ def _check_run_config(report: _Report, run_config: str) -> bool:
         report.error("run_config", f"run config not found: {run_config}")
         return False
     try:
-        mode = read_control_mode(run_config)
+        read_explicit_rl_bounds(run_config)
     except Exception as exc:
         report.error("run_config", f"{type(exc).__name__}: {exc}")
         return False
     report.ok("run_config", f"readable: {path.resolve()}")
-    report.ok("control_mode", mode)
+    report.warn("control_mode", "centralized 2D required; validated by --launch")
     return True
 
 
@@ -91,17 +92,21 @@ def _check_identity(report: _Report, run_config: str) -> dict | None:
 
 def _check_bounds(report: _Report, run_config: str) -> None:
     try:
-        bounds = read_rl_bounds(run_config)
+        bounds = read_explicit_rl_bounds(run_config)
     except Exception as exc:
         report.error("rl_bounds", f"{type(exc).__name__}: {exc}")
         return
-    unordered = [axis for axis, (low, high) in zip("xyz", bounds) if not low < high]
-    detail = ", ".join(f"{axis}=[{low}, {high}]"
-                       for axis, (low, high) in zip("xyz", bounds))
+    if any(not math.isfinite(value) for value in bounds.values()):
+        report.error("rl_bounds", "explicit bounds must be finite")
+        return
+    unordered = [axis for axis in "xyz"
+                 if f"{axis}_min" in bounds and f"{axis}_max" in bounds
+                 and not bounds[f"{axis}_min"] < bounds[f"{axis}_max"]]
+    detail = json.dumps(bounds, sort_keys=True)
     if unordered:
         report.error("rl_bounds", f"min must be < max for {unordered}; {detail}")
     else:
-        report.ok("rl_bounds", detail)
+        report.ok("rl_bounds", f"explicit bounds: {detail}; defaults require --launch")
 
 
 def _check_binary(report: _Report, sim_binary: str) -> None:

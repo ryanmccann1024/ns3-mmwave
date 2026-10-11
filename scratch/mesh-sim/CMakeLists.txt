@@ -9,6 +9,7 @@
 
 set(MESH_SIM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/sim.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/config/query-config.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/config/config-loader.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/config/config-validator.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/config/rl-control.cc
@@ -24,7 +25,12 @@ set(MESH_SIM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/viz-writer.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/io/metrics-writer.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/rl/rl-bridge.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/rl/reward-window.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/jammer/jammer-model.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/query/query-protocol.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/query/child-process.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/query/layout-evaluation.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/eval/probe-diagnostics.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/query/channel-query.cc
 )
 

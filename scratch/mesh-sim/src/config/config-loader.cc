@@ -6,6 +6,7 @@
  */
 
 #include "src/config/config-loader.h"
+#include "src/config/query-config.h"
 #include "src/util/ini-parser.h"
 #include "src/util/string-utils.h"
 #include "third_party/json.hpp"
@@ -58,10 +59,10 @@ parseNodeSpec(const json& j)
         if (rw.contains("bounds"))
         {
             const auto& b   = rw["bounds"];
-            n.random_walk.x_min = b.value("x_min", -100.0);
-            n.random_walk.x_max = b.value("x_max",  100.0);
-            n.random_walk.y_min = b.value("y_min", -100.0);
-            n.random_walk.y_max = b.value("y_max",  100.0);
+            n.random_walk.x_min = b.value("x_min", n.random_walk.x_min);
+            n.random_walk.x_max = b.value("x_max", n.random_walk.x_max);
+            n.random_walk.y_min = b.value("y_min", n.random_walk.y_min);
+            n.random_walk.y_max = b.value("y_max", n.random_walk.y_max);
         }
         n.random_walk.speed_mps = rw.value("speed_mps", 1.5);
     }
@@ -130,10 +131,10 @@ parseJammerSpec(const json& j)
         if (rw.contains("bounds"))
         {
             const auto& b   = rw["bounds"];
-            m.random_walk.x_min = b.value("x_min", -100.0);
-            m.random_walk.x_max = b.value("x_max",  100.0);
-            m.random_walk.y_min = b.value("y_min", -100.0);
-            m.random_walk.y_max = b.value("y_max",  100.0);
+            m.random_walk.x_min = b.value("x_min", m.random_walk.x_min);
+            m.random_walk.x_max = b.value("x_max", m.random_walk.x_max);
+            m.random_walk.y_min = b.value("y_min", m.random_walk.y_min);
+            m.random_walk.y_max = b.value("y_max", m.random_walk.y_max);
         }
         m.random_walk.speed_mps = rw.value("speed_mps", 1.5);
     }
@@ -213,8 +214,8 @@ ConfigLoader::Load(const std::string& run_config_path,
 
     // [scenario]
     cfg.scenario_name = iniGet(ini, "scenario", "name", "unnamed");
-    cfg.seed      = static_cast<uint32_t>(std::stoul(iniGet(ini, "scenario", "seed",       "42")));
-    cfg.run_id    = static_cast<uint32_t>(std::stoul(iniGet(ini, "scenario", "run_id",     "1")));
+    cfg.seed      = static_cast<uint32_t>(std::stoul(iniGet(ini, "scenario", "seed",       std::to_string(cfg.seed))));
+    cfg.run_id    = static_cast<uint32_t>(std::stoul(iniGet(ini, "scenario", "run_id",     std::to_string(cfg.run_id))));
     cfg.duration_s = std::stod(iniGet(ini, "scenario", "duration_s", "10.0"));
     cfg.warmup_s   = std::stod(iniGet(ini, "scenario", "warmup_s",   "0.0"));
     cfg.tick_s     = std::stod(iniGet(ini, "scenario", "tick_s",     "0.1"));
@@ -332,8 +333,6 @@ ConfigLoader::Load(const std::string& run_config_path,
 
     // [rl] — reinforcement learning config
     cfg.rl.enabled              = iniGetBool(ini, "rl", "enabled", false);
-    cfg.rl.controlled_node_id   = iniGet(ini, "rl", "controlled_node_id", "");
-    cfg.rl.action_type          = iniGet(ini, "rl", "action_type", "discrete");
     cfg.rl.reward_type          = iniGet(ini, "rl", "reward_type", "throughput");
     if (cfg.rl.reward_type == "mean_sinr")
     {
@@ -341,21 +340,30 @@ ConfigLoader::Load(const std::string& run_config_path,
         cfg.rl.reward_type_alias = "mean_sinr";
     }
     cfg.rl.step_size_m          = std::stod(iniGet(ini, "rl", "step_size_m", "50.0"));
-    cfg.rl.arrival_threshold_m  = std::stod(iniGet(ini, "rl", "arrival_threshold_m", "1.0"));
-    cfg.rl.x_min                = std::stod(iniGet(ini, "rl", "x_min", "-1000.0"));
-    cfg.rl.x_max                = std::stod(iniGet(ini, "rl", "x_max", "2000.0"));
-    cfg.rl.y_min                = std::stod(iniGet(ini, "rl", "y_min", "-1000.0"));
-    cfg.rl.y_max                = std::stod(iniGet(ini, "rl", "y_max", "1000.0"));
+    cfg.rl.x_min                = std::stod(iniGet(ini, "rl", "x_min", std::to_string(cfg.rl.x_min)));
+    cfg.rl.x_max                = std::stod(iniGet(ini, "rl", "x_max", std::to_string(cfg.rl.x_max)));
+    cfg.rl.y_min                = std::stod(iniGet(ini, "rl", "y_min", std::to_string(cfg.rl.y_min)));
+    cfg.rl.y_max                = std::stod(iniGet(ini, "rl", "y_max", std::to_string(cfg.rl.y_max)));
     cfg.rl.z_min		= std::stod(iniGet(ini, "rl", "z_min", "0.0"));
     cfg.rl.z_max		= std::stod(iniGet(ini, "rl", "z_max", "100.0"));
 
-    // Key presence (not its value) selects centralized multi-node control.
+    for (const auto& key : {"controlled_node_id", "action_type", "arrival_threshold_m"})
+    {
+        if (ini.count("rl") && ini.at("rl").count(key))
+        {
+            cfg.rl.unsupported_keys.push_back(key);
+        }
+    }
+
+    // Require an explicit selection when RL is enabled.
     cfg.rl.controlled_nodes     = iniGet(ini, "rl", "controlled_nodes", "");
     cfg.rl.controlled_nodes_set =
         ini.count("rl") != 0 && ini.at("rl").count("controlled_nodes") != 0;
     cfg.rl.max_controlled_nodes = std::stoi(iniGet(ini, "rl", "max_controlled_nodes", "0"));
     cfg.rl.action_profile       = iniGet(ini, "rl", "action_profile", "move_2d");
     cfg.rl.decision_interval_s  = std::stod(iniGet(ini, "rl", "decision_interval_s", "0.0"));
+
+    cfg.query = LoadQueryConfig(ini);
 
     // [baseline] — only the selector; scripts/baselines/config.py owns the other keys.
     cfg.baseline.algorithm = iniGet(ini, "baseline", "algorithm", "none");

@@ -38,7 +38,7 @@ def _plan(root: Path, binary: Path, run_config: Path) -> dict:
                            "--output-dir", str(root / "comparison")],
                   "output_dir": str(root / "comparison"),
                   "manifest": "comparison.json", "needs": []})
-    return {"experiment_plan_version": 1, "sim_binary": str(binary),
+    return {"experiment_plan_version": 2, "sim_binary": str(binary),
             "rows": [{"name": row, "run_config": str(run_config)} for row in ROWS],
             "steps": steps}
 

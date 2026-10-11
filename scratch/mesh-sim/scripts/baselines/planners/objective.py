@@ -1,16 +1,19 @@
 """Gateway-free placement objective: grids, components/core, coverage, vulnerability, costs."""
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field, asdict
 
 import numpy as np
 
 from scripts.baselines.planners.channel import LayoutResult, PlannerError
+from scripts.baselines.planners.cache import LayoutCache
+from scripts.baselines.planners.components import ScoreComponent, SCORE_COMPONENTS
+from scripts.baselines.planners.graph import components, core, vulnerability_pairs
 
 OBJECTIVES = ("coverage", "balanced", "resilience")
-SEPARATION_FRAC = 0.4
+SEPARATION_FRAC = SCORE_COMPONENTS["separation"].defaults["separation_frac"]
 BALANCED_VULNERABILITY_FRAC = 0.02
-BIG_AOI_FACTOR = 2.0
+BIG_AOI_FACTOR = SCORE_COMPONENTS["connectivity"].defaults["disconnected_aoi_factor"]
 STAY_PUT_TOL_M = 1e-6
 PROBE_MATCH_TOL_M = 1e-9
 # Absolute m^2 margin so float rounding between equal-valued layouts is never a "gain".
@@ -24,6 +27,18 @@ class MovementCost:
     fixed_cost_m2: float
     cost_m2_per_m: float
     max_displacement_m: float | None = None
+
+    def __post_init__(self):
+        for name, value in asdict(self).items():
+            if value is None and name == "max_displacement_m":
+                continue
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or value < 0
+            ):
+                raise ValueError(f"movement {name} must be finite and >= 0")
 
     def cost(self, displacement_m: float) -> float:
         if displacement_m <= STAY_PUT_TOL_M:
@@ -56,22 +71,107 @@ class LayoutScore:
     disconnected: int
     vuln: int
     total: float
+    components: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict:
-        return {"coverage_m2": self.coverage_m2, "sep_m2": self.sep_m2,
-                "move_cost_m2": self.move_cost_m2, "disconnected": self.disconnected,
-                "vuln": self.vuln, "total": self.total}
+        return {
+            "coverage_m2": self.coverage_m2,
+            "sep_m2": self.sep_m2,
+            "move_cost_m2": self.move_cost_m2,
+            "disconnected": self.disconnected,
+            "vuln": self.vuln,
+            "total": self.total,
+            "components": dict(self.components),
+        }
+
+
+@dataclass(frozen=True)
+class ObjectiveSettings:
+    coverage_weight: float = 1.0
+    separation_frac: float = SEPARATION_FRAC
+    disconnected_aoi_factor: float = BIG_AOI_FACTOR
+    vulnerability_aoi_factor: float | None = None
+    component_parameters: dict = field(default_factory=dict)
+
+    def __post_init__(self):
+        for name, value in asdict(self).items():
+            if name == "component_parameters":
+                if not isinstance(value, dict):
+                    raise ValueError("objective component_parameters must be an object")
+                for component, parameters in value.items():
+                    if component not in SCORE_COMPONENTS:
+                        raise ValueError(f"unknown score component {component!r}")
+                    SCORE_COMPONENTS[component].resolve(parameters)
+                continue
+            if value is None and name == "vulnerability_aoi_factor":
+                continue
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or value < 0
+            ):
+                raise ValueError(f"objective {name} must be finite and >= 0")
+
+    def resolved(self, name):
+        preset = objective_preset(name)
+        unused = set(self.component_parameters) - set(preset.components)
+        if unused:
+            raise ValueError(f"objective {name} does not use components {sorted(unused)}")
+        resolved = {
+            **asdict(self),
+            "objective": name,
+            "vulnerability_aoi_factor": (
+                preset.vulnerability_aoi_factor
+                if self.vulnerability_aoi_factor is None
+                else self.vulnerability_aoi_factor
+            ),
+        }
+        parameters = {}
+        for component in preset.components:
+            owner = SCORE_COMPONENTS[component]
+            initial = (
+                {owner.parameter: resolved[owner.parameter]}
+                if owner.parameter in resolved
+                else None
+            )
+            parameters[component] = owner.resolve(
+                self.component_parameters.get(component, {}), initial
+            )
+            if owner.parameter in resolved:
+                resolved[owner.parameter] = parameters[component][owner.parameter]
+        resolved["component_parameters"] = parameters
+        return resolved
+
+
+@dataclass(frozen=True)
+class ObjectivePreset:
+    vulnerability_aoi_factor: float
+    anchor_needs: object
+    components: tuple = ("coverage", "separation", "movement", "connectivity", "vulnerability")
+
+
+OBJECTIVE_PRESETS = {
+    "coverage": ObjectivePreset(0.0, lambda n, f: [1] * n),
+    "balanced": ObjectivePreset(
+        BALANCED_VULNERABILITY_FRAC,
+        lambda n, f: [2] * math.ceil(n * f) + [1] * (n - math.ceil(n * f)),
+    ),
+    "resilience": ObjectivePreset(1.0, lambda n, f: [2] * n),
+}
+
+
+def objective_preset(name):
+    try:
+        return OBJECTIVE_PRESETS[name]
+    except KeyError as exc:
+        raise ValueError(
+            f"unknown objective {name!r}; expected {tuple(OBJECTIVE_PRESETS)}"
+        ) from exc
 
 
 def vulnerability_weight(objective: str, aoi_m2: float) -> float:
-    """m^2 charged per vulnerability pair."""
-    if objective == "resilience":
-        return float(aoi_m2)
-    if objective == "balanced":
-        return BALANCED_VULNERABILITY_FRAC * float(aoi_m2)
-    if objective == "coverage":
-        return 0.0
-    raise ValueError(f"objective must be one of {OBJECTIVES}, got {objective!r}")
+    return objective_preset(objective).vulnerability_aoi_factor * float(aoi_m2)
 
 
 def BIG(aoi_m2: float) -> float:  # noqa: N802
@@ -87,7 +187,7 @@ def inside(x: float, y: float, rect: dict) -> bool:
     return rect["x_min"] <= x <= rect["x_max"] and rect["y_min"] <= y <= rect["y_max"]
 
 
-def rectangle_grid(rect: dict, cells: int, min_resolution_m: float):
+def rectangle_grid(rect: dict, cells: int, min_resolution_m: float, max_points=100000):
     """Clipped-cell centres, cell size and per-cell clipped area; areas sum to the AOI."""
     if isinstance(cells, bool) or not isinstance(cells, int) or cells < 1:
         raise ValueError(f"grid cells must be an integer >= 1, got {cells!r}")
@@ -98,6 +198,12 @@ def rectangle_grid(rect: dict, cells: int, min_resolution_m: float):
     if not (math.isfinite(width) and math.isfinite(height) and width > 0 and height > 0):
         raise ValueError(f"degenerate rectangle {rect}")
     cell = max(float(min_resolution_m), math.sqrt(width * height / cells))
+
+    point_count = max(1, math.ceil(width / cell - 1e-9)) * max(1, math.ceil(height / cell - 1e-9))
+    if point_count > max_points:
+        raise PlannerError(
+            f"grid requires {point_count} points, exceeding {max_points}; use a coarser resolution"
+        )
 
     def edges(lo: float, span: float) -> np.ndarray:
         count = max(1, math.ceil(span / cell - 1e-9))
@@ -111,59 +217,6 @@ def rectangle_grid(rect: dict, cells: int, min_resolution_m: float):
     ww, hh = np.meshgrid(np.diff(xe), np.diff(ye))
     points = np.column_stack([xx.ravel(), yy.ravel()])
     return points, cell, (ww * hh).ravel()
-
-
-def components(connected: np.ndarray) -> list[frozenset[int]]:
-    """Connected components ordered by their smallest index; the diagonal is ignored."""
-    adjacency = np.asarray(connected, dtype=bool)
-    n = len(adjacency)
-    label = np.full(n, -1)
-    result = []
-    for root in range(n):
-        if label[root] >= 0:
-            continue
-        label[root] = len(result)
-        stack, members = [root], [root]
-        while stack:
-            node = stack.pop()
-            for other in np.nonzero(adjacency[node])[0]:
-                if label[other] < 0:
-                    label[other] = len(result)
-                    stack.append(int(other))
-                    members.append(int(other))
-        result.append(frozenset(members))
-    return result
-
-
-def core(parts: list[frozenset[int]]) -> frozenset[int]:
-    """Largest component; ties go to the one holding the smallest roster index."""
-    if not parts:
-        raise ValueError("no components: the roster is empty")
-    return min(parts, key=lambda part: (-len(part), min(part)))
-
-
-def vulnerability_pairs(connected: np.ndarray, core_members, victims) -> int:
-    """Sum over victims of core pairs (victim excluded) split once the victim is removed."""
-    adjacency = np.asarray(connected, dtype=bool)
-    members = frozenset(core_members)
-    total = 0
-    for victim in victims:
-        survivors = sorted(members - {victim})
-        if len(survivors) < 2:
-            continue
-        reduced = adjacency.copy()
-        reduced[victim, :] = False
-        reduced[:, victim] = False
-        label = {}
-        for index, part in enumerate(components(reduced)):
-            for node in part:
-                label[node] = index
-        sizes: dict[int, int] = {}
-        for node in survivors:
-            sizes[label[node]] = sizes.get(label[node], 0) + 1
-        m = len(survivors)
-        total += m * (m - 1) // 2 - sum(k * (k - 1) // 2 for k in sizes.values())
-    return total
 
 
 @dataclass(frozen=True)
@@ -192,26 +245,31 @@ class ScoringContext:
     waypoint_policy: str
     balanced_core_fraction: float
     penalties: dict
+    settings: dict = field(default_factory=dict)
 
     @classmethod
     def build(cls, request, scorer) -> "ScoringContext":
-        if request.objective not in OBJECTIVES:
-            raise ValueError(f"objective must be one of {OBJECTIVES}, got "
-                             f"{request.objective!r}")
+        objective_preset(request.objective)
+        settings = getattr(request, "objective_settings", ObjectiveSettings()).resolved(
+            request.objective
+        )
         nodes = tuple(request.nodes)
         if [node.roster_index for node in nodes] != list(range(len(nodes))):
             raise ValueError("request nodes must be in roster order")
         selected = tuple(k for k, node in enumerate(nodes) if node.role == "movable")
         if not selected:
-            raise PlannerError("no movable node is selected; [baseline] movable_nodes must "
-                               "name at least one node")
+            raise PlannerError(
+                "no movable node is selected; [baseline] movable_nodes must "
+                "name at least one node"
+            )
         if request.waypoint_policy == "reject":
             for k in selected:
                 if nodes[k].mobility == "waypoint":
                     raise PlannerError(
                         f"node '{nodes[k].id}' uses waypoint mobility and is selected; set "
                         "[baseline] waypoint_policy = translate or leave it out of "
-                        "movable_nodes")
+                        "movable_nodes"
+                    )
         missing = sorted({node.platform for node in nodes} - set(request.penalties))
         if missing:
             raise ValueError(f"no movement penalties for platform(s) {missing}")
@@ -219,36 +277,49 @@ class ScoringContext:
         if probes is None:
             raise ValueError("the scorer has no probes; call prepare_scorer first")
         rect = dict(request.rectangle)
-        points, cell_m, weights = rectangle_grid(rect, request.grid.coverage_cells,
-                                                 request.grid.min_resolution_m)
+        points, cell_m, weights = rectangle_grid(
+            rect, request.grid.coverage_cells, request.grid.min_resolution_m
+        )
         sent = np.asarray(probes["points"], dtype=float)
-        if sent.shape != points.shape or not np.allclose(sent, points, rtol=0,
-                                                         atol=PROBE_MATCH_TOL_M):
+        if sent.shape != points.shape or not np.allclose(
+            sent, points, rtol=0, atol=PROBE_MATCH_TOL_M
+        ):
             raise ValueError("the scorer's probes are not this request's coverage grid")
-        candidates, candidate_cell_m, _ = rectangle_grid(rect, request.grid.candidate_cells,
-                                                         request.grid.min_resolution_m)
+        candidates, candidate_cell_m, _ = rectangle_grid(
+            rect, request.grid.candidate_cells, request.grid.min_resolution_m
+        )
         aoi = rectangle_area(rect)
         return cls(
             objective=request.objective,
             ids=tuple(str(node.id) for node in nodes),
             platforms=tuple(node.platform for node in nodes),
             rectangle=rect,
-            rl_bounds=dict(request.rl_bounds) if request.mode == "evaluation"
-            and request.rl_bounds is not None else None,
+            rl_bounds=(
+                dict(request.rl_bounds)
+                if request.mode == "evaluation" and request.rl_bounds is not None
+                else None
+            ),
             aoi_m2=aoi,
             diag_m=math.hypot(rect["x_max"] - rect["x_min"], rect["y_max"] - rect["y_min"]),
-            coverage_points=points, coverage_weights=weights, cell_m=cell_m,
-            candidate_points=candidates, candidate_cell_m=candidate_cell_m,
-            big=BIG(aoi), w_vuln=vulnerability_weight(request.objective, aoi),
+            coverage_points=points,
+            coverage_weights=weights,
+            cell_m=cell_m,
+            candidate_points=candidates,
+            candidate_cell_m=candidate_cell_m,
+            big=settings["disconnected_aoi_factor"] * aoi,
+            w_vuln=settings["vulnerability_aoi_factor"] * aoi,
             selected=selected,
             starts=np.array([[node.x, node.y, node.z] for node in nodes], dtype=float),
             costs=tuple(request.penalties[node.platform] for node in nodes),
-            walk_bounds=tuple(dict(node.random_walk_bounds) if node.random_walk_bounds
-                              else None for node in nodes),
+            walk_bounds=tuple(
+                dict(node.random_walk_bounds) if node.random_walk_bounds else None for node in nodes
+            ),
             mobility=tuple(node.mobility for node in nodes),
             waypoint_policy=request.waypoint_policy,
             balanced_core_fraction=float(request.balanced_core_fraction),
-            penalties=dict(request.penalties))
+            penalties=dict(request.penalties),
+            settings=settings,
+        )
 
     def allowed(self, node: int, x: float, y: float) -> bool:
         """Rectangle, evaluation [rl] bounds and the node's random-walk bounds."""
@@ -265,10 +336,18 @@ class ScoringContext:
 
 def prepare_scorer(request, scorer) -> None:
     """Send the coverage grid to the scorer once, before any evaluation."""
-    points, _, _ = rectangle_grid(request.rectangle, request.grid.coverage_cells,
-                                  request.grid.min_resolution_m)
-    scorer.set_probes(points, height_m=request.probe.height_m,
-                      rx_gain_dbi=request.probe.rx_gain_dbi, sinr_db=request.probe.sinr_db)
+    points, _, _ = rectangle_grid(
+        request.rectangle,
+        request.grid.coverage_cells,
+        request.grid.min_resolution_m,
+        max_points=getattr(scorer, "limits", {}).get("max_probes", 10000),
+    )
+    scorer.set_probes(
+        points,
+        height_m=request.probe.height_m,
+        rx_gain_dbi=request.probe.rx_gain_dbi,
+        sinr_db=request.probe.sinr_db,
+    )
 
 
 def covered_mask(ctx: ScoringContext, result: LayoutResult, core_members) -> np.ndarray:
@@ -300,11 +379,15 @@ def _separation(ctx: ScoringContext, layout: np.ndarray) -> float:
         distance = np.hypot(*(xy - xy[node]).T)
         distance[node] = np.inf
         ratios.append(min(float(distance.min()) / ctx.diag_m, 1.0))
-    return SEPARATION_FRAC * ctx.cell_m ** 2 * float(np.mean(ratios))
+    return (
+        ctx.settings.get("separation_frac", SEPARATION_FRAC)
+        * ctx.cell_m**2
+        * float(np.mean(ratios))
+    )
 
 
 def score(ctx: ScoringContext, result: LayoutResult, layout: np.ndarray) -> LayoutScore:
-    """coverage + separation - movement - BIG x disconnected - w x vulnerability pairs."""
+    """Compose registered objective terms over the full layout."""
     layout = np.asarray(layout, dtype=float)
     members = core(components(result.connected))
     coverage_m2 = float(ctx.coverage_weights[covered_mask(ctx, result, members)].sum())
@@ -312,27 +395,62 @@ def score(ctx: ScoringContext, result: LayoutResult, layout: np.ndarray) -> Layo
     move_m2 = sum(ctx.costs[k].cost(ctx.displacement(k, layout[k])) for k in ctx.selected)
     disconnected = sum(1 for k in ctx.selected if k not in members)
     vuln = vulnerability_pairs(result.connected, members, sorted(members & set(ctx.selected)))
-    total = coverage_m2 + sep_m2 - move_m2 - ctx.big * disconnected - ctx.w_vuln * vuln
-    return LayoutScore(coverage_m2=coverage_m2, sep_m2=sep_m2, move_cost_m2=float(move_m2),
-                       disconnected=disconnected, vuln=vuln, total=float(total))
+    facts = dict(
+        coverage=coverage_m2,
+        separation=sep_m2,
+        movement=move_m2,
+        disconnected=disconnected,
+        vulnerability=vuln,
+    )
+    facts.update(result=result, layout=layout, core=members)
+    contributions = {
+        name: float(
+            SCORE_COMPONENTS[name].value(ctx, facts, ctx.settings["component_parameters"][name])
+        )
+        for name in objective_preset(ctx.objective).components
+    }
+    if not all(math.isfinite(value) for value in contributions.values()):
+        raise PlannerError("objective component returned a non-finite score")
+    total = sum(contributions.values())
+    if not math.isfinite(total):
+        raise PlannerError("objective total is non-finite")
+    return LayoutScore(
+        coverage_m2=coverage_m2,
+        sep_m2=sep_m2,
+        move_cost_m2=float(move_m2),
+        disconnected=disconnected,
+        vuln=vuln,
+        total=float(total),
+        components=contributions,
+    )
 
 
 def scale_ratios(ctx: ScoringContext) -> dict:
-    return {platform: cost.fixed_cost_m2 / ctx.aoi_m2
-            for platform, cost in sorted(ctx.penalties.items())}
+    return {
+        platform: cost.fixed_cost_m2 / ctx.aoi_m2
+        for platform, cost in sorted(ctx.penalties.items())
+    }
 
 
-def diagnose(ctx: ScoringContext, result: LayoutResult, layout: np.ndarray,
-             layout_score: LayoutScore, log=None) -> dict:
+def diagnose(
+    ctx: ScoringContext,
+    result: LayoutResult,
+    layout: np.ndarray,
+    layout_score: LayoutScore,
+    log=None,
+) -> dict:
     """JSON-serializable graph, coverage, resilience, movement and scale facts."""
     layout = np.asarray(layout, dtype=float)
     parts = components(result.connected)
     members = core(parts)
     controlled = sorted(members & set(ctx.selected))
     ratios = scale_ratios(ctx)
-    warnings = [f"{platform} fixed_cost_m2 is {ratio:.3g} x the AOI ({ctx.aoi_m2:.6g} m2); "
-                "any move must buy at least that much coverage"
-                for platform, ratio in ratios.items() if ratio >= 1.0]
+    warnings = [
+        f"{platform} fixed_cost_m2 is {ratio:.3g} x the AOI ({ctx.aoi_m2:.6g} m2); "
+        "coverage gains alone may not cover relocation; connectivity, resilience and separation also contribute"
+        for platform, ratio in ratios.items()
+        if ratio >= 1.0
+    ]
     if log is not None:
         for warning in warnings:
             log.write(f"planner scale warning: {warning}\n")
@@ -341,11 +459,16 @@ def diagnose(ctx: ScoringContext, result: LayoutResult, layout: np.ndarray,
     for k, node_id in enumerate(ctx.ids):
         displacement = ctx.displacement(k, layout[k])
         selected = k in ctx.selected
-        nodes[node_id] = {"selected": selected, "platform": ctx.platforms[k],
-                          "in_core": k in members, "displacement_m": displacement,
-                          "move_cost_m2": ctx.costs[k].cost(displacement) if selected
-                          else 0.0}
+        nodes[node_id] = {
+            "selected": selected,
+            "platform": ctx.platforms[k],
+            "in_core": k in members,
+            "displacement_m": displacement,
+            "move_cost_m2": ctx.costs[k].cost(displacement) if selected else 0.0,
+        }
     return {
+        "objective_settings": dict(ctx.settings),
+        "channel_diagnostics": list(result.diagnostics),
         "aoi_m2": ctx.aoi_m2,
         "coverage_m2": layout_score.coverage_m2,
         "coverage_fraction": layout_score.coverage_m2 / ctx.aoi_m2,
@@ -353,14 +476,18 @@ def diagnose(ctx: ScoringContext, result: LayoutResult, layout: np.ndarray,
         "core": [ctx.ids[k] for k in sorted(members)],
         "disconnected_selected": [ctx.ids[k] for k in ctx.selected if k not in members],
         "vulnerability_pairs": vulnerability_pairs(result.connected, members, controlled),
-        "survives_single_node_loss":
-            vulnerability_pairs(result.connected, members, sorted(members)) == 0,
-        "controlled_mesh_survives_single_loss":
-            vulnerability_pairs(result.connected, members, controlled) == 0,
+        "survives_single_node_loss": vulnerability_pairs(result.connected, members, sorted(members))
+        == 0,
+        "controlled_mesh_survives_single_loss": vulnerability_pairs(
+            result.connected, members, controlled
+        )
+        == 0,
         "nodes": nodes,
-        "score": {**layout_score.as_dict(),
-                  "connectivity_penalty_m2": ctx.big * layout_score.disconnected,
-                  "vulnerability_penalty_m2": ctx.w_vuln * layout_score.vuln},
+        "score": {
+            **layout_score.as_dict(),
+            "connectivity_penalty_m2": ctx.big * layout_score.disconnected,
+            "vulnerability_penalty_m2": ctx.w_vuln * layout_score.vuln,
+        },
         "fixed_cost_over_aoi": ratios,
         "scale_warnings": warnings,
     }
@@ -382,20 +509,3 @@ def candidate_positions(ctx: ScoringContext, node_index: int, current=None) -> n
         keep.append((x, y))
     rows = [(float(here[0]), float(here[1]))] + keep
     return np.array([[x, y, start[2]] for x, y in rows], dtype=float)
-
-
-class LayoutCache:
-    """Full-layout query results keyed by layout bytes; misses go out in one batch."""
-
-    def __init__(self, scorer):
-        self._scorer = scorer
-        self._results: dict[bytes, LayoutResult] = {}
-
-    def evaluate(self, layouts) -> list[LayoutResult]:
-        arrays = [np.ascontiguousarray(layout, dtype=float) for layout in layouts]
-        keys = [array.tobytes() for array in arrays]
-        missing = {key: array for key, array in zip(keys, arrays) if key not in self._results}
-        if missing:
-            fresh = self._scorer.evaluate(list(missing.values()))
-            self._results.update(zip(missing, fresh))
-        return [self._results[key] for key in keys]

@@ -116,7 +116,8 @@ def test_handshake_evaluate_and_graceful_close(env, mode, band):
     with _scorer(env, mode=mode, band=band) as scorer:
         assert scorer.init["contract"] == "mesh_channel_query_v1"
         assert scorer.band == (band or "mmwave")
-        assert scorer.limits["max_layouts"] == scorer.max_layouts == 1024
+        assert scorer.limits["max_layouts"] == 1024
+        assert scorer.max_layouts == 3  # bounded by maximum response size
         assert scorer.channel["rx_array_gain_dbi"] == CHANNEL_RX_GAIN
         layouts = [STARTS, _moved(120.0)]
         results = scorer.evaluate(layouts)
@@ -203,7 +204,7 @@ def test_batches_respect_max_layouts_and_stats_accumulate(env, monkeypatch):
     assert stats["wall_s"] > after_first["wall_s"] > 0
     with _scorer(env) as scorer:
         scorer.evaluate(layouts)
-    assert [r["layouts"] for r in _records(env)][4:] == [4, 3]
+    assert [r["layouts"] for r in _records(env)][4:] == [3, 3, 1]
 
 
 def test_batches_respect_the_request_byte_limit(env, monkeypatch):
@@ -217,7 +218,7 @@ def test_batches_respect_the_request_byte_limit(env, monkeypatch):
         results = scorer.evaluate(layouts)
     records = _records(env)
     assert len(results) == 5
-    assert [r["layouts"] for r in records] == [2, 2, 1]
+    assert [r["layouts"] for r in records] == [2, 1, 2]
     assert all(r["bytes"] <= limit and r["problem"] is None for r in records)
 
 
@@ -398,3 +399,10 @@ def test_channel_module_imports_no_rl_or_planner_dependencies():
                      if m.split('.')[0] in banned or m.startswith('scripts.rl')))
     """)], cwd=MESH_ROOT, text=True, capture_output=True, check=True)
     assert result.stdout.strip() == "[]"
+
+
+@pytest.mark.parametrize("seed", [0, -1, 2147483648, True])
+def test_invalid_planning_seed_fails_before_worker_launch(env, seed):
+    with pytest.raises(ValueError, match="planning_seed"):
+        _scorer(env, seed=seed)
+    assert not env["pids"].exists()

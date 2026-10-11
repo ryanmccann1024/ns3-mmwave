@@ -15,11 +15,13 @@ not repeat them.
 | File | Role |
 | --- | --- |
 | [`mesh_env.py`](mesh_env.py) | `MeshRlEnv`, the Gymnasium environment; owns reset/step flow, spaces, and action masks. |
-| [`episode.py`](episode.py) | `EpisodeSession`: simulator subprocess, stderr tail, cleanup, and `rl_episode.json`. |
-| [`protocol.py`](protocol.py) | `CentralizedProtocol` and `LegacyProtocol`: message validation and joint-action checks; raises `ProtocolError`. |
-| [`observations.py`](observations.py) | Observation presets (`raw_links_v1`, `local_links_v1`), observation schema, and schema hashing/compatibility check. |
+| [`episode.py`](episode.py) | `EpisodeSession`: simulator subprocess, stderr tail, and process cleanup. |
+| [`protocol.py`](protocol.py) | `CentralizedProtocol`: message validation and joint-action checks; raises `ProtocolError`. |
+| [`episode_artifacts.py`](episode_artifacts.py) | Episode allocation, manifests, telemetry, and optional decision sidecars. |
+| [`normalization.py`](normalization.py) | Shared physical scales and normalization calculations. |
+| [`observations.py`](observations.py) | Observation preset descriptors, layouts, and resolved scales, observation schema, and schema hashing/compatibility check. |
 | [`rewards.py`](rewards.py) | Reward components (`delivery_ratio`, `connectivity`, `throughput_mbps`, `legacy`), `RewardComposer`, and reward schema. |
-| [`selection.py`](selection.py) | `RlSelection`: preset, reward, and telemetry choices resolved as CLI > `run.ini [rl]` > default. |
+| [`selection.py`](selection.py) | `RlSelection`: preset, reward, and telemetry choices and component/preset parameters resolved as CLI > `run.ini [rl]` > default. |
 | [`telemetry.py`](telemetry.py) | Optional `steps.jsonl` writer and offline replay. |
 | [`decisions.py`](decisions.py) | Opt-in per-decision record writer (`policy_decisions.jsonl` + manifest); see [`src/rl/decision-records.md`](../../../src/rl/decision-records.md). |
 | [`config.py`](config.py) | `run.ini` readers: seed, movement bounds, action profile, control mode, scenario file hashes. |

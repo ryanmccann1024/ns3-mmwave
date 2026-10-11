@@ -3,6 +3,7 @@ CXXFLAGS ?= -std=c++17 -Wall -Wpedantic
 ROOT     := ../../..
 
 SRCS := config-validator-test.cc \
+        $(ROOT)/src/config/query-config.cc \
         $(ROOT)/src/config/config-validator.cc \
         $(ROOT)/src/config/config-loader.cc \
         $(ROOT)/src/config/rl-control.cc \

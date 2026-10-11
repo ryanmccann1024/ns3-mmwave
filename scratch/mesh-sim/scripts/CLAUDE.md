@@ -14,6 +14,7 @@ read it before editing there.
 | `sweep/` | one sim run per point of a `run.ini` grid |
 | `rl/` | Gymnasium env, training, evaluation, experiments, cluster ops |
 | `plotting/` | post-sim figures from finished `seed-N/` folders |
+| `baselines/` | placement configuration, mapping, effective inputs, and baseline artifacts |
 
 Data flow: `arpo_data` -> `validation` (build scenarios, run, compare);
 `sweep`, `validation`, and `rl` launch the simulator; `plotting` reads its
@@ -30,7 +31,7 @@ python3 scripts/rl/bootstrap_venv.py              # creates .venv
 .venv/bin/python -m pytest scripts/rl/tests scripts/validation/tests -q   # what CI runs
 ```
 
-Only `rl/` and `validation/` have test suites; `sweep` launcher behavior is
+`rl/`, `validation/`, and `baselines/` have test suites; `sweep` launcher behavior is
 covered in `validation/tests`, and `plotting` by one test in
 `rl/tests/test_policy_comparison.py`.
 
@@ -44,6 +45,9 @@ Reuse these instead of re-implementing them in a subpackage:
   `DYLD_LIBRARY_PATH`), `parse_seed_spec` (`1,3,5-7`), `strip_inline_comment`
   (INI values, matching the C++ loader), `tail_lines`, `stop_process`
   (terminate, kill, reap; optionally the child's whole process group).
+- `artifact_io.py` -- atomic JSON writes/reads, file and canonical JSON hashes,
+  and UTC timestamps. Standard library only; schema/status/default ownership
+  stays in the relevant package.
 - `stats.py` -- `sample_stats` and `t_critical_95` for 95% CIs. The t table
   rounds df down so intervals are never too narrow. Used by `plotting` and
   `rl/policy/compare.py`, so changing it changes both.
