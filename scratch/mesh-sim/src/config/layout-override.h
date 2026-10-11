@@ -1,7 +1,7 @@
 /* -*- Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
 /**
  * @file layout-override.h
- * @brief Applies a candidate start layout to a resolved @ref SimConfig (no ns-3).
+ * @brief Applies a candidate start layout to a resolved @ref mesh_sim::SimConfig (no ns-3).
  */
 #pragma once
 

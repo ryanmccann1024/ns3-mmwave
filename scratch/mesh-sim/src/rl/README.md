@@ -2,23 +2,58 @@
 
 @brief Wire contract for the stdin/stdout JSON bridge between the C++ simulator and the Python Gymnasium environment.
 
+## Module Layout
 
-## RL bridge contract
+| File | Role |
+|------|------|
+| `rl-bridge.h` / `rl-bridge.cc` | `RlBridge`: writes `init` and `step` messages, reads actions, builds masks, clamps velocity each tick. |
+| `rl-agent.h` | Unused no-op placeholder; nothing includes it. |
+| `README.md` | This page: the message, mode, and action contract. |
+| @ref src_rl_policy_inputs "policy-inputs.md" | Observation presets, reward components, telemetry. |
+| @ref src_rl_decision_records "decision-records.md" | Opt-in per-episode decision records. |
+| @ref src_rl_policy_input_tests "policy-input-tests.md" | Test map for centralized RL and policy inputs. |
+| @ref src_rl_policy_lifecycle_tests "policy-lifecycle-tests.md" | Test map for the validate, train, inspect, evaluate lifecycle. |
+| @ref src_rl_policy_comparison_tests "policy-comparison-tests.md" | Test map for policy comparison and experiment matrices. |
+
+## Overview
 
 At each decision, the simulator sends Python what the policy can see (`obs`),
 which moves are allowed (`mask`), its reward, and raw measurements (`facts`).
 The Gymnasium environment validates that message, selects the configured
 observation and reward, and passes them to MaskablePPO. The chosen joint action
 returns through the bridge; the simulator applies it until the next decision.
-A decision window is the simulator ticks between those chances to change
-direction. Each tick still updates movement, links, traffic, and reward.
 
-C++ owns movement limits, action validity, and base reward accumulation. Python
-converts and validates messages; it never re-derives masks or clamps.
-For a code walkthrough, start with the tick loop in `sim.cc`, then
-`src/config/rl-control.cc` for the selected nodes and timing, then
-`src/rl/rl-bridge.cc` for the messages, actions, and tick reward. Follow one
-`step` into `scripts/rl/env/mesh_env.py` to see what Gymnasium returns.
+- A decision window is the simulator ticks between two chances to change
+  direction. Each tick still updates movement, links, traffic, and reward.
+- C++ owns movement limits, action validity, and base reward accumulation.
+  Python converts and validates messages; it never re-derives masks or clamps.
+
+## Code Walkthrough
+
+1. The tick loop in `sim.cc`.
+2. `src/config/rl-control.cc`: selected nodes and timing.
+3. `src/rl/rl-bridge.cc`: messages, actions, and tick reward.
+4. `scripts/rl/env/mesh_env.py`: what Gymnasium returns for one `step`.
+
+## Python Side
+
+Documented in [`scripts/rl/README.md`](@ref scripts_rl),
+[`scripts/rl/env/README.md`](@ref scripts_rl_env),
+[`scripts/rl/policy/README.md`](@ref scripts_rl_policy), and
+[`scripts/rl/tests/README.md`](@ref scripts_rl_tests).
+
+| Python file | Owns |
+|-------------|------|
+| `env/mesh_env.py` | The Gymnasium API. |
+| `env/protocol.py` | Action and message validation. |
+| `env/episode.py` | Simulator process, episode directories, diagnostics, manifest. |
+| `env/selection.py` | Observation, reward, and telemetry selection, precedence, validation. |
+| `env/observations.py` | Named observation presets and schema identity. |
+| `env/rewards.py` | Reward components and the composer. |
+| `env/telemetry.py` | `steps.jsonl` records and their replay. |
+| `env/decisions.py` | The opt-in [decision records](@ref src_rl_decision_records). |
+| `env/config.py` | Seed and movement bounds. |
+| `train.py`, `agents/mask_ppo.py` | Training CLI and model output, then MaskablePPO setup. |
 
 On the Python side, `scripts/rl/env/mesh_env.py` owns the Gymnasium API,
 `protocol.py` validates actions and messages, and `episode.py` owns simulator process cleanup and diagnostics;
@@ -32,7 +67,7 @@ output) into [`agents/mask_ppo.py`](@ref agents/mask_ppo.py)
 (MaskablePPO setup), then into the environment. Within `env/`, `config.py`
 reads the seed and movement bounds.
 For a worked configuration, formulas, normalization, and trace inspection, see
-the [policy-input guide](policy-inputs.md).
+the [policy-input guide](@ref src_rl_policy_inputs).
 
 [`config.py`](../../scripts/rl/env/config.py) reads the seed and scenario fingerprints.
 On the C++ side, [`sim.cc`](../../sim.cc) advances the ticks and

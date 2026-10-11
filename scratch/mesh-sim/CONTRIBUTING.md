@@ -1,10 +1,10 @@
-# Changing mesh-sim safely
+@page Contributing Contributing
 
-Start with the [main README](README.md) for setup and the
-[RL bridge contract](src/rl/README.md) for centralized control. Keep generated
+Start with the [main README](@ref index) for setup and the
+[RL bridge contract](@ref src_rl) for centralized control. Keep generated
 outputs, trained models, large regression snapshots, and local virtual
 environments out of Git. Add a focused test only when it checks behavior the
-existing tests do not cover; the [RL test map](scripts/rl/tests/README.md)
+existing tests do not cover; the [RL test map](@ref scripts_rl_tests)
 shows the current coverage and inputs/outputs.
 
 Before changing a user-visible behavior, check the affected layers:
@@ -40,7 +40,7 @@ definition.
 
 For a protocol or simulator change, run the small Python contract suite,
 the C++ configuration tests, and the real-binary integration checks listed
-in the [test map](scripts/rl/tests/README.md) against a fresh build. Record
+in the [test map](@ref scripts_rl_tests) against a fresh build. Record
 any known platform limitation; matching results on one platform do not prove
 cross-platform bit-for-bit equality.
 

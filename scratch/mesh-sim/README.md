@@ -1,18 +1,38 @@
 @mainpage Overview
 
-Lightweight time-stepped mmWave / sub-6 mesh simulator built on ns3-mmwave.
+@brief Lightweight time-stepped mmWave / sub-6 mesh simulator built on ns3-mmwave.
 
 The sim loads a scenario (@c run.ini + @c nodes.json), steps through time evaluating per-link SINR / capacity / MCS
 against an ns-3 propagation model, routes traffic, and writes metrics. It also
-supports an optional reinforcement-learning bridge and an optional jammer /
+supports an optional reinforcement-learning (RL) bridge and an optional jammer /
 interference model.
 
 For changes to configuration, the RL protocol, or saved results, see the
-[contributor checklist](CONTRIBUTING.md).
+[contributor checklist](@ref Contributing).
 
-@section build Build
+## Module Layout
 
-All commands run from the **ns3-mmwave repo root** (two levels above this directory).
+| File | Role |
+|------|------|
+| `sim.cc` | Simulator entry point: parses the CLI, loads the scenario, runs the per-tick loop. |
+| `CMakeLists.txt` | Source list for the ns-3 build. |
+| [src](@ref src) | C++ modules (config, eval, routing, jammer, traffic, io, rl, ...). |
+| [scripts](@ref scripts) | Python tools: field-data pipeline, validation, sweeps, RL, baselines, plotting. |
+| [inputs](@ref Inputs) | Scenario definitions (`run.ini` + JSON files), sweeps, experiment matrices. |
+| [tests](@ref tests) | C++ unit tests, CLI integration script, regression fixtures. |
+| `docs/` | `Doxyfile` and `topics.dox` for this documentation site. |
+| [CONTRIBUTING.md](@ref Contributing) | "Update together" checklist for user-visible changes. |
+| `requirements.txt` | Pinned Python dependencies. |
+| `requirements-tuning.txt` | Optuna pin, used only by the tuning smoke. |
+| `TODO.md` | Open work items. |
+| `data/`, `outputs/`, `third_party/` | Field data, generated results (git-ignored), vendored code. |
+
+## Setup {#readme_setup}
+
+### Build {#readme_build}
+
+You build the simulator yourself; none of the tools here build it. All commands
+run from the **ns3-mmwave repo root** (two levels above this directory).
 
 ```bash
 ./ns3 clean
@@ -20,13 +40,13 @@ All commands run from the **ns3-mmwave repo root** (two levels above this direct
 ./ns3 build
 ```
 
-If @c "./ns3 clean" doesn't clear the cache fully, remove it manually first:
+If `./ns3 clean` does not clear the cache fully, remove it manually first:
 
 ```bash
 rm -rf cmake-cache build
 ```
 
-## Python environment
+### Python environment {#readme_python_environment}
 
 The simulator itself needs no Python. The RL, sweep, validation, and plotting
 scripts do. One command from `scratch/mesh-sim/` creates `.venv` and installs
@@ -37,60 +57,50 @@ python3 scripts/rl/bootstrap_venv.py
 .venv/bin/python -m pytest scripts/rl/tests -q
 ```
 
-On Windows the interpreter is `.venv\Scripts\python.exe`. `requirements.txt`
-pins the direct dependencies at the versions tested on the implementer's
-platform; it is not a universal lock file.
+- On Windows the interpreter is `.venv\Scripts\python.exe`.
+- `requirements.txt` pins the direct dependencies at the versions tested on the
+  implementer's platform; it is not a universal lock file.
+- `python3 scripts/rl/bootstrap_venv.py --check` verifies imports and exact
+  installed versions without installing anything.
+- Tuning needs Optuna from a separate file; see [scripts/rl](@ref scripts_rl).
 
-Use `python3 scripts/rl/bootstrap_venv.py --check` to verify imports and exact
-installed versions without installing anything. CMake and a C++ compiler are
-separate ns-3 build prerequisites; this helper does not install them.
+## Run {#readme_run}
 
-`requirements-tuning.txt` pins Optuna separately and is installed by hand
-(`.venv/bin/python -m pip install -r requirements-tuning.txt`) only when you run
-the tuning smoke. It is kept out of `requirements.txt` because that file defines
-the direct dependency set recorded in every training and evaluation manifest and
-checked by `bootstrap_venv.py --check`: adding a tuner there would change every
-manifest and force a tuning-only package on machines that only train, evaluate,
-or compare.
+Simulator commands run from the **ns3-mmwave repo root**. Python commands run
+from **scratch/mesh-sim**.
 
-@section run Run
-
-Simulator commands below run from the **ns3-mmwave repo root**. Python
-pipeline, validation, jammer-generation, and sweep commands run from
-**scratch/mesh-sim**.
-
-@subsection run_single Single scenario
+### Single scenario {#readme_run_single}
 
 ```bash
 ./ns3 run scratch/mesh-sim/sim -- \
-  --run-config=scratch/mesh-sim/inputs/calfex/06-25/1227-1413/run.ini \
+  --run-config=scratch/mesh-sim/inputs/calfex/1602-1605/run.ini \
   --band=sub-6 \
   --seeds=1,2,5,6,8,10 \
-  --output-dir=scratch/mesh-sim/outputs/calfex/06-25/1227-1413
+  --output-dir=scratch/mesh-sim/outputs/calfex/1602-1605
 ```
 
-Key flags:
+Key flags (the full list is in the [CLI guide](@ref src_cli)):
 
 | Flag | Meaning |
 |------|---------|
 | @c --run-config | Path to the scenario's @c run.ini (the file, not the dir). |
-| @c --band | @c sub-6 or @c mmwave. Interference/jammers only apply on @c sub-6. |
-| @c --seeds | Comma-separated seeds; each gets its own @c seed-<N>/ output subdir. |
+| @c --band | @c sub-6 or @c mmwave. Interference/jammers only apply on @c sub-6. Optional. |
+| @c --seeds | Comma-separated seeds; each gets its own `seed-<N>/` output subdir. |
 | @c --output-dir | Where results are written. |
 | @c --rl-mode | Enable the RL bridge. |
+| @c --seed / @c --run-id | Override the single seed or the run id from @c run.ini (@c --seeds takes precedence for multi-seed runs). |
+| @c --positions-override | Optional JSON file overriding node start positions. |
 | @c --debug-links | Verbose per-link (and per-jammer) log output. |
-| @c --channel-query | Serve candidate-layout channel queries on stdin/stdout for the placement baselines ([contract](src/query/README.md)); needs exactly one seed and writes no outputs. |
+| @c --channel-query | Serve candidate-layout channel queries on stdin/stdout for the placement baselines ([contract](@ref src_query)); needs exactly one seed and writes no outputs. |
 
-Output lands under @c --output-dir: a @c run.log (resolved config summary), the
-archived input files, and @c seed-<N>/ metric folders. Always check @c run.log 's
-"Resolved config" block shows the values you expect (frequency, duration,
-bandwidth) before trusting a run.
+The band resolves as `--band`, then `[channel] band` in `run.ini`, then the
+default `mmwave` (see the [run.ini reference](@ref src_config_run_ini_reference)).
+After a run, check the "Resolved config" block in `run.log` (frequency,
+duration, bandwidth, band) before trusting the results.
 
-`--band` is optional; omit it to let the scenario's `run.ini` decide.
+### Generating a scenario from field data {#readme_run_pipeline}
 
-@subsection run_pipeline Generating a scenario from field data
-
-Scenario generation is run from the **scratch/mesh-sim** directory:
+Run from **scratch/mesh-sim**. Each step needs the output of the one before it.
 
 ```bash
 # 1. plot raw per-node data into per-day traces
@@ -113,7 +123,7 @@ python -m scripts.validation.build_waypoints node \
   --all-nodes --time-mode raw
 ```
 
-@subsection run_validate Validating against field data
+### Validating against field data {#readme_run_validate}
 
 ```bash
 python -m scripts.validation.validate_days \
@@ -122,10 +132,12 @@ python -m scripts.validation.validate_days \
   -t 6360
 ```
 
-@subsection run_jammer Jammer / interference model (optional)
+See [scripts/validation](@ref scripts_validation) for the other validation tools.
 
-Run a scenario with field-logged electronic-warfare (jamming) events. See
-@ref src/jammer for the full workflow; in brief:
+### Jammer / interference model (optional) {#readme_run_jammer}
+
+Run a scenario with field-logged electronic-warfare (jamming) events. The full
+workflow is in the [jammer model](@ref src_jammer); in brief:
 
 ```bash
 python -m scripts.validation.make_jammers \
@@ -141,46 +153,19 @@ python -m scripts.validation.make_jammers \
   --output-dir=scratch/mesh-sim/outputs/calfex/1602-1605-jammed
 ```
 
-@subsection run_sweep Sweep
+### Sweep {#readme_run_sweep}
 
 ```bash
 python -m scripts.sweep.cli --config inputs/sweeps/example.ini
 ```
 
-## Band selection
+Sweep format and flags, including sweeping `band`, are in
+[scripts/sweep](@ref scripts_sweep).
 
-`[channel] band` accepts `mmwave` or `sub-6`. Resolution order:
+### Reinforcement learning {#readme_run_rl}
 
-1. `--band=<value>` on the simulator command line,
-2. `[channel] band` in `run.ini`,
-3. the legacy default `mmwave` when neither is set.
-
-`run.log` records the resolved `band` and a `band_source` of `cli`, `run.ini`,
-or `default`. `band` is a categorical switch over the interference path, not a
-value derived from `frequency_ghz`: `sub-6` is the only mode in which
-configured jammers contribute interference.
-
-## RL reward types
-
-`[rl] reward_type` accepts:
-
-- `throughput` — sum of `delivered_mbps` across flows (default);
-- `all_links_los` — `+1` when every peer link of the controlled node is LOS,
-  `-1` otherwise.
-
-`mean_sinr` is a deprecated alias for `all_links_los`. It still runs, prints one
-warning on stderr, and is recorded in `run.log` as `rl.reward_alias`.
-`[rl] z_min`/`z_max` are validated like the x and y bounds (`min < max`).
-
-`reward_type` is the reward the simulator computes. In centralized mode Python
-can instead compose the reward from named components — see
-[Selecting observations, rewards, and telemetry](#selecting-observations-rewards-and-telemetry).
-
-### MaskablePPO smoke run
-
-Run from `scratch/mesh-sim/`, with global options before the `m-ppo`
-subcommand. For a quick tour of the RL files, see the
-[RL code map](scripts/rl/README.md).
+Smoke training run from **scratch/mesh-sim** (replace `<BIN>` with your built
+simulator binary):
 
 ```bash
 .venv/bin/python -m scripts.rl.train \
@@ -190,18 +175,17 @@ subcommand. For a quick tour of the RL files, see the
   m-ppo --total-timesteps 16 --n-steps 16 --seed 1
 ```
 
-`--band sub-6` may be added before `m-ppo`. Omitting `--seed` falls back to
-`[scenario] seed` in the `run.ini`; either way every episode reuses that one
-seed (a multi-seed training policy is a later TODO). Training refuses to start
-if the output directory already contains `train_manifest.json` or
-`maskable_ppo_mesh.zip`.
+Where to go next:
 
-### Centralized multi-node control
+| Topic | Page |
+|-------|------|
+| `[rl]` keys, reward types, centralized control | [run.ini reference](@ref src_config_run_ini_reference) |
+| Message, mode, mask, and action contract | [src/rl](@ref src_rl) |
+| Observation, reward, and telemetry selection | [policy inputs](@ref src_rl_policy_inputs) |
+| Train, inspect, evaluate, compare, experiment matrices | [scripts/rl](@ref scripts_rl) |
+| Benchmark, tuning, SLURM, fetch | [scripts/rl/ops](@ref scripts_rl_ops) |
 
-Setting `[rl] controlled_nodes` switches the bridge from the legacy
-single-node mode to centralized mode, where one MaskablePPO policy moves a
-fixed set of mesh nodes. The keys below apply only when `[rl] enabled = true`;
-all other `[rl]` keys keep their existing meaning.
+### Placement baselines {#readme_run_baselines}
 
 | Key | Type / unit | Default | Mode |
 |---|---|---|---|
@@ -684,57 +668,24 @@ the evaluation ownership rule, the direct-run guard, outputs, migration from
 the gateway/RF-file version, the rectangle-only geofence limit, and which files
 may not be committed.
 
-### Band in sweeps and validation batches
-
-The generic sweep matrix already covers `band` — no band-specific syntax:
-
-```ini
-[sweep.override]
-channel.band = sub-6
-
-[sweep]
-channel.band = mmwave, sub-6
-```
-
-```bash
-python -m scripts.sweep.cli --config <sweep.ini>
-python -m scripts.validation.run_batch ... [--band sub-6]
-```
-
-## Where output lands
-
-| Invocation | Location and contents |
-|---|---|
-| Direct run | `<output-dir>/run.log`, `<output-dir>/inputs/` (archived scenario files), `<output-dir>/seed-N/{positions,links,rx-power,mcs,flows,routes}.csv` + `summary.json` |
-| Sweep point / validation scenario | Same layout, plus `console.log` (launcher-captured stdout/stderr; absent for direct runs) |
-| RL training | `<output-dir>/train_manifest.json`, `<output-dir>/maskable_ppo_mesh.zip`, and one `episode-NNNN/` per episode containing `run.log`, `inputs/`, `sim_stderr.log`, `rl_episode.json`, optional `steps.jsonl`, optional `policy_decisions.jsonl` and `policy_decisions_manifest.json` (`--decision-records`), and `seed-<seed>/...`; with the cadence flags also `checkpoints/checkpoint_<N>_steps.zip`, `best_model.zip`, `evaluations.npz`, and `eval/episode-NNNN/` for the during-training evaluation. Startup and evaluation resets can leave zero-step interrupted episodes; filter by `rl_episode.json` `status` when aggregating. |
-| RL evaluation | `<output-dir>/eval_manifest.json` and one `<policy>/episode-NNNN/` per evaluated policy and seed, with the same episode contents as training, including optional decision-record sidecars when `--decision-records` is set. |
-
-With no `[output] dir`, the simulator auto-generates
-`outputs/YYYY-MM/DD/HH-MM-SS/`.
-
-For a file-by-file reading path through RL manifests, `steps.jsonl`, raw
-`facts`, observation normalization, and the two different `obs_dim` fields,
-see [Reading an RL output directory](src/rl/policy-inputs.md#reading-an-rl-output-directory).
-For the direct-run CSV columns, see the [I/O guide](src/io/README.md#output).
-
-## Verify
+## Verify {#readme_verify}
 
 From `scratch/mesh-sim/tests/`:
 
 ```bash
 make test                                   # standalone unit tests
-MESH_SIM_BIN=<BIN> make integration         # 9 real-binary CLI contracts
+MESH_SIM_BIN=<BIN> make integration         # 19 real-binary CLI checks (see tests/README.md)
 ```
 
 `make test` stops at the first failing suite. To inspect every suite despite a
 failure, run `make -C unit/config test`, `make -C unit/eval test`,
 `make -C unit/routing test`, and `make -C unit/traffic test` separately.
-The [RL test map](scripts/rl/tests/README.md) lists each centralized-control
+The [RL test map](@ref scripts_rl_tests) lists each centralized-control
 test, its input, and its expected output.
 
 For a quick check without cloud reference data, run two tiny synthetic
-simulations and check output contracts and same-seed repeatability:
+simulations and check output contracts and same-seed repeatability. Run from
+`scratch/mesh-sim/`:
 
 ```bash
 python3 -m scripts.validation.smoke_check \
@@ -757,16 +708,50 @@ python3 -m scripts.validation.regression_check verify-suite \
   --out outputs/baseline-regression/<name>
 ```
 
-See [`scripts/validation/README.md`](scripts/validation/README.md) for the
-suite's cases, skip behavior, and exit codes.
+See [scripts/validation](@ref scripts_validation) for the suite's cases, skip
+behavior, and exit codes.
 
-@section docs Accessing the documentation
+## Output {#readme_where_output_lands}
+
+| Invocation | Where |
+|---|---|
+| Direct run | `<output-dir>/run.log`, `<output-dir>/inputs/` (archived scenario files), `<output-dir>/seed-N/{positions,links,rx-power,mcs,flows,routes}.csv` + `summary.json` |
+| Sweep point / validation scenario | Same layout, plus `console.log` (launcher-captured stdout/stderr; absent for direct runs) |
+| RL training and evaluation | Manifests, models, and `episode-NNNN/` folders; see [scripts/rl](@ref scripts_rl_output) |
+
+With no `[output] dir`, the simulator auto-generates
+`outputs/YYYY-MM/DD/HH-MM-SS/`. For the direct-run CSV columns, see the
+[I/O guide](@ref src_io_output).
+
+## Conventions {#readme_conventions}
+
+- Python tools run as modules from `scratch/mesh-sim/`
+  (`python -m scripts.<pkg>.<module>`) because they use package-relative imports.
+- Python tools that launch the simulator take `--sim-binary <BIN>`; they never
+  build it.
+- `run.log` "Resolved config" is the source of truth for what a run used.
+- Scenario inputs are archived into every output folder for reproducibility.
+- Generated `outputs/` and `docs/html/` are git-ignored.
+- Code comments follow Doxygen style; Python uses `##` blocks and C++ uses
+  `/** ... */`.
+
+## Dependencies {#readme_dependencies}
+
+- **Simulator:** ns3-mmwave, CMake, and a C++ compiler (not installed by the
+  helper scripts).
+- **Python tools:** Python 3 and the packages in `requirements.txt`; Optuna from
+  `requirements-tuning.txt` only for tuning.
+- **Data:** field data under `data/` for the scenario pipeline; the cloud baseline
+  bundle for the regression suite.
+- **Docs:** `doxygen` (and `graphviz` for diagrams).
+
+## Accessing the documentation {#readme_docs}
 
 This documentation is generated by **Doxygen** into a static HTML site under
-@c scratch/mesh-sim/docs/html/. It is a set of local files — there is no server
-to start; you open the entry page directly in a browser.
+@c scratch/mesh-sim/docs/html/. It is a set of local files; there is no server
+to start.
 
-@subsection docs_build Generating the site
+### Generating the site {#readme_docs_build}
 
 From @c scratch/mesh-sim/docs/ (where the @c Doxyfile lives; its input paths are
 relative to that directory):
@@ -777,17 +762,16 @@ doxygen Doxyfile
 ```
 
 This (re)builds @c docs/html/. Re-run it after changing source comments or these
-README pages to regenerate. If @c doxygen isn't installed:
+README pages. If @c doxygen is not installed:
 
 ```bash
 sudo apt install doxygen graphviz     # Linux (graphviz enables the diagrams)
 brew install doxygen graphviz         # macOS
 ```
 
-@subsection docs_open Opening the site
+### Opening the site {#readme_docs_open}
 
-Open the generated entry page in any browser — it's a @c file:// URL, no server
-needed:
+Open the generated entry page in any browser:
 
 ```bash
 # Linux
@@ -798,13 +782,13 @@ open scratch/mesh-sim/docs/html/index.html
 start scratch/mesh-sim/docs/html/index.html
 ```
 
-Or paste the absolute path into the browser's address bar, e.g.
-@c <tt>file:///home/[USER]/ns3-mmwave/scratch/mesh-sim/docs/html/index.html</tt>
+Or paste the absolute path into the browser's address bar, for example
+`/home/<USER>/ns3-mmwave/scratch/mesh-sim/docs/html/index.html`
 (replace @c USER and the repo path with yours). This @c index.html is this
 Overview page; use the navigation tree / search at the top to reach the module
 pages and the per-file API docs.
 
-@section about About
+## About {#readme_about}
 
 This sim is being worked on by the University of Massachusetts's ACNL.
 

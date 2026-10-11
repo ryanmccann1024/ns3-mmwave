@@ -47,7 +47,7 @@ An evaluation needs only its own training run, and evaluation seeds cannot be
 split across tasks (`scripts.rl.compare` requires one manifest per label with
 sorted seeds), so one element per pair keeps each task self-contained.
 
-### Why the compare job depends with `afterany`
+### Why the compare job depends with afterany
 
 The comparison is one separate job submitted with
 `--dependency=afterany:<every active array job id>`. Correctness comes from a
@@ -57,7 +57,7 @@ after that element is resubmitted as part of a later array. `afterany` only
 orders the jobs; `compare_prerequisites` decides whether a comparison may be
 written at all.
 
-## Runner: `run_task.py`
+## Runner: run_task.py
 
 ```bash
 .venv/bin/python -m scripts.rl.ops.run_task --output-root R --task-index I [--record PATH]

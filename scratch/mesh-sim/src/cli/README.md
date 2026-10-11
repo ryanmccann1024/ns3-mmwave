@@ -2,21 +2,29 @@
 
 @brief Command-line parsing and pre-simulation setup for mesh-sim.
 
-## Quick guide
-
 This module handles the simulator's command-line flags (`ParseCommandLine`),
-decides which random seeds to run (`ResolveSeeds`), and copies the scenario
-input files into the output directory (`ArchiveScenarioInputs`). `sim.cc`
-calls all three at startup. You use it indirectly every time you run the
-simulator; you only edit it to add or change a flag.
+decides which random seeds to run (`ResolveSeeds`, `ResolveQuerySeed`), and
+copies the scenario input files into the output directory
+(`ArchiveScenarioInputs`). `sim.cc` calls them at startup. You use it
+indirectly every time you run the simulator; you only edit it to add or
+change a flag.
+
+## Module Layout
+
+| File | Role |
+|------|------|
+| @ref cli-parser.h "cli-parser.h" | `CliArgs` struct and declarations of the public functions (including `ResolveQuerySeed` for `--channel-query`), with full Doxygen docs. |
+| @ref cli-parser.cc "cli-parser.cc" | Implementations. The only file in `src/` that includes `ns3/command-line.h`. |
+| `CLAUDE.md` | Scope and dependency notes for AI assistants. |
+| `README.md` | This page. |
+
+## Run
 
 Shortest run (the user builds the binary; do not build from here):
 
 ```bash
-./ns3 run scratch/mesh-sim/sim -- --run-config=scratch/mesh-sim/inputs/calfex/06-25/1227-1413/run.ini
+./ns3 run scratch/mesh-sim/sim -- --run-config=scratch/mesh-sim/inputs/baselines/p0-smoke/run.ini
 ```
-
-## Run / how to access the files
 
 Run from the ns-3 root. Flags use the form `--name=value`. Only
 `--run-config` is required.
@@ -43,21 +51,12 @@ and exits with code 1 before anything else runs.
 | `--positions-override=<path>` | no | none | JSON file that patches node positions after `nodes.json` is loaded. Must exist if given. Used by the RL controller. |
 | `--debug-links` | no | `false` | Verbose per-link evaluation logging. |
 | `--rl-mode` | no | `false` | Enables the RL bridge (observations and actions as JSON on stdin/stdout). |
-| `--channel-query` | no | `false` | Serves candidate-layout channel queries on stdin/stdout instead of running ([contract](../query/README.md)). Seeds must resolve to exactly one; `--output-dir` is ignored with a note; no output directory, archive, or `run.log` is written. |
+| `--channel-query` | no | `false` | Serves candidate-layout channel queries on stdin/stdout instead of running ([contract](@ref src_query)). Seeds must resolve to exactly one; `--output-dir` is ignored with a note; no output directory, archive, or `run.log` is written. |
 
 `--debug-links`, `--rl-mode` and `--channel-query` can be given with no value.
 
 Seed order of precedence: `--seeds`, then `--seed`, then `run.ini`. Empty
 items in `--seeds` are skipped; a non-numeric item is an error.
-
-## Files in this directory
-
-| File | Role |
-|------|------|
-| @ref cli-parser.h "cli-parser.h" | `CliArgs` struct and declarations of the public functions (including `ResolveQuerySeed` for `--channel-query`), with full Doxygen docs. |
-| @ref cli-parser.cc "cli-parser.cc" | Implementations. The only file in `src/` that includes `ns3/command-line.h`. |
-| `CLAUDE.md` | Scope and dependency notes for AI assistants. |
-| `README.md` | This page. |
 
 ## Output
 
@@ -77,7 +76,7 @@ modules (`sim.cc`, `src/io/`):
 
 Re-running with the archived `inputs/` reproduces the original scenario.
 
-## Conventions and gotchas
+## Conventions
 
 - **Hard exits.** `ParseCommandLine` and `ResolveSeeds` print to `stderr` and
   call `std::exit(1)`; they do not throw. `sim.cc` therefore does not handle
@@ -88,7 +87,7 @@ Re-running with the archived `inputs/` reproduces the original scenario.
   `run.ini` is copied (subdirectories are not), and existing files in
   `inputs/` are overwritten. Large files in the scenario directory get copied
   too.
-- **Pass a directory in `--run-config`.** A bare filename such as
+- **Include a directory in `--run-config`.** A bare filename such as
   `run.ini` has an empty parent path, and `ArchiveScenarioInputs` would throw
   `std::filesystem::filesystem_error` (caught in `sim.cc`, exit 1).
 - **`--output-dir` is applied in `sim.cc`,** not in this module. It replaces

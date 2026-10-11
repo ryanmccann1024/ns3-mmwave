@@ -60,8 +60,6 @@ multi-day (reads bh2_* traces under per_day/) -> _pairwise_ks.csv -> multiday_va
 
 ## Conventions
 
-- Doxygen comments (`##`, `##<`, `@brief`, `@fn`) above definitions; the
-  README is a Doxygen `@page`.
 - Loaders return `pd.DataFrame | None`; internal columns use `__name__` style
   (`__node__`, `__t__`, `__sec__`). Compare across nodes on `__sec__`
   (session-relative), since node clocks are skewed.

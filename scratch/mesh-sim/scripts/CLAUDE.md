@@ -13,11 +13,12 @@ read it before editing there.
 | `validation/` | field traces -> scenarios, batch runs, sim-vs-field comparison, regression and smoke checks |
 | `sweep/` | one sim run per point of a `run.ini` grid |
 | `rl/` | Gymnasium env, training, evaluation, experiments, cluster ops |
+| `baselines/` | placement planners (`geometric`, `optimization`) scored by the simulator's `--channel-query` worker; see its `README.md` |
 | `plotting/` | post-sim figures from finished `seed-N/` folders |
 | `baselines/` | placement configuration, mapping, effective inputs, and baseline artifacts |
 
 Data flow: `arpo_data` -> `validation` (build scenarios, run, compare);
-`sweep`, `validation`, and `rl` launch the simulator; `plotting` reads its
+`sweep`, `validation`, `rl`, and `baselines` launch the simulator; `plotting` reads its
 outputs.
 
 ## Commands

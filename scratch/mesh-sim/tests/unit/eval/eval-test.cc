@@ -1,10 +1,10 @@
 /* -*- Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
-/*
- * Unit tests for SinrToCapacity and LinkTable.
- * Standalone binary -- no ns-3 dependency.
+/**
+ * @file eval-test.cc
+ * @brief Unit tests for SinrToCapacity, SinrToMcsIndex, and LinkTable.
  *
- * Build:  make -f Makefile.eval
- * Run:    ./eval-test
+ * Standalone binary; ns-3 logging is stubbed via common/ns3-log-stub.h.
+ * Build and run: `make -C tests/unit/eval test`.
  */
 
 #include "src/eval/sinr-capacity.h"
@@ -311,6 +311,15 @@ test_link_table_diagonal_is_default()
 
 // ---- main ----
 
+/**
+ * @fn main
+ * @brief Run every eval test and print a pass/fail count.
+ *
+ * @return 0 if all checks passed, 1 if any failed.
+ *
+ * Calls each test_* function in order; failures print "FAIL: <name>" to
+ * stderr. A new test function must be added to this list to run.
+ */
 int
 main()
 {

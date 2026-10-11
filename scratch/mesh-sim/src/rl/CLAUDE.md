@@ -18,5 +18,5 @@ process lifecycle.
 - **rl-agent.h** -- Legacy placeholder (no-op). Superseded by rl-bridge.
 
 ## Dependencies
-- Depends on: `domain/`, `eval/link-table`, `routing/mesh-router`, ns-3 mobility
+- Depends on: `domain/`, `eval/link-table`, `routing/mesh-router`, `third_party/json.hpp`, ns-3 mobility
 - Depended on by: `sim.cc`

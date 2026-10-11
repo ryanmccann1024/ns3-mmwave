@@ -1,10 +1,12 @@
-# Placement baselines
+@page scripts_baselines scripts/baselines
+
+@brief Plans gateway-free geometric and optimization node placements before a run, scored by the simulator channel.
 
 `scripts/baselines/` plans the gateway-free `geometric` and `optimization`
 placement baselines once, before a simulation, and hands the simulator an
 ordinary scenario whose selected nodes start at the planned positions. Every
 candidate layout is scored by the simulator's own channel through its
-`--channel-query` mode ([contract](../../src/query/README.md)); there is no
+`--channel-query` mode ([contract](@ref src_query)); there is no
 separate RF model, RF file or extra Python dependency beyond `numpy`.
 
 | File | Owns |
@@ -13,7 +15,7 @@ separate RF model, RF file or extra Python dependency beyond `numpy`.
 | `adapter.py` | Node records, platform mapping, datum/gateway/control authority and returned-plan validation. |
 | `preparation.py` | Resolve planning inputs, call the solver, coordinate snapshots and manifest publication. |
 | `solver.py` | `PlanRequest`/`PlanResult`; runs one strategy with a `ChannelScorer` and packages diagnostics, query statistics and timing. |
-| `planners/` | The query client, shared objective and the two strategies; see [planners/README.md](planners/README.md). |
+| `planners/` | The query client, shared objective and the two strategies; see [planners/README.md](@ref scripts_baselines_planners). |
 | `effective_inputs.py` | Source snapshots, line-preserving INI edits, two-step staging of `effective-inputs/`, the `nodes.json` rewrite. |
 | `artifacts.py` | Manifest/plan v3 schemas, status transitions and fingerprint fields. |
 | `runtime_identity.py` | Planner/shared-source hashes and linked simulator-library provenance. |
@@ -68,12 +70,12 @@ policy name is the method; `[baseline] algorithm` is only recorded as
 name the same nodes as `[rl] controlled_nodes` (see
 [the hold executor contract](#hold-executor-contract-evaluation)).
 
-## The `[baseline]` section
+## The [baseline] section
 
 The C++ binary reads only `algorithm`. Everything else is read by
 `config.py`, which rejects unknown keys, unknown values, duplicate sections or
 keys, `:` assignments, and indented continuation lines. See also
-[`src/config/run-ini-reference.md`](../../src/config/run-ini-reference.md).
+[`src/config/run-ini-reference.md`](@ref src_config_run_ini_reference).
 
 | Key | Values | Default | Required when active |
 | --- | --- | --- | --- |
@@ -127,7 +129,7 @@ z is metres above flat ground at z = 0; a node with z < 0 fails preparation.
 All terms are m² so movement penalties and coverage trade off directly. The
 mesh link table at t = 0 comes from the query; `connected` means
 `sinr_db ≥ -6.7` dB as computed by the simulator. Full definitions and the two
-search strategies are in [planners/README.md](planners/README.md).
+search strategies are in [planners/README.md](@ref scripts_baselines_planners).
 
 - **Core**: the largest connected component of all mesh nodes (ties: the one
   holding the smallest roster index). There is no gateway or root.
@@ -176,7 +178,7 @@ and is excluded from held-out groups. The evaluation gate also checks training
 and model-selection seeds before launching a worker or episode.
 
 
-Parity, at two levels (see [the query contract](../../src/query/README.md)):
+Parity, at two levels (see [the query contract](@ref src_query)):
 mechanics parity — every candidate goes through `LinkEvaluator::Evaluate` with
 the run's resolved band, gains, buildings and jammers — holds by construction.
 An identical t = 0 realization requires an ordinary run using the same
@@ -283,7 +285,7 @@ nodes are untouched. `ownership` in the manifest records both resolved lists.
    reject`; under `translate` its whole path shifts by the planned offset. Any
    failure removes the staging directory.
 
-## Outputs
+## Outputs {#scripts_baselines_outputs}
 
 Standalone (`<run>` is `--output-dir`):
 

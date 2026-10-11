@@ -38,7 +38,7 @@ MESH_SIM_BIN=<BIN> make integration
   `ns3-random-stub.h`). Suite Makefiles symlink them into a local, gitignored
   `ns3/` dir so `#include "ns3/..."` resolves. `traffic/` has its own
   `ns3-traffic-stub.h`; `config/` needs no stubs.
-- `integration/cli-integration-test.sh` -- Tests 1-9 against a real binary
+- `integration/cli-integration-test.sh` -- Tests 1-19 against a real binary
   (`$MESH_SIM_BIN`, else the argument, else the single
   `build/scratch/mesh-sim/ns3*-sim-*` match). Tests 4-9 use `inputs/baselines`
   fixtures; Test 9 checks the centralized RL stream shape.
