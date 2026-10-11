@@ -9,6 +9,7 @@
 #include "ns3/constant-velocity-mobility-model.h"
 
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -27,6 +28,10 @@ struct ControlSlot
 /// Sums over scored ticks of one decision window.
 struct WindowFacts
 {
+    std::vector<double> node_demand_mbps_sum;
+    std::vector<double> node_delivered_mbps_sum;
+    uint32_t unsafe_ticks = 0;
+    double min_pair_distance_m = std::numeric_limits<double>::infinity();
     uint32_t scored_ticks = 0;           ///< Ticks at or after warmup.
     double   demand_mbps_sum = 0.0;       ///< Sum of flow demand samples, Mbps*tick.
     double   delivered_mbps_sum = 0.0;    ///< Sum of delivery samples, Mbps*tick.
@@ -37,7 +42,7 @@ struct WindowFacts
     double   legacy_reward_sum = 0.0;     ///< Sum of simulator reward_type values.
 };
 
-/// Owns RL IPC and physics for the controlled node(s); legacy and centralized modes.
+/// Owns RL IPC and physics for the controlled node(s); centralized control.
 class RlBridge
 {
   public:
@@ -48,8 +53,7 @@ class RlBridge
      * @param cfg  Validated config with RL control already resolved
      *             (@c cfg.rl.controlled_indices, @c num_slots, @c decision_interval_ticks).
      *
-     * Legacy mode uses one slot: the first controlled index, or the last node when none
-     * is set. Centralized mode builds @c num_slots slots; slots beyond the resolved
+     * The resolved control roster builds @c num_slots slots; slots beyond the resolved
      * indices are inactive padding. Nothing is printed. @c cfg must contain at least
      * one node.
      */
@@ -59,8 +63,9 @@ class RlBridge
      * @fn RlBridge::WriteInit
      * @brief Write the centralized @c init contract line to stdout.
      *
-     * Does nothing in legacy mode. Call once before the tick loop.
+     * Call once before the tick loop.
      */
+    void SetCoverage(double fraction) { m_coverageFraction = fraction; }
     void WriteInit() const;
 
     /**
@@ -69,8 +74,7 @@ class RlBridge
      *
      * @param ti  Zero-based tick index.
      * @return @c true only in centralized mode when @p ti is below the run's tick
-     *         count and a multiple of @c decision_interval_ticks; always @c false in
-     *         legacy mode.
+     *         count and a multiple of @c decision_interval_ticks; @c false otherwise.
      */
     bool IsDecisionTick(uint32_t ti) const;
 
@@ -80,14 +84,15 @@ class RlBridge
      *
      * @param mobs  Mobility model per node, indexed by node index.
      *
-     * Centralized mode only (no-op in legacy mode). Limits x and y against
+     * For every active controlled slot. Limits x and y against
      * @c rl.x_min..x_max and @c y_min..y_max; z is left alone. Slots whose model is
      * not a @c ConstantVelocityMobilityModel are skipped. Call before advancing the clock.
      */
     void BeforeAdvance(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs);
 
     // Add this tick's reward to the current decision window (centralized).
-    void AccumulateTick(double time_s, const LinkTable& linkTable, const std::vector<FlowResult>& flows);
+    void AccumulateTick(double time_s, const LinkTable& linkTable, const std::vector<FlowResult>& flows,
+                        const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs);
 
     /**
      * @fn RlBridge::Step
@@ -97,12 +102,10 @@ class RlBridge
      * @param time_s       Simulation time in seconds.
      * @param mobs         Mobility model per node, indexed by node index.
      * @param linkTable    Link table for this tick.
-     * @param flowResults  Routed flow results for this tick (legacy reward).
      * @param done         @c true on the final message; no action is read afterwards.
      *
      * Blocks on stdin until Python replies. Centralized mode writes a @c step message
-     * (window mean reward, mask) and clears the window. Legacy mode writes one
-     * observation per call. A closed stdin holds position (one warning on stderr).
+     * (window mean reward, mask) and clears the window.  A closed stdin holds position (one warning on stderr).
      */
     void Step(uint32_t tick,
               double time_s,
@@ -117,13 +120,16 @@ class RlBridge
      * @param mobs  Mobility model per node, indexed by node index.
      *
      * Centralized mode sets a constant velocity of @c speed_mps along -x, +x, -y, +y,
-     * or zero for hold (action 4). Legacy discrete mode uses indices 0..6
-     * (-X, +X, -Y, +Y, -Z, +Z, stay); continuous mode steers toward the last target.
+     * or zero for hold (action 4). Opt-in building and joint-motion checks can hold unsafe slots.
      */
     void ApplyAction(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs);
 
   private:
     RlConfig    m_rl;
+    double m_coverageFraction = 0.0;
+    std::vector<BuildingSpec> m_buildings;
+    bool CrossesBuilding(const ns3::Vector& a, const ns3::Vector& b) const;
+    void RevalidateJointMotion(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs, double horizon_s);
     double      m_tickS;
     uint32_t    m_numNodes;
 
@@ -138,6 +144,7 @@ class RlBridge
     WindowFacts              m_window;           ///< Scored fact sums for the open window.
     uint32_t                 m_decision = 0;
     bool                     m_streamClosed = false;
+    std::vector<std::string> m_nodeTypes;
     std::vector<std::string> m_nodeIds;
     std::string              m_band;
     bool                     m_jammerPathEnabled = false;

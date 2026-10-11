@@ -9,6 +9,8 @@ from pathlib import Path
 from scripts.sim_support import find_mesh_root, simulator_env, tail_lines
 
 from .episode_artifacts import EpisodeArtifacts
+from .config import read_manifest_every_decisions, read_jammer_onsets
+from .jammer_motion import motion_enabled, prepare_motion_config
 
 _STDERR_TAIL_LINES = 40
 _BAD_LINE_CHARS = 200
@@ -23,10 +25,14 @@ class EpisodeSession:
     """Owns one simulator subprocess and its `rl_episode.json` manifest."""
 
     def __init__(self, sim_binary: str, run_config: str, output_dir: Path,
-                 band: str | None, decision_records=None):
+                 band: str | None, decision_records=None, record_viz: bool = True):
         self._sim_binary = sim_binary
+        self._record_viz = record_viz
+        self._jammer_onsets = read_jammer_onsets(run_config)
+        motion_enabled(run_config)
+        self._training_resets = 0
         self._run_config = run_config
-        self._artifacts = EpisodeArtifacts(output_dir, decision_records)
+        self._artifacts = EpisodeArtifacts(output_dir, decision_records, read_manifest_every_decisions(run_config))
         self._band = band
         self._proc: subprocess.Popen | None = None
         self._stderr_file = None
@@ -51,16 +57,25 @@ class EpisodeSession:
 
     def start(self, seed: int, seed_source: str) -> None:
         self._episode_dir, self._episode_index = self._artifacts.allocate()
+        resolved_config, motion = prepare_motion_config(
+            self._run_config, self._episode_dir, seed, self._training_resets, seed_source == "eval")
         self._cmd = [
             self._sim_binary,
-            f"--run-config={self._run_config}",
+            f"--run-config={resolved_config}",
             "--rl-mode",
             f"--seed={seed}",
             f"--output-dir={self._episode_dir}",
         ]
+        if not self._record_viz:
+            self._cmd.append("--no-viz")
+        schedule = self._jammer_onsets[1 if seed_source == "eval" else 0]
+        if schedule:
+            index = int(seed) if seed_source == "eval" else self._training_resets
+            self._cmd.append(f"--jammer-onset-s={schedule[index % len(schedule)]:g}")
+        if seed_source != "eval": self._training_resets += 1
         if self._band is not None:
             self._cmd.append(f"--band={self._band}")
-        self._artifacts.begin(self._episode_index, seed, seed_source, self._cmd)
+        self._artifacts.begin(self._episode_index, seed, seed_source, self._cmd, motion)
         self._stderr_path = self._episode_dir / "sim_stderr.log"
         self._stderr_file = open(self._stderr_path, "w")
         self._msg_count = 0

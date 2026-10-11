@@ -26,7 +26,8 @@ class MeshRlEnv(gymnasium.Env):
                  output_dir: str = "", band: str | None = None,
                  render_mode: str | None = None,
                  selection: RlSelection | None = None,
-                 decision_records: DecisionRecording | None = None):
+                 decision_records: DecisionRecording | None = None,
+                 record_viz: bool = True):
         super().__init__()
         if not output_dir:
             raise ValueError("MeshRlEnv requires output_dir (the training output root)")
@@ -45,7 +46,7 @@ class MeshRlEnv(gymnasium.Env):
         self._observation_schema: dict | None = None
         self._reward_schema: dict | None = None
         self._output_dir = Path(output_dir)
-        self._session = EpisodeSession(sim_binary, run_config, self._output_dir, band, decision_records)
+        self._session = EpisodeSession(sim_binary, run_config, self._output_dir, band, decision_records, record_viz)
         if seed is not None:
             self.seed_value = int(seed)
             self.seed_source = "cli"
@@ -107,6 +108,8 @@ class MeshRlEnv(gymnasium.Env):
             self.seed_value = int(seed)
             self.seed_source = "gym"
 
+        if self._composer is not None:
+            self._composer.reset()
         self._session.stop("interrupted", "reset")
         self._session.start(self.seed_value, self.seed_source)
         first = self._session.read_message()
@@ -145,6 +148,8 @@ class MeshRlEnv(gymnasium.Env):
                     detail["reward_context"] = inputs
                 breakdown = self._composer.compose(
                     self._protocol.facts["window"], reward, self._contract, context)
+                if "previous_network_health" in context:
+                    inputs["previous_network_health"] = context["previous_network_health"]
                 reward = breakdown.total
                 info["reward"] = {
                     "total": reward,
@@ -223,6 +228,9 @@ class MeshRlEnv(gymnasium.Env):
             "warmup_s": init["warmup_s"],
             "reward_warmup": init["reward_warmup"],
             "wall_policy": init["wall_policy"],
+            "unsafe_separation_m": init.get("unsafe_separation_m"),
+            "avoid_buildings": init.get("avoid_buildings", False),
+            "coverage": init.get("coverage"),
         }
         self._check_signature(signature)
         self._control_mode = "centralized"

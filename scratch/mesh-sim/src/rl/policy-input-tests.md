@@ -43,3 +43,13 @@ and manifest restoration; invalid/unused inputs before launch; every component's
 zero-scored mask; replay after defaults change and schema tampering; declared
 component/accumulator extensions; controlled-node movement and null mixed/sparse
 warmup data. All simulator processes in these tests are the fake bridge.
+
+`test_reward_matrix.py::test_coverage_reward_replays` checks simulator facts →
+coverage reward → telemetry replay. The C++ eval suite verifies clipped-cell
+area, connected-core union, no double counting and deterministic core ties.
+`test_live_coverage_and_building_mask` in `test_real_binary.py` checks receiver
+coverage facts and swept building masks after the user rebuilds the binary.
+
+Iteration-two additive `node_service` facts are checked for row count, nonnegative demand, delivered <= demand and double-counted endpoint conservation. `test_iteration_two.py` checks weakest-node reward masking and old-peer rejection when the new component is requested.
+
+Iteration-three reward cases in `scripts/rl/tests/test_iteration_three.py` verify zero-demand exclusion, nonzero fair feedback while the minimum is zero, previous-condition movement charges, and reset isolation.

@@ -246,3 +246,37 @@ Parametrized tests cover several inputs each; only the pattern is listed.
 | `test_version_probe_rejects_mismatch` | Wrong expected version → probe exits 1 and reports `expected 0.0.invalid`. |
 
 See [operations tests](ops-tests.md) for task execution, measurement, persisted tuning and cluster recovery coverage.
+
+## Concurrent local campaign: `test_campaign.py`
+
+| Test | Input → expected output |
+| --- | --- |
+| `test_bad_scheduling_is_rejected` | Invalid worker/thread counts or stage ordering/types → validation error before processes start. |
+| `test_campaign_lock_prevents_duplicate_writers` | Two launchers sharing an output root → second blocked; root reusable after release. |
+| `test_jobs_overlap_with_worker_limit_and_isolated_logs` | Five jobs, two workers, one failure → exactly two overlapping jobs, separate logs, persisted statuses and failed plan. |
+| `test_process_thread_limits_and_stop_reaps_child` | Real waiting subprocess → thread limit inherited, cancellation reaps process, parent environment unchanged. |
+| `test_interruption_during_preflight_wait_reaps_child` | Interrupt the synchronous process wait → child terminated before runner loses ownership. |
+| `test_preflight_failure_prevents_all_training` | Failed preflight → failed campaign record, no training. |
+| `test_failed_pilot_prevents_main_and_comparison` | Pilot job failure → no main jobs or comparison for failed plan. |
+| `test_actual_campaign_plans_all_33_jobs_without_launching` | October 9 matrices → nine plans, 33 independent train/evaluate pairs, no processes launched. |
+| `test_two_real_worker_processes_train_evaluate_and_compare` | Two real PPO worker processes with a fake simulator → completed train/evaluate manifests, reward matrices and one comparison; repeat skips complete tasks. No radio physics claim. |
+
+## Local quick campaign: `test_local_fast.py`
+
+| Test | Input → expected output |
+| --- | --- |
+| `test_manifest_cadence_rejects_invalid_values` | Nonpositive, fractional or boolean cadence → error. |
+| `test_manifest_cadence_keeps_final_totals` | 50-decision cadence, two-decision episode → intermediate disk snapshot lags, completed totals are exact. |
+| `test_manifest_cadence_flushes_interrupted_totals` | Interrupt before next save → final manifest retains completed decision totals. |
+| `test_difficulty_gate_requires_healthy_hold_and_degraded_challenges` | Healthy hold/degraded challenge → pass; unhealthy hold or saturated challenge → fail. Legacy defaults preserved. |
+| `test_preflight_signature_includes_difficulty_criteria` | Change acceptance criteria → old preflight cannot be reused. |
+| `test_quick_campaign_has_one_seed_three_rewards_and_reduced_budget` | Quick inputs → eight plans, 24 jobs, one seed, three formulas, no periodic checkpoints. |
+| `test_reward_summary_uses_common_metrics_and_excludes_failed_episodes` | Mixed completed/failed episodes → common-metric means use completed episodes only. |
+| `test_quick_training_without_telemetry_still_writes_full_evaluation` | Three real PPO worker runs over fake simulator → no training step files/checkpoints; complete validation/evaluation matrices and reward summary. No RF claim. |
+| `test_strong_jammer_preserves_negative_sinr_and_outage` (`test_real_binary.py`) | Rebuilt simulator, near-jammer peers → negative SINR, zero-capacity links, reduced coverage; removing jammer restores service. Old clamped binary fails. |
+
+Iteration-two regression cases are in `test_iteration_two.py`: per-node service conservation/zero-demand masking, compact commands/onset schedules, immutable cached baseline rescoring, main-only priority scheduling, 40-job configuration and delayed-jammer recovery metrics. Fake-peer tests do not replace real radio validation after the user rebuilds the target.
+
+### Iteration three checks
+
+`test_iteration_three.py` verifies dense partial-recovery feedback, lagged movement cost and reset, optimizer/network setting wiring, invalid parameter refusals, distinct training/evaluation routes, actual online parameter changes versus a fixed sampled control, fresh checkpoint copies between seeds, and the bounded profile plans sharing baseline caches. These tests use the fake simulator; real radio behavior is checked separately against the already-built binary.

@@ -45,7 +45,7 @@ def _policy_block(values: dict) -> dict:
 
 
 def write_eval(path: Path, model=None, baselines=None, *, seeds=SEEDS, label=None,
-               training_seed=101, model_sha256="a" * 64, held_out=True, version=5,
+               training_seed=101, model_sha256="a" * 64, held_out=True, version=6,
                reward_sha="r" * 64, training_sha="t" * 64, gamma=0.99,
                selection_seed=201, mutate=None) -> str:
     """Write one eval_manifest.json built from per-seed delivery_ratio values."""

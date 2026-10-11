@@ -1,5 +1,7 @@
 """Masked deterministic evaluation of saved and baseline policies, one env per policy."""
 
+from scripts.rl.policy.reward_matrix import write_reward_matrix
+
 import hashlib
 import json
 import platform
@@ -16,7 +18,7 @@ from scripts.rl.policy.metrics import (CSV_METRICS, METRIC_SOURCE,
                                        episode_metrics as reduce_episode_metrics)
 
 EVAL_MANIFEST_NAME = "eval_manifest.json"
-EVAL_MANIFEST_VERSION = 5
+EVAL_MANIFEST_VERSION = 6
 DEFAULT_POLICIES = ("model", "hold", "random_valid")
 PLACEMENT_POLICIES = ("geometric", "optimization")
 POLICY_NAMES = DEFAULT_POLICIES + PLACEMENT_POLICIES
@@ -63,18 +65,23 @@ class RandomValidPolicy:
 
 
 class ModelPolicy:
-    """Deterministic MaskablePPO prediction under the live mask."""
+    """MaskablePPO prediction under the live mask, deterministic or seeded sampling."""
 
     name = "model"
 
-    def __init__(self, model, capture=None):
+    def __init__(self, model, capture=None, deterministic=True):
         self._model = model
+        self.deterministic = deterministic
         if capture is not None:
             capture.attach(model)
 
+    def start_episode(self, seed):
+        from stable_baselines3.common.utils import set_random_seed
+        set_random_seed(seed)
+
     def act(self, obs, mask, contract) -> np.ndarray:
         action, _ = self._model.predict(obs, action_masks=np.asarray(mask, dtype=bool),
-                                        deterministic=True)
+                                        deterministic=self.deterministic)
         return np.asarray(action, dtype=np.int64).reshape(-1)
 
 
@@ -159,7 +166,13 @@ def episode_metrics(episode_dir: Path, num_links: int) -> dict:
     with path.open() as handle:
         header = json.loads(next(handle, "{}"))
         records = (json.loads(line) for line in handle if line.strip())
-        return reduce_episode_metrics(records, num_links, header.get("contract"))
+        contract = dict(header.get("contract") or {})
+        episode_path = episode_dir / "rl_episode.json"
+        if episode_path.is_file():
+            episode = json.loads(episode_path.read_text())
+            contract["jammer_onset_s"] = next((float(token.split("=", 1)[1])
+                for token in episode.get("command", []) if token.startswith("--jammer-onset-s=")), None)
+        return reduce_episode_metrics(records, num_links, contract)
 
 
 def run_episode(env, policy: Policy, seed: int, initial=None) -> EpisodeResult:
@@ -288,10 +301,11 @@ def _initial_manifest(base: dict, seeds: list[int]) -> dict:
         "selection": None,
         "observation_schema": None,
         "reward_schema": None,
-        "deterministic": True,
+        "deterministic": base.get("deterministic", True),
         "seeds": [int(s) for s in seeds],
         "seed_source": "eval",
         "policies": {},
+        "baseline_cache": None,
         "python_version": platform.python_version(),
         "platform": {"system": platform.system(), "machine": platform.machine()},
         "package_versions": package_versions(),
@@ -325,7 +339,7 @@ def evaluate(make_env, policies: list[PolicySpec], seeds: list[int], out_dir,
     seeds = [int(seed) for seed in seeds]
     manifest_path = out_dir / EVAL_MANIFEST_NAME
     manifest = _initial_manifest(base, seeds)
-    manifest["episodes_expected"] = len(policies) * len(seeds)
+    manifest["episodes_expected"] = len(policies) * len(seeds) + base.get("baseline_expected_episodes", 0)
     write_json(manifest_path, manifest)
     collected: dict[str, list[EpisodeResult]] = {spec.name: [] for spec in policies}
     metadata = {spec.name: spec.metadata for spec in policies}
@@ -353,6 +367,7 @@ def evaluate(make_env, policies: list[PolicySpec], seeds: list[int], out_dir,
                         manifest["observation_schema"] = env.observation_schema
                         manifest["reward_schema"] = env.reward_schema
                     results.append(result)
+                    write_reward_matrix(results, out_dir/spec.name)
                     _store(manifest, spec.name, results, len(seeds), metadata)
                     write_json(manifest_path, manifest)
             finally:

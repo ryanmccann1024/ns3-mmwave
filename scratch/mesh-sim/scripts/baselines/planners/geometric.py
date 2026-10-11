@@ -26,6 +26,7 @@ def settings(request) -> dict:
     count = sum(1 for node in request.nodes if node.role == "movable")
     return {
         "strategy": "sequential_greedy",
+        "minimum_separation_m": getattr(request, "minimum_separation_m", 0.0),
         "order": "roster",
         "needs": needs(request.objective, count, request.balanced_core_fraction),
         "balanced_core_fraction": float(request.balanced_core_fraction),
@@ -60,6 +61,8 @@ def _place(ctx, cache, layout, current, current_score, node, need, processed, lo
         "anchor_links": None,
     }
     moves = candidate_positions(ctx, node)[1:]
+    moves = [position for position in moves if objective.layout_separated(
+        ctx, np.array([position if i == node else layout[i] for i in range(len(layout))]))]
     step["candidates"] = len(moves)
     if not len(moves):
         return layout, current, current_score, step
@@ -115,6 +118,7 @@ def solve(request, scorer, log):
     ctx = ScoringContext.build(request, scorer)
     cache = LayoutCache(scorer, getattr(request, "cache_bytes", 32 * 1024 * 1024))
     layout = ctx.starts.copy()
+    check_layout(ctx, layout)
     current = cache.evaluate([layout])[0]
     current_score = score(ctx, current, layout)
     start_total = current_score.total

@@ -17,7 +17,7 @@ are ns-3-free.
   `Configure` is undefined (no checks). `txIdx`/`rxIdx` index per-node gain vectors.
 - Path loss is floored at free-space loss (distance floored at 1 m).
 - Jammer power counts only when `band == "sub-6"` and jammers exist, using the max
-  of RX-end and TX-end power. Nonzero jammer power clamps SINR to >= 0 dB; otherwise SINR is plain SNR.
+  of RX-end and TX-end power. Nonzero jammer power preserves negative SINR; below -6.7 dB links have zero capacity. Otherwise SINR is plain SNR.
 - `Evaluate` and `EvaluateProbe` share one private body (`EvaluateLink`); change physics there
   once. Each call may draw from the condition/propagation model streams, so call order is part
   of the realization (`query/` relies on `EvaluateAll` running first).

@@ -94,8 +94,7 @@ class TopologyBuilder
      * @fn TopologyBuilder::SetProbes
      * @brief Request receive-only probe nodes; call before @ref Build.
      *
-     * Each point keeps its x/y/z. Live runs never call this, so their
-     * topology is unchanged.
+     * Each point keeps its x/y/z. Coverage-enabled RL runs also request probes.
      *
      * @param probes  Probe grid copied into the builder.
      */

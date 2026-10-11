@@ -97,9 +97,8 @@ model-minus-baseline stats (`policy/compare.py`, primary metric
 - Seed roles are disjoint: `training`, `model_selection`, `held_out`. Held-out
   seeds must never reach training or tuning; `load_matrix` and `ops.tune`
   enforce this.
-- `ops/` wraps an existing plan: it never adds training capability. Only
-  `n_steps`, `gamma`, and `ent_coef` reach `MaskablePPO`, so only those are
-  tunable. `ops/tasks.py` and `ops/reconcile.py` are pure; subprocess and
+- `ops/` wraps an existing plan: it never adds training capability. Constructor-wired PPO settings and network profiles are documented in
+  `agents/CLAUDE.md`; scalar Optuna search and explicit matrix profiles differ. `ops/tasks.py` and `ops/reconcile.py` are pure; subprocess and
   scheduler calls live in `slurm.py` / `cluster.py`. Scheduler query failures
   must degrade to `unknown`, which blocks resubmission.
 

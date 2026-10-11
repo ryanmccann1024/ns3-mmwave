@@ -85,8 +85,8 @@ REFUSALS = [
     ("total_timesteps", {"overrides": {"search_space": {
         "total_timesteps": {"type": "categorical", "choices": [128, 256]}}}},
      "budget is fixed per study"),
-    ("learning_rate", {"overrides": {"search_space": {
-        "learning_rate": {"type": "float", "low": 1e-5, "high": 1e-3}}}},
+    ("weight_decay", {"overrides": {"search_space": {
+        "weight_decay": {"type": "float", "low": 1e-5, "high": 1e-3}}}},
      "not wired to MaskablePPO"),
     ("inverted range", {"overrides": {"search_space": {
         "gamma": {"type": "float", "low": 0.99, "high": 0.90}}}}, "low < high"),

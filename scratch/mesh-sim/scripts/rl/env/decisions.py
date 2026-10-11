@@ -50,6 +50,7 @@ class DecisionRecording:
 
     settings: DecisionRecordSettings
     context: DecisionContext
+    seeds: tuple[int, ...] | None = None
 
 
 def mask_sha256(mask) -> str:

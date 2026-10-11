@@ -24,9 +24,9 @@ action meaning. Change it for incompatible protocol semantics or layout, not
 for a refactor that preserves behavior. A saved JSON `manifest_version`
 describes a file's schema: increment the *relevant* version when fields or
 their meanings change, then update writers, readers, examples, and tests.
-Currently `train_manifest.json` uses version 6;
-`rl_episode.json` uses version 5, including scored tick counts and a consistent
-pre-handshake failure schema. `eval_manifest.json` uses version 5 for scored
+Currently `train_manifest.json` uses version 7;
+`rl_episode.json` uses version 6, including scored tick counts and a consistent
+pre-handshake failure schema. `eval_manifest.json` uses version 6 for scored
 metrics, initial relocation and planning seed roles; comparison JSON uses
 version 2 and validates the evaluation version and scoring metadata. Baseline
 manifest/plan and plan fingerprints use version 3; mapping JSON uses version 2.
@@ -53,3 +53,5 @@ Keep optimizer, channel-planning, training, selection and evaluation seeds
 separate. An explicit overlap override marks diagnostics, not held-out results.
 See the [placement walkthrough](scripts/baselines/walkthrough.md) for the full
 zero-cost/penalized workflow and the limits of planner predictions.
+
+Training version 7 records all PPO settings and the full validation seed set. Episode version 6 adds optional jammer-motion metadata and configurable progress persistence. Evaluation version 6 adds optional coverage, service, safety and delayed-jammer metrics; unavailable optional measurements remain null and are omitted from paired comparisons.

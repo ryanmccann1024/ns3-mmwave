@@ -9,14 +9,17 @@ from scripts.rl.agents.config import PPO_SEARCH_PARAMETERS, validate_training_se
 from scripts.rl.cli_common import MANIFEST_NAME as TRAIN_MANIFEST_NAME
 from scripts.rl.policy.experiment import build_plan
 
-_SEED_FLAGS = ("--seed", "--eval-seed")
+_SEED_FLAGS = ("--seed", "--eval-seed", "--eval-seeds")
 
 
 
 def _seed_values(args: list[str]) -> set[str]:
     """Values that follow a seed-bearing flag; a sampled number is not a seed."""
-    return {args[position + 1] for position, token in enumerate(args)
-            if token in _SEED_FLAGS and position + 1 < len(args)}
+    from scripts.sim_support import parse_seed_spec
+    return {str(seed) for position, token in enumerate(args)
+            if token in _SEED_FLAGS and position + 1 < len(args)
+            for seed in parse_seed_spec(args[position + 1])}
+
 
 
 def _ppo_trial(spec: dict, params: dict, trial_dir, sim_binary: str) -> dict:

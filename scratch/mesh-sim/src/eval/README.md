@@ -59,7 +59,7 @@ No files are written. Two in-memory structures are produced each tick.
 - **No inter-node interference.** SINR is signal vs. noise floor. Only jammer power is added, and only in sub-6.
 - **Array gains.** `rx_power_dbm` adds the TX node's `tx_array_gain_dbi` and the RX node's `rx_array_gain_dbi`. A per-node override in `nodes.json` wins over the channel default.
 - **Free-space floor.** Path loss is never below free-space path loss at `max(distance, 1 m)`. This removes SINR spikes at short range and at `d = 0`.
-- **Jammer handling.** Uses the larger of the jammer power at the RX and TX ends. When any jammer power is present, SINR is clamped to a minimum of 0 dB.
+- **Jammer handling.** Uses the larger of the jammer power at the RX and TX ends. Negative SINR is preserved, allowing interference to drive capacity to zero below −6.7 dB.
 
 ### Capacity models ([channel] amc_model)
 - `shannon`: `B·log2(1+SINR)`.
@@ -94,3 +94,8 @@ No files are written. Two in-memory structures are produced each tick.
 `probe-diagnostics.h/cc` checks resolved 3GPP RMa/UMa/UMi endpoint height
 assumptions without ns-3 objects. The [query guide](../query/README.md) describes
 its advisory output; it does not alter propagation or certify all models.
+
+`coverage-grid.h/cc` builds clipped receiver cells and computes the covered area
+of the largest connected mesh component (ties by smallest roster index).
+The grid and threshold match the placement objective. `sim.cc` evaluates live
+node-to-probe links at decision endpoints when RL coverage is enabled.

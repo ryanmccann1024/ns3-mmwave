@@ -402,7 +402,7 @@ def test_baseline_evaluation_writes_a_completed_manifest(sim_binary, multi_run_c
     assert evaluate_cli.main(_eval_argv(sim_binary, multi_run_config, out_dir)) == 0
 
     manifest = json.loads((out_dir / "eval_manifest.json").read_text())
-    assert manifest["eval_manifest_version"] == 5 and manifest["status"] == "completed"
+    assert manifest["eval_manifest_version"] == 6 and manifest["status"] == "completed"
     from scripts.rl.policy.metrics import METRIC_SOURCE
     assert manifest["metric_source"] == METRIC_SOURCE
     assert manifest["label"] is None and manifest["training"] is None

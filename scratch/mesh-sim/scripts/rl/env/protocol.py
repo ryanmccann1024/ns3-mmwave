@@ -66,6 +66,9 @@ class CentralizedProtocol:
         self._num_controlled = int(init["num_controlled"])
         self._num_nodes = int(init["num_mesh_nodes"])
         self._num_links = int(init["num_links"])
+        self._coverage_expected = "coverage" in init
+        self._node_service_expected = "node_service_columns" in init
+        self._unsafe_separation_m = init.get("unsafe_separation_m")
         self._node_ids = list(init["node_ids"])
         self._slot_node_ids = list(init["slot_node_ids"])
         self._bounds = dict(init["bounds"])
@@ -150,6 +153,10 @@ class CentralizedProtocol:
                     f"init {field} must be a non-empty string, got {init.get(field)!r}"
                 )
 
+        if "node_service_columns" in init and init["node_service_columns"] != ["demand_mbps_sum", "delivered_mbps_sum"]:
+            _fail("init node_service_columns has unsupported columns")
+        if "avoid_node_collisions" in init and not isinstance(init["avoid_node_collisions"], bool):
+            _fail("init avoid_node_collisions must be a boolean")
         slots = init["max_controlled_nodes"]
         count = init["num_controlled"]
         nodes = init["num_mesh_nodes"]
@@ -245,6 +252,11 @@ class CentralizedProtocol:
             _fail(f"init node_ids has an empty or non-string entry: {ids!r}")
         if len(set(ids)) != nodes:
             _fail(f"init node_ids has duplicate entries: {ids!r}")
+        types = init.get("node_types")
+        if types is not None and (not isinstance(types, list) or len(types) != nodes
+                                  or not all(isinstance(value, str) and value
+                                             for value in types)):
+            _fail(f"init node_types must have {nodes} non-empty strings, got {types!r}")
         bounds = init.get("bounds")
         if not isinstance(bounds, dict):
             _fail(f"init bounds must be an object, got {bounds!r}")
@@ -382,7 +394,54 @@ class CentralizedProtocol:
         self._check_fact_links(facts.get("links"))
         self._check_fact_window(facts.get("window"), msg["scored_ticks"],
                                 float(msg["reward"]))
+        service = facts.get("node_service")
+        if self._node_service_expected and service is None:
+            _fail("facts.node_service missing for service-enabled simulator")
+        if service is not None:
+            if not isinstance(service, list) or len(service) != self._num_nodes:
+                _fail("facts.node_service must contain one row per mesh node")
+            for row in service:
+                if (not isinstance(row, list) or len(row) != 2
+                        or any(not _is_finite_number(v) or v < 0 for v in row)
+                        or row[1] > row[0] + _DELIVERED_REL_TOL * max(row[0], 1)):
+                    _fail("facts.node_service requires nonnegative demand and delivered <= demand")
+            for column, key in enumerate(("demand_mbps_sum", "delivered_mbps_sum")):
+                total = 2 * facts["window"][key]
+                if not math.isclose(sum(row[column] for row in service), total, rel_tol=1e-6, abs_tol=1e-6):
+                    _fail("facts.node_service endpoint sums must equal twice the network sums")
+        if "safety" in facts:
+            self._check_safety(facts["safety"], msg["scored_ticks"], self._num_nodes)
+        if self._unsafe_separation_m is not None and facts.get("safety", {}).get("threshold_m") != self._unsafe_separation_m:
+            _fail("facts.safety threshold does not match init.unsafe_separation_m")
+        coverage = facts.get("coverage")
+        if self._coverage_expected and coverage is None:
+            _fail("facts.coverage missing for coverage-enabled simulator")
+        if coverage is not None:
+            if (not isinstance(coverage, dict) or set(coverage) != {"fraction"}
+                    or not _is_finite_number(coverage["fraction"])
+                    or not 0 <= coverage["fraction"] <= 1):
+                _fail(f"facts.coverage fraction must be finite in [0,1]: {coverage!r}")
         return facts
+
+    @staticmethod
+    def _check_safety(safety, ticks: int, num_nodes: int) -> None:
+        if not isinstance(safety, dict) or set(safety) != {
+                "threshold_m", "unsafe_ticks", "min_pair_distance_m"}:
+            _fail(f"facts.safety has invalid fields: {safety!r}")
+        if not _is_finite_number(safety["threshold_m"]) or safety["threshold_m"] <= 0:
+            _fail(f"facts.safety threshold_m must be positive: {safety!r}")
+        if not _is_int(safety["unsafe_ticks"]) or not 0 <= safety["unsafe_ticks"] <= ticks:
+            _fail(f"facts.safety unsafe_ticks must be within [0,{ticks}]: {safety!r}")
+        distance = safety["min_pair_distance_m"]
+        if distance is None:
+            if safety["unsafe_ticks"] == 0 and (ticks == 0 or num_nodes < 2):
+                return
+            _fail("facts.safety min_pair_distance_m missing for a measured pair: "
+                  f"{safety!r}")
+        if not _is_finite_number(distance) or distance < 0:
+            _fail(f"facts.safety min_pair_distance_m must be nonnegative: {safety!r}")
+        if safety["unsafe_ticks"] and distance >= safety["threshold_m"]:
+            _fail(f"facts.safety reports unsafe ticks above its threshold: {safety!r}")
 
     def _check_fact_nodes(self, nodes) -> None:
         if not isinstance(nodes, list) or len(nodes) != self._num_nodes:

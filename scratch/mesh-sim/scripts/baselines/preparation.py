@@ -489,6 +489,15 @@ def _plan(
     manifest_path: Path,
 ) -> tuple:
     solver = _solver()
+    ini = config.read_ini(staged_ini)
+    forbidden = ()
+    buildings = config.ini_value(ini, "scenario", "buildings_file")
+    if (config.ini_value(ini, "rl", "avoid_buildings") or "false").lower() in ("true", "1", "yes") and buildings:
+        path = Path(buildings)
+        if not path.is_absolute():
+            path = staged_ini.parent / path
+        forbidden = tuple(entry["bounds"] for entry in json.loads(path.read_text()))
+    collision_check = (config.ini_value(ini, "rl", "avoid_node_collisions") or "false").lower() in ("true", "1", "yes")
     request = solver.PlanRequest(
         method=method,
         objective=cfg.objective,
@@ -508,6 +517,8 @@ def _plan(
         band=band,
         query_run_config=staged_ini,
         sim_binary=sim_binary,
+        forbidden_buildings=forbidden,
+        minimum_separation_m=float((config.ini_value(ini, "rl", "unsafe_separation_m") or "1.0")) if collision_check else 0.0,
     )
     log.write(
         f"method={method} objective={cfg.objective} "

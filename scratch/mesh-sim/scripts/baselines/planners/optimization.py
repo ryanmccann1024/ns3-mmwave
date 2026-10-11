@@ -139,7 +139,7 @@ def propose(
             if clamped is None:
                 return None
             new[node, :2] = clamped
-        return new
+        return new if objective.layout_separated(ctx, new) else None
     node = int(rng.choice(chosen))
     if move == "teleport":
         uncovered = np.nonzero(~covered)[0]
@@ -153,7 +153,7 @@ def propose(
     if clamped is None:
         return None
     new[node, :2] = clamped
-    return new
+    return new if objective.layout_separated(ctx, new) else None
 
 
 def _covered(ctx, result) -> np.ndarray:

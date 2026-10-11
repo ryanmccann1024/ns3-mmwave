@@ -10,6 +10,7 @@ from scripts.rl.env.observations import (
     SchemaMismatchError, canonical_json, check_schema, get_preset,
     observation_schema,
 )
+from scripts.rl.env.protocol import CentralizedProtocol, ProtocolError
 from scripts.rl.env.rewards import (RewardComposer, get_component, position_context,
                                     reward_schema)
 from scripts.rl.env.selection import resolve_selection
@@ -307,6 +308,121 @@ def test_motion_cost_uses_short_terminal_window_duration():
     assert context["travel_fraction"] == pytest.approx(0.5)
 
 
+def test_type_travel_cost_uses_original_node_types_and_all_slot_denominator():
+    previous = [list(row) for row in FACTS["nodes"]]
+    current = dict(FACTS, nodes=[list(row) for row in FACTS["nodes"]])
+    current["nodes"][1][0] -= 2.5  # half a window of drone travel
+    current["nodes"][2][1] += 5.0  # full window of vehicle travel
+    contract = contract_with(node_types=["vehicle", "drone", "vehicle"])
+    context = position_context(current, previous, previous, contract)
+    assert context["drone_travel_fraction"] == pytest.approx(0.25)
+    assert context["vehicle_travel_fraction"] == pytest.approx(0.5)
+    assert context["pedestrian_travel_fraction"] == 0.0
+    breakdown = RewardComposer(["drone_travel_fraction", "vehicle_travel_fraction"],
+                               [-0.2, -0.5]).compose(FACTS["window"], 0.0,
+                                                    contract, context)
+    assert breakdown.total == pytest.approx(-0.2 * 0.25 - 0.5 * 0.5)
+
+
+def test_span_travel_uses_type_spans_and_charges_return_trip():
+    initial = [list(row) for row in FACTS["nodes"]]
+    outbound = dict(FACTS, nodes=[list(row) for row in initial])
+    outbound["nodes"][1][0] -= 10.0  # drone: 10 / 500
+    outbound["nodes"][2][1] += 6.0   # vehicle: 6 / 300
+    contract = contract_with(node_types=["vehicle", "drone", "vehicle"])
+    first = position_context(outbound, initial, initial, contract)
+    assert first["span_travel_fraction"] == pytest.approx(0.02)
+    home = dict(FACTS, nodes=initial)
+    second = position_context(home, outbound["nodes"], initial, contract)
+    assert second["span_travel_fraction"] == pytest.approx(0.02)
+    assert second["origin_fraction"] == 0.0
+    composer = RewardComposer(["span_travel_fraction"], [-0.5])
+    assert composer.compose(FACTS["window"], 0.0, contract, first).total == pytest.approx(-0.01)
+    assert composer.compose(FACTS["window"], 0.0, contract, second).total == pytest.approx(-0.01)
+    schema = reward_schema(["span_travel_fraction"], [-0.5],
+                           contract=contract_with(node_types=["vehicle", "drone", "vehicle"]))
+    assert schema["component_details"]["span_travel_fraction"]["parameters"]["reference_span_m"] == {
+        "drone": 500.0, "pedestrian": 300.0, "vehicle": 300.0}
+    assert schema["component_details"]["span_travel_fraction"]["parameters"]["hard_limit"] is False
+
+
+def test_span_travel_requires_node_types_from_simulator():
+    context = position_context(FACTS, FACTS["nodes"], FACTS["nodes"], CONTRACT)
+    with pytest.raises(ValueError, match="requires context"):
+        RewardComposer(["span_travel_fraction"], [-0.5]).compose(
+            FACTS["window"], 0.0, CONTRACT, context)
+
+
+def test_peer_cohesion_tracks_original_nearest_peer_without_collapse_bonus():
+    initial = [list(row) for row in FACTS["nodes"]]
+    contract = contract_with(node_types=["vehicle", "drone", "vehicle"])
+    unchanged = position_context(FACTS, initial, initial, contract)
+    assert unchanged["peer_cohesion"] == 0.0
+
+    apart = dict(FACTS, nodes=[list(row) for row in initial])
+    apart["nodes"][2][1] += 30.0
+    context = position_context(apart, initial, initial, contract)
+    assert context["peer_cohesion"] == pytest.approx((-30 / 500 - 30 / 300) / 2)
+
+    together = dict(FACTS, nodes=[list(row) for row in initial])
+    together["nodes"][2][1] -= 10.0
+    context = position_context(together, initial, initial, contract)
+    assert context["peer_cohesion"] == pytest.approx((10 / 500 + 10 / 300) / 2)
+    reward = RewardComposer(["peer_cohesion"], [2.0]).compose(
+        FACTS["window"], 0.0, contract, context)
+    assert reward.total == pytest.approx(2 * context["peer_cohesion"])
+
+
+def test_peer_cohesion_floor_allows_initially_close_nodes_to_separate_safely():
+    contract = contract_with(node_ids=["a", "b"], slot_node_ids=["a", "b"],
+                             node_types=["vehicle", "vehicle"],
+                             slot_speed_mps=[10.0, 10.0])
+    initial = [[0.0, 0.0, 1.5], [0.3, 0.0, 1.5]]
+    current = dict(FACTS, nodes=[[0.0, 0.0, 1.5], [2.0, 0.0, 1.5]],
+                   links=[[20.0, 1.0, 1]])
+    assert position_context(current, initial, initial, contract)["peer_cohesion"] == 0.0
+
+
+def test_log_throughput_has_bounded_safety_scale_and_schema():
+    value, valid = get_component("throughput_log_mbps").value(
+        FACTS["window"], 0.0, CONTRACT)
+    assert valid and value == pytest.approx(math.log1p(120 / 5))
+    schema = reward_schema(["throughput_log_mbps", "peer_cohesion"], [1.0, 2.0],
+                           contract=contract_with(node_types=["vehicle", "drone", "vehicle"]))
+    assert schema["component_details"]["peer_cohesion"]["parameters"]["floor_m"] == 20.0
+    assert schema["component_details"]["throughput_log_mbps"]["formula"] == "ln(1 + delivered_mbps_sum/scored_ticks)"
+
+
+def test_unsafe_proximity_fraction_penalizes_window_ticks_not_just_final_state():
+    facts = dict(FACTS, safety={"threshold_m": 2.0, "unsafe_ticks": 2,
+                                "min_pair_distance_m": 0.3})
+    context = position_context(facts, FACTS["nodes"], FACTS["nodes"], CONTRACT)
+    assert context["unsafe_proximity_fraction"] == pytest.approx(2 / 5)
+    breakdown = RewardComposer(["unsafe_proximity_fraction"], [-2.0]).compose(
+        facts["window"], 0.0, CONTRACT, context)
+    assert breakdown.total == pytest.approx(-0.8)
+    with pytest.raises(ValueError, match="requires context"):
+        RewardComposer(["unsafe_proximity_fraction"], [-2.0]).compose(
+            FACTS["window"], 0.0, CONTRACT, {})
+
+
+def test_safety_fact_rejects_inconsistent_counts_and_accepts_reset_null():
+    CentralizedProtocol._check_safety(
+        {"threshold_m": 2.0, "unsafe_ticks": 0, "min_pair_distance_m": None},
+        0, 3)
+    CentralizedProtocol._check_safety(
+        {"threshold_m": 2.0, "unsafe_ticks": 0, "min_pair_distance_m": None},
+        5, 1)
+    with pytest.raises(ProtocolError, match="unsafe_ticks"):
+        CentralizedProtocol._check_safety(
+            {"threshold_m": 2.0, "unsafe_ticks": 6, "min_pair_distance_m": 0.3},
+            5, 3)
+    with pytest.raises(ProtocolError, match="above its threshold"):
+        CentralizedProtocol._check_safety(
+            {"threshold_m": 2.0, "unsafe_ticks": 1, "min_pair_distance_m": 2.5},
+            5, 3)
+
+
 def test_sinr_shaping_uses_only_present_link_facts():
     context = {"links": FACTS["links"]}
     breakdown = RewardComposer(["sinr_quality"], [0.2]).compose(
@@ -349,7 +465,7 @@ def test_reward_schema_authorities():
 
     delivery_schema = reward_schema(
         ["delivery_binary", "signed_delivery_ratio"], [1.0, 1.0],
-        contract=dict(CONTRACT, reward_type="throughput", reward_window="mean"))
+        contract=dict(CONTRACT, contract=contract_with(node_types=["vehicle", "drone", "vehicle"])))
     assert delivery_schema["component_details"]["delivery_binary"]["formula"]
     assert delivery_schema["component_details"]["signed_delivery_ratio"]["formula"]
 

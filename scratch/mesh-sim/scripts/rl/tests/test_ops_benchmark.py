@@ -128,7 +128,7 @@ def _plan(root: Path) -> dict:
                    "--output-dir", str(root / "comparison")],
                   "output_dir": str(root / "comparison"),
                   "manifest": "comparison.json", "needs": []})
-    return {"experiment_plan_version": 1,
+    return {"experiment_plan_version": 2,
             "matrix": {"name": "bypass-smoke", "sha256": "abc"}, "steps": steps}
 
 

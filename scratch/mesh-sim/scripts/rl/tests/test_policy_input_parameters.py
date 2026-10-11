@@ -199,7 +199,7 @@ def test_metric_declares_its_accumulator_without_dispatch_changes(monkeypatch):
 
 
 def test_benchmark_selection_detects_changed_scales_and_thresholds():
-    from scripts.rl.ops.benchmark import _row_selection, _selection_fields
+    from scripts.rl.ops.estimation import _row_selection, _selection_fields
     measured = RlSelection("service_v1", ("service_success",), (1,)).describe()
     assert _selection_fields(measured) == _row_selection(measured)
     changed_scale = copy.deepcopy(measured)

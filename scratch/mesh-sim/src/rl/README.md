@@ -119,7 +119,7 @@ this scoring change explicit and rejects version 1 clients/policies.
 Zero rewards still represent ordinary RL transitions: early actions can earn
 later rewards by improving the post-warmup state.
 
-Episode manifest version 5 records `scored_ticks` across returned Gymnasium
+Episode manifest version 6 records `scored_ticks` across returned Gymnasium
 steps, excluding the reset sample; summary metrics can include that tick-zero
 sample when warmup is zero. `cumulative_reward` sums decision means, so it is
 not the same quantity as an average or total of summary metric samples.
@@ -376,3 +376,19 @@ Test maps (inputs and expected outputs):
 - @ref src_rl_policy_comparison_tests -- policy comparison, experiment matrix, evaluation pipeline.
 
 The test files live in [`scripts/rl/tests/`](@ref scripts_rl_tests).
+
+A centralized `init` also reports `node_types` in `node_ids` order. Each `step`
+reports `facts.safety`: `[rl] unsafe_separation_m` (default 1 m), the count of scored simulator ticks in
+the scored portion of the completed decision window with any mesh-node pair closer than that threshold
+in 3D, and the minimum pair distance in metres. This is a proximity proxy, not
+a physical collision engine; jammers are excluded. The minimum is null at reset
+or if there are fewer than two mesh nodes. These additive facts do not change
+the action or observation vector.
+A decision window is the simulator ticks between those chances to change
+direction. Each tick still updates movement, links, traffic, and reward.
+
+## Additive per-node service and joint movement safety
+
+Init may declare `node_service_columns=["demand_mbps_sum","delivered_mbps_sum"]`. Every facts message then contains `node_service`, one row per `node_ids` entry. Routed flow demand and actual delivered traffic are accumulated at both endpoints; column sums equal twice the network window sums. The Python reader validates this capability while accepting older peers without it. Observation/action shapes are unchanged.
+
+Opt-in `avoid_node_collisions` checks continuous joint movement paths, splits at wall-arrival times, and holds unsafe moving participants before advancement. Holding can change another path, so the joint set is checked again. Rejected slots appear in `revalidated_slots` and applied actions are holds. Building masks still apply. Pure movement tests are in `tests/unit/rl`.

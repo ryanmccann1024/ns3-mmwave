@@ -1,6 +1,7 @@
 """Training manifests, verified checkpoint records, and final/best model provenance."""
 
 import math
+from scripts.rl.agents.config import PPO_FIELDS
 import os
 import platform
 from pathlib import Path
@@ -9,7 +10,7 @@ from scripts.rl.cli_common import (MANIFEST_NAME, MODEL_BASENAME, now_iso,
                                    package_versions, sha256_file, write_json)
 from scripts.rl.env.config import read_scenario_identity
 
-MANIFEST_VERSION = 6
+MANIFEST_VERSION = 7
 CHECKPOINT_DIR = "checkpoints"
 CHECKPOINT_PREFIX = "checkpoint"
 BEST_MODEL_NAME = "best_model.zip"
@@ -32,7 +33,7 @@ def evaluation_block(out_dir, cadence):
     if cadence.eval_every <= 0:
         return None
     return {"every_steps": cadence.eval_every, "episodes": cadence.eval_episodes,
-            "seed": cadence.eval_seed, "seed_source": "eval",
+            "seed": cadence.eval_seed, "seeds": list(cadence.eval_seeds) or [cadence.eval_seed], "seed_source": "eval",
             "output_dir": os.path.abspath(os.path.join(out_dir, EVAL_DIR)),
             "log_path": os.path.abspath(os.path.join(out_dir, EVAL_LOG_NAME))}
 
@@ -87,6 +88,7 @@ class TrainingArtifacts:
             "best_mean_reward": None,
             "checkpoints": [],
         }
+        self.manifest["hyperparameters"].update({key: getattr(cfg, key) for key in PPO_FIELDS})
         self.manifest["num_timesteps"] = 0 if resume is None else resume.num_timesteps
         self.manifest["resume"] = None if resume is None else {
             "parent": resume.describe(),

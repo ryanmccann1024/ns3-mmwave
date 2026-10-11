@@ -1227,6 +1227,36 @@ main()
     test_rl_start_outside_bounds();
     test_rl_validator_reports_resolver_errors();
 
+    {
+        auto cfg=makeValid(); cfg.rl.enabled=true;
+        cfg.rl.unsafe_separation_m=0;
+        check(!ValidateConfig(cfg).errors.empty(), "reject zero unsafe separation");
+        cfg.rl.unsafe_separation_m=1;
+        cfg.rl.controlled_nodes_set=true; cfg.rl.controlled_nodes="all";
+        cfg.rl.coverage_enabled=true; cfg.rl.coverage_grid_cells=0;
+        check(!ValidateConfig(cfg).errors.empty(), "reject zero RL coverage cells");
+        cfg.rl.coverage_grid_cells=64;
+        check(ValidateConfig(cfg).errors.empty(), "accept 1m separation and live coverage");
+    }
+
+    {
+        auto cfg = makeRlCfg();
+        cfg.rl.avoid_node_collisions = true;
+        cfg.rl.unsafe_separation_m = 1;
+        check(ValidateConfig(cfg).ok(), "joint collision guard accepts separated starts");
+        cfg.nodes[1].position = cfg.nodes[0].position;
+        check(!ValidateConfig(cfg).ok(), "joint collision guard rejects overlapping starts");
+        cfg.nodes[1].position.z += 20;
+        check(ValidateConfig(cfg).ok(), "joint collision guard uses 3D separation");
+    }
+
+    {
+        TempScenario scenario("", "controlled_nodes = all\navoid_node_collisions = true\n");
+        check(scenario.Load().rl.avoid_node_collisions, "loader reads joint collision flag");
+        TempScenario defaults("", "controlled_nodes = all\n");
+        check(!defaults.Load().rl.avoid_node_collisions, "joint collision flag defaults false");
+    }
+
     // RL resolver safety
     test_rl_safety_cases();
     test_controlled_start_position();

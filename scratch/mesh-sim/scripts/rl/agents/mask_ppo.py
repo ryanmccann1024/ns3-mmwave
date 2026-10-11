@@ -1,6 +1,7 @@
 """MaskablePPO trainer wrapper + its config for the mesh-sim RL agent."""
 
 from typing import Callable
+import math
 
 from gymnasium import Env
 from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
@@ -8,6 +9,8 @@ from sb3_contrib.common.wrappers import ActionMasker
 from sb3_contrib.ppo_mask import MaskablePPO
 
 from scripts.rl.agents.config import MaskablePPOConfig as MaskablePPOConfig
+
+
 
 
 class MaskablePpoTrainer:
@@ -23,6 +26,13 @@ class MaskablePpoTrainer:
             n_steps=cfg.n_steps,
             gamma=cfg.gamma,
             ent_coef=cfg.ent_coef,
+            learning_rate=cfg.learning_rate,
+            batch_size=cfg.batch_size,
+            gae_lambda=cfg.gae_lambda,
+            clip_range=cfg.clip_range,
+            n_epochs=cfg.n_epochs,
+            target_kl=cfg.target_kl,
+            policy_kwargs={"net_arch": {"pi": list(cfg.net_arch), "vf": list(cfg.net_arch)}},
             verbose=cfg.verbose,
             tensorboard_log=cfg.tensorboard_log,
         )
@@ -46,7 +56,11 @@ class MaskablePpoTrainer:
     def train(self, callback=None, continuing=False):
         remaining = (self.cfg.total_timesteps - self.model.num_timesteps
                      if continuing else self.cfg.total_timesteps)
-        self.model.learn(total_timesteps=remaining, callback=callback,
+        callbacks = list(callback or []) if isinstance(callback, (list, tuple)) else ([callback] if callback else [])
+        if self.cfg.ent_coef_final is not None:
+            from .callbacks import EntropyDecayCallback
+            callbacks.insert(0, EntropyDecayCallback(self.cfg.ent_coef, self.cfg.ent_coef_final, remaining))
+        self.model.learn(total_timesteps=remaining, callback=callbacks or None,
                          reset_num_timesteps=not continuing)
         return self.model
 

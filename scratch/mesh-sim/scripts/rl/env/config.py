@@ -104,3 +104,36 @@ def read_action_profile(run_config: str) -> str:
     raw = strip_inline_comment(ini.get("rl", "action_profile",
                                        fallback=_DEFAULT_ACTION_PROFILE))
     return raw or _DEFAULT_ACTION_PROFILE
+
+
+def read_manifest_every_decisions(run_config: str) -> int:
+    """Read the Python episode-progress cadence; final manifests are always saved."""
+    ini = _read_ini(run_config)
+    raw = strip_inline_comment(ini.get("rl", "manifest_every_decisions", fallback="1"))
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError("[rl] manifest_every_decisions must be a positive integer") from exc
+    if value < 1:
+        raise ValueError("[rl] manifest_every_decisions must be a positive integer")
+    return value
+
+
+def read_episode_output(run_config: str) -> dict:
+    ini = _read_ini(run_config)
+    return {"compact_training": ini.getboolean("rl", "compact_training", fallback=False)}
+
+
+def read_jammer_onsets(run_config: str) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    ini = _read_ini(run_config)
+    duration = ini.getfloat("scenario", "duration_s", fallback=0.0)
+    result = []
+    for name in ("training_jammer_onsets_s", "evaluation_jammer_onsets_s"):
+        raw = strip_inline_comment(ini.get("rl", name, fallback=""))
+        values = tuple(float(v.strip()) for v in raw.split(",") if v.strip())
+        if any(not 0 <= v < duration for v in values):
+            raise ValueError(f"[rl] {name} must contain finite times in [0,duration_s)")
+        result.append(values)
+    if any(result) and not strip_inline_comment(ini.get("scenario", "jammers_file", fallback="")):
+        raise ValueError("jammer onset schedules require jammers_file")
+    return tuple(result)

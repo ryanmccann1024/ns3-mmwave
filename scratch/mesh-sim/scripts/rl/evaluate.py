@@ -72,7 +72,7 @@ def _baseline_spec(name: str) -> PolicySpec:
 
 
 def _model_spec(bundle, live_identity: dict, band: str | None,
-                allow_different_scenario: bool, capture=None) -> PolicySpec:
+                allow_different_scenario: bool, capture=None, deterministic=True) -> PolicySpec:
     def build(env, first_seed: int) -> Prepared:
         # The compatibility reset is the first model episode; no extra episode is left.
         initial = env.reset(seed=first_seed, options={"seed_source": "eval"})
@@ -80,7 +80,7 @@ def _model_spec(bundle, live_identity: dict, band: str | None,
             bundle.manifest, env, live_identity=live_identity, live_band=band,
             allow_different_scenario=allow_different_scenario)
         model = load_model(bundle, env, mask_fn)
-        return Prepared(ModelPolicy(model, capture), initial,
+        return Prepared(ModelPolicy(model, capture, deterministic=deterministic), initial,
                         {"compatibility": report.describe()})
 
     return PolicySpec("model", build)
@@ -129,6 +129,9 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Record a scenario mismatch instead of refusing; behavior unproven",
     )
+    p.add_argument("--stochastic-model", action="store_true", help="Sample the saved policy")
+    p.add_argument("--decision-record-seeds", help="Write sidecars only for this subset of evaluation seeds")
+    p.add_argument("--baseline-cache-dir", help="Reuse baseline trajectories across reward variants")
     p.add_argument("--json", action="store_true", help="Print the eval manifest as JSON")
     return p
 
@@ -196,6 +199,9 @@ def main(argv=None) -> int:
     try:
         records = decision_records_from_args(args)
         seeds = parse_seed_spec(args.seeds)
+        record_seeds = tuple(parse_seed_spec(args.decision_record_seeds)) if args.decision_record_seeds else None
+        if record_seeds is not None and (not records.enabled or not set(record_seeds) <= set(seeds)):
+            raise ValueError("--decision-record-seeds requires enabled records and a subset of --seeds")
         policies = _parse_policies(args.policies)
         _check_output_dir(args.output_dir, args.run_dir)
     except ValueError as exc:
@@ -225,6 +231,7 @@ def main(argv=None) -> int:
         selection = eval_selection(selection)
         identity = read_scenario_identity(run_config)
         base = {
+            "deterministic": not args.stochastic_model,
             "sim_binary": os.path.abspath(args.sim_binary),
             "run_config": os.path.abspath(run_config),
             "band": band,
@@ -236,56 +243,57 @@ def main(argv=None) -> int:
             "scenario_identity": identity,
             "bundle": bundle.describe() if bundle is not None else None,
         }
-        placements = prepare_placements(
-            policies,
-            run_config,
-            args.output_dir,
-            args.sim_binary,
-            band,
-            seeds,
-            planning_seed=args.planning_seed,
-            allow_seed_overlap=args.allow_seed_overlap,
-        )
-        capture = (
-            PreferenceCapture()
-            if "model" in policies and records.enabled and records.preferences != "off"
-            else None
-        )
-        specs = [
-            (
-                _model_spec(bundle, identity, band, args.allow_different_scenario, capture)
-                if name == "model"
-                else (
-                    placement_spec(placements[name]) if name in placements else _baseline_spec(name)
-                )
-            )
-            for name in policies
-        ]
-        configs = {
-            name: str(prepared.effective_run_config) for name, prepared in placements.items()
-        }
+        cached = None
+        baseline_names = [name for name in policies if name != "model"]
+        if args.baseline_cache_dir and baseline_names:
+            from scripts.rl.policy.baseline_cache import ensure_baselines, cache_signature, merge_baselines
+            signature = cache_signature(args.sim_binary, identity, band, seeds, baseline_names, selection.observation_preset,
+                observation_parameters=selection.observation_parameters, planning_seeds=planning_seeds)
+            def run_baselines(destination):
+                command = ["--sim-binary", args.sim_binary, "--run-config", run_config,
+                           "--output-dir", str(destination), "--seeds", args.seeds,
+                           "--policies", ",".join(baseline_names),
+                           "--observation-preset", selection.observation_preset]
+                if band: command += ["--band", band]
+                if selection.reward_components:
+                    command += ["--reward-components", ",".join(selection.reward_components),
+                                "--reward-weights", ",".join(map(str, selection.reward_weights))]
+                command += ["--observation-parameters", json.dumps(selection.observation_parameters),
+                            "--reward-parameters", json.dumps(selection.reward_parameters)]
+                if args.planning_seed is not None:
+                    command += ["--planning-seed", str(args.planning_seed)]
+                if args.allow_seed_overlap:
+                    command.append("--allow-seed-overlap")
+                return main(command)
+            cached = ensure_baselines(args.baseline_cache_dir, signature, run_baselines)
+        active_policies = [name for name in policies if name == "model"] if cached else policies
+        placements = prepare_placements(active_policies, run_config, args.output_dir, args.sim_binary, band, seeds, planning_seed=args.planning_seed, allow_seed_overlap=args.allow_seed_overlap)
+        capture = (PreferenceCapture() if "model" in policies and records.enabled
+                   and records.preferences != "off" else None)
+        record_identity = (model_identity(bundle, not args.stochastic_model) if "model" in policies and records.enabled
+                          else None)
+        specs = [_model_spec(bundle, identity, band, args.allow_different_scenario, capture, not args.stochastic_model)
+                 if name == "model"
+                 else placement_spec(placements[name]) if name in placements
+                 else _baseline_spec(name) for name in active_policies]
+        configs = {name: str(prepared.effective_run_config)
+                   for name, prepared in placements.items()}
 
         def make_env(name: str) -> MeshRlEnv:
-            return MeshRlEnv(
-                args.sim_binary,
-                configs.get(name, run_config),
-                seed=seeds[0],
-                output_dir=os.path.join(args.output_dir, name),
-                band=band,
-                selection=selection,
-                decision_records=DecisionRecording(
-                    records,
-                    DecisionContext(
-                        "evaluation",
-                        "evaluate",
-                        policy=name,
-                        model=model_identity(bundle) if name == "model" else None,
-                        preference_source=capture.take if name == "model" and capture else None,
-                    ),
-                ),
-            )
+            is_model = name == "model"
+            context = DecisionContext(
+                mode="evaluation", source="evaluate", policy=name,
+                model=record_identity if is_model else None,
+                preference_source=capture.take if is_model and capture is not None else None)
+            return MeshRlEnv(args.sim_binary, configs.get(name, run_config), seed=seeds[0],
+                             output_dir=os.path.join(args.output_dir, name),
+                             band=band, selection=selection,
+                             decision_records=DecisionRecording(records, context, record_seeds))
 
+        if cached: base["baseline_expected_episodes"] = cached["episodes_expected"]
         manifest = evaluate(make_env, specs, seeds, args.output_dir, base)
+        if cached:
+            manifest = merge_baselines(manifest, cached, args.output_dir, selection, args.baseline_cache_dir)
     except Exception as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return 1

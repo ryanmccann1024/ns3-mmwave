@@ -62,6 +62,8 @@ class PlanRequest:
     optimizer_settings: planner_config.OptimizerSettings | None = None
     query_settings: planner_config.QuerySettings | None = None
     cache_bytes: int = 32 * 1024 * 1024
+    forbidden_buildings: tuple = ()
+    minimum_separation_m: float = 0.0
 
 
 @dataclass(frozen=True)

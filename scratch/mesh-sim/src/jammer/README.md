@@ -103,7 +103,7 @@ disables only the cutoff; path loss still reduces power.
 - **Beamwidth is an assumption.** The CSV logs heading but not beamwidth; widen `--beamwidth` (up to 360) if nodes are jammed outside a narrow cone.
 - **Hard-edged cone.** Full power just inside the beam, none just outside.
 - **One power and heading per spec.** A sweep is modeled as several specs (one per trial); `make_jammers.py` does this when `--trial` is omitted.
-- **SINR floor.** `LinkEvaluator` clamps SINR to 0 dB whenever jammer power is nonzero, so jammed SINR is never negative. Whether to change this is an unresolved team decision.
+- **Negative SINR.** Jammer power may drive SINR below zero; below −6.7 dB a link has zero capacity. There is no artificial 0 dB floor.
 
 ## Dependencies
 

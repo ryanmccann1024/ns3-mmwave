@@ -175,3 +175,33 @@ channel-scored engine. `gateway_node_id` and `rf_config` are removed. The active
 traffic gateway must remain outside placement selection and RL control. See the
 [baseline guide](../../scripts/baselines/README.md) for ownership/seed rules and the
 [walkthrough](../../scripts/baselines/walkthrough.md) for comparable runs.
+
+## Centralized safety and live coverage
+
+`[rl] unsafe_separation_m` is a finite positive distance (default 1 m).
+`avoid_buildings` defaults false; when true, centralized swept movement may
+not enter a building. `coverage_enabled` defaults false and requires
+centralized control. It reads coverage settings from `[baseline]`:
+`coverage_grid_cells` (RL default 100, integer 1–10000),
+`grid_min_resolution_m` (5 m), `coverage_probe_height_m` (1.5 m),
+`coverage_probe_rx_gain_dbi` (resolved channel RX gain), and
+`coverage_sinr_db` (-6.7 dB). The actual clipped grid is capped at 10000 probes.
+These settings apply even when `[baseline] algorithm=none`.
+
+```ini
+[rl]
+controlled_nodes = all
+unsafe_separation_m = 1.0
+avoid_buildings = true
+coverage_enabled = true
+reward_components = delivery_ratio, coverage_fraction, span_travel_fraction
+reward_weights = 1.0, 0.5, -2.5
+```
+
+### Joint collision constraint
+
+`[rl] avoid_node_collisions=false` is opt-in and requires centralized control. With it enabled, all initial mesh-node pairs must meet `unsafe_separation_m`; unsafe joint horizontal paths are held/revalidated, using 3D distance and clipped bounds. Older scenarios retain their configured behavior.
+
+### Python controlled moving jammer
+
+`[rl] jammer_motion_profile = sweep_v1` is interpreted by the Python episode launcher, not by the C++ loader. It resolves one jammer into archived waypoint inputs per episode on the 600-second 400×400 m scenarios. Actual motion and its seed-dependent variant appear in `rl_episode.json` version 6. Raw simulator invocation uses the configured jammers.json directly; use the RL launchers for varied routes.

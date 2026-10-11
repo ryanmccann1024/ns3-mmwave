@@ -12,11 +12,13 @@ def test_metrics_use_scored_ticks_instead_of_elapsed_ticks():
         "los_pairs_sum": 6, "flow_ticks_with_demand": 3,
         "unroutable_flow_ticks": 1}}}]
     result = episode_metrics(records, num_links=2)
-    assert result == {"delivery_ratio": 0.5, "connectivity": 0.5,
+    expected = {"delivery_ratio": 0.5, "connectivity": 0.5,
                       "los_fraction": 1.0, "unroutable_fraction": pytest.approx(1 / 3),
                       "first_all_los_decision": 1, "travel_m_total": None,
                       "displacement_m_final": None, "per_node_travel_m": None,
                       "per_node_displacement_m": None}
+    assert {name: result[name] for name in expected} == expected
+    assert all(value is None for name, value in result.items() if name not in expected)
 
 
 @pytest.mark.parametrize("num_links", [0, 2])

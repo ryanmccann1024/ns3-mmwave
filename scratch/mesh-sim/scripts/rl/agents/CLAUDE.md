@@ -6,12 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Thin SB3 wrappers used by `train.py` and `policy/bundle.py`.
 
-- `mask_ppo.py` -- `MaskablePPOConfig` + `MaskablePpoTrainer`, which wraps the
-  env in `ActionMasker`. Only `seed`, `n_steps`, `gamma`, and `ent_coef` reach
-  the `MaskablePPO` constructor; `ops/tune.py` and experiment matrices can only
-  vary those. Wiring a new hyperparameter means updating `train.py` CLI, the
-  train manifest, `policy/compare.py::_TRAINING_SETTINGS`, and `ops/tune.py`'s
-  `_SEARCHABLE` together.
+- `mask_ppo.py` -- config and constructor for masked PPO. CLI and matrices expose
+  rollout, discount, entropy and its optional decay endpoint, learning rate,
+  minibatch, GAE, clipping, epochs, target KL, and actor/critic layer widths.
+  Entropy decay is applied by `callbacks.py` at rollout boundaries. Keep CLI,
+  manifest, comparison grouping and scalar Optuna search knobs aligned; network
+  widths are explicit matrix profiles rather than scalar Optuna suggestions.
 - `MaskablePpoTrainer.load` forces `device="cpu"` so evaluation replay is
   deterministic; keep it that way.
 - `callbacks.py` -- `BoundedCheckpointCallback` (keeps the newest `keep_last`

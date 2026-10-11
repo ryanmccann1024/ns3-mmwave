@@ -11,11 +11,12 @@ from .decisions import DECISIONS_FILE, DECISIONS_MANIFEST, DecisionRecorder
 from .telemetry import TELEMETRY_FILE, StepRecorder, make_header, make_record
 
 _EPISODE_RE = re.compile(r"^episode-(\d+)$")
-_MANIFEST_VERSION = 5
+_MANIFEST_VERSION = 6
 
 
 class EpisodeArtifacts:
-    def __init__(self, output_dir: Path, decision_records=None):
+    def __init__(self, output_dir: Path, decision_records=None, manifest_every: int = 1):
+        self._manifest_every = manifest_every
         self._output_dir = output_dir
         self._next_index: int | None = None
         self.directory: Path | None = None
@@ -43,12 +44,13 @@ class EpisodeArtifacts:
             self.directory = path
             return path, index
 
-    def begin(self, index: int, seed: int, seed_source: str, command: list[str]) -> None:
+    def begin(self, index: int, seed: int, seed_source: str, command: list[str], motion=None) -> None:
         self.action = None
         self._steps_saved_decision = None
         self.manifest = {
             "manifest_version": _MANIFEST_VERSION,
             "episode": index,
+            "jammer_motion": motion,
             "seed": seed,
             "seed_source": seed_source,
             "command": list(command),
@@ -135,7 +137,8 @@ class EpisodeArtifacts:
             self._append_record(msg, breakdown if breakdown is not None else reward,
                                 (detail or {}).get("obs"),
                                 (detail or {}).get("reward_context"))
-        self.write()
+        if msg["done"] or self.manifest["steps"] % self._manifest_every == 0:
+            self.write()
         pre = (detail or {}).get("decision")
         if self._decisions is not None and pre is not None:
             self._guard(self._decisions.record_decision, msg, pre,

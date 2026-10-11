@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.rl.agents.config import validate_training_settings
+from scripts.rl.agents.config import validate_training_settings, PPO_FIELDS
 from scripts.rl.cli_common import MANIFEST_NAME, sha256_file, write_json
 from scripts.rl.env.config import read_action_profile
 from scripts.rl.env.selection import resolve_selection
@@ -21,9 +21,8 @@ COMPARISON_NAME = "comparison.json"
 _TOP_KEYS = ("matrix_version", "name", "description", "run_config", "band",
              "seeds", "training", "evaluation", "rows")
 _SEED_KEYS = ("training", "model_selection", "held_out")
-_TRAINING_KEYS = ("total_timesteps", "n_steps", "gamma", "ent_coef",
-                  "eval_every_steps", "checkpoint_every_steps", "keep_checkpoints")
-_EVALUATION_KEYS = ("model", "policies")
+_TRAINING_KEYS = (*PPO_FIELDS, "eval_every_steps", "checkpoint_every_steps", "keep_checkpoints")
+_EVALUATION_KEYS = ("model", "policies", "decision_records", "decision_record_seeds", "reuse_baselines", "baseline_cache_dir")
 _ROW_KEYS = ("name", "observation_preset", "action_profile", "reward_components",
              "reward_weights", "run_config", "band", "observation_parameters", "reward_parameters")
 _BANDS = ("mmwave", "sub-6")
@@ -61,7 +60,7 @@ def _int(value, where: str) -> int:
 
 def _training(raw) -> dict:
     _check_keys(raw, _TRAINING_KEYS, "training")
-    settings = {key: _scalar(value, f"training.{key}") for key, value in raw.items()}
+    settings = {key: value if key == "net_arch" else _scalar(value, f"training.{key}") for key, value in raw.items()}
     validate_training_settings(settings)
     return settings
 
@@ -92,7 +91,23 @@ def _evaluation(raw, training: dict) -> dict:
     if len(policies) < 2:
         raise ValueError("evaluation.policies must contain at least one baseline "
                          "besides 'model'")
-    return {"model": model, "policies": list(policies)}
+    evaluation = {"model": model, "policies": list(policies)}
+    if "baseline_cache_dir" in raw:
+        value = raw["baseline_cache_dir"]
+        if not isinstance(value, str) or not value:
+            raise ValueError("evaluation.baseline_cache_dir must be a nonempty path")
+        evaluation["baseline_cache_dir"] = str((find_mesh_root()/value).resolve())
+    if "decision_records" in raw:
+        if not isinstance(raw["decision_records"], bool):
+            raise ValueError("evaluation.decision_records must be a boolean")
+        evaluation["decision_records"] = raw["decision_records"]
+    if "decision_record_seeds" in raw:
+        evaluation["decision_record_seeds"] = _seed_list(raw["decision_record_seeds"], "evaluation.decision_record_seeds")
+    if "reuse_baselines" in raw:
+        if not isinstance(raw["reuse_baselines"], bool):
+            raise ValueError("evaluation.reuse_baselines must be a boolean")
+        evaluation["reuse_baselines"] = raw["reuse_baselines"]
+    return evaluation
 
 
 def _seed_list(value, where: str) -> list[int]:
@@ -116,18 +131,23 @@ def _seeds(raw, training: dict) -> dict:
         raise ValueError("seeds.held_out must list at least one seed")
 
     cadence = training.get("eval_every_steps", 0)
-    selection = _scalar(raw.get("model_selection"), "seeds.model_selection")
+    selection = raw.get("model_selection")
     if cadence > 0 and selection is None:
         raise ValueError("seeds.model_selection is required when "
                          "training.eval_every_steps > 0")
     if cadence <= 0 and selection is not None:
         raise ValueError("seeds.model_selection requires training.eval_every_steps > 0")
     if selection is not None:
-        selection = _int(selection, "seeds.model_selection")
+        if isinstance(selection, (list, str)):
+            selection = _seed_list(selection, "seeds.model_selection")
+            if not selection:
+                raise ValueError("seeds.model_selection must be nonempty")
+        else:
+            selection = _int(selection, "seeds.model_selection")
 
     roles = {"seeds.training": set(train_seeds), "seeds.held_out": set(held_out)}
     if selection is not None:
-        roles["seeds.model_selection"] = {selection}
+        roles["seeds.model_selection"] = set(selection) if isinstance(selection, list) else {selection}
     names = sorted(roles)
     for first, second in ((a, b) for i, a in enumerate(names) for b in names[i + 1:]):
         shared = sorted(roles[first] & roles[second])
@@ -259,21 +279,31 @@ def _train_args(matrix: dict, row: dict, sim_binary: str, out_dir: str,
              "m-ppo"]
     for key in _TRAINING_KEYS:
         if key in matrix["training"]:
-            args += [f"--{key.replace('_', '-')}", str(matrix["training"][key])]
-    args += ["--seed", str(seed), "--eval-episodes", "1"]
+            args += [f"--{key.replace('_', '-')}", (",".join(map(str, matrix["training"][key])) if key == "net_arch" else str(matrix["training"][key]))]
+    args += ["--seed", str(seed)]
     selection = matrix["seeds"]["model_selection"]
-    if selection is not None:
-        args += ["--eval-seed", str(selection)]
+    seeds = selection if isinstance(selection, list) else [selection] if selection is not None else []
+    args += ["--eval-episodes", str(len(seeds) or 1)]
+    if seeds:
+        args += ["--eval-seed", str(seeds[0]), "--eval-seeds", ",".join(map(str, seeds))]
     return args
 
 
 def _evaluate_args(matrix: dict, row: dict, sim_binary: str, run_dir: str,
                    out_dir: str) -> list[str]:
-    return ["--sim-binary", sim_binary, "--run-dir", run_dir,
+    args = ["--sim-binary", sim_binary, "--run-dir", run_dir,
             "--model", matrix["evaluation"]["model"], "--output-dir", out_dir,
             "--seeds", ",".join(str(seed) for seed in matrix["seeds"]["held_out"]),
             "--policies", ",".join(matrix["evaluation"]["policies"]),
             "--label", row["name"]]
+    if matrix["evaluation"].get("decision_records", False):
+        args.append("--decision-records")
+    record_seeds = matrix["evaluation"].get("decision_record_seeds")
+    if record_seeds:
+        args += ["--decision-record-seeds", ",".join(map(str, record_seeds))]
+    if matrix["evaluation"].get("reuse_baselines", False):
+        args += ["--baseline-cache-dir", matrix["evaluation"].get("baseline_cache_dir", str(Path(out_dir).parents[2]/"baseline-cache"))]
+    return args
 
 
 def build_plan(matrix: dict, output_root, sim_binary: str,

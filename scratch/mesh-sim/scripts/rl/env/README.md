@@ -104,3 +104,23 @@ Written under `<output_dir>/episode-NNNN/`, one directory per reset.
 - `scripts/sim_support.py` for the simulator environment and helpers.
 - A built simulator binary passed as `sim_binary`; this package does not build it.
 - Tests: @ref scripts_rl_tests.
+
+## Episode progress writes
+
+`[rl] manifest_every_decisions` is a Python-only positive integer (default 1).
+`EpisodeArtifacts` saves in-progress `rl_episode.json` every configured number
+of decisions; reset, contract/selection changes and finalization always write.
+This reduces disk writes without dropping evaluation telemetry or final totals.
+An ungraceful OS kill can leave progress up to cadence−1 decisions behind.
+
+## Compact episodes and delayed jammer schedules
+
+Python-only `[rl] compact_training=true` omits visualization CSVs and detailed step telemetry for training/selection tests while preserving summaries, training history and selection results. Final evaluation remains full telemetry. The simulator receives `--no-viz` for compact runs. `manifest_every_decisions` throttles in-progress snapshots but never finalization.
+
+Python-only `training_jammer_onsets_s` and `evaluation_jammer_onsets_s` are comma-separated finite times in [0,duration_s), requiring `jammers_file`. Training cycles the list across resets; evaluation selects `seed % len(list)`. Each episode command records `--jammer-onset-s`; the simulator enables configured jammers from that onset to episode end.
+
+### Dynamic rewards and jammer route variants
+
+`fair_node_service` averages sqrt(clipped per-node delivered/offered fractions), excluding zero-demand nodes. `adaptive_movement_cost` charges `(0.02 + 0.08 * previous_health) * travel_fraction`, with health the minimum of delivery, fair service and coverage. Composer health resets to zero each episode. The lag, coefficients, normalizers and coverage configuration enter the reward schema hash.
+
+Python-only `[rl] jammer_motion_profile = sweep_v1` resolves reproducible per-episode waypoint inputs in `jammer_motion.py`. Training cycles horizontal direction and onset; evaluation seed parity selects vertical direction and its seed-dependent timing. Every variant starts at the same position. Resolved inputs are archived in `motion-inputs`, and motion metadata is written with episode manifest version 6. Ordinary episode schemas remain unchanged. The profile requires a 600-second, 400×400 m case with one jammer.

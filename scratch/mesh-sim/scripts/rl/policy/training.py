@@ -1,6 +1,10 @@
 """Run or continue MaskablePPO training and close its simulator environments."""
 
 import os
+from dataclasses import replace
+from stable_baselines3.common.logger import configure
+from scripts.rl.env.config import read_episode_output
+from scripts.rl.policy.bundle import eval_selection
 
 from scripts.rl.agents.callbacks import build_callbacks, Cadence
 from scripts.rl.agents.mask_ppo import MaskablePPOConfig, MaskablePpoTrainer
@@ -26,7 +30,8 @@ def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
         # Let the env resolve the run.ini seed itself so episode manifests report
         # the same seed_source as this training manifest.
         env_seed = cfg.seed if seed_source == "cli" else None
-        env = MeshRlEnv(sim_binary, run_config, seed=env_seed,
+        compact = read_episode_output(run_config)["compact_training"]
+        env = MeshRlEnv(sim_binary, run_config, seed=env_seed, record_viz=not compact,
                         output_dir=out_dir, band=band, selection=selection,
                         decision_records=(DecisionRecording(records, DecisionContext("training", "train"))
                                           if records is not None else None))
@@ -37,9 +42,12 @@ def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
         artifacts.record_contract(env, selection)
 
         if cadence.eval_every > 0:
-            eval_env = MeshRlEnv(sim_binary, run_config, seed=cadence.eval_seed,
+            validation_selection = eval_selection(selection)
+            if compact:
+                validation_selection = replace(validation_selection, telemetry="none")
+            eval_env = MeshRlEnv(sim_binary, run_config, seed=cadence.eval_seed, record_viz=not compact,
                                  output_dir=os.path.join(out_dir, EVAL_DIR), band=band,
-                                 selection=selection,
+                                 selection=validation_selection,
                                  decision_records=(DecisionRecording(records, DecisionContext(
                                      "evaluation", "train_eval", policy="model"))
                                      if records is not None else None))
@@ -48,11 +56,15 @@ def train_mppo(cfg: MaskablePPOConfig, sim_binary: str, run_config: str,
         callbacks, eval_callback = build_callbacks(
             out_dir, cadence.checkpoint_every, cadence.keep_checkpoints,
             eval_env, cadence.eval_every, cadence.eval_episodes, cfg.verbose,
-            artifacts=artifacts, restored_steps=0 if resume is None else resume.num_timesteps)
+            artifacts=artifacts, restored_steps=0 if resume is None else resume.num_timesteps,
+            eval_seeds=cadence.eval_seeds)
         artifacts.eval_callback = eval_callback
 
         trainer = (MaskablePpoTrainer(cfg, env, mask_fn) if resume is None else
                    MaskablePpoTrainer.resume(cfg, env, mask_fn, resume))
+        if cfg.tensorboard_log is None:
+            formats = ["csv"] + (["stdout"] if cfg.verbose else [])
+            trainer.model.set_logger(configure(str(artifacts.out_dir / "ppo"), formats))
         trainer.train(callback=callbacks or None, continuing=resume is not None)
         return artifacts.complete(trainer)
     except BaseException as exc:

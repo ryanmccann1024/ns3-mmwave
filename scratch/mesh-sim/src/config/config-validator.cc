@@ -218,6 +218,42 @@ ValidateConfig(const SimConfig& cfg)
         if (cfg.rl.z_min >= cfg.rl.z_max)
             r.errors.push_back("rl.z_min must be < rl.z_max");
 
+        checkPositive(r, "rl.unsafe_separation_m", cfg.rl.unsafe_separation_m);
+        if (!std::isfinite(cfg.rl.unsafe_separation_m))
+            r.errors.push_back("rl.unsafe_separation_m must be finite");
+        if (cfg.rl.coverage_enabled)
+        {
+            if (!cfg.rl.controlled_nodes_set)
+                r.errors.push_back("rl.coverage_enabled requires centralized control");
+            if (cfg.rl.coverage_grid_cells < 1 || cfg.rl.coverage_grid_cells > 10000)
+                r.errors.push_back("baseline.coverage_grid_cells must be in [1,10000] for RL coverage");
+            checkPositive(r, "baseline.grid_min_resolution_m", cfg.rl.coverage_min_resolution_m);
+            if (!std::isfinite(cfg.rl.coverage_min_resolution_m))
+                r.errors.push_back("baseline.grid_min_resolution_m must be finite");
+            if (!std::isfinite(cfg.rl.coverage_probe_height_m) || cfg.rl.coverage_probe_height_m < 0)
+                r.errors.push_back("baseline.coverage_probe_height_m must be finite and nonnegative");
+            if (!std::isfinite(cfg.rl.coverage_probe_rx_gain_dbi) || cfg.rl.coverage_probe_rx_gain_dbi < 0)
+                r.errors.push_back("baseline.coverage_probe_rx_gain_dbi must be finite and nonnegative");
+            if (!std::isfinite(cfg.rl.coverage_sinr_db))
+                r.errors.push_back("baseline.coverage_sinr_db must be finite");
+        }
+
+        if (cfg.rl.avoid_node_collisions)
+        {
+            if (!cfg.rl.controlled_nodes_set)
+                r.errors.push_back("rl.avoid_node_collisions requires centralized control");
+            for (size_t i = 0; i < cfg.nodes.size(); ++i)
+            {
+                const auto a = ControlledStartPosition(cfg.nodes[i]);
+                for (size_t j = i + 1; j < cfg.nodes.size(); ++j)
+                {
+                    const auto b = ControlledStartPosition(cfg.nodes[j]);
+                    if (std::hypot(std::hypot(a.x-b.x, a.y-b.y), a.z-b.z) < cfg.rl.unsafe_separation_m)
+                        r.errors.push_back("unsafe initial node separation: " + cfg.nodes[i].id + " / " + cfg.nodes[j].id);
+                }
+            }
+        }
+
         // Slot/cadence/start-position rules live in the shared resolver.
         const RlControlResolution ctl = ResolveRlControl(cfg);
         r.errors.insert(r.errors.end(), ctl.errors.begin(), ctl.errors.end());

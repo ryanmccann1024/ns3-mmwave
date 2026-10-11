@@ -5,7 +5,7 @@ import argparse
 import sys
 
 from scripts.rl.agents.config import (Cadence, MaskablePPOConfig,
-                                      validate_training_settings)
+                                      validate_training_settings, PPO_FIELDS)
 from scripts.rl.cli_common import (add_scenario_arguments, add_selection_arguments,
                                    add_decision_record_arguments, decision_records_from_args,
                                    has_previous_run, make_out_dir, resolve_out_dir,
@@ -14,6 +14,7 @@ from scripts.rl.cli_common import (add_scenario_arguments, add_selection_argumen
 from scripts.rl.policy.bundle import (check_run_overlap, read_recovery_bundle,
                                       selection_from_manifest)
 from scripts.rl.policy.training import train_mppo
+from scripts.sim_support import parse_seed_spec
 
 
 def main() -> int:
@@ -35,6 +36,14 @@ def main() -> int:
     ppo.add_argument("--n-steps", type=int, default=None)
     ppo.add_argument("--gamma", type=float, default=None)
     ppo.add_argument("--ent-coef", type=float, default=None)
+    ppo.add_argument("--learning-rate", type=float, default=None)
+    ppo.add_argument("--batch-size", type=int, default=None)
+    ppo.add_argument("--gae-lambda", type=float, default=None)
+    ppo.add_argument("--clip-range", type=float, default=None)
+    ppo.add_argument("--n-epochs", type=int, default=None)
+    ppo.add_argument("--target-kl", type=float, default=None)
+    ppo.add_argument("--net-arch", default=None, help="Actor and critic layer widths, comma separated")
+    ppo.add_argument("--ent-coef-final", type=float, default=None)
     ppo.add_argument("--resume-run-dir", default=None,
                      help="Continue from a verified checkpoint in this previous run")
     ppo.add_argument("--resume-checkpoint", default=None,
@@ -52,6 +61,9 @@ def main() -> int:
                      help="Episodes per evaluation (>= 1)")
     ppo.add_argument("--eval-seed", type=int, default=None,
                      help="Seed for the evaluation env; defaults to the training seed + 1")
+
+    ppo.add_argument("--eval-seeds", default=None,
+                     help="Distinct validation seed list/range; overrides --eval-seed; count must equal --eval-episodes")
 
     # QR-DQN (disabled for now — kept so the CLI shape is stable)
     qr = sub.add_parser("qr-dqn", help="Quantile-Regression DQN (disabled)")
@@ -93,16 +105,29 @@ def main() -> int:
             seed, seed_source = resolve_seed(args.seed, args.run_config)
             selection = selection_from_args(args)
         defaults = MaskablePPOConfig()
-        for key in ("n_steps", "gamma", "ent_coef"):
-            saved = (resume.manifest["hyperparameters"][key] if resume is not None
+        if args.net_arch is not None:
+            args.net_arch = tuple(int(n) for n in args.net_arch.split(","))
+        for key in PPO_FIELDS[1:]:
+            saved = (resume.manifest["hyperparameters"].get(key, getattr(defaults, key)) if resume is not None
                      else getattr(defaults, key))
             value = getattr(args, key)
+            if key == "net_arch":
+                saved = tuple(saved)
             if resume is not None and value is not None and value != saved:
                 raise ValueError(f"--{key.replace('_', '-')} cannot change when resuming")
             setattr(args, key, saved if value is None else value)
         validate_training_settings({key: getattr(args, key) for key in
                                     ("total_timesteps", "n_steps", "gamma", "ent_coef")})
         cadence.eval_seed = args.eval_seed if args.eval_seed is not None else seed + 1
+        cadence.eval_seeds = tuple(parse_seed_spec(args.eval_seeds)) if args.eval_seeds else tuple(
+            cadence.eval_seed + i for i in range(cadence.eval_episodes))
+        if len(cadence.eval_seeds) != cadence.eval_episodes:
+            raise ValueError("--eval-seeds count must equal --eval-episodes")
+        if cadence.eval_every > 0 and seed in cadence.eval_seeds:
+            raise ValueError("training and validation seeds must be disjoint")
+        cadence.eval_seed = cadence.eval_seeds[0]
+        cfg = MaskablePPOConfig(**{key: getattr(args, key) for key in PPO_FIELDS},
+                                seed=seed, verbose=args.verbose, tensorboard_log=args.tensorboard_log)
         out_dir = resolve_out_dir(args.output_dir)
         if resume is not None:
             check_run_overlap(out_dir, resume.run_dir)
@@ -118,15 +143,7 @@ def main() -> int:
         return 1
 
     print("Creating Maskable-PPO model ...")
-    cfg = MaskablePPOConfig(
-        total_timesteps=args.total_timesteps,
-        n_steps=args.n_steps,
-        gamma=args.gamma,
-        ent_coef=args.ent_coef,
-        seed=seed,
-        verbose=args.verbose,
-        tensorboard_log=args.tensorboard_log,
-    )
+
     try:
         train_mppo(cfg, args.sim_binary, args.run_config, out_dir,
                    args.band, seed_source, selection, cadence, resume, records)

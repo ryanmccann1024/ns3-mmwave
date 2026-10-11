@@ -438,7 +438,7 @@ and is never parsed.
 Inspect `eval_manifest.json` for returns, per-seed metrics, and action
 validity counts; each episode's `steps.jsonl` has the decision trace.
 
-`train_manifest.json` is version 6. Besides the existing run identity it
+`train_manifest.json` is version 7. Besides the existing run identity it
 records `status`/`error`, `algorithm`, `seed` and `seed_source`, `control_mode`,
 the live `contract`, the resolved `selection`, `observation_schema` and
 `reward_schema` (with their SHA-256), `scenario_identity` (SHA-256 of the
@@ -446,9 +446,9 @@ the live `contract`, the resolved `selection`, `observation_schema` and
 `jammers.json`), `model_path`/`model_sha256`, `best_model_path`/
 `best_model_sha256`/`best_mean_reward`, a `checkpoints` list of
 `{path, sha256, num_timesteps}`, the `evaluation` block (cadence, episodes,
-seed, output dir, log path) or `null`, `hyperparameters`, `package_versions`,
+seed and the complete validation `seeds` list, output dir, log path) or `null`, `hyperparameters`, `package_versions`,
 `python_version`, and `platform`. Models trained with older tooling carry an
-older `manifest_version` and are not loadable: retrain with the current tooling.
+older `manifest_version`; version 4 remains readable, subject to normal contract and reward-schema compatibility. Earlier versions require retraining.
 
 Seed discipline: keep the training seed, the during-training evaluation seed,
 and the standalone evaluation seeds disjoint. With `model` among `--policies`,
@@ -793,5 +793,4 @@ pages and the per-file API docs.
 This sim is being worked on by the University of Massachusetts's ACNL.
 
 The simulator-scored placement engine and its owned parameter sections are
-documented in the [engine workflow](scripts/baselines/planners/README.md). Its
-API is available in this review; baseline CLI integration follows in #26.
+documented in the [engine workflow](scripts/baselines/planners/README.md). It is wired into the baseline and evaluation CLIs.

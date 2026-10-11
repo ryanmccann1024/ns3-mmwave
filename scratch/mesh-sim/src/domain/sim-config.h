@@ -72,6 +72,16 @@ struct RlConfig
     double      decision_interval_s = 0.0;    ///< Seconds between RL decisions; @c 0 means
                                               ///<   @ref SimConfig::tick_s (one decision per tick).
 
+    double unsafe_separation_m = 1.0;
+    bool avoid_buildings = false;
+    bool avoid_node_collisions = false; ///< Reject joint paths closer than unsafe_separation_m.
+    bool coverage_enabled = false;
+    int coverage_grid_cells = 100;
+    double coverage_min_resolution_m = 5.0;
+    double coverage_probe_height_m = 1.5;
+    double coverage_probe_rx_gain_dbi = 0.0;
+    double coverage_sinr_db = -6.7;
+
     // ---- Resolved fields (never from INI; written by @c ApplyRlControl) -----
     std::string control_mode = "disabled";        ///< @c "disabled" or @c "centralized".
     std::vector<uint32_t> controlled_indices;   ///< Slot order indices into
@@ -126,6 +136,7 @@ struct SimConfig
     std::string band_source = "default";  ///< Where @c band came from: @c "cli", @c "run.ini",
                                            ///<   or @c "default".
 
+    bool viz_enabled = true; ///< CSV replay output; summaries remain enabled.
     uint32_t viz_tick_ms = 100;  ///< Interval in milliseconds between CSV viz snapshots
                                   ///<   (positions, link results); default 100 ms.
 

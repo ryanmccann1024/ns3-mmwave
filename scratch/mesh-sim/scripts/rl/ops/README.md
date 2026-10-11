@@ -296,7 +296,7 @@ Every key is validated before anything is launched:
   and `ent_coef` — the supported search parameters declared by the trainer owner today.
   `total_timesteps` gets its own message: the budget is fixed per study and
   comes from the matrix. Any other name is reported as not wired, pointing at
-  the open `TODO-RL-TUNE-1`.
+  the constructor and validation owner in `agents/config.py`.
 - `n_steps` is `int` or `categorical` with distinct integer choices ≥ 2;
   `gamma` is a float range inside `(0, 1]`; `ent_coef` is a float range with
   `low ≥ 0`; `log: true` requires `low > 0`; every range needs `low < high`.
@@ -940,3 +940,5 @@ access; it does not implement rsync filtering. Real transfer tests use only
 pytest's temporary local directories and skip if rsync is unavailable. They do
 not verify SSH, Unity transfer-host permissions, or live SLURM behavior.
 
+
+The integrated local work wires learning rate, batch size, GAE lambda, clipping, epoch count, target KL and final entropy coefficient through the same validated PPO settings and tuning boundary. Network architecture remains an explicit matrix setting.

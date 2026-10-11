@@ -2,6 +2,8 @@
 
 import math
 
+from scripts.rl.policy.metrics import REGISTRY
+
 from scripts.rl.policy.compare_inputs import (CSV_COLUMNS, CSV_METRICS, EVAL_MANIFEST_NAME,
                                               GROUP_METRICS, METRIC_SOURCE, METRICS,
                                               REQUIRED_MANIFEST_VERSION, ComparisonError,
@@ -25,7 +27,8 @@ ACROSS_RUNS_KIND = "t_across_training_runs"
 _SHA_FIELDS = ("run_ini_sha256", "nodes_json_sha256", "buildings_json_sha256",
                "jammers_json_sha256")
 _TRAINING_SETTINGS = ("total_timesteps", "n_steps", "gamma", "ent_coef",
-                      "eval_every_steps", "eval_episodes")
+                      "eval_every_steps", "eval_episodes", "learning_rate", "batch_size",
+                      "gae_lambda", "clip_range", "n_epochs", "target_kl", "net_arch", "ent_coef_final")
 
 
 def _sample_std(values) -> float:
@@ -140,14 +143,17 @@ def _group_key(evaluation: Evaluation) -> dict:
            "model_selection": (manifest.get("bundle") or {}).get("model_selection"),
            "seeds": sorted(evaluation.seeds),
            "training_algorithm": training.get("algorithm"),
-           "model_selection_seed": training.get("evaluation_seed")}
+           "model_selection_seed": training.get("evaluation_seed"),
+           "model_selection_seeds": tuple(training.get("evaluation_seeds") or [])}
     identity = manifest.get("scenario_identity") or {}
     training_identity = training.get("scenario_identity") or {}
     for field in _SHA_FIELDS:
         key[f"scenario_{field}"] = identity.get(field)
         key[f"training_scenario_{field}"] = training_identity.get(field)
     for setting in _TRAINING_SETTINGS:
-        key[f"training_{setting}"] = hyper.get(setting)
+        if setting not in ("total_timesteps", "n_steps", "gamma", "ent_coef", "eval_every_steps", "eval_episodes") and setting not in hyper:
+            continue
+        key[f"training_{setting}"] = tuple(hyper[setting]) if setting == "net_arch" and hyper.get(setting) else hyper.get(setting)
     if key["model_selection"] not in ("final", "best", None):
         key["bundle_num_timesteps"] = (manifest.get("bundle") or {}).get("num_timesteps")
     for policy, block in (manifest.get("policies") or {}).items():
@@ -197,6 +203,14 @@ def _group_comparison(used: list, baseline: str, metric: str) -> dict:
     return result
 
 
+def _available_metrics(evaluations, names):
+    """Optional simulator measurements are compared only when supplied by a run."""
+    return [name for name in names if not REGISTRY[name].optional or any(
+        _metric_value(record, name) is not None
+        for evaluation in evaluations for records in evaluation.records.values()
+        for record in records.values())]
+
+
 def _groups(evaluations: list, missing: list, baselines: list, runs_expected) -> list:
     groups = []
     for label in sorted({e.label for e in evaluations if e.label is not None}):
@@ -207,7 +221,7 @@ def _groups(evaluations: list, missing: list, baselines: list, runs_expected) ->
         used = []
         for evaluation in members:
             usable = any(_pairs(evaluation, baseline, metric)[0]
-                         for baseline in baselines for metric in GROUP_METRICS)
+                         for baseline in baselines for metric in _available_metrics(members, GROUP_METRICS))
             if evaluation.held_out is not True:
                 excluded_runs.append({"training_seed": evaluation.training_seed,
                                       "reason": "seed_overlap"})
@@ -222,7 +236,7 @@ def _groups(evaluations: list, missing: list, baselines: list, runs_expected) ->
                        "runs_used": len(used), "excluded_runs": excluded_runs,
                        "comparisons": [_group_comparison(used, baseline, metric)
                                        for baseline in baselines
-                                       for metric in GROUP_METRICS]})
+                                       for metric in _available_metrics(members, GROUP_METRICS)]})
     return groups
 
 
@@ -255,7 +269,7 @@ def build_comparison(evaluations: list, missing=(), baselines=None, runs_expecte
                 "comparisons": [
                     _comparison(evaluation, baseline, metric)
                     for baseline in baselines
-                    for metric in sorted(METRICS)
+                    for metric in _available_metrics([evaluation], sorted(METRICS))
                 ],
             }
         )

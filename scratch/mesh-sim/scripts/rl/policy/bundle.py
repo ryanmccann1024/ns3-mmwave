@@ -89,7 +89,7 @@ def _read_bundle(run_dir, model: str, recovering=False) -> ModelBundle:
     manifest = read_manifest(run_dir)
 
     version = manifest.get("manifest_version")
-    if version != MANIFEST_VERSION:
+    if version not in (4, 5, 6, MANIFEST_VERSION):
         raise BundleError(
             f"train manifest version {version!r} is not {MANIFEST_VERSION}; "
             "retrain with current tooling")
@@ -131,6 +131,7 @@ def training_provenance(manifest: dict) -> dict:
         "seed": manifest.get("seed"),
         "seed_source": manifest.get("seed_source"),
         "evaluation_seed": evaluation.get("seed"),
+        "evaluation_seeds": list(evaluation.get("seeds") or ([] if evaluation.get("seed") is None else [evaluation["seed"]])),
         "evaluation_episodes": evaluation.get("episodes"),
         "scenario_identity": {key: identity.get(key) for key in _SCENARIO_SHA_KEYS},
         "hyperparameters": dict(manifest.get("hyperparameters") or {}),
@@ -161,6 +162,8 @@ def seed_roles(
     reserved = {
         seed for seed in (roles["training_seed"], roles["model_selection_seed"]) if seed is not None
     }
+    roles["model_selection_seeds"] = list((evaluation or {}).get("seeds") or ([] if selection_seed is None else [selection_seed]))
+    reserved.update(roles["model_selection_seeds"])
     roles["planning_overlap"] = [seed for seed in held_out_seeds if seed in roles["planning_seeds"]]
     reserved.update(roles["planning_seeds"])
     roles["overlap"] = [seed for seed in held_out_seeds if seed in reserved]
@@ -250,7 +253,7 @@ def load_model(bundle: ModelBundle, env, mask_fn):
     return MaskablePpoTrainer.load(str(bundle.model_path), env, mask_fn)
 
 
-def model_identity(bundle) -> dict:
+def model_identity(bundle, deterministic=True) -> dict:
     """Decision-record identity of the evaluated model file."""
     path = Path(bundle.model_path)
     run_dir = Path(bundle.run_dir)
@@ -266,7 +269,7 @@ def model_identity(bundle) -> dict:
         "model_path_recorded": recorded,
         "num_timesteps": bundle.num_timesteps,
         "train_manifest_sha256": sha256_file(run_dir / MANIFEST_NAME),
-        "inference": {"deterministic": True, "device": "cpu",
+        "inference": {"deterministic": bool(deterministic), "device": "cpu",
                       "stable_baselines3": versions["stable_baselines3"],
                       "sb3_contrib": versions["sb3_contrib"],
                       "torch": versions["torch"]},

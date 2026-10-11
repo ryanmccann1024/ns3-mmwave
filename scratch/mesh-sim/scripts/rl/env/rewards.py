@@ -8,6 +8,13 @@ from scripts.artifact_io import canonical_sha256
 from .normalization import Normalization, SINR_FIELDS
 
 DEMAND_EPS = 1e-9
+MOVEMENT_SPAN_M = {"drone": 500.0, "pedestrian": 300.0, "vehicle": 300.0}
+COHESION_FLOOR_M = 20.0
+
+
+def _distance_3d(a: list, b: list) -> float:
+    return math.sqrt(sum((float(a[axis]) - float(b[axis])) ** 2 for axis in range(3)))
+
 
 def _delivery_ratio(window: dict, msg_reward: float, contract: dict, parameters: dict, context: dict) -> tuple[float, bool]:
     demand = float(window["demand_mbps_sum"])
@@ -76,20 +83,69 @@ def position_context(facts, previous_nodes, initial_nodes, contract, elapsed_tic
     diagonal = math.hypot(bounds["x_max"] - bounds["x_min"],
                           bounds["y_max"] - bounds["y_min"])
     travel, displacement = [], []
+    slots = [node for node in contract["slot_node_ids"] if node is not None]
+    node_ids = contract["node_ids"]
+    travel_by_type = {kind: 0.0 for kind in MOVEMENT_SPAN_M}
+    span_travel = 0.0
+    node_types = contract.get("node_types")
     for slot, node_id in enumerate(contract["slot_node_ids"]):
         if node_id is None:
             continue
-        index = contract["node_ids"].index(node_id)
+        index = node_ids.index(node_id)
         current, previous, initial = (facts["nodes"][index], previous_nodes[index],
                                       initial_nodes[index])
         speed = float(contract["slot_speed_mps"][slot])
-        travel.append(min(1.0, math.hypot(current[0] - previous[0], current[1] - previous[1]) /
-                          (speed * interval)))
-        displacement.append(min(1.0, math.hypot(current[0] - initial[0], current[1] - initial[1]) /
-                                diagonal))
-    return {"travel_fraction": (sum(travel) / len(travel)
-                                if window["scored_ticks"] == ticks else None),
-            "origin_fraction": sum(displacement) / len(displacement)}
+        moved_m = math.hypot(current[0] - previous[0], current[1] - previous[1])
+        fraction = min(1.0, moved_m / (speed * interval))
+        travel.append(fraction)
+        if node_types is not None and node_types[index] in travel_by_type:
+            travel_by_type[node_types[index]] += fraction
+            span_travel += moved_m / MOVEMENT_SPAN_M[node_types[index]]
+        displacement.append(min(1.0, math.hypot(current[0] - initial[0],
+                                                 current[1] - initial[1]) / diagonal))
+    scales = Normalization()
+    qualities = [scales.sinr_quality(float(link[0])) for link in facts["links"]]
+    context = {"travel_fraction": sum(travel) / len(travel),
+               "origin_fraction": sum(displacement) / len(displacement),
+               "sinr_quality": sum(qualities) / len(qualities) if qualities else 0.0}
+    if node_types is not None:
+        context.update({f"{kind}_travel_fraction": value / len(travel)
+                        for kind, value in travel_by_type.items()})
+        context["span_travel_fraction"] = span_travel / len(travel)
+        if all(node_types[node_ids.index(node_id)] in MOVEMENT_SPAN_M for node_id in slots):
+            cohesion = []
+            for node_id in slots:
+                index = node_ids.index(node_id)
+                if len(node_ids) < 2:
+                    cohesion.append(0.0)
+                    continue
+                peer = min((j for j in range(len(node_ids)) if j != index),
+                           key=lambda j: (_distance_3d(initial_nodes[index], initial_nodes[j]), j))
+                reference = max(COHESION_FLOOR_M,
+                                _distance_3d(initial_nodes[index], initial_nodes[peer]))
+                distance = max(COHESION_FLOOR_M,
+                               _distance_3d(facts["nodes"][index], facts["nodes"][peer]))
+                span = MOVEMENT_SPAN_M[node_types[index]]
+                cohesion.append(max(-1.0, min(1.0, (reference - distance) / span)))
+            context["peer_cohesion"] = sum(cohesion) / len(cohesion)
+    safety = facts.get("safety")
+    if safety is not None:
+        context["unsafe_proximity_fraction"] = (
+            int(safety["unsafe_ticks"]) / max(1, int(facts["window"]["scored_ticks"])))
+    if "coverage" in facts:
+        context["coverage_fraction"] = float(facts["coverage"]["fraction"])
+    service = facts.get("node_service")
+    if service is not None:
+        ratios = [min(1.0, max(0.0, float(delivered) / float(demand)))
+                  for demand, delivered in service if float(demand) > DEMAND_EPS]
+        context["worst_node_delivery_fraction"] = min(ratios) if ratios else None
+        context["fair_node_service"] = sum(math.sqrt(r) for r in ratios)/len(ratios) if ratios else None
+    if int(window["scored_ticks"]) != ticks:
+        for key in ("travel_fraction", "span_travel_fraction", "drone_travel_fraction",
+                    "pedestrian_travel_fraction", "vehicle_travel_fraction"):
+            if key in context:
+                context[key] = None
+    return context
 
 
 def _movement_context(facts, contract, inputs):
@@ -121,6 +177,17 @@ def _unmet_sinr_quality(window, msg_reward, contract, parameters, context):
     quality, _ = _sinr_quality(window, msg_reward, contract,
                               {key: parameters[key] for key in SINR_FIELDS}, context)
     return quality * unmet, True
+
+
+
+def _adaptive_movement_cost(window, msg_reward, contract, parameters, context):
+    travel = context["travel_fraction"]
+    return ((0.0, False) if travel is None else
+            ((0.02 + 0.08 * context["previous_network_health"]) * travel, True))
+
+
+def _throughput_log_mbps(window, msg_reward, contract, parameters, context):
+    return math.log1p(max(0.0, float(window["delivered_mbps_sum"]) / int(window["scored_ticks"]))), True
 
 
 @dataclass(frozen=True)
@@ -237,6 +304,29 @@ COMPONENTS = {
         formula="SINR quality [{sinr_min_db:g},{sinr_max_db:g}] above {sinr_invalid_db:g} * clip(({delivery_threshold:g}-delivery_ratio)/{delivery_threshold:g},0,1)"),
 }
 
+COMPONENTS["throughput_log_mbps"] = RewardComponent(
+    "throughput_log_mbps", _throughput_log_mbps, (0.0, None), ("delivered_mbps_sum",),
+    formula="ln(1 + delivered_mbps_sum/scored_ticks)")
+for _name, _range, _facts, _fields, _parameters in (
+    ("fair_node_service", (0.0, 1.0), ("node_service",), (), {"formula": "mean sqrt(clipped node delivered/offered)", "zero_demand_rule": "masked"}),
+    ("worst_node_delivery_fraction", (0.0, 1.0), ("node_service",), (), {"formula": "min node delivered/offered; exclude zero-demand nodes", "zero_demand_rule": "masked"}),
+    ("coverage_fraction", (0.0, 1.0), ("coverage",), ("coverage",), {"measurement": "decision_endpoint_connected_core"}),
+    ("unsafe_proximity_fraction", (0.0, 1.0), ("safety",), ("unsafe_separation_m",), {"denominator": "scored_ticks"}),
+    ("span_travel_fraction", (0.0, None), ("nodes",), ("node_types",), {"reference_span_m": dict(MOVEMENT_SPAN_M), "hard_limit": False, "partial_warmup_rule": "masked"}),
+    ("peer_cohesion", (-1.0, 1.0), ("nodes",), ("node_types",), {"reference_span_m": dict(MOVEMENT_SPAN_M), "floor_m": COHESION_FLOOR_M, "peer": "nearest peer at reset"}),
+    *((f"{kind}_travel_fraction", (0.0, 1.0), ("nodes",), ("node_types",), {"partial_warmup_rule": "masked"}) for kind in MOVEMENT_SPAN_M),
+):
+    COMPONENTS[_name] = RewardComponent(
+        _name, _context_fraction(_name), _range, _facts, parameters=_parameters,
+        contract_fields=_fields, context_fields=(_name,), context_builder=_movement_context,
+        formula=_parameters.get("formula", _name), zero_demand_rule=_parameters.get("zero_demand_rule", "not_applicable"))
+COMPONENTS["adaptive_movement_cost"] = RewardComponent(
+    "adaptive_movement_cost", _adaptive_movement_cost, (0.0, 0.1), ("nodes", "node_service", "coverage"),
+    parameters={"reset_health": 0.0, "lag_decisions": 1, "partial_warmup_rule": "masked"},
+    context_fields=("travel_fraction", "fair_node_service", "coverage_fraction"),
+    context_builder=_movement_context, contract_fields=("coverage",),
+    formula="(0.02 + 0.08 * previous_network_health) * travel_fraction")
+
 
 def get_component(name: str) -> RewardComponent:
     """Look up a registered reward component by name."""
@@ -286,16 +376,27 @@ class RewardComposer:
             raise ValueError(f"parameters for unselected reward components: {sorted(unknown)}")
         self.parameters = {c.name: c.resolve(overrides.get(c.name, {})) for c in self.components}
         self.context_fields = {key for c in self.components for key in c.context_fields}
+        self.reset()
+
+    def reset(self):
+        self.previous_health = 0.0
 
     def context(self, facts, contract, inputs=None):
         context = {key: facts[key] for key in self.context_fields if key in facts}
         for component in self.components:
             if set(component.context_fields) - set(context) and component.context_builder is not None:
                 context.update(component.context_builder(facts, contract, inputs))
+        if inputs is not None and "previous_network_health" in inputs:
+            context["previous_network_health"] = inputs["previous_network_health"]
         return context
 
     def compose(self, window: dict, msg_reward: float, contract: dict, context=None) -> RewardBreakdown:
         values, valid, weights = {}, {}, {}
+        adaptive = bool(window["scored_ticks"]) and any(c.name == "adaptive_movement_cost" for c in self.components)
+        if adaptive:
+            if context is None or "coverage_fraction" not in context or "fair_node_service" not in context:
+                raise ValueError("adaptive_movement_cost requires coverage and node_service facts")
+            context.setdefault("previous_network_health", self.previous_health)
         total = 0.0
         for component, weight in zip(self.components, self.weights):
             value, ok = component.value(window, msg_reward, contract, context, self.parameters[component.name])
@@ -306,6 +407,10 @@ class RewardComposer:
                 total += weight * float(value)
         if not math.isfinite(total):
             raise ValueError(f"composed reward is not finite: {total!r} from {values}")
+        if adaptive:
+            delivery, ok = _delivery_ratio(window, msg_reward, contract, {}, context)
+            fairness = context["fair_node_service"]
+            self.previous_health = min(max(0.0, min(1.0, delivery)), fairness, context["coverage_fraction"]) if ok and fairness is not None else 0.0
         return RewardBreakdown(float(total), values, valid, weights, float(msg_reward))
 
 
