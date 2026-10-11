@@ -41,3 +41,18 @@ codes; this package owns the logic.
 - Tests: `tests/test_policy_lifecycle.py`, `test_lifecycle_cli.py`,
   `test_evaluation_pipeline.py`, `test_policy_comparison.py`; their maps are
   `src/rl/policy-lifecycle-tests.md` and `src/rl/policy-comparison-tests.md`.
+
+- `metrics.py` owns each metric's units, direction, export behavior, and accumulator.
+  Register a metric and its accumulator; do not add parallel metric-name lists to
+  evaluation, comparison, or CSV export. Per-node maps remain JSON diagnostics.
+  Movement measures controlled nodes only, excludes warmup, and is null for
+  missing/partial boundary data rather than inferred from sparse endpoints.
+
+- Placement preflight resolves a dedicated channel-planning seed before any worker
+  or episode starts. Keep it separate from training, selection, evaluation and
+  optimizer RNG. Explicit seed overlap remains diagnostic and excluded from
+  held-out groups.
+- Initial source-to-plan relocation is an exported metric with no paired/group
+  reduction. Show it beside scored travel in comparison JSON/CSV; never add
+  it to post-reset episode movement. Evaluation v5 and comparison v2 readers
+  must stay aligned with baseline manifest/plan v3.
