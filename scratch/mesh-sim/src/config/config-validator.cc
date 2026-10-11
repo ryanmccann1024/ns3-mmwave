@@ -7,10 +7,12 @@
 
 
 #include "src/config/config-validator.h"
+#include "src/config/query-config.h"
 
 #include "src/config/rl-control.h"
 
 #include <algorithm>
+#include <cmath>
 #include <initializer_list>
 
 namespace mesh_sim
@@ -53,6 +55,9 @@ ValidateConfig(const SimConfig& cfg)
 {
     ValidationResult r;
 
+    const auto queryErrors = ValidateQueryConfig(cfg.query);
+    r.errors.insert(r.errors.end(), queryErrors.begin(), queryErrors.end());
+
     // -- timing --
     checkPositive(r, "duration_s", cfg.duration_s);
     checkPositive(r, "tick_s", cfg.tick_s);
@@ -63,9 +68,9 @@ ValidateConfig(const SimConfig& cfg)
                            ") must be <= duration_s (" +
                            std::to_string(cfg.duration_s) + ")");
     }
-    if (cfg.warmup_s < 0.0)
+    if (!std::isfinite(cfg.warmup_s) || cfg.warmup_s < 0.0)
     {
-        r.errors.push_back("warmup_s must be >= 0 (got " +
+        r.errors.push_back("warmup_s must be finite and >= 0 (got " +
                            std::to_string(cfg.warmup_s) + ")");
     }
     if (cfg.warmup_s >= cfg.duration_s && cfg.duration_s > 0.0)
@@ -203,19 +208,8 @@ ValidateConfig(const SimConfig& cfg)
     // -- rl --
     if (cfg.rl.enabled)
     {
-        checkOneOf(r, "rl.action_type", cfg.rl.action_type,
-                   {"discrete", "continuous"});
         checkOneOf(r, "rl.reward_type", cfg.rl.reward_type,
                    {"throughput", "all_links_los"});
-
-        if (cfg.rl.action_type == "discrete")
-        {
-            checkPositive(r, "rl.step_size_m", cfg.rl.step_size_m);
-        }
-        if (cfg.rl.action_type == "continuous")
-        {
-            checkPositive(r, "rl.arrival_threshold_m", cfg.rl.arrival_threshold_m);
-        }
 
         if (cfg.rl.x_min >= cfg.rl.x_max)
             r.errors.push_back("rl.x_min must be < rl.x_max");
@@ -223,25 +217,6 @@ ValidateConfig(const SimConfig& cfg)
             r.errors.push_back("rl.y_min must be < rl.y_max");
         if (cfg.rl.z_min >= cfg.rl.z_max)
             r.errors.push_back("rl.z_min must be < rl.z_max");
-
-        if (!cfg.rl.controlled_node_id.empty())
-        {
-            bool found = false;
-            for (const auto& n : cfg.nodes)
-            {
-                if (n.id == cfg.rl.controlled_node_id)
-                {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found)
-            {
-                r.errors.push_back(
-                    "rl.controlled_node_id '" + cfg.rl.controlled_node_id +
-                    "' does not match any node ID");
-            }
-        }
 
         // Slot/cadence/start-position rules live in the shared resolver.
         const RlControlResolution ctl = ResolveRlControl(cfg);

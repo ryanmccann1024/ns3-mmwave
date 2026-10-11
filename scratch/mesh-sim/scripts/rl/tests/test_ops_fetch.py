@@ -34,7 +34,7 @@ def _plan(root: Path) -> dict:
                            "--output-dir", str(root / "comparison")],
                   "output_dir": str(root / "comparison"),
                   "manifest": "comparison.json", "needs": []})
-    return {"experiment_plan_version": 1, "steps": steps}
+    return {"experiment_plan_version": 2, "steps": steps}
 
 
 def _payload(tmp_path: Path, statuses: dict | None = None,
@@ -99,17 +99,33 @@ def _manifest(dest: Path) -> dict:
 
 CATEGORY_RULES = [
     ("comparison", ["comparison/comparison.json", "comparison/episodes.csv"]),
-    ("manifests", ["train/**/train_manifest.json", "eval/**/eval_manifest.json",
-                   "train/**/episode-*/rl_episode.json",
-                   "eval/**/episode-*/rl_episode.json",
-                   "cluster/records/**", "benchmark/**"]),
+    (
+        "manifests",
+        [
+            "train/**/train_manifest.json",
+            "eval/**/eval_manifest.json",
+            "train/**/episode-*/rl_episode.json",
+            "eval/**/episode-*/rl_episode.json",
+            "eval/**/baseline/baseline_manifest.json",
+            "eval/**/baseline/effective-inputs/baseline-plan.json",
+            "cluster/records/**",
+            "benchmark/**",
+        ],
+    ),
     ("models", ["train/**/maskable_ppo_mesh.zip", "train/**/best_model.zip"]),
     ("selection-logs", ["train/**/evaluations.npz"]),
-    ("inputs", ["train/**/episode-*/inputs/**", "eval/**/episode-*/inputs/**"]),
-    ("telemetry", ["train/**/episode-*/steps.jsonl",
-                   "eval/**/episode-*/steps.jsonl"]),
+    (
+        "inputs",
+        [
+            "train/**/episode-*/inputs/**",
+            "eval/**/episode-*/inputs/**",
+            "eval/**/baseline/source-inputs/**",
+            "eval/**/baseline/effective-inputs/**",
+        ],
+    ),
+    ("telemetry", ["train/**/episode-*/steps.jsonl", "eval/**/episode-*/steps.jsonl"]),
     ("episode-data", ["train/**/episode-*/**", "eval/**/episode-*/**"]),
-    ("logs", ["cluster/logs/**"]),
+    ("logs", ["cluster/logs/**", "eval/**/baseline/planner.log"]),
 ]
 
 
@@ -186,6 +202,19 @@ def test_a_non_empty_destination_is_refused_without_update(tmp_path, monkeypatch
 def _safety_targets() -> dict:
     return {"root": "/", "home": str(Path.home()),
             "mesh root": str(find_mesh_root())}
+
+
+def test_selected_fetch_keeps_baseline_explanations(tmp_path):
+    command = fetch.build_argv(REMOTE, tmp_path / "snapshot", ["manifests", "inputs", "logs"])
+    for path in (
+        "eval/**/baseline/baseline_manifest.json",
+        "eval/**/baseline/effective-inputs/baseline-plan.json",
+        "eval/**/baseline/source-inputs/**",
+        "eval/**/baseline/effective-inputs/**",
+        "eval/**/baseline/planner.log",
+    ):
+        assert f"--include={path}" in command
+    assert "--ignore-existing" in command
 
 
 @pytest.mark.parametrize("label", ["root", "home", "mesh root"])

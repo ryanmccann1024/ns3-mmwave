@@ -41,6 +41,7 @@ BASELINE_DEFAULTS = {
     "objective": "coverage",
     "movable_nodes": "uav-a, uav-c",
     "seed": "7",
+    "planning_seed": "101",
     "max_iterations": "60",
     "mapping_file": "mapping.json",
 }

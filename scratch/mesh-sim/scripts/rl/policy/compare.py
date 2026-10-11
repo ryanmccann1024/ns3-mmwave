@@ -8,6 +8,7 @@ from scripts.rl.policy.compare_inputs import (CSV_COLUMNS, CSV_METRICS, EVAL_MAN
                                               Evaluation, _metric_value, _policy_order,
                                               episode_rows, load_evaluation,
                                               load_evaluations)
+from scripts.rl.policy.metrics import REGISTRY, check_metric_source
 from scripts.stats import t_critical_95
 
 __all__ = ["ACROSS_RUNS_KIND", "COMPARISON_VERSION", "CSV_COLUMNS", "CSV_METRICS",
@@ -16,7 +17,7 @@ __all__ = ["ACROSS_RUNS_KIND", "COMPARISON_VERSION", "CSV_COLUMNS", "CSV_METRICS
            "ComparisonError", "Evaluation", "build_comparison", "episode_rows",
            "exit_code", "load_evaluation", "load_evaluations"]
 
-COMPARISON_VERSION = 1
+COMPARISON_VERSION = 2
 PRIMARY_METRIC = "delivery_ratio"
 PAIRED_KIND = "paired_t_across_evaluation_seeds"
 ACROSS_RUNS_KIND = "t_across_training_runs"
@@ -102,6 +103,27 @@ def _health(evaluation: Evaluation) -> dict:
             "revalidated_slots": sum(int(r.get("revalidated_slots_total") or 0)
                                      for r in records)}
     return health
+
+
+def _movement(evaluation):
+    """Show one placement displacement beside the mean usable scored episode travel."""
+    result = {}
+    for policy, records in evaluation.records.items():
+        initial = {record.get("initial_displacement_m_total") for record in records.values()}
+        values = [
+            _metric_value(record, "travel_m_total")
+            for record in records.values()
+            if record.get("status") == "completed"
+        ]
+        values = [value for value in values if value is not None]
+        result[policy] = {
+            "initial_displacement_m_total": next(iter(initial)) if len(initial) == 1 else None,
+            "scored_travel_m_total_mean": sum(values) / len(values) if values else None,
+            "scored_travel_episodes": len(values),
+            "units": "m",
+            "comparison": "separate_measurements",
+        }
+    return result
 
 
 def _group_key(evaluation: Evaluation) -> dict:
@@ -204,40 +226,75 @@ def _groups(evaluations: list, missing: list, baselines: list, runs_expected) ->
     return groups
 
 
-def build_comparison(evaluations: list, missing=(), baselines=None,
-                     runs_expected=None) -> dict:
+def build_comparison(evaluations: list, missing=(), baselines=None, runs_expected=None) -> dict:
     """Assemble the full comparison payload; raises ComparisonError on a refusal."""
     missing = list(missing)
     if baselines is None:
-        baselines = sorted({name for e in evaluations for name in e.records
-                            if name != "model"})
+        baselines = sorted({name for e in evaluations for name in e.records if name != "model"})
     baselines = list(baselines)
+    reference = None
+    for evaluation in evaluations:
+        source = evaluation.manifest.get("metric_source")
+        try:
+            check_metric_source(source)
+        except ValueError as exc:
+            raise ComparisonError(f"{evaluation.eval_dir}: {exc}") from exc
+        if reference is not None and source != reference:
+            raise ComparisonError("evaluations use different metric_source definitions")
+        reference = source
     blocks = []
     for evaluation in evaluations:
-        blocks.append({"eval_dir": evaluation.eval_dir, "label": evaluation.label,
-                       "training_seed": evaluation.training_seed,
-                       "held_out": evaluation.held_out,
-                       "health": _health(evaluation),
-                       "comparisons": [_comparison(evaluation, baseline, metric)
-                                       for baseline in baselines
-                                       for metric in sorted(METRICS)]})
+        blocks.append(
+            {
+                "eval_dir": evaluation.eval_dir,
+                "label": evaluation.label,
+                "training_seed": evaluation.training_seed,
+                "held_out": evaluation.held_out,
+                "health": _health(evaluation),
+                "movement": _movement(evaluation),
+                "comparisons": [
+                    _comparison(evaluation, baseline, metric)
+                    for baseline in baselines
+                    for metric in sorted(METRICS)
+                ],
+            }
+        )
     incomplete = bool(missing) or any(
         comparison["n_used"] != comparison["n_expected"]
-        for block in blocks for comparison in block["comparisons"])
-    return {"comparison_version": COMPARISON_VERSION,
-            "status": "incomplete" if incomplete else "complete",
-            "metric_source": dict(METRIC_SOURCE), "primary_metric": PRIMARY_METRIC,
-            "metrics": {name: {"higher_is_better": higher,
-                               "comparable_across_reward_definitions": shared}
-                        for name, (higher, shared) in METRICS.items()},
-            "inputs": [{"eval_dir": e.eval_dir, "eval_manifest_sha256": e.sha256,
-                        "manifest_status": e.manifest.get("status"), "label": e.label,
-                        "training_seed": e.training_seed,
-                        "model_sha256": e.model_sha256, "held_out": e.held_out}
-                       for e in evaluations],
-            "missing_evaluations": missing,
-            "evaluations": blocks,
-            "groups": _groups(evaluations, missing, baselines, runs_expected)}
+        for block in blocks
+        for comparison in block["comparisons"]
+    )
+    return {
+        "comparison_version": COMPARISON_VERSION,
+        "status": "incomplete" if incomplete else "complete",
+        "metric_source": (
+            dict(evaluations[0].manifest["metric_source"]) if evaluations else dict(METRIC_SOURCE)
+        ),
+        "primary_metric": PRIMARY_METRIC,
+        "metrics": {
+            name: {
+                "higher_is_better": higher,
+                "comparable_across_reward_definitions": shared,
+                "units": REGISTRY[name].units,
+            }
+            for name, (higher, shared) in METRICS.items()
+        },
+        "inputs": [
+            {
+                "eval_dir": e.eval_dir,
+                "eval_manifest_sha256": e.sha256,
+                "manifest_status": e.manifest.get("status"),
+                "label": e.label,
+                "training_seed": e.training_seed,
+                "model_sha256": e.model_sha256,
+                "held_out": e.held_out,
+            }
+            for e in evaluations
+        ],
+        "missing_evaluations": missing,
+        "evaluations": blocks,
+        "groups": _groups(evaluations, missing, baselines, runs_expected),
+    }
 
 
 def exit_code(comparison: dict) -> int:

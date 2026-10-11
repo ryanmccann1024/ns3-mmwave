@@ -97,7 +97,7 @@ def test_live_spaces_and_metadata(env):
     assert obs.shape == (24,)
 
     contract = env.contract
-    assert contract["contract"] == "mesh_move_2d_v1"
+    assert contract["contract"] == "mesh_move_2d_v2"
     assert contract["dimensions"] == 2
     assert contract["action_meanings"] == ["west", "east", "south", "north", "hold"]
     assert contract["slot_node_ids"] == ["node-b", "node-c", None]
@@ -110,7 +110,7 @@ def test_live_spaces_and_metadata(env):
             contract["num_decisions"]) == (5, 10, 2)
     assert contract["reward_window"] == "mean" and contract["wall_policy"] == "clip"
 
-    assert info == {"tick": 0, "time_s": 0.0, "decision": 0, "ticks_in_step": 1,
+    assert info == {"tick": 0, "time_s": 0.0, "decision": 0, "ticks_in_step": 1, "scored_ticks": 1,
                     "revalidated_slots": []}
     assert _slot_xy(obs, 0) == (100.0, 0.0)
     assert _slot_xy(obs, 1) == (97.0, 50.0)
@@ -141,7 +141,7 @@ def test_scripted_positions_and_masks(env, tmp_path):
     assert _slot_xy(obs, 1) == (95.0, 50.0)
 
     manifest = _episode_manifest(Path(env._output_dir))
-    assert manifest["manifest_version"] == 3 and manifest["status"] == "completed"
+    assert manifest["manifest_version"] == 5 and manifest["status"] == "completed"
     assert manifest["exit_code"] == 0 and manifest["stop_reason"] == "done"
     assert manifest["decisions"] == 2 and manifest["last_tick"] == 10
 
@@ -162,6 +162,7 @@ def test_repeated_resets_are_deterministic(env):
 
 @pytest.mark.parametrize("line", [
     '{"action": [2, 1]}',                   # wrong length
+    '{"action": [4294967296, 1, 4]}',       # must not wrap to a valid int
 ])
 def test_structural_malformed_actions_hold_everything(tmp_path, line):
     result, messages = _run_binary(RUN_CONFIG, tmp_path / "out", [line])
@@ -241,7 +242,8 @@ def _edit_ini(text: str, **values: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _combined_scenario(tmp_path: Path, decision_interval_s: str) -> Path:
+def _combined_scenario(tmp_path: Path, decision_interval_s: str,
+                       warmup_s: str = "0.0") -> Path:
     scenario = tmp_path / f"scenario-{decision_interval_s}"
     scenario.mkdir(parents=True)
     (scenario / "run.ini").write_text(_edit_ini(
@@ -249,6 +251,7 @@ def _combined_scenario(tmp_path: Path, decision_interval_s: str) -> Path:
         duration_s="0.7",
         decision_interval_s=decision_interval_s,
         buildings_file="buildings.json",
+        warmup_s=warmup_s,
     ))
     (scenario / "buildings.json").write_text(json.dumps(BUILDINGS, indent=2) + "\n")
 
@@ -263,9 +266,10 @@ def _combined_scenario(tmp_path: Path, decision_interval_s: str) -> Path:
     return scenario / "run.ini"
 
 
-def test_partial_windows_clipping_and_reward_mean(tmp_path):
-    coarse_config = _combined_scenario(tmp_path, "0.3")
-    fine_config = _combined_scenario(tmp_path, "0.1")
+@pytest.mark.parametrize("warmup", ["0.0", "0.25"])
+def test_partial_windows_clipping_and_reward_mean(tmp_path, warmup):
+    coarse_config = _combined_scenario(tmp_path, "0.3", warmup)
+    fine_config = _combined_scenario(tmp_path, "0.1", warmup)
 
     _, coarse_messages = _run_binary(
         coarse_config, tmp_path / "coarse", [_action(a) for a in COARSE_ACTIONS])
@@ -296,13 +300,16 @@ def test_partial_windows_clipping_and_reward_mean(tmp_path):
     assert any(reward < 0 for reward in fine_rewards[1:])
     windows, start = [], 1
     for length in COARSE_WINDOWS:
-        windows.append(fine_rewards[start:start + length])
+        windows.append([s["reward"] for s in fine[start:start + length]
+                        if s["scored_ticks"]])
         start += length
-    assert any(len(set(window)) > 1 for window in windows), (
-        f"fine rewards {fine_rewards} are constant; the setup no longer varies LOS "
-        "and cannot demonstrate averaging"
-    )
+    if float(warmup) == 0.0:
+        assert any(len(set(window)) > 1 for window in windows), (
+            f"fine rewards {fine_rewards} are constant; the setup no longer varies LOS "
+            "and cannot demonstrate averaging"
+        )
     for step, window in zip(coarse[1:], windows):
+        assert step["scored_ticks"] == len(window)
         assert step["reward"] == pytest.approx(statistics.fmean(window), abs=1e-9)
 
     env = MeshRlEnv(MESH_SIM_BIN, str(fine_config),
@@ -317,6 +324,13 @@ def test_partial_windows_clipping_and_reward_mean(tmp_path):
         assert returned == fine_rewards[1:]
     finally:
         env.close()
+
+    for step in fine:
+        assert step["scored_ticks"] == int(step["time_s"] >= float(warmup))
+        if not step["scored_ticks"]:
+            assert step["reward"] == 0.0
+    assert coarse_messages[0]["warmup_s"] == float(warmup)
+    assert coarse_messages[0]["reward_warmup"] == "exclude"
 
 
 # Facts, observations, rewards, and telemetry -------------------------------------
@@ -373,9 +387,9 @@ def test_facts_rows_window_and_raw_links_rebuild(facts_run):
         window = facts["window"]
         assert len(facts["nodes"]) == init["num_mesh_nodes"] == 3
         assert len(facts["links"]) == init["num_links"] == NUM_LINKS
-        assert window["ticks"] == step["ticks_in_step"]
+        assert window["scored_ticks"] == step["scored_ticks"]
         assert step["reward"] == pytest.approx(
-            window["legacy_reward_sum"] / window["ticks"], abs=1e-9)
+            window["legacy_reward_sum"] / window["scored_ticks"], abs=1e-9)
         assert legacy.compose(window, step["reward"], init).total == pytest.approx(
             step["reward"], abs=1e-9)
 
@@ -391,7 +405,7 @@ def test_facts_rows_window_and_raw_links_rebuild(facts_run):
 def test_window_sums_match_the_run_summary(facts_run):
     init, steps, out_dir = facts_run
     windows = [step["facts"]["window"] for step in steps]
-    ticks = sum(w["ticks"] for w in windows)
+    ticks = sum(w["scored_ticks"] for w in windows)
     assert ticks == TOTAL_TICKS
 
     summary = json.loads((out_dir / "seed-1" / "summary.json").read_text())
@@ -422,7 +436,7 @@ def test_custom_selection_observations_rewards_and_replay(custom_env):
 
     out_dir = Path(env._output_dir)
     manifest = _episode_manifest(out_dir)
-    assert manifest["manifest_version"] == 3 and manifest["status"] == "completed"
+    assert manifest["manifest_version"] == 5 and manifest["status"] == "completed"
     assert manifest["cumulative_reward"] == pytest.approx(total)
 
     replay = replay_file(out_dir / "episode-0000" / "steps.jsonl")
@@ -463,7 +477,7 @@ def test_training_run_writes_matching_schema_hashes(tmp_path):
     assert result.returncode == 0, result.stderr[-2000:]
 
     manifest = json.loads((out_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 4
+    assert manifest["manifest_version"] == 6
     source = manifest["selection"]["source"]
     assert [source[key] for key in ("observation_preset", "reward_components",
                                     "telemetry", "telemetry_every")] == ["cli"] * 4
@@ -476,7 +490,7 @@ def test_training_run_writes_matching_schema_hashes(tmp_path):
                  if json.loads(path.read_text())["status"] == "completed"]
     assert completed, "no completed episode in the training run"
     episode = json.loads(completed[0].read_text())
-    assert episode["manifest_version"] == 3
+    assert episode["manifest_version"] == 5
     assert (episode["observation_schema_sha256"],
             episode["reward_schema_sha256"]) == hashes
 
@@ -557,7 +571,7 @@ def test_building_bypass_fixture_geometry(tmp_path):
 
     def _all_los(record: dict) -> bool:
         window = record["facts"]["window"]
-        return window["los_pairs_sum"] == window["ticks"]        # one link, N = 2
+        return window["los_pairs_sum"] == window["scored_ticks"]        # one link, N = 2
 
     first_all_los = min(d for d, record in records.items() if _all_los(record))
     assert first_all_los == 4
@@ -628,7 +642,7 @@ def test_lifecycle_train_inspect_evaluate_in_fresh_processes(tmp_path):
     assert trained.returncode == 0, trained.stderr[-2000:]
 
     manifest = json.loads((run_dir / "train_manifest.json").read_text())
-    assert manifest["manifest_version"] == 4 and manifest["status"] == "completed"
+    assert manifest["manifest_version"] == 6 and manifest["status"] == "completed"
     assert manifest["control_mode"] == "centralized"
     assert manifest["model_sha256"] == hashlib.sha256(
         Path(manifest["model_path"]).read_bytes()).hexdigest()
@@ -782,55 +796,24 @@ def test_experiment_matrix_smoke_in_fresh_processes(tmp_path):
     assert _drain_threads() == []
 
 
-def test_decision_records_join_real_steps(tmp_path):
-    from scripts.rl.env.decisions import (DECISIONS_FILE, DECISIONS_MANIFEST,
-                                          DecisionContext, DecisionRecording,
-                                          resolve_decision_records)
+@pytest.mark.parametrize("selector", ["all", "node-a,node-b"])
+def test_active_gateway_cannot_be_controlled(tmp_path, selector):
+    scenario = tmp_path / "gateway"
+    scenario.mkdir()
+    config = scenario / "run.ini"
+    config.write_text(_edit_ini(RUN_CONFIG.read_text(), flow_topology="gateway",
+                               controlled_nodes=selector).replace(
+                                   "[traffic]", "[traffic]\ngateway_node_id = node-a"))
+    (scenario / "nodes.json").write_bytes((FIXTURE / "nodes.json").read_bytes())
+    cmd = [MESH_SIM_BIN, f"--run-config={config}", "--rl-mode",
+           f"--output-dir={tmp_path / 'out'}"]
+    result = subprocess.run(cmd, input="", capture_output=True, text=True,
+                            timeout=30, env=simulator_env(MESH_ROOT))
+    assert result.returncode != 0
+    assert "active traffic gateway 'node-a'" in result.stderr
+    assert not result.stdout.strip()
 
-    out_dir = tmp_path / "decisions"
-    selection = resolve_selection(str(RUN_CONFIG), telemetry="steps")
-    recording = DecisionRecording(
-        resolve_decision_records(enabled=True),
-        DecisionContext(mode="evaluation", source="evaluate", policy="hold"))
-    env = MeshRlEnv(MESH_SIM_BIN, str(RUN_CONFIG), output_dir=str(out_dir),
-                    selection=selection, decision_records=recording)
-    try:
-        env.reset()
-        assert not env.action_masks()[1]          # node-b starts at x_max
-        _, _, done, _, info = env.step([1, 4, 4])
-        assert info["revalidated_slots"] == [0] and not done
-        _, _, done, _, info = env.step([4, 4, 4])
-        assert done and info["revalidated_slots"] == []
-    finally:
-        env.close()
-
-    episode_dir = out_dir / "episode-0000"
-    raw = (episode_dir / DECISIONS_FILE).read_bytes()
-    lines = [json.loads(line) for line in raw.decode().splitlines()]
-    manifest = json.loads((episode_dir / DECISIONS_MANIFEST).read_text())
-    steps = {r["decision"]: r for r in map(
-        json.loads, (episode_dir / "steps.jsonl").read_text().splitlines()[1:])}
-
-    assert [line["decision"] for line in lines] == [0, 1, 2]
-    assert lines[0]["obs_sha256"] == steps[0]["obs_sha256"]
-    assert lines[0]["mask"] == steps[0]["mask"]
-    for record in lines[1:]:
-        n, source, outcome = record["decision"], record["input"], record["outcome"]
-        assert source["source_decision"] == n - 1
-        assert source["obs_sha256"] == steps[n - 1]["obs_sha256"]
-        assert source["mask"] == steps[n - 1]["mask"]
-        assert source["steps_ref"]["decision"] == n - 1
-        assert source["tick"] == outcome["tick"] - outcome["ticks_in_step"]
-        assert source["time_s"] == pytest.approx(steps[n - 1]["time_s"], abs=1e-6)
-        assert outcome["time_s"] == pytest.approx(steps[n]["time_s"], abs=1e-6)
-        assert outcome["interval_s"]["start_exclusive"] == source["time_s"]
-        assert record["action"]["requested"] == steps[n]["action_sent"]
-        assert record["action"]["revalidated_slots"] == steps[n]["revalidated_slots"]
-    assert lines[1]["action"]["revalidated_slots"] == [0]
-    assert lines[1]["action"]["applied"] == [4, 4, 4]
-
-    assert manifest["status"] == "complete"
-    assert manifest["episode"]["status"] == "completed"
-    assert manifest["coverage"]["gaps"] == [] and manifest["coverage"]["records"] == 3
-    assert manifest["jsonl_sha256"] == hashlib.sha256(raw).hexdigest()
-    assert _drain_threads() == []
+    config.write_text(config.read_text().replace(f"controlled_nodes = {selector}",
+                                                 "controlled_nodes = node-b,node-c"))
+    _, messages = _run_binary(config, tmp_path / "allowed", [])
+    assert messages[0]["slot_node_ids"] == ["node-b", "node-c", None]

@@ -5,19 +5,19 @@ import math
 import numpy as np
 
 _CONTRACTS = {
-    "mesh_move_2d_v1": {
+    "mesh_move_2d_v2": {
         "dimensions": 2,
         "action_meanings": ["west", "east", "south", "north", "hold"],
     },
 }
 SLOT_ACTIONS = 5
-_HOLD_ACTION = 4
+HOLD_ACTION = 4
 _SLOT_STATE_VALUES = 4
 _MAX_SLOTS = 64
 _PADDED_SLOT_MASK = [0, 0, 0, 0, 1]
 _TIME_TOL = 1e-6
 
-FACTS_SCHEMA = "mesh_facts_v1"
+FACTS_SCHEMA = "mesh_facts_v2"
 _FACTS_COLUMNS = {
     "nodes": ["x", "y", "z", "vx", "vy", "vz", "slot"],
     "links": ["sinr_db", "capacity_mbps", "is_los"],
@@ -27,7 +27,7 @@ _LINK_COLUMNS = len(_FACTS_COLUMNS["links"])
 _SLOT_COLUMN = 6
 _BOUND_AXES = ("x", "y", "z")
 # Counts must be integers; the Mbps and reward sums may be integral floats.
-_WINDOW_COUNTS = ("ticks", "flow_ticks_with_demand", "unroutable_flow_ticks",
+_WINDOW_COUNTS = ("scored_ticks", "flow_ticks_with_demand", "unroutable_flow_ticks",
                   "connected_pairs_sum", "los_pairs_sum")
 _WINDOW_SUMS = ("demand_mbps_sum", "delivered_mbps_sum", "legacy_reward_sum")
 _DELIVERED_REL_TOL = 1e-6
@@ -51,6 +51,12 @@ def _is_finite_number(value) -> bool:
             and math.isfinite(value))
 
 
+def validate_message(msg) -> dict:
+    if not isinstance(msg, dict):
+        _fail(f"Simulator message must be a JSON object, got {type(msg).__name__}")
+    return msg
+
+
 class CentralizedProtocol:
     """Validates the `init` and per-step messages of centralized control and the joint action."""
 
@@ -66,6 +72,11 @@ class CentralizedProtocol:
         self._obs_dim = int(init["obs_dim"])
         self._mask_dim = int(init["mask_dim"])
         self._tick_s = float(init["tick_s"])
+        ratio = init["warmup_s"] / self._tick_s
+        if not math.isfinite(ratio):
+            _fail("init warmup_s/tick_s exceeds the supported range")
+        boundary = math.floor(ratio)
+        self._first_scored_tick = boundary + int(boundary * self._tick_s < init["warmup_s"])
         self._interval_ticks = int(init["decision_interval_ticks"])
         self._num_ticks = int(init["num_ticks"])
         self._num_decisions = int(init["num_decisions"])
@@ -96,6 +107,13 @@ class CentralizedProtocol:
         return self._mask_dim
 
     def validate_init(self, init: dict) -> None:
+        validate_message(init)
+        if init.get("type") != "init":
+            _fail("Expected an 'init' message")
+        if not _is_finite_number(init.get("warmup_s")) or init["warmup_s"] < 0:
+            _fail("init warmup_s must be finite and >= 0")
+        if init.get("reward_warmup") != "exclude" or init.get("reward_window") != "mean":
+            _fail("init requires reward_warmup='exclude' and reward_window='mean'")
         contract = init.get("contract")
         spec = _CONTRACTS.get(contract) if isinstance(contract, str) else None
         if spec is None:
@@ -243,7 +261,7 @@ class CentralizedProtocol:
                 )
 
     def validate_step(self, msg: dict, first: bool = False) -> np.ndarray:
-        """Check one step message against the init contract; raise ProtocolError on any violation."""
+        validate_message(msg)
         if msg.get("type") != "step":
             _fail(
                 f"Expected a 'step' message, got type {msg.get('type')!r}"
@@ -280,14 +298,14 @@ class CentralizedProtocol:
                 )
         for slot in range(self._num_slots):
             window = mask[slot * SLOT_ACTIONS:(slot + 1) * SLOT_ACTIONS]
-            if window[_HOLD_ACTION] != 1:
+            if window[HOLD_ACTION] != 1:
                 _fail(f"hold is masked out in slot {slot}: {window!r}")
             if slot >= self._num_controlled and window != _PADDED_SLOT_MASK:
                 _fail(
                     f"padded slot {slot} mask must be {_PADDED_SLOT_MASK}, got {window!r}"
                 )
 
-        for field in ("tick", "decision", "ticks_in_step"):
+        for field in ("tick", "decision", "ticks_in_step", "scored_ticks"):
             if not _is_int(msg.get(field)) or msg[field] < 0:
                 _fail(
                     f"{field} must be a non-negative integer, got {msg.get(field)!r}"
@@ -343,19 +361,26 @@ class CentralizedProtocol:
                 f"done {msg['done']} disagrees with tick {tick} of {self._num_ticks}"
             )
 
-        self._facts = self._validated_facts(msg)
+        self._facts = self.validate_facts(msg)
+        start = 0 if first else self._last_tick + 1
+        expected_scored = max(0, tick - max(start, self._first_scored_tick) + 1)
+        if msg["scored_ticks"] != expected_scored:
+            _fail(f"scored_ticks {msg['scored_ticks']} != expected {expected_scored}")
+        if not expected_scored and msg["reward"] != 0:
+            _fail("reward must be zero when scored_ticks is zero")
+
         self._last_tick, self._last_decision = tick, decision
         self._last_time = msg["time_s"]
         self._mask = np.asarray(mask, dtype=np.int8)
         return np.asarray(obs, dtype=np.float64)
 
-    def _validated_facts(self, msg: dict) -> dict:
+    def validate_facts(self, msg: dict) -> dict:
         facts = msg.get("facts")
         if not isinstance(facts, dict):
             _fail(f"step facts must be an object, got {facts!r}")
         self._check_fact_nodes(facts.get("nodes"))
         self._check_fact_links(facts.get("links"))
-        self._check_fact_window(facts.get("window"), msg["ticks_in_step"],
+        self._check_fact_window(facts.get("window"), msg["scored_ticks"],
                                 float(msg["reward"]))
         return facts
 
@@ -421,7 +446,7 @@ class CentralizedProtocol:
             if not _is_int(is_los) or is_los not in (0, 1):
                 _fail(f"facts.links[{index}] is_los is not 0 or 1: {is_los!r}")
 
-    def _check_fact_window(self, window, ticks_in_step: int, reward: float) -> None:
+    def _check_fact_window(self, window, scored_ticks: int, reward: float) -> None:
         if not isinstance(window, dict):
             _fail(f"facts.window must be an object, got {window!r}")
         expected = set(_WINDOW_COUNTS) | set(_WINDOW_SUMS)
@@ -446,11 +471,17 @@ class CentralizedProtocol:
                 f"{window['legacy_reward_sum']!r}"
             )
 
-        ticks = window["ticks"]
-        if ticks != ticks_in_step:
+        if not _is_int(scored_ticks) or scored_ticks < 0:
+            _fail("scored_ticks must be a non-negative integer")
+        ticks = window["scored_ticks"]
+        if ticks != scored_ticks:
             _fail(
-                f"facts.window ticks {ticks} != ticks_in_step {ticks_in_step}"
+                f"facts.window scored_ticks {ticks} != scored_ticks {scored_ticks}"
             )
+        if not ticks and any(window[key] != 0 for key in expected):
+            _fail("facts.window sums must be zero when scored_ticks is zero")
+        if not ticks and reward != 0:
+            _fail("reward must be zero when scored_ticks is zero")
         demand, delivered = window["demand_mbps_sum"], window["delivered_mbps_sum"]
         if delivered > demand + _DELIVERED_REL_TOL * max(1.0, demand):
             _fail(
@@ -472,7 +503,7 @@ class CentralizedProtocol:
             )
         if ticks and abs(reward - window["legacy_reward_sum"] / ticks) > _REWARD_TOL:
             _fail(
-                f"reward {reward} != legacy_reward_sum/ticks = "
+                f"reward {reward} != legacy_reward_sum/scored_ticks = "
                 f"{window['legacy_reward_sum'] / ticks}"
             )
 
@@ -500,61 +531,3 @@ class CentralizedProtocol:
                 )
             joint.append(index)
         return joint
-
-
-class LegacyProtocol:
-    """Validates single-node legacy step messages, which have no `init` message."""
-
-    def __init__(self, obs_width: int | None):
-        self.obs_width = obs_width
-        self._last_tick: int | None = None
-
-    def validate_step(self, msg: dict, first: bool = False) -> None:
-        if msg.get("type") != "step":
-            _fail(
-                f"Expected a 'step' message, got type {msg.get('type')!r}"
-            )
-        obs = msg.get("obs")
-        if not isinstance(obs, dict):
-            _fail(f"legacy obs must be an object, got {obs!r}")
-        pos = obs.get("controlled_pos")
-        if not isinstance(pos, list) or not all(_is_finite_number(v) for v in pos):
-            _fail(f"legacy controlled_pos is not finite: {pos!r}")
-        sinrs, caps = obs.get("link_sinrs"), obs.get("link_capacities")
-        if not isinstance(sinrs, list) or not isinstance(caps, list):
-            _fail("legacy obs needs link_sinrs and link_capacities lists")
-        if len(sinrs) != len(caps):
-            _fail(
-                f"legacy link_sinrs ({len(sinrs)}) and link_capacities ({len(caps)}) "
-                "differ in length"
-            )
-        if not all(_is_finite_number(v) for v in (*sinrs, *caps)):
-            _fail("legacy link values are not all finite numbers")
-        if not _is_finite_number(msg.get("reward")):
-            _fail(f"reward is not a finite number: {msg.get('reward')!r}")
-        if not isinstance(msg.get("done"), bool):
-            _fail(f"done must be a boolean, got {msg.get('done')!r}")
-        if not _is_int(msg.get("tick")) or not _is_finite_number(msg.get("time_s")):
-            _fail(
-                f"legacy tick/time_s invalid: {msg.get('tick')!r}, {msg.get('time_s')!r}"
-            )
-        if not first and self._last_tick is not None and msg["tick"] <= self._last_tick:
-            _fail(
-                f"tick {msg['tick']} does not advance past {self._last_tick}"
-            )
-        if not first and self.obs_width is not None:
-            width = len(pos) + 2 * len(sinrs)
-            if width != self.obs_width:
-                _fail(
-                    f"legacy observation width {width} != "
-                    f"{self.obs_width}"
-                )
-        self._last_tick = msg["tick"]
-
-    @staticmethod
-    def parse_obs(msg: dict) -> np.ndarray:
-        obs = msg["obs"]
-        parts = list(obs["controlled_pos"])
-        for sinr, capacity in zip(obs["link_sinrs"], obs["link_capacities"]):
-            parts.extend((sinr, capacity))
-        return np.asarray(parts, dtype=np.float64)

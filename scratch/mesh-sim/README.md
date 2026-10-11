@@ -205,23 +205,24 @@ all other `[rl]` keys keep their existing meaning.
 
 | Key | Type / unit | Default | Mode |
 |---|---|---|---|
-| `controlled_nodes` | `all` or comma-separated node ids | absent (legacy mode) | centralized selector |
+| `controlled_nodes` | `all` or comma-separated node ids | required when RL is enabled | centralized selector |
 | `max_controlled_nodes` | int, slot count `M` | `0` (auto-size to the resolved count), max `64` | centralized |
 | `action_profile` | enum | `move_2d` (only accepted value) | centralized |
 | `decision_interval_s` | seconds | `0` (means `tick_s`); must be an integer multiple of `tick_s` | centralized |
 
-`controlled_nodes` and the legacy `controlled_node_id` are mutually exclusive:
-setting both is a configuration error. The legacy key keeps `Discrete(7)` with
-`6:Stay`; `controlled_nodes` opts into `MultiDiscrete([5]*M)` with `4:hold`.
+`controlled_nodes` selects `MultiDiscrete([5]*M)` with `4:hold`.
+Obsolete `controlled_node_id`, `action_type`, and `arrival_threshold_m` keys are
+configuration errors.
 
-`all` means every node listed in `nodes.json`, in file order. Jammers live in
+`all` selects eligible nodes in file order, excluding the active traffic gateway. Jammers live in
 `jammers.json`, are never mesh nodes, and can never be controlled — even if a
 jammer's `id` equals a node's `id`.
 
 In centralized mode `reward_type = all_links_los` is the conjunction over every
 controlled node (`+1` only if each one has at least one peer link and all of
 them are LOS), and the reward reported per decision is the mean of the per-tick
-rewards in that decision window.
+rewards over scored ticks in that decision window. Decisions continue during
+warmup; scoring starts at `time_s >= warmup_s`, and an unscored window returns zero.
 
 `action_set` and `dimensions` are **not** accepted keys. The loader ignores
 unknown keys silently, so either spelling has no effect; `dimensions` is
@@ -267,8 +268,9 @@ ignores them*. They apply to centralized mode only.
 
 Each key resolves independently with precedence CLI > `run.ini` > default, and
 both manifests record the resolved value and its source. An unknown preset or
-component, a weight count that does not match the components, or any non-default
-value of these keys in legacy mode fails before the simulator starts.
+component, a weight count that does not match the components, or invalid input
+parameters fails before the simulator starts. Configurable scales and thresholds
+are documented in [policy-inputs.md](src/rl/policy-inputs.md#configurable-service-and-geometry-inputs).
 
 Observation presets:
 
@@ -452,7 +454,7 @@ and is never parsed.
 Inspect `eval_manifest.json` for returns, per-seed metrics, and action
 validity counts; each episode's `steps.jsonl` has the decision trace.
 
-`train_manifest.json` is version 4. Besides the existing run identity it
+`train_manifest.json` is version 6. Besides the existing run identity it
 records `status`/`error`, `algorithm`, `seed` and `seed_source`, `control_mode`,
 the live `contract`, the resolved `selection`, `observation_schema` and
 `reward_schema` (with their SHA-256), `scenario_identity` (SHA-256 of the
@@ -672,6 +674,10 @@ Standalone:
   --sim-binary <BIN> --run-config <INI> --seeds 1,2
 ```
 
+The [zero-cost/penalized walkthrough](scripts/baselines/walkthrough.md) includes
+training, held-out evaluation, comparison and saved diagnostics. Active placement
+requires a dedicated `planning_seed`, separate from evaluation seeds.
+
 The [placement-baseline guide](scripts/baselines/README.md) covers the keys
 (including movement penalties in m²), the optional mapping file, the objective,
 the evaluation ownership rule, the direct-run guard, outputs, migration from
@@ -801,3 +807,7 @@ pages and the per-file API docs.
 @section about About
 
 This sim is being worked on by the University of Massachusetts's ACNL.
+
+The simulator-scored placement engine and its owned parameter sections are
+documented in the [engine workflow](scripts/baselines/planners/README.md). Its
+API is available in this review; baseline CLI integration follows in #26.

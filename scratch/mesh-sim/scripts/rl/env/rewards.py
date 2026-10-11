@@ -1,24 +1,22 @@
-"""Composable reward components computed from the facts window sums."""
+"""Composable rewards with component-owned parameters, dependencies, and schemas."""
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Sequence
 
-from .observations import SINR_CLIP_DB, SINR_INVALID_DB, schema_sha256
+from scripts.artifact_io import canonical_sha256
+from .normalization import Normalization, SINR_FIELDS
 
 DEMAND_EPS = 1e-9
-SUCCESS_DELIVERY = 0.95
-SUCCESS_ROUTABLE = 0.95
 
-
-def _delivery_ratio(window: dict, msg_reward: float, contract: dict) -> tuple[float, bool]:
+def _delivery_ratio(window: dict, msg_reward: float, contract: dict, parameters: dict, context: dict) -> tuple[float, bool]:
     demand = float(window["demand_mbps_sum"])
     if demand <= DEMAND_EPS:
         return 0.0, False
     return float(window["delivered_mbps_sum"]) / demand, True
 
 
-def _delivery_binary(window: dict, msg_reward: float, contract: dict) -> tuple[float, bool]:
+def _delivery_binary(window: dict, msg_reward: float, contract: dict, parameters: dict, context: dict) -> tuple[float, bool]:
     """Reward any measured delivery and penalize a complete service failure."""
     demand = float(window["demand_mbps_sum"])
     if demand <= DEMAND_EPS:
@@ -28,135 +26,215 @@ def _delivery_binary(window: dict, msg_reward: float, contract: dict) -> tuple[f
 
 
 def _signed_delivery_ratio(window: dict, msg_reward: float,
-                           contract: dict) -> tuple[float, bool]:
+                           contract: dict, parameters: dict, context: dict) -> tuple[float, bool]:
     """Map delivered/offered demand from [0, 1] to a symmetric [-1, 1]."""
-    ratio, valid = _delivery_ratio(window, msg_reward, contract)
+    ratio, valid = _delivery_ratio(window, msg_reward, contract, parameters, context)
     if not valid:
         return 0.0, False
     return 2.0 * max(0.0, min(1.0, ratio)) - 1.0, True
 
 
-def _connectivity(window: dict, msg_reward: float, contract: dict) -> tuple[float, bool]:
-    pairs = int(window["ticks"]) * int(contract["num_links"])
+def _connectivity(window: dict, msg_reward: float, contract: dict, parameters: dict, context: dict) -> tuple[float, bool]:
+    pairs = int(window["scored_ticks"]) * int(contract["num_links"])
     if pairs <= 0:
         return 0.0, True
     return float(window["connected_pairs_sum"]) / pairs, True
 
 
-def _throughput_mbps(window: dict, msg_reward: float, contract: dict) -> tuple[float, bool]:
-    return float(window["delivered_mbps_sum"]) / int(window["ticks"]), True
+def _throughput_mbps(window: dict, msg_reward: float, contract: dict, parameters: dict, context: dict) -> tuple[float, bool]:
+    return float(window["delivered_mbps_sum"]) / int(window["scored_ticks"]), True
 
 
-def _legacy(window: dict, msg_reward: float, contract: dict) -> tuple[float, bool]:
-    return float(window["legacy_reward_sum"]) / int(window["ticks"]), True
+def _legacy(window: dict, msg_reward: float, contract: dict, parameters: dict, context: dict) -> tuple[float, bool]:
+    return float(window["legacy_reward_sum"]) / int(window["scored_ticks"]), True
 
 
-def _service_success(window: dict, msg_reward: float, contract: dict) -> tuple[float, bool]:
+def _service_success(window: dict, msg_reward: float, contract: dict, parameters: dict, context: dict) -> tuple[float, bool]:
     demand = float(window["demand_mbps_sum"])
     flows = int(window["flow_ticks_with_demand"])
     if demand <= DEMAND_EPS or flows == 0:
         return -1.0, True
     delivered = float(window["delivered_mbps_sum"]) / demand
     routable = 1.0 - int(window["unroutable_flow_ticks"]) / flows
-    return (1.0 if delivered >= SUCCESS_DELIVERY and routable >= SUCCESS_ROUTABLE
+    return (1.0 if delivered >= parameters["delivery_threshold"] and routable >= parameters["routable_threshold"]
             else -1.0), True
 
 
-def _service_failure(window: dict, msg_reward: float, contract: dict) -> tuple[float, bool]:
-    success, _ = _service_success(window, msg_reward, contract)
+def _service_failure(window: dict, msg_reward: float, contract: dict, parameters: dict, context: dict) -> tuple[float, bool]:
+    success, _ = _service_success(window, msg_reward, contract, parameters, context)
     return (1.0 if success < 0 else 0.0), True
 
 
-def position_context(facts: dict, previous_nodes: list, initial_nodes: list,
-                     contract: dict) -> dict:
-    """Measured position costs for the action just completed, from existing facts."""
-    slots = [node_id for node_id in contract["slot_node_ids"] if node_id is not None]
-    node_ids = contract["node_ids"]
-    interval = int(facts["window"]["ticks"]) * float(contract["tick_s"])
+def position_context(facts, previous_nodes, initial_nodes, contract, elapsed_ticks=None):
+    """Endpoint movement measurements; mixed warmup windows have no travel cost."""
+    window = facts["window"]
+    ticks = int(window.get("ticks", contract["decision_interval_ticks"]) if elapsed_ticks is None else elapsed_ticks)
+    interval = ticks * float(contract["tick_s"])
+    if interval <= 0:
+        return {}
     bounds = contract["bounds"]
-    diagonal = math.hypot(float(bounds["x_max"]) - float(bounds["x_min"]),
-                          float(bounds["y_max"]) - float(bounds["y_min"]))
-    if interval <= 0 or diagonal <= 0:
-        raise ValueError("movement reward needs a positive completed window and xy bounds")
+    diagonal = math.hypot(bounds["x_max"] - bounds["x_min"],
+                          bounds["y_max"] - bounds["y_min"])
     travel, displacement = [], []
-    for slot, node_id in enumerate(slots):
-        index = node_ids.index(node_id)
+    for slot, node_id in enumerate(contract["slot_node_ids"]):
+        if node_id is None:
+            continue
+        index = contract["node_ids"].index(node_id)
         current, previous, initial = (facts["nodes"][index], previous_nodes[index],
                                       initial_nodes[index])
         speed = float(contract["slot_speed_mps"][slot])
-        travel.append(min(1.0, math.hypot(current[0] - previous[0],
-                                           current[1] - previous[1]) / (speed * interval)))
-        displacement.append(min(1.0, math.hypot(current[0] - initial[0],
-                                                 current[1] - initial[1]) / diagonal))
-    qualities = [max(0.0, min(1.0, (float(link[0]) - SINR_CLIP_DB[0]) /
-                                  (SINR_CLIP_DB[1] - SINR_CLIP_DB[0])))
-                 if float(link[0]) > SINR_INVALID_DB else 0.0
-                 for link in facts["links"]]
-    return {"travel_fraction": sum(travel) / len(travel),
-            "origin_fraction": sum(displacement) / len(displacement),
-            "sinr_quality": sum(qualities) / len(qualities) if qualities else 0.0}
+        travel.append(min(1.0, math.hypot(current[0] - previous[0], current[1] - previous[1]) /
+                          (speed * interval)))
+        displacement.append(min(1.0, math.hypot(current[0] - initial[0], current[1] - initial[1]) /
+                                diagonal))
+    return {"travel_fraction": (sum(travel) / len(travel)
+                                if window["scored_ticks"] == ticks else None),
+            "origin_fraction": sum(displacement) / len(displacement)}
 
 
-def _travel_fraction(window: dict, msg_reward: float, contract: dict,
-                     context: dict) -> tuple[float, bool]:
-    return float(context["travel_fraction"]), True
+def _movement_context(facts, contract, inputs):
+    if inputs is None:
+        raise ValueError("movement rewards require previous and reset positions")
+    return position_context(facts, inputs["previous_nodes"], inputs["initial_nodes"],
+                            contract, inputs["elapsed_ticks"])
 
 
-def _origin_fraction(window: dict, msg_reward: float, contract: dict,
-                     context: dict) -> tuple[float, bool]:
-    return float(context["origin_fraction"]), True
+def _context_fraction(key):
+    def calculate(window, msg_reward, contract, parameters, context):
+        value = context[key]
+        return (0.0, False) if value is None else (float(value), True)
+    return calculate
 
 
-def _sinr_quality(window: dict, msg_reward: float, contract: dict,
-                  context: dict) -> tuple[float, bool]:
-    return float(context["sinr_quality"]), True
+def _sinr_quality(window, msg_reward, contract, parameters, context):
+    scales = Normalization(**parameters)
+    links = context["links"]
+    return (sum(scales.sinr_quality(float(link[0])) for link in links) / len(links)
+            if links else 0.0), True
 
 
-def _unmet_sinr_quality(window: dict, msg_reward: float, contract: dict,
-                        context: dict) -> tuple[float, bool]:
-    """Shaping disappears once measured service meets the success threshold."""
+def _unmet_sinr_quality(window, msg_reward, contract, parameters, context):
     demand = float(window["demand_mbps_sum"])
-    ratio = (float(window["delivered_mbps_sum"]) / demand
-             if demand > DEMAND_EPS else 0.0)
-    unmet = max(0.0, min(1.0, (SUCCESS_DELIVERY - ratio) / SUCCESS_DELIVERY))
-    return float(context["sinr_quality"]) * unmet, True
+    ratio = float(window["delivered_mbps_sum"]) / demand if demand > DEMAND_EPS else 0.0
+    threshold = parameters["delivery_threshold"]
+    unmet = max(0.0, min(1.0, (threshold - ratio) / threshold))
+    quality, _ = _sinr_quality(window, msg_reward, contract,
+                              {key: parameters[key] for key in SINR_FIELDS}, context)
+    return quality * unmet, True
 
 
 @dataclass(frozen=True)
 class RewardComponent:
-    """One named scalar term with its validity rule and declared range."""
-
     name: str
-    _value: Callable[..., tuple[float, bool]]
-    range: tuple[float, float | None]
+    _value: Callable
+    range: tuple[float | None, float | None]
+    required_facts: tuple[str, ...]
+    parameters: dict = field(default_factory=dict)
+    contract_fields: tuple[str, ...] = ()
+    tunable: dict = field(default_factory=dict)
+    context_fields: tuple[str, ...] = ()
+    formula: str = ""
+    zero_demand_rule: str = "not_applicable"
+    context_builder: Callable | None = None
 
-    def value(self, window: dict, msg_reward: float, contract: dict,
-              context: dict | None = None) -> tuple[float, bool]:
-        if self.name in ("travel_fraction", "origin_fraction", "sinr_quality",
-                         "unmet_sinr_quality"):
-            if context is None:
-                raise ValueError(f"{self.name} requires measured position context")
-            return self._value(window, msg_reward, contract, context)
-        return self._value(window, msg_reward, contract)
+    def resolve(self, overrides):
+        if not isinstance(overrides, dict):
+            raise ValueError(f"{self.name} parameters must be an object")
+        unknown = set(overrides) - set(self.tunable)
+        if unknown:
+            raise ValueError(f"{self.name} has unknown parameters: {sorted(unknown)}")
+        resolved = dict(self.parameters)
+        for key, (default, low, high) in self.tunable.items():
+            value = overrides.get(key, default)
+            if (isinstance(value, bool) or not isinstance(value, (int, float)) or
+                    not math.isfinite(value) or (low is not None and value <= low) or
+                    (high is not None and value > high)):
+                raise ValueError(f"{self.name}.{key} must be finite in ({low}, {high}]")
+            resolved[key] = float(value)
+        if set(SINR_FIELDS) <= set(resolved):
+            Normalization(**{key: resolved[key] for key in SINR_FIELDS})
+        return resolved
 
+    def value(self, window, msg_reward, contract, context=None, parameters=None):
+        if not window["scored_ticks"]:
+            return 0.0, False
+        context = {} if context is None else context
+        missing = set(self.context_fields) - set(context)
+        if missing:
+            raise ValueError(f"{self.name} requires context: {sorted(missing)}")
+        return self._value(window, msg_reward, contract,
+                           self.resolve({}) if parameters is None else parameters, context)
+
+    def schema(self, contract, parameters=None):
+        resolved = self.resolve({}) if parameters is None else parameters
+        return {"range": list(self.range), "required_facts": list(self.required_facts),
+                "context_fields": list(self.context_fields), "parameters": dict(resolved),
+                "formula": self.formula.format(**resolved),
+                "zero_demand_rule": self.zero_demand_rule,
+                "contract": {key: contract[key] for key in self.contract_fields}}
+
+
+_SERVICE_PARAMETERS = {"delivery_threshold": (0.95, 0.0, 1.0),
+                       "routable_threshold": (0.95, 0.0, 1.0)}
+_SINR_PARAMETERS = {key: (getattr(Normalization(), key), None, None) for key in SINR_FIELDS}
+_SERVICE_FACTS = ("demand_mbps_sum", "delivered_mbps_sum",
+                  "flow_ticks_with_demand", "unroutable_flow_ticks")
 
 COMPONENTS = {
-    "delivery_ratio": RewardComponent("delivery_ratio", _delivery_ratio, (0.0, 1.0)),
-    "delivery_binary": RewardComponent("delivery_binary", _delivery_binary,
-                                        (-1.0, 1.0)),
-    "signed_delivery_ratio": RewardComponent("signed_delivery_ratio",
-                                               _signed_delivery_ratio,
-                                               (-1.0, 1.0)),
-    "connectivity": RewardComponent("connectivity", _connectivity, (0.0, 1.0)),
-    "throughput_mbps": RewardComponent("throughput_mbps", _throughput_mbps, (0.0, None)),
-    "legacy": RewardComponent("legacy", _legacy, (None, None)),
-    "service_success": RewardComponent("service_success", _service_success, (-1.0, 1.0)),
-    "service_failure": RewardComponent("service_failure", _service_failure, (0.0, 1.0)),
-    "travel_fraction": RewardComponent("travel_fraction", _travel_fraction, (0.0, 1.0)),
-    "origin_fraction": RewardComponent("origin_fraction", _origin_fraction, (0.0, 1.0)),
-    "sinr_quality": RewardComponent("sinr_quality", _sinr_quality, (0.0, 1.0)),
-    "unmet_sinr_quality": RewardComponent("unmet_sinr_quality",
-                                            _unmet_sinr_quality, (0.0, 1.0)),
+    "delivery_ratio": RewardComponent(
+        "delivery_ratio", _delivery_ratio, (0.0, 1.0),
+        ("demand_mbps_sum", "delivered_mbps_sum"),
+        {"demand_epsilon_mbps_sum": DEMAND_EPS},
+        formula="delivered/demand", zero_demand_rule="masked"),
+    "delivery_binary": RewardComponent(
+        "delivery_binary", _delivery_binary, (-1.0, 1.0),
+        ("demand_mbps_sum", "delivered_mbps_sum"),
+        {"demand_epsilon_mbps_sum": DEMAND_EPS},
+        formula="+1 for any delivery, else -1", zero_demand_rule="masked"),
+    "signed_delivery_ratio": RewardComponent(
+        "signed_delivery_ratio", _signed_delivery_ratio, (-1.0, 1.0),
+        ("demand_mbps_sum", "delivered_mbps_sum"),
+        {"demand_epsilon_mbps_sum": DEMAND_EPS},
+        formula="2*clip(delivered/demand,0,1)-1", zero_demand_rule="masked"),
+    "connectivity": RewardComponent(
+        "connectivity", _connectivity, (0.0, 1.0), ("connected_pairs_sum",),
+        contract_fields=("num_links",), formula="connected_pairs_sum/(scored_ticks*num_links)"),
+    "throughput_mbps": RewardComponent(
+        "throughput_mbps", _throughput_mbps, (0.0, None), ("delivered_mbps_sum",),
+        formula="delivered_mbps_sum/scored_ticks"),
+    "legacy": RewardComponent(
+        "legacy", _legacy, (None, None), ("legacy_reward_sum",),
+        contract_fields=("reward_type", "reward_window"), formula="legacy_reward_sum/scored_ticks"),
+    "service_success": RewardComponent(
+        "service_success", _service_success, (-1.0, 1.0), _SERVICE_FACTS,
+        tunable=_SERVICE_PARAMETERS,
+        formula="+1 if delivery >= {delivery_threshold:g} and routable >= {routable_threshold:g}, else -1",
+        zero_demand_rule="failure"),
+    "service_failure": RewardComponent(
+        "service_failure", _service_failure, (0.0, 1.0), _SERVICE_FACTS,
+        tunable=_SERVICE_PARAMETERS,
+        formula="1 if delivery < {delivery_threshold:g} or routable < {routable_threshold:g}, else 0",
+        zero_demand_rule="failure"),
+    "travel_fraction": RewardComponent(
+        "travel_fraction", _context_fraction("travel_fraction"), (0.0, 1.0), ("nodes",),
+        parameters={"partial_warmup_rule": "masked", "measurement": "xy_endpoint_distance"},
+        context_fields=("travel_fraction",), context_builder=_movement_context,
+        contract_fields=("slot_speed_mps", "tick_s", "slot_node_ids"),
+        formula="mean controlled-slot endpoint distance/(speed*elapsed_ticks*tick_s), clipped [0,1]"),
+    "origin_fraction": RewardComponent(
+        "origin_fraction", _context_fraction("origin_fraction"), (0.0, 1.0), ("nodes",),
+        context_fields=("origin_fraction",), context_builder=_movement_context, contract_fields=("bounds", "slot_node_ids"),
+        formula="mean controlled-slot xy distance from reset/bounds diagonal, clipped [0,1]"),
+    "sinr_quality": RewardComponent(
+        "sinr_quality", _sinr_quality, (0.0, 1.0), ("links",),
+        tunable=_SINR_PARAMETERS, context_fields=("links",),
+        formula="mean SINR clipped [{sinr_min_db:g},{sinr_max_db:g}] and mapped to [0,1]; <= {sinr_invalid_db:g} scores 0"),
+    "unmet_sinr_quality": RewardComponent(
+        "unmet_sinr_quality", _unmet_sinr_quality, (0.0, 1.0),
+        ("links", "demand_mbps_sum", "delivered_mbps_sum"),
+        tunable={**_SINR_PARAMETERS, "delivery_threshold": _SERVICE_PARAMETERS["delivery_threshold"]},
+        context_fields=("links",), zero_demand_rule="delivery_ratio_zero",
+        formula="SINR quality [{sinr_min_db:g},{sinr_max_db:g}] above {sinr_invalid_db:g} * clip(({delivery_threshold:g}-delivery_ratio)/{delivery_threshold:g},0,1)"),
 }
 
 
@@ -185,7 +263,7 @@ class RewardBreakdown:
 class RewardComposer:
     """Weighted sum of registered components over one decision window."""
 
-    def __init__(self, components: Sequence[str], weights: Sequence[float]):
+    def __init__(self, components: Sequence[str], weights: Sequence[float], parameters=None):
         names = list(components)
         values = [float(w) for w in weights]
         if len(names) != len(values):
@@ -200,13 +278,27 @@ class RewardComposer:
             raise ValueError(f"reward_weights must all be finite, got {bad!r}")
         self.components = [get_component(name) for name in names]
         self.weights = values
+        overrides = {} if parameters is None else parameters
+        if not isinstance(overrides, dict):
+            raise ValueError("reward_parameters must be an object keyed by selected component")
+        unknown = set(overrides) - set(names)
+        if unknown:
+            raise ValueError(f"parameters for unselected reward components: {sorted(unknown)}")
+        self.parameters = {c.name: c.resolve(overrides.get(c.name, {})) for c in self.components}
+        self.context_fields = {key for c in self.components for key in c.context_fields}
 
-    def compose(self, window: dict, msg_reward: float, contract: dict,
-                context: dict | None = None) -> RewardBreakdown:
+    def context(self, facts, contract, inputs=None):
+        context = {key: facts[key] for key in self.context_fields if key in facts}
+        for component in self.components:
+            if set(component.context_fields) - set(context) and component.context_builder is not None:
+                context.update(component.context_builder(facts, contract, inputs))
+        return context
+
+    def compose(self, window: dict, msg_reward: float, contract: dict, context=None) -> RewardBreakdown:
         values, valid, weights = {}, {}, {}
         total = 0.0
         for component, weight in zip(self.components, self.weights):
-            value, ok = component.value(window, msg_reward, contract, context)
+            value, ok = component.value(window, msg_reward, contract, context, self.parameters[component.name])
             values[component.name] = float(value)
             valid[component.name] = int(bool(ok))
             weights[component.name] = float(weight)
@@ -217,49 +309,30 @@ class RewardComposer:
         return RewardBreakdown(float(total), values, valid, weights, float(msg_reward))
 
 
-def reward_schema(components: Sequence[str], weights: Sequence[float], *,
-                  reward_type: str, reward_window: str) -> dict:
-    """Reward identity; C++ authority (reward_type/reward_window from init) when empty."""
+def reward_schema(components: Sequence[str], weights: Sequence[float], *, contract: dict, parameters=None) -> dict:
+    """Reward identity includes scoring rules and each component's dependencies."""
+    composer = RewardComposer(components, weights, parameters)
+    scoring = {"warmup_s": float(contract["warmup_s"]),
+               "reward_warmup": contract["reward_warmup"],
+               "window": "sums_over_scored_ticks"}
     if not list(components):
         schema = {
             "authority": "cpp",
-            "reward_type": reward_type,
-            "reward_window": reward_window,
+            "reward_type": contract["reward_type"],
+            "reward_window": contract["reward_window"],
+            **scoring,
         }
-        schema["sha256"] = schema_sha256(schema)
+        schema["sha256"] = canonical_sha256(schema)
         return schema
     names = list(components)
     schema = {
         "authority": "python",
         "components": names,
         "weights": [float(w) for w in weights],
-        "zero_demand_rule": "masked",
-        "window": "sums_over_window_ticks",
+        "zero_scored_rule": "masked",
+        **scoring,
+        "component_details": {name: get_component(name).schema(contract, composer.parameters[name]) for name in names},
         "ranges": {name: list(get_component(name).range) for name in names},
     }
-    if "service_success" in names or "service_failure" in names:
-        schema["success_rule"] = {"delivery_ratio_at_least": SUCCESS_DELIVERY,
-                                  "routable_flow_fraction_at_least": SUCCESS_ROUTABLE,
-                                  "zero_demand": "failure"}
-    if "delivery_binary" in names:
-        schema["delivery_binary_rule"] = (
-            "+1 when offered demand is positive and any demand is delivered; "
-            "-1 when offered demand is positive and none is delivered; "
-            "zero demand is masked")
-    if "signed_delivery_ratio" in names:
-        schema["signed_delivery_ratio_rule"] = (
-            "2 * clip(delivered_mbps_sum / demand_mbps_sum, 0, 1) - 1; "
-            "zero demand is masked")
-    if "travel_fraction" in names or "origin_fraction" in names:
-        schema["movement_rule"] = {
-            "travel_fraction": "mean per controlled slot of actual xy travel / (slot_speed_mps * window_ticks * tick_s), clipped [0,1]",
-            "origin_fraction": "mean per controlled slot of xy distance from reset / bounds xy diagonal, clipped [0,1]",
-        }
-    if "sinr_quality" in names:
-        schema["sinr_quality_rule"] = "mean per-link SINR clipped [-20,40] dB then mapped to [0,1]; invalid links score zero"
-    if "unmet_sinr_quality" in names:
-        schema["unmet_sinr_quality_rule"] = (
-            "sinr_quality * clip((0.95 - delivered/demand)/0.95, 0, 1); "
-            "zero demand uses delivery ratio zero")
-    schema["sha256"] = schema_sha256(schema)
+    schema["sha256"] = canonical_sha256(schema)
     return schema

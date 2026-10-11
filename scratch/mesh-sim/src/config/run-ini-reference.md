@@ -5,8 +5,7 @@ read by Python. Omitted keys use the defaults below; unknown keys are silently
 ignored. Input-file paths are relative to `run.ini`. For action and reward
 behavior, see the [RL bridge](../rl/README.md); for `jammers.json`, see the
 [jammer model](../jammer/README.md). Command-line overrides are listed in the
-[CLI guide](../cli/README.md). `--channel-query` mode reads the same file and
-keys as a run (no query-specific keys); see the [query contract](../query/README.md).
+[CLI guide](../cli/README.md).
 
 ## `[scenario]` and `[output]`
 
@@ -134,21 +133,35 @@ and rejects unknown keys and values; the binary ignores keys other than
 | `algorithm` | `none` | `none`, `geometric`, or `optimization`; an absent section or key means `none`, and the binary also treats a blank value as `none`. |
 | `objective` | none | `coverage`, `balanced`, or `resilience`; required when active. |
 | `application` | `initial_positions` | Only `initial_positions` is accepted. |
-| `movable_nodes` | none | Distinct, non-empty comma-separated node IDs the planner may move, or `all`. Required when active. |
-| `seed` | none | Optimizer seed (integer ≥ 0), required for `optimization`; independent of the simulation and planning seeds. |
+| `movable_nodes` | none | Distinct, non-empty comma-separated node IDs the planner may move; `all` is not accepted. Required when active. |
+| `seed` | none | Planner seed (integer ≥ 0), required for `optimization`; independent of the simulation seed. |
 | `max_iterations` | none | Optimizer iterations (integer > 0), required for `optimization`. |
 | `waypoint_policy` | `reject` | `reject` or `translate` for selected waypoint nodes. |
-| `mapping_file` | none | Optional baseline mapping JSON (version 2); absent means the `[rl]` bounds geofence and platforms by `node_type`. Relative paths resolve from `run.ini`. |
-| `aerial_fixed_cost_m2`, `ground_fixed_cost_m2` | `150000` | Coverage-equivalent m² charged for moving a node of that platform at all (≥ 0). |
-| `aerial_cost_m2_per_m`, `ground_cost_m2_per_m` | `500` / `100` | Additional m² per metre moved (≥ 0). |
-| `aerial_max_displacement_m`, `ground_max_displacement_m` | none | Hard displacement cap in metres (> 0); absent means unlimited. |
-| `candidate_grid_cells`, `coverage_grid_cells` | `400` | Target cell counts (integer ≥ 1) for candidate positions and coverage probes. |
-| `grid_min_resolution_m` | `5.0` | Smallest grid cell edge in metres (> 0). |
-| `coverage_probe_height_m` | `1.5` | Coverage probe receiver height in metres (≥ 0). |
-| `coverage_probe_rx_gain_dbi` | `[channel] rx_array_gain_dbi` | Coverage probe receive gain (finite, ≥ 0). |
-| `coverage_sinr_db` | `-6.7` | SINR at which a probe counts as covered. |
-| `balanced_core_fraction` | `0.5` | Share of selected nodes that need two anchor links under `balanced` ([0, 1]). |
+| `planning_seed` | none | Required dedicated channel-planning seed in [1,2147483647]; `--planning-seed` overrides it. Independent of optimizer and evaluation seeds. |
+| `mapping_file` | none | Optional version 2 rectangular geofence/platform mapping; absent requires all four RL x/y bounds explicitly and resolves platforms from `node_type`. |
+| `aerial_fixed_cost_m2`, `ground_fixed_cost_m2` | `150000` | Per-node one-time relocation cost in square-meter-equivalent objective units; zero disables it. |
+| `aerial_cost_m2_per_m`, `ground_cost_m2_per_m` | `500`, `100` | Cost per meter of initial x/y relocation; zero disables it. |
+| `aerial_max_displacement_m`, `ground_max_displacement_m` | none | Optional positive initial relocation caps in meters. |
+| `candidate_grid_cells`, `coverage_grid_cells` | `400`, `400` | Positive target grid cell counts. |
+| `grid_min_resolution_m` | `5` | Positive minimum grid spacing in meters. |
+| `coverage_sinr_db` | `-6.7` | Finite SINR threshold used to count probe coverage. |
+| `coverage_probe_height_m`, `coverage_probe_rx_gain_dbi` | `1.5`, resolved node receive gain | Probe receiver height and optional gain; both must be non-negative. |
 
-`gateway_node_id` and `rf_config` are no longer accepted: baselines are
-gateway-free and candidates are scored by the simulator channel (see
-[`scripts/baselines/README.md`](../../scripts/baselines/README.md)).
+
+## `[channel_query]` and placement-engine settings
+
+`query-config.cc` owns the worker settings: `child_deadline_s` = 60 seconds
+(finite in (0,86400]), `terminate_grace_s` = 1 second (finite in (0,60]),
+`max_child_response_bytes` = 16777216 (integer in [1024,16777216]), and
+`max_response_bytes` = 67108864 (integer ≤268435456, at least child limit +
+69632 bytes). Unknown worker keys are errors. Resolved values appear in the
+`mesh_channel_query_v1` init handshake.
+
+Python engine configuration uses `[placement_objective]`,
+`[placement_optimizer]` and `[channel_query_client]`; see the complete
+[planner parameter example](../../scripts/baselines/planners/README.md#configuration-and-extension).
+Both baseline CLIs and placement evaluation policies pass these sections to the
+channel-scored engine. `gateway_node_id` and `rf_config` are removed. The active
+traffic gateway must remain outside placement selection and RL control. See the
+[baseline guide](../../scripts/baselines/README.md) for ownership/seed rules and the
+[walkthrough](../../scripts/baselines/walkthrough.md) for comparable runs.

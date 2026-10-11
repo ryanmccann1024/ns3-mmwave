@@ -23,17 +23,27 @@ ALWAYS_INCLUDE = ("experiment_plan.json", "cluster/tasks.json",
 
 CATEGORY_INCLUDES = {
     "comparison": ("comparison/comparison.json", "comparison/episodes.csv"),
-    "manifests": ("train/**/train_manifest.json", "eval/**/eval_manifest.json",
-                  "train/**/episode-*/rl_episode.json",
-                  "eval/**/episode-*/rl_episode.json",
-                  "cluster/records/**", "benchmark/**"),
+    "manifests": (
+        "train/**/train_manifest.json",
+        "eval/**/eval_manifest.json",
+        "train/**/episode-*/rl_episode.json",
+        "eval/**/episode-*/rl_episode.json",
+        "eval/**/baseline/baseline_manifest.json",
+        "eval/**/baseline/effective-inputs/baseline-plan.json",
+        "cluster/records/**",
+        "benchmark/**",
+    ),
     "models": ("train/**/maskable_ppo_mesh.zip", "train/**/best_model.zip"),
     "selection-logs": ("train/**/evaluations.npz",),
-    "inputs": ("train/**/episode-*/inputs/**", "eval/**/episode-*/inputs/**"),
-    "telemetry": ("train/**/episode-*/steps.jsonl",
-                  "eval/**/episode-*/steps.jsonl"),
+    "inputs": (
+        "train/**/episode-*/inputs/**",
+        "eval/**/episode-*/inputs/**",
+        "eval/**/baseline/source-inputs/**",
+        "eval/**/baseline/effective-inputs/**",
+    ),
+    "telemetry": ("train/**/episode-*/steps.jsonl", "eval/**/episode-*/steps.jsonl"),
     "episode-data": ("train/**/episode-*/**", "eval/**/episode-*/**"),
-    "logs": ("cluster/logs/**",),
+    "logs": ("cluster/logs/**", "eval/**/baseline/planner.log"),
 }
 
 _HOME_PARENTS = (Path("/Users"), Path("/home"))

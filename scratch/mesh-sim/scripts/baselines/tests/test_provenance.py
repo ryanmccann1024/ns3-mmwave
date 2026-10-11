@@ -1,4 +1,6 @@
-"""Reference-copy hashes, adapted-code and channel-runtime identity, and fingerprint v2."""
+"""Reference-copy hashes, adapted-code and channel-runtime identity, and fingerprint v3."""
+
+from scripts.baselines import preparation, execution, mapping as mapping_config, runtime_identity
 
 import copy
 import re
@@ -36,37 +38,35 @@ def test_reference_copy_is_not_imported_at_runtime():
         assert "arpo_placement" not in path.read_text(encoding="utf-8"), path
 
 
-def _package_copy(tmp_path) -> Path:
-    root = tmp_path / "pkg"
-    for name in artifacts.PLANNER_CODE_FILES:
-        (root / name).parent.mkdir(parents=True, exist_ok=True)
-        (root / name).write_text(f"# {name}\n")
-    return root
-
-
 def test_planner_code_identity_covers_every_adapted_module(tmp_path):
-    assert artifacts.PLANNER_CODE_FILES == (
-        "solver.py", "config.py", "adapter.py", "effective_inputs.py", "artifacts.py",
-        "planners/objective.py", "planners/geometric.py", "planners/optimization.py",
-        "planners/channel.py")
-    real = artifacts.planner_code_identity()
-    assert list(real["files"]) == list(artifacts.PLANNER_CODE_FILES)
-    assert real["files"]["artifacts.py"] == artifacts.sha256_file(
-        BASELINES / "artifacts.py")
-    root = _package_copy(tmp_path)
-    before = artifacts.planner_code_identity(root)["aggregate_sha256"]
-    assert artifacts.planner_code_identity(root)["aggregate_sha256"] == before
-    for name in artifacts.PLANNER_CODE_FILES:
+    real = runtime_identity.planner_code_identity()
+    expected = {
+        p.relative_to(BASELINES).as_posix()
+        for p in BASELINES.rglob("*.py")
+        if "tests" not in p.relative_to(BASELINES).parts
+    }
+    assert set(real["files"]) == expected | {"../artifact_io.py", "../sim_support.py"}
+    root = tmp_path / "scripts/baselines"
+    shutil.copytree(BASELINES, root, ignore=shutil.ignore_patterns("tests", "__pycache__"))
+    for name in ("artifact_io.py", "sim_support.py"):
+        shutil.copyfile(BASELINES.parent / name, root.parent / name)
+    before = runtime_identity.planner_code_identity(root)["aggregate_sha256"]
+    for name in (
+        "planner_config.py",
+        "planners/components.py",
+        "planners/cache.py",
+        "planners/graph.py",
+        "../artifact_io.py",
+    ):
         original = (root / name).read_text()
         (root / name).write_text(original + "# changed\n")
-        assert artifacts.planner_code_identity(root)["aggregate_sha256"] != before, name
+        assert runtime_identity.planner_code_identity(root)["aggregate_sha256"] != before, name
         (root / name).write_text(original)
-    (root / "planners/geometric.py").unlink()
-    with pytest.raises(FileNotFoundError, match="planners/geometric.py"):
-        artifacts.planner_code_identity(root)
+    (root / "new_component.py").write_text("# new owner\n")
+    assert runtime_identity.planner_code_identity(root)["aggregate_sha256"] != before
 
 
-def _fake_runtime(root: Path, monkeypatch, modules=artifacts.CHANNEL_MODULES) -> Path:
+def _fake_runtime(root: Path, monkeypatch, modules=runtime_identity.CHANNEL_MODULES) -> Path:
     root.mkdir(parents=True)
     binary = root / "ns3.42-sim-debug"
     binary.write_bytes(b"binary")
@@ -75,37 +75,49 @@ def _fake_runtime(root: Path, monkeypatch, modules=artifacts.CHANNEL_MODULES) ->
         lib = root / f"libns3.42-{module}-debug.dylib"
         lib.write_bytes(f"lib {module}".encode())
         libs.append(lib)
-    monkeypatch.setattr(artifacts, "linked_libraries",
-                        lambda path: [root / lib.name for lib in libs])
+    monkeypatch.setattr(
+        runtime_identity, "linked_libraries", lambda path: [root / lib.name for lib in libs]
+    )
     return binary
 
 
 def test_channel_runtime_identity(tmp_path, monkeypatch):
     script = tmp_path / "script-bin"
     script.write_text("#!/bin/sh\n")
-    assert artifacts.linked_libraries(script) == []
-    alone = artifacts.channel_runtime_identity(script)
+    assert runtime_identity.linked_libraries(script) == []
+    alone = runtime_identity.channel_runtime_identity(script)
     assert alone["files"] == [str(script.resolve())]
 
     binary = _fake_runtime(tmp_path / "a", monkeypatch)
-    first = artifacts.channel_runtime_identity(binary)
+    first = runtime_identity.channel_runtime_identity(binary)
     assert [Path(f).name for f in first["files"]] == [
-        "ns3.42-sim-debug", *(f"libns3.42-{m}-debug.dylib" for m in artifacts.CHANNEL_MODULES)]
+        "ns3.42-sim-debug",
+        *(f"libns3.42-{m}-debug.dylib" for m in sorted((*runtime_identity.CHANNEL_MODULES, "lte"))),
+    ]
     moved = tmp_path / "b"
     shutil.copytree(tmp_path / "a", moved)
-    monkeypatch.setattr(artifacts, "linked_libraries",
-                        lambda path: sorted(moved.glob("libns3*")))
-    assert artifacts.channel_runtime_identity(moved / binary.name)["sha256"] == first["sha256"]
-    (moved / "libns3.42-lte-debug.dylib").write_bytes(b"unrelated module rebuilt")
-    assert artifacts.channel_runtime_identity(moved / binary.name)["sha256"] == first["sha256"]
+    monkeypatch.setattr(
+        runtime_identity, "linked_libraries", lambda path: sorted(moved.glob("libns3*"))
+    )
+    assert (
+        runtime_identity.channel_runtime_identity(moved / binary.name)["sha256"] == first["sha256"]
+    )
+    (moved / "libns3.42-lte-debug.dylib").write_bytes(b"linked module rebuilt")
+    assert (
+        runtime_identity.channel_runtime_identity(moved / binary.name)["sha256"] != first["sha256"]
+    )
     (moved / "libns3.42-propagation-debug.dylib").write_bytes(b"rebuilt")
-    assert artifacts.channel_runtime_identity(moved / binary.name)["sha256"] != first["sha256"]
+    assert (
+        runtime_identity.channel_runtime_identity(moved / binary.name)["sha256"] != first["sha256"]
+    )
 
 
 def test_channel_runtime_refuses_a_missing_channel_library(tmp_path, monkeypatch):
     binary = _fake_runtime(tmp_path / "a", monkeypatch, modules=("core", "network"))
-    with pytest.raises(artifacts.RuntimeIdentityError, match="buildings, mobility, propagation"):
-        artifacts.channel_runtime_identity(binary)
+    with pytest.raises(
+        runtime_identity.RuntimeIdentityError, match="buildings, mobility, propagation"
+    ):
+        runtime_identity.channel_runtime_identity(binary)
 
 
 BASE_MANIFEST = {
@@ -193,3 +205,63 @@ def test_fingerprint_changes_with_plan_identity(path, value):
 def test_fingerprint_ignores_timing_and_paths(path, value):
     assert artifacts.fingerprint(_set(BASE_MANIFEST, path, value)) == artifacts.fingerprint(
         BASE_MANIFEST)
+
+
+@pytest.mark.parametrize(
+    "install_name",
+    [
+        "@loader_path/../lib/core/libns3-core.dylib",
+        "@executable_path/../lib/core/libns3-core.dylib",
+        "@rpath/core/libns3-core.dylib",
+    ],
+)
+def test_macho_install_names_and_inherited_rpaths(tmp_path, monkeypatch, install_name):
+    binary = tmp_path / "bin/sim"
+    core = tmp_path / "lib/core/libns3-core.dylib"
+    mobility = tmp_path / "lib/mobility/libns3-mobility.dylib"
+    for path in (binary, core, mobility):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"image")
+
+    def otool(command, env=None):
+        image = Path(command[-1])
+        if command[1] == "-l":
+            return "cmd LC_RPATH\npath @loader_path/../lib (offset 12)\n" if image == binary else ""
+        dependency = (
+            install_name
+            if image == binary
+            else ("@rpath/mobility/libns3-mobility.dylib" if image == core else None)
+        )
+        return f"{image}:\n" + (
+            f"  {dependency} (compatibility version 1.0.0)\n" if dependency else ""
+        )
+
+    monkeypatch.setattr(runtime_identity, "_run_tool", otool)
+    assert set(runtime_identity._macho_libraries(binary, {})) == {core, mobility}
+
+
+def test_macho_environment_override_and_library_local_rpath(tmp_path, monkeypatch):
+    binary = tmp_path / "bin/sim"
+    core = tmp_path / "override/libns3-core.dylib"
+    mobility = tmp_path / "override/nested/libns3-mobility.dylib"
+    for path in (binary, core, mobility):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"image")
+
+    def otool(command, env=None):
+        image = Path(command[-1])
+        if command[1] == "-l":
+            return "cmd LC_RPATH\npath @loader_path/nested (offset 12)\n" if image == core else ""
+        dependency = (
+            "@loader_path/missing/libns3-core.dylib"
+            if image == binary
+            else ("@rpath/libns3-mobility.dylib" if image == core else None)
+        )
+        return f"{image}:\n" + (
+            f" {dependency} (compatibility version 1.0.0)\n" if dependency else ""
+        )
+
+    monkeypatch.setattr(runtime_identity, "_run_tool", otool)
+    assert set(
+        runtime_identity._macho_libraries(binary, {"DYLD_LIBRARY_PATH": str(core.parent)})
+    ) == {core, mobility}

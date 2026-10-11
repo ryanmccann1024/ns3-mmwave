@@ -3,21 +3,22 @@
 import csv
 import importlib.util
 import json
-import subprocess
 import sys
+import subprocess
 from pathlib import Path
 
 import pytest
 
 from scripts.baselines.tests.conftest import NODES as BASELINE_NODES
 from scripts.baselines.tests.conftest import install_stub_planner, write_scenario
+from scripts.rl.env.config import read_scenario_identity
+from scripts.rl.policy import evaluate as policy_evaluate
+from scripts.sim_support import find_mesh_root
+
 from scripts.rl import compare as compare_cli
 from scripts.rl import evaluate as evaluate_cli
 from scripts.rl import experiment
-from scripts.rl.env.config import read_scenario_identity
-from scripts.rl.policy import evaluate as policy_evaluate
 from scripts.rl.policy.compare import ACROSS_RUNS_KIND, PAIRED_KIND, PRIMARY_METRIC
-from scripts.sim_support import find_mesh_root
 
 requires_sb3 = pytest.mark.skipif(importlib.util.find_spec("sb3_contrib") is None,
                                   reason="sb3_contrib not installed")
@@ -122,6 +123,47 @@ def test_experiment_run_groups_two_training_runs(sim_binary, multi_run_config, t
     assert entry["interval"]["kind"] == ACROSS_RUNS_KIND
 
 
+def test_empty_warmup_evaluation_comparison_keeps_null_metrics_and_decisions(
+    sim_binary, multi_run_config, tmp_path
+):
+    config = Path(multi_run_config)
+    config.write_text(config.read_text().replace("tick_s = 0.1", "tick_s = 0.1\nwarmup_s = 2.0"))
+    eval_dir = tmp_path / "eval"
+    assert (
+        evaluate_cli.main(
+            [
+                "--sim-binary",
+                sim_binary,
+                "--run-config",
+                str(config),
+                "--output-dir",
+                str(eval_dir),
+                "--seeds",
+                "11,12",
+                "--policies",
+                "hold,random_valid",
+            ]
+        )
+        == 0
+    )
+    manifest = json.loads((eval_dir / "eval_manifest.json").read_text())
+    assert manifest["eval_manifest_version"] == 5
+    assert manifest["metric_source"]["warmup_excluded"] is True
+    for block in manifest["policies"].values():
+        for episode in block["episodes"]:
+            assert episode["decisions"] > 0 and episode["return"] == 0
+            assert all(value is None for value in episode["metrics"].values())
+    out = tmp_path / "comparison"
+    assert compare_cli.main(["--eval-dirs", str(eval_dir), "--output-dir", str(out)]) == 1
+    comparison = json.loads((out / "comparison.json").read_text())
+    assert comparison["metric_source"] == manifest["metric_source"]
+    assert all(
+        entry["n_used"] == 0
+        for block in comparison["evaluations"]
+        for entry in block["comparisons"]
+    )
+
+
 def _placement_run_config(tmp_path, monkeypatch, **overrides) -> str:
     """Synthetic baseline scenario with the stub planner installed."""
     install_stub_planner(monkeypatch)
@@ -169,13 +211,26 @@ def test_placement_policies_start_from_their_plans(sim_binary, tmp_path, monkeyp
     run_config = _placement_run_config(tmp_path, monkeypatch)
     snapshots = _record_manifest_writes(monkeypatch)
     eval_dir = tmp_path / "eval"
-    assert evaluate_cli.main([
-        "--sim-binary", sim_binary, "--run-config", run_config,
-        "--output-dir", str(eval_dir), "--seeds", "1,2",
-        "--policies", "hold,geometric,optimization"]) == 0
+    assert (
+        evaluate_cli.main(
+            [
+                "--sim-binary",
+                sim_binary,
+                "--run-config",
+                run_config,
+                "--output-dir",
+                str(eval_dir),
+                "--seeds",
+                "1,2",
+                "--policies",
+                "hold,geometric,optimization",
+            ]
+        )
+        == 0
+    )
 
     manifest = json.loads((eval_dir / "eval_manifest.json").read_text())
-    assert manifest["status"] == "completed" and manifest["eval_manifest_version"] == 2
+    assert manifest["status"] == "completed" and manifest["eval_manifest_version"] == 5
     assert manifest["run_config"] == str(Path(run_config).resolve())
     assert manifest["scenario_identity"] == read_scenario_identity(run_config)
     assert list(manifest["policies"]) == ["hold", "geometric", "optimization"]
@@ -186,8 +241,10 @@ def test_placement_policies_start_from_their_plans(sim_binary, tmp_path, monkeyp
     for snapshot in episode_writes:
         _assert_placement_blocks(snapshot["policies"], ("geometric", "optimization"))
 
-    original = {node["id"]: tuple(node["position"][axis] for axis in ("x", "y", "z"))
-                for node in BASELINE_NODES}
+    original = {
+        node["id"]: tuple(node["position"][axis] for axis in ("x", "y", "z"))
+        for node in BASELINE_NODES
+    }
     for episode in manifest["policies"]["hold"]["episodes"]:
         assert _decision_zero(episode["episode_dir"]) == pytest.approx(original)
 
@@ -197,19 +254,22 @@ def test_placement_policies_start_from_their_plans(sim_binary, tmp_path, monkeyp
         assert block["plan"] == f"{method}/baseline/effective-inputs/baseline-plan.json"
         prep = json.loads((eval_dir / block["manifest"]).read_text())
         assert prep["status"] == "prepared" and prep["fingerprint"] == block["fingerprint"]
-        assert (eval_dir / method / "baseline" / prep["eval_manifest"]).resolve() \
-            == (eval_dir / "eval_manifest.json").resolve()
+        assert (eval_dir / method / "baseline" / prep["eval_manifest"]).resolve() == (
+            eval_dir / "eval_manifest.json"
+        ).resolve()
         plan = json.loads((eval_dir / block["plan"]).read_text())
         selected = {node["id"] for node in plan["nodes"] if node["selected"]}
         assert selected == {"uav-a", "uav-c"}
-        assert all(node["displacement_m"] > 1.0 for node in plan["nodes"]
-                   if node["selected"])
+        assert all(node["displacement_m"] > 1.0 for node in plan["nodes"] if node["selected"])
         for episode in manifest["policies"][method]["episodes"]:
             assert Path(episode["episode_dir"]).parent.name == method
             facts = _decision_zero(episode["episode_dir"])
             for node in plan["nodes"]:
-                expected = (tuple(node["planned"][axis] for axis in ("x", "y", "z"))
-                            if node["selected"] else original[node["id"]])
+                expected = (
+                    tuple(node["planned"][axis] for axis in ("x", "y", "z"))
+                    if node["selected"]
+                    else original[node["id"]]
+                )
                 assert facts[node["id"]] == pytest.approx(expected), node["id"]
 
 
@@ -283,3 +343,108 @@ def test_failed_preparation_runs_no_episode(sim_binary, tmp_path, monkeypatch, c
     failed = json.loads(
         (eval_dir / "optimization" / "baseline" / "baseline_manifest.json").read_text())
     assert failed["status"] == "failed" and "seed" in failed["error"]
+
+
+def test_planning_overlap_is_refused_before_preparation(sim_binary, tmp_path, monkeypatch, capsys):
+    run_config = _placement_run_config(tmp_path, monkeypatch)
+    eval_dir = tmp_path / "eval"
+    assert (
+        evaluate_cli.main(
+            [
+                "--sim-binary",
+                sim_binary,
+                "--run-config",
+                run_config,
+                "--output-dir",
+                str(eval_dir),
+                "--seeds",
+                "101,102",
+                "--policies",
+                "hold,geometric",
+            ]
+        )
+        == 1
+    )
+    assert "placement-planning seed" in capsys.readouterr().err
+    assert not list(eval_dir.rglob("baseline_manifest.json"))
+    assert not list(eval_dir.rglob("episode-*"))
+
+
+def test_allowed_planning_overlap_and_movement_are_visible(sim_binary, tmp_path, monkeypatch):
+    run_config = _placement_run_config(tmp_path, monkeypatch)
+    eval_dir = tmp_path / "eval"
+    assert (
+        evaluate_cli.main(
+            [
+                "--sim-binary",
+                sim_binary,
+                "--run-config",
+                run_config,
+                "--output-dir",
+                str(eval_dir),
+                "--seeds",
+                "101,102",
+                "--policies",
+                "hold,geometric",
+                "--allow-seed-overlap",
+            ]
+        )
+        == 0
+    )
+    manifest = json.loads((eval_dir / "eval_manifest.json").read_text())
+    assert manifest["seed_roles"]["planning_overlap"] == [101]
+    assert manifest["seed_roles"]["held_out"] is False
+    initial = manifest["policies"]["geometric"]["baseline"]["initial_displacement_m_total"]
+    assert initial > 0
+    assert all(
+        e["initial_displacement_m_total"] == initial
+        for e in manifest["policies"]["geometric"]["episodes"]
+    )
+    assert all(
+        e["initial_displacement_m_total"] == 0 for e in manifest["policies"]["hold"]["episodes"]
+    )
+    out = tmp_path / "comparison"
+    compare_cli.main(["--eval-dirs", str(eval_dir), "--output-dir", str(out)])
+    comparison = json.loads((out / "comparison.json").read_text())
+    block = comparison["evaluations"][0]
+    assert block["movement"]["geometric"]["initial_displacement_m_total"] == initial
+    assert block["movement"]["geometric"]["comparison"] == "separate_measurements"
+    assert not any(c["metric"] == "initial_displacement_m_total" for c in block["comparisons"])
+    with (out / "episodes.csv").open() as handle:
+        rows = list(csv.DictReader(handle))
+    assert all(
+        float(row["initial_displacement_m_total"]) == initial
+        for row in rows
+        if row["policy"] == "geometric"
+    )
+    assert "travel_m_total" in rows[0]
+
+
+def test_planning_cli_override_is_recorded(sim_binary, tmp_path, monkeypatch):
+    run_config = _placement_run_config(tmp_path, monkeypatch, drop=("planning_seed",))
+    out = tmp_path / "eval"
+    assert (
+        evaluate_cli.main(
+            [
+                "--sim-binary",
+                sim_binary,
+                "--run-config",
+                run_config,
+                "--output-dir",
+                str(out),
+                "--seeds",
+                "1,2",
+                "--planning-seed",
+                "707",
+                "--policies",
+                "hold,geometric",
+            ]
+        )
+        == 0
+    )
+    manifest = json.loads((out / "eval_manifest.json").read_text())
+    assert manifest["seed_roles"]["planning_seeds"] == [707]
+    assert manifest["seed_roles"]["held_out"] is True
+    assert (
+        manifest["policies"]["geometric"]["baseline"]["seed_roles"]["planning_seed_source"] == "cli"
+    )

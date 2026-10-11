@@ -13,8 +13,8 @@ import sys
 
 import pytest
 
-from scripts.validation import regression_check
-from scripts.validation.regression_check import compare_snapshots, load_table
+from scripts.validation import regression_check, regression_suite
+from scripts.validation.regression_snapshot import compare_snapshots, load_table
 
 
 ## @fn test_positions_header_and_coordinates
@@ -132,4 +132,4 @@ def test_unattended_launchers_close_stdin_and_clean_loader_paths(tmp_path, monke
 def test_missing_reference_explains_cloud_bundle(tmp_path):
     manifest = {"cases": [{"snapshot": "tests/fixtures/regression/p0/missing.json"}]}
     with pytest.raises(ValueError, match="Ask the project team.*cloud baseline bundle"):
-        regression_check.verify_manifest_snapshots(manifest, tmp_path)
+        regression_suite.verify_manifest_snapshots(manifest, tmp_path)

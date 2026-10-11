@@ -30,10 +30,9 @@ struct RlControlResolution
 {
     std::vector<std::string> errors;           ///< One entry per resolution failure;
                                                ///<   empty on success.
-    std::string control_mode;                  ///< @c "legacy" or @c "centralized".
-    std::vector<uint32_t> controlled_indices;  ///< Slot-order node indices
-                                               ///<   (legacy: exactly one entry).
-    uint32_t num_slots = 0;                    ///< Slot count @c M (legacy: 1).
+    std::string control_mode;                  ///< @c "disabled" or @c "centralized".
+    std::vector<uint32_t> controlled_indices;  ///< Slot-order node indices.
+    uint32_t num_slots = 0;                    ///< Slot count @c M.
     uint32_t decision_interval_ticks = 1;      ///< Decision cadence @c k in ticks.
     uint32_t num_ticks = 0;                    ///< Loop tick count for this mode.
 

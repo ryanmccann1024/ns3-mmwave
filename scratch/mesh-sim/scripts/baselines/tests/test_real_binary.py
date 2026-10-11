@@ -134,15 +134,21 @@ def _trace(seed_dir: Path, indices) -> list:
     return [row for row in rows if int(row[1]) in set(indices)]
 
 
-def _assert_v2_artifacts(manifest: dict, plan: dict, mode: str, movable: list,
-                         controlled: list | None) -> None:
-    assert manifest["baseline_manifest_version"] == 2
-    assert plan["baseline_plan_version"] == 2
-    assert manifest["ownership"] == {"mode": mode, "movable_resolved": movable,
-                                     "controlled_resolved": controlled}
+def _assert_v3_artifacts(
+    manifest: dict, plan: dict, mode: str, movable: list, controlled: list | None
+) -> None:
+    assert manifest["baseline_manifest_version"] == 3
+    assert plan["baseline_plan_version"] == 3
+    assert manifest["ownership"] == {
+        "mode": mode,
+        "movable_resolved": movable,
+        "controlled_resolved": controlled,
+    }
     scoring = manifest["channel_scoring"]
-    assert (scoring["contract"], scoring["isolation"]) == ("mesh_channel_query_v1",
-                                                           "fork_per_layout")
+    assert (scoring["contract"], scoring["isolation"]) == (
+        "mesh_channel_query_v1",
+        "fork_per_layout",
+    )
     assert scoring["mode_flag"] == ("--rl-mode" if mode == "evaluation" else None)
     assert scoring["queries"]["layouts"] >= 1
     assert manifest["fingerprint"] and manifest["sim_binary_sha256"]
@@ -216,7 +222,7 @@ def test_r5_runner_places_selected_nodes(tmp_path, method):
     assert _hashes(ini.parent) == before
 
     plan = artifacts.read_json(run / manifest["plan"])
-    _assert_v2_artifacts(manifest, plan, "standalone", ["uav-a", "uav-c"], None)
+    _assert_v3_artifacts(manifest, plan, "standalone", ["uav-a", "uav-c"], None)
     planned = _planned(plan)
     selected = {n["roster_index"] for n in plan["nodes"] if n["selected"]}
     for seed in (1, 2):
@@ -267,7 +273,7 @@ def test_r6_evaluation_suite_with_placement_policies(tmp_path):
             prep = artifacts.read_json(out / baseline["manifest"])
             assert prep["status"] == "prepared"
             plan = artifacts.read_json(out / baseline["plan"])
-            _assert_v2_artifacts(prep, plan, "evaluation", ["uav-a", "uav-c"],
+            _assert_v3_artifacts(prep, plan, "evaluation", ["uav-a", "uav-c"],
                                  ["uav-c", "uav-a"])
             assert baseline["ownership"] == prep["ownership"]
             expected = _planned(plan)
@@ -657,7 +663,7 @@ def _r12_scenario(root: Path, nodes: list, *, algorithm: str, movable: str,
     """Synthetic scenario without a mapping file (geofence = [rl] bounds)."""
     count = len(nodes) if controlled == "all" else len(controlled.split(","))
     baseline = {"algorithm": algorithm, "objective": "coverage", "movable_nodes": movable,
-                "seed": "7", **BOUNDED_PLANNER, **(overrides or {})}
+                "seed": "7", "planning_seed": "101", **BOUNDED_PLANNER, **(overrides or {})}
     text = f"""[scenario]
 name = r12-synthetic
 seed = 1
@@ -708,11 +714,11 @@ def test_r12_all_movable_standalone(tmp_path, method):
     ini = _r12_scenario(tmp_path / "s", TRIO, algorithm=method, movable="all",
                         controlled="all")
     manifest, plan = _runner_ok(ini, tmp_path / "run")
-    _assert_v2_artifacts(manifest, plan, "standalone", ids, None)
+    _assert_v3_artifacts(manifest, plan, "standalone", ids, None)
     positions = _first_tick_positions(tmp_path / "run" / "seed-1")
     for index, expected in enumerate(_planned(plan)):
         _assert_xyz(positions[index], expected, f"{method} {ids[index]}")
-    # Reference costs exceed the AOI, so no coverage gain pays for a move.
+    # This connected fixture is expected to retain its source layout at these costs.
     assert all(d == 0.0 for d in _displacements(plan).values()), _displacements(plan)
 
 
@@ -742,7 +748,7 @@ def test_r12_all_movable_evaluation_suite(tmp_path):
             continue
         prep = artifacts.read_json(out / block["baseline"]["manifest"])
         plan = artifacts.read_json(out / block["baseline"]["plan"])
-        _assert_v2_artifacts(prep, plan, "evaluation", ids, ids)
+        _assert_v3_artifacts(prep, plan, "evaluation", ids, ids)
         episode_ids, rows = _decision_zero(Path(block["episodes"][0]["episode_dir"]))
         assert episode_ids == ids
         for index, row in enumerate(rows):
@@ -757,7 +763,7 @@ def test_r12_partial_selection_standalone_keeps_unselected_traces(tmp_path):
     ini = _r12_scenario(tmp_path / "s", MIXED, algorithm="geometric", movable="m0",
                         controlled="m0", overrides=ZERO_COST)
     manifest, plan = _runner_ok(ini, tmp_path / "run")
-    _assert_v2_artifacts(manifest, plan, "standalone", ["m0"], None)
+    _assert_v3_artifacts(manifest, plan, "standalone", ["m0"], None)
     reference = _r12_scenario(tmp_path / "ref", MIXED, algorithm="none", movable="m0",
                               controlled="m0", rl_enabled=False)
     direct = _direct(reference, tmp_path / "direct", "--seeds=1")

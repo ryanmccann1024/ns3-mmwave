@@ -24,7 +24,6 @@ controlled_nodes = node-b
 max_controlled_nodes = 1
 action_profile = move_2d
 decision_interval_s = 0.5
-action_type = discrete
 reward_type = all_links_los
 step_size_m = 1.0
 """
@@ -188,7 +187,7 @@ MATRIX_REFUSALS = [
     ("unknown preset", ("rows", 0, "observation_preset"), "no_such_preset",
      "not registered"),
     ("unknown component", ("rows", 0, "reward_components"), ["no_such_component"],
-     "unknown entries"),
+     "Unknown reward_components entry"),
     ("weight count", ("rows", 0, "reward_weights"), [1.0, 2.0], "entries"),
     ("no rows", ("rows",), [], "non-empty"),
     ("policies without model", ("evaluation", "policies"), ["hold", "random_valid"],
@@ -362,11 +361,41 @@ def test_run_reports_a_blocked_training_directory(tmp_path):
     assert "compare" in executor.executed
 
 
+@pytest.mark.parametrize("key,value", [
+    ("n_steps", 8.5), ("n_steps", 1), ("n_steps", True),
+    ("total_timesteps", -1), ("total_timesteps", 1.5),
+    ("checkpoint_every_steps", -1), ("checkpoint_every_steps", 2.5),
+    ("keep_checkpoints", 0), ("eval_every_steps", 1.5),
+    ("gamma", float("nan")), ("gamma", float("inf")), ("gamma", -0.1),
+    ("gamma", 1.1), ("ent_coef", float("inf")), ("ent_coef", -0.01),
+])
+def test_invalid_training_settings_refused_before_plan_is_written(tmp_path, capsys, key, value):
+    data = _matrix_data(_run_ini(tmp_path))
+    data["training"][key] = value
+    root = tmp_path / "output"
+    code = experiment.main(["plan", "--matrix", _write_matrix(tmp_path, data),
+                            "--output-root", str(root), "--sim-binary", SIM_BINARY])
+    assert code == 1 and not root.exists()
+    assert key in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("key,value", [("policies", ["model", "made-up"]),
+                                       ("model", "unknown-model"),
+                                       ("model", "../model.zip")])
+def test_bad_evaluation_settings_refused_before_plan_is_written(tmp_path, key, value):
+    data = _matrix_data(_run_ini(tmp_path))
+    data["evaluation"][key] = value
+    root = tmp_path / "output"
+    assert experiment.main(["plan", "--matrix", _write_matrix(tmp_path, data),
+                            "--output-root", str(root), "--sim-binary", SIM_BINARY]) == 1
+    assert not root.exists()
+
+
 def test_unknown_evaluation_policy_fails_at_plan_time(tmp_path, capsys):
     data = _matrix_data(_run_ini(tmp_path))
     data["evaluation"]["policies"] = ["model", "hold", "greedy"]
     matrix_path = _write_matrix(tmp_path, data)
-    with pytest.raises(ValueError, match=r"unknown names \['greedy'\]"):
+    with pytest.raises(ValueError, match=r"unknown entries \['greedy'\]"):
         experiment.load_matrix(matrix_path)
 
     root = tmp_path / "root"

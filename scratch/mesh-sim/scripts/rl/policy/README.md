@@ -33,7 +33,7 @@ Test maps: [lifecycle](../../../src/rl/policy-lifecycle-tests.md) and
 
 `read_bundle` refuses a run unless all of these hold:
 
-- `manifest_version` equals `MANIFEST_VERSION` in `bundle.py` (currently 4).
+- `manifest_version` equals `MANIFEST_VERSION` imported from `training_artifacts.py` (currently 6).
 - `status` is `completed`.
 - `control_mode` is `centralized`.
 - The chosen model file exists and its SHA-256 matches the digest in the manifest.
@@ -63,18 +63,27 @@ A passing report still carries the note that matching checks do not imply transf
 
 ## Evaluation
 
-`evaluate.py` offers three policies:
+`evaluate.py` offers these policies:
 
 | Policy | Behavior |
 | --- | --- |
 | `hold` | Every slot takes the hold action. |
 | `random_valid` | Uniform choice among valid actions, reseeded per episode. |
 | `model` | Deterministic MaskablePPO prediction under the live mask. |
+| `geometric`, `optimization` | Prepare a channel-scored initial placement once, then hold every slot. |
 
 Each policy gets its own environment and runs every seed. `eval_selection` forces
 `telemetry=steps` so metrics come from the per-decision telemetry file.
-Metrics (`delivery_ratio`, `connectivity`, `los_fraction`, `unroutable_fraction`,
-`first_all_los_decision`) are summed over telemetry windows; warm-up is not excluded.
+The `metrics.py` registry owns scored metrics, reduction, units and CSV columns.
+Delivery, connectivity, LOS and travel use scored windows after warmup; decisions
+continue during warmup. `initial_displacement_m_total` measures source-to-plan
+x/y relocation before reset and is carried separately from scored travel. It is
+not summed with travel or included in paired/group statistics.
+
+Placement requires a dedicated `planning_seed`; the evaluation seed list never
+selects the plan. Overlap with planning, training or model-selection seeds is
+refused before preparation unless `--allow-seed-overlap` explicitly requests
+diagnostics. Such evaluations are marked non-held-out and excluded from groups.
 Each episode's return is checked against `rl_episode.json`, and a mismatch is an error.
 
 `eval_manifest.json` is written before the first episode and rewritten after every
@@ -100,14 +109,14 @@ computes `model - baseline` differences.
 | --- | --- |
 | 0 | Comparison is complete and clean. |
 | 1 | Comparison is incomplete, or inputs were refused (`ComparisonError`). |
-| 2 | Some evaluation overlapped a training or model-selection seed, or a policy has non-zero `mask_violations` or `revalidated_slots`. |
+| 2 | Some evaluation overlapped a training, model-selection or channel-planning seed, or a policy has non-zero `mask_violations` or `revalidated_slots`. |
 
 ## Output
 
 | Step | Where |
 | --- | --- |
-| Evaluate | `<output-dir>/eval_manifest.json` (`EVAL_MANIFEST_VERSION` 2) plus per-episode simulator output. |
-| Compare | `<output-dir>/episodes.csv` and `<output-dir>/comparison.json` (`COMPARISON_VERSION` 1). |
+| Evaluate | `<output-dir>/eval_manifest.json` (`EVAL_MANIFEST_VERSION` 5) plus per-episode simulator output. |
+| Compare | `<output-dir>/episodes.csv` and `<output-dir>/comparison.json` (`COMPARISON_VERSION` 2). |
 
 ## Conventions
 
@@ -122,3 +131,8 @@ computes `model - baseline` differences.
 - `../cli_common.py`, `../env/`, and `scripts/stats.py` (`t_critical_95`) from this repository.
 - Run the CLIs as `python -m scripts.rl.evaluate` / `python -m scripts.rl.compare` from
   `scratch/mesh-sim/`; evaluation needs a built simulator binary.
+
+For the zero-cost/penalized placement workflow, input snapshots and diagnostic
+interpretation see the [placement walkthrough](../../baselines/walkthrough.md).
+Evaluation v4 and comparison v1 outputs require regeneration for this schema;
+changing their version number does not supply missing facts.

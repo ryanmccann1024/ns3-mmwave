@@ -9,13 +9,15 @@ separate RF model, RF file or extra Python dependency beyond `numpy`.
 
 | File | Owns |
 | --- | --- |
-| `config.py` | Strict `[baseline]` parsing, the optional mapping file, explicit `[rl]` bounds. |
-| `adapter.py` | Node records (roles `movable`/`fixed`, platforms), penalty/grid/probe resolution, datum and result validation, `prepare()`. |
+| `config.py`, `mapping.py` | Strict baseline settings and simulator INI access; mapping/geofence validation. |
+| `adapter.py` | Node records, platform mapping, datum/gateway/control authority and returned-plan validation. |
+| `preparation.py` | Resolve planning inputs, call the solver, coordinate snapshots and manifest publication. |
 | `solver.py` | `PlanRequest`/`PlanResult`; runs one strategy with a `ChannelScorer` and packages diagnostics, query statistics and timing. |
 | `planners/` | The query client, shared objective and the two strategies; see [planners/README.md](planners/README.md). |
 | `effective_inputs.py` | Source snapshots, line-preserving INI edits, two-step staging of `effective-inputs/`, the `nodes.json` rewrite. |
-| `artifacts.py` | Manifest/plan v2 schemas, status transitions, fingerprint, adapted-code and channel-runtime identity. |
-| `runner.py` | The standalone command and the simulator child lifecycle. |
+| `artifacts.py` | Manifest/plan v3 schemas, status transitions and fingerprint fields. |
+| `runtime_identity.py` | Planner/shared-source hashes and linked simulator-library provenance. |
+| `runner.py`, `execution.py` | Argument parsing; standalone preparation and simulator child lifecycle. |
 
 No module here imports `scripts.rl.*`, Gymnasium, Torch, or Stable-Baselines3.
 With `algorithm = none`, neither `solver.py` nor any `planners/` module is
@@ -30,7 +32,7 @@ Standalone: plan once, then run the ordinary (non-RL) simulator on the plan.
 .venv/bin/python -m scripts.baselines.runner \
   --sim-binary <BIN> --run-config <INI> \
   [--seeds 1,2,3] [--algorithm none|geometric|optimization] [--output-dir DIR] \
-  [--band mmwave|sub-6]
+  [--band mmwave|sub-6] [--planning-seed N] [--allow-seed-overlap]
 ```
 
 | Option | Default |
@@ -39,6 +41,8 @@ Standalone: plan once, then run the ordinary (non-RL) simulator on the plan.
 | `--seeds` | `[scenario] seed` (the simulator's default, 42, when the key is absent). Accepts `A-B` ranges; the simulator receives the expanded comma list. |
 | `--output-dir` | `outputs/YYYY-MM/DD/HH-MM-SS-baseline[-N]` under the mesh-sim root |
 | `--band` | the scenario's band |
+| `--planning-seed` | `[baseline] planning_seed`; required for active placement |
+| `--allow-seed-overlap` | false; explicit planning/evaluation adaptation diagnostic |
 
 The same `--sim-binary` serves the channel queries while planning and then the
 run. The output directory must be absent or empty; otherwise the runner exits
@@ -77,7 +81,8 @@ keys, `:` assignments, and indented continuation lines. See also
 | `objective` | `coverage`, `balanced`, `resilience` | none | yes |
 | `application` | `initial_positions` | `initial_positions` | no |
 | `movable_nodes` | distinct comma list of node ids, or `all` | none | yes |
-| `seed` | integer ≥ 0; the optimizer's RNG seed, never a simulation seed | none | `optimization` |
+| `seed` | integer ≥ 0; optimizer proposal RNG, separate from the channel seed | none | `optimization` |
+| `planning_seed` | integer in [1, 2147483647]; channel realization used to select the plan | none | yes, unless `--planning-seed` supplies it |
 | `max_iterations` | integer ≥ 1; the optimizer's only termination rule | none | `optimization` |
 | `waypoint_policy` | `reject`, `translate` | `reject` | no |
 | `mapping_file` | mapping v2 path, relative to the INI | none (see below) | no |
@@ -156,23 +161,27 @@ keys absent, or at the same positive value, across compared runs.
 
 ## Channel scoring
 
-`adapter.prepare` stages the effective INI first and points the query at it,
+`preparation.prepare` stages the effective INI first and points the query at it,
 with the source `nodes.json`, so the query builds the same nodes, mobility
 models, buildings and jammers as the later run; candidate positions come from
 each request. In evaluation the query gets `--rl-mode`, matching the episode.
-The planning seed is the first simulation seed (`--seeds` / `simulation_seeds`),
-else `[scenario] seed`; `run_id` is `[scenario] run_id`. The jammer seed equals
-the planning seed, as in an ordinary run. One plan is reused for every
-simulation seed: it is optimised for the first seed's realization and only
-evaluated on the others. Any query failure aborts preparation; there is no
-partial plan.
+The planning seed is `--planning-seed` > `[baseline] planning_seed`; it has no
+evaluation-seed fallback. `[baseline] seed` separately controls optimizer
+proposals; `run_id` comes from `[scenario] run_id`. The jammer uses the channel
+planning seed. A single frozen plan is reused across all evaluation seeds,
+so reordering them cannot select a different plan. Preparation and evaluation
+reject planning overlap unless `--allow-seed-overlap` is explicit. The manifests
+record both roles and any overlap; allowed overlap is an adaptation diagnostic
+and is excluded from held-out groups. The evaluation gate also checks training
+and model-selection seeds before launching a worker or episode.
+
 
 Parity, at two levels (see [the query contract](../../src/query/README.md)):
 mechanics parity — every candidate goes through `LinkEvaluator::Evaluate` with
 the run's resolved band, gains, buildings and jammers — holds by construction.
-An identical t = 0 realization with the first seed of an ordinary run on the
-effective inputs is expected but is claimed only after the human-run
-real-binary parity checks pass, and never for later seeds of a multi-seed run.
+An identical t = 0 realization requires an ordinary run using the same
+planning seed and effective inputs. This is claimed only after human-run
+real-binary parity checks pass; independent evaluation seeds use other realizations.
 Scores are deterministic per layout, not a stable per-pair random stream across
 layouts.
 
@@ -193,7 +202,7 @@ reference planner in `third_party/` handles polygon geofences, but the adapted
 planners do not: they accept no polygon vertices and do not derive a polygon
 from buildings.
 
-A polygon-shaped mapping request is rejected, not approximated. `config.py`
+A polygon-shaped mapping request is rejected, not approximated. `mapping.py`
 fails when `geofence` is a JSON list, when it has any of the keys `vertices`,
 `polygon`, `polygons`, `points`, `coordinates`, `rings`, `holes`, `geojson`,
 `exterior`, or `interiors`, or when an unknown `source` mentions `poly`,
@@ -242,7 +251,9 @@ that is not RL-controlled is unselected and follows its scenario mobility under
 every policy. Letting some RL slots follow scenario mobility would need new
 simulator slot semantics and is not supported. Saved models are untouched: a
 model still needs the roster it was trained on, so pick `movable_nodes` to
-match its `controlled_nodes`. Standalone runs have no ownership rule: a moved
+match its `controlled_nodes`. The active `[traffic]` gateway cannot be selected or RL-controlled, including
+through `all`; gateway-free algorithms do not require an anchor gateway.
+Standalone runs do not require matching RL slots: a moved
 node starts at the plan and then follows its configured mobility; unselected
 nodes are untouched. `ownership` in the manifest records both resolved lists.
 
@@ -299,7 +310,7 @@ algorithm, objective, executor, planner seed, `max_iterations`,
 effective input hashes, the mapping hash, and paths to the baseline manifest
 and plan. `eval_manifest_version` stays 2.
 
-`baseline_manifest.json` (`baseline_manifest_version: 2`):
+`baseline_manifest.json` (`baseline_manifest_version: 3`):
 
 | Field | Meaning |
 | --- | --- |
@@ -310,36 +321,43 @@ and plan. `eval_manifest_version` stays 2.
 | `planner_seed`, `max_iterations` (+ `_status`) | Optimizer settings, separate from `simulation_seeds` and the planning seed. |
 | `mapping_sha256`, `geofence` | Mapping file hash (`null` without one) and the resolved rectangle. |
 | `sim_binary_sha256` | The binary that scored candidates; required for an active method. |
-| `channel_runtime_sha256`, `channel_runtime_files` | Aggregate hash of the binary plus the ns-3 core/network/mobility/propagation/buildings libraries it loads (the binary alone if none are dynamic), and the files hashed. |
-| `planner_code_sha256` | Aggregate hash of the adapted modules (`solver`, `config`, `adapter`, `effective_inputs`, `artifacts`, `planners/{objective,geometric,optimization,channel}`). |
+| `channel_runtime_sha256`, `channel_runtime_files` | Aggregate hash of the binary plus every resolved linked ns-3 library (the binary alone if none are dynamic), and the files hashed. |
+| `planner_code_sha256` | Aggregate hash of every baseline Python owner outside tests, plus shared `artifact_io.py` and `sim_support.py`; new owners are discovered automatically. |
 | `channel_scoring` | Query contract and isolation, planning seed, `planning_run_id`, `jammer_seed`, `mode_flag` (`--rl-mode` or `null`), band and source, link and coverage thresholds, probe (height, resolved receive gain, cells, cell size, count), candidate grid, and query totals. |
 | `penalties` | Per-platform fixed, per-metre and cap values, `aoi_m2`, and `fixed_cost_over_aoi`. |
-| `planner_settings` | The strategy's constants (temperatures, move weights, anchor schedule, …). |
+| `planner_settings` | Versioned resolved objective/component parameters, strategy settings, query budgets, grid/probe/cost settings and a settings hash. See [the engine configuration](planners/README.md#configuration-and-extension). |
+| `seed_roles` | Dedicated planning seed/source, evaluation seeds, planning overlap, explicit allowance and held-out status. |
 | `ownership` | `mode`, `movable_resolved`, and in evaluation `controlled_resolved` (slot order). |
-| `fingerprint` | Hash (`fingerprint_version` 2) of method, objective, planner seed, `max_iterations`, waypoint policy, mapping hash, penalty/grid/probe/threshold settings, planning seed and `run_id`, mode flag, band, the four effective-input hashes, binary, channel-runtime and adapted-code hashes, `planner_settings`, and ownership; never timing or paths. `scripts.rl.compare` rejects a `--label` group whose placement fingerprints differ. |
-| `initial_displacement_m_total` | Sum of planned x/y displacement. `travel_m_total` and `displacement_m_final` in evaluation keep measuring motion after decision 0. |
+| `fingerprint` | Hash (`fingerprint_version` 3) of method, objective, planner seed, `max_iterations`, waypoint policy, mapping hash, penalty/grid/probe/threshold settings, planning seed and `run_id`, mode flag, band, the four effective-input hashes, binary, channel-runtime and adapted-code hashes, `planner_settings`, and ownership; never timing or paths. `scripts.rl.compare` rejects a `--label` group whose placement fingerprints differ. |
+| `initial_displacement_m_total` | Source-to-plan x/y relocation before reset. Exported beside scored `travel_m_total`; never added automatically to it. |
 
 All paths are relative to the run directory, so a moved run stays readable;
 `source_run_config_abs` and `channel_runtime_files` are informational absolute
-paths. `baseline-plan.json` (`baseline_plan_version: 2`) lists, per node, id,
+paths. `baseline-plan.json` (`baseline_plan_version: 3`) lists, per node, id,
 roster index, RL slot (evaluation), role (`movable` or `fixed`), platform,
 `selected`, `original` and `planned` x/y/z, and `displacement_m`, plus the
 planner's diagnostics and score breakdown as `planner_predictions`.
 
-## Migrating from version 1
+## Migrating from previous versions
 
 - Delete `[baseline] gateway_node_id` and `rf_config`; both are now rejected
   as unknown keys with a hint. `[traffic] gateway_node_id` is unrelated and
-  unchanged.
+  retained; its active gateway is excluded from selection.
 - Movement costs and caps move from the RF file into the `[baseline]` cost
   keys above.
 - Mapping files: set `baseline_mapping_version` to 2 and delete `origin`,
   `ground_datum` and `radios`; or drop `mapping_file` to use `rl_bounds` and
   platforms by node type.
-- `baseline_manifest.json` and `baseline-plan.json` are version 2: `rf`,
+- `baseline_manifest.json` and `baseline-plan.json` are version 3: `rf`,
   `planner_source`, `origin`, `ground_datum` and per-node `radios` are gone.
   `--planner-source`, `$MESH_SIM_ARPO_PATH` and `requirements-baselines.txt`
   no longer exist.
+- Supply a dedicated `planning_seed`, independent of evaluation seeds. The first
+  evaluation seed is no longer used to choose a plan.
+- Programmatic preparation lives at `scripts.baselines.preparation.prepare`;
+  mapping parsing lives at `scripts.baselines.mapping.load_mapping`.
+- Evaluation manifests are v5 and comparison output is v2. Re-evaluate older
+  results to obtain planning-overlap and initial-relocation metadata.
 - Evaluation: version 1 accepted `movable_nodes` as a subset of `[rl]
   controlled_nodes`. Now the two sets must be equal; widen `movable_nodes` (or
   set both to `all`) or narrow `controlled_nodes`. Narrowing `controlled_nodes`
@@ -383,3 +401,6 @@ the gateway-free all-movable and partial-selection acceptance rows) and
 channel-query parity on a real binary;
 without `MESH_SIM_BIN` each test is skipped with a reason starting `BLOCKED:`,
 which is missing evidence, not a pass.
+
+See the [zero-cost and penalized walkthrough](walkthrough.md) for a complete
+example from training to comparison, including seed roles and saved diagnostics.
