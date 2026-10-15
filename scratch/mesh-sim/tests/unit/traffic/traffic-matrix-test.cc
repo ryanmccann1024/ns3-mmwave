@@ -15,6 +15,8 @@
 #include <cmath>
 #include <iostream>
 #include <string>
+#include <sys/wait.h>
+#include <unistd.h>
 
 using namespace mesh_sim;
 
@@ -298,9 +300,40 @@ test_reinitialize_clears_flows()
  * Calls each test_* function in order; failures print "FAIL: <name>" to
  * stderr. A new test function must be added to this list to run.
  */
+static void
+test_numeric_gateway_id_precedes_index()
+{
+    auto cfg = makeCfg("constant", "gateway");
+    cfg.nodes[0].id = "1"; cfg.mesh.traffic.gateway_node_id = "1";
+    TrafficMatrix tm(cfg); tm.Initialize(3, 0);
+    bool correct = tm.GetActiveFlows().size() == 2;
+    for (const auto& flow : tm.GetActiveFlows()) correct = correct && flow.dst == 0;
+    check(correct, "numeric gateway ID resolves to its node, not index 1");
+}
+
+static void
+test_zero_phases_return_without_hanging()
+{
+    const auto pid = fork();
+    if (pid == 0)
+    {
+        alarm(2);
+        auto cfg = makeCfg("on_off", "all_pairs");
+        cfg.mesh.traffic.on_time_s = cfg.mesh.traffic.off_time_s = 0;
+        TrafficMatrix tm(cfg); tm.Initialize(2,0); tm.Tick(1);
+        _exit(0);
+    }
+    int status = 0;
+    const bool waited = pid > 0 && waitpid(pid, &status, 0) == pid;
+    check(waited && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+          "direct on/off caller cannot hang on zero phases");
+}
+
 int
 main()
 {
+    test_numeric_gateway_id_precedes_index();
+    test_zero_phases_return_without_hanging();
     // all_pairs
     test_all_pairs_flow_count();
     test_all_pairs_no_self_flows();

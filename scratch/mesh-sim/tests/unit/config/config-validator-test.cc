@@ -24,6 +24,8 @@
 #include <random>
 #include <string>
 #include <vector>
+#include <sys/wait.h>
+#include <unistd.h>
 
 using namespace mesh_sim;
 
@@ -1158,9 +1160,66 @@ test_layout_override_non_finite()
  * Calls each test_* function in order; failures print "FAIL: <name>" to
  * stderr. A new test function must be added to this list to run.
  */
+static void
+test_invalid_numeric_inputs()
+{
+    for (double value : {std::numeric_limits<double>::quiet_NaN(),
+                         std::numeric_limits<double>::infinity()})
+    {
+        auto cfg = makeValid();
+        cfg.duration_s = value;
+        check(hasError(ValidateConfig(cfg), "duration_s"), "reject nonfinite duration");
+    }
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const std::vector<std::function<void(SimConfig&)>> corrupt = {
+        [nan](SimConfig& c) { c.channel.bandwidth_mhz = nan; },
+        [nan](SimConfig& c) { c.channel.tx_array_gain_dbi = nan; },
+        [nan](SimConfig& c) { c.nodes[0].tx_array_gain_dbi = nan; },
+        [nan](SimConfig& c) { c.nodes[0].mobility = "waypoint";
+            c.nodes[0].waypoints = {{0,0,0,0},{nan,1,1,1}}; },
+        [nan](SimConfig& c) { BuildingSpec b; b.x_min = nan; b.x_max = 10;
+            b.y_min = 0; b.y_max = 10; b.z_min = 0; b.z_max = 10; c.buildings = {b}; }
+    };
+    for (const auto& change : corrupt)
+    {
+        auto cfg = makeValid(); change(cfg);
+        check(!ValidateConfig(cfg).ok(), "NaN must not bypass a range comparison");
+    }
+    auto cfg = makeValid(); cfg.mesh.traffic.model = "on_off";
+    cfg.mesh.traffic.on_time_s = cfg.mesh.traffic.off_time_s = 0;
+    check(!ValidateConfig(cfg).ok(), "reject nonadvancing on/off clock");
+    cfg.mesh.traffic.on_time_s = std::numeric_limits<double>::quiet_NaN();
+    check(!ValidateConfig(cfg).ok(), "reject NaN on/off phase");
+    cfg.mesh.traffic.on_time_s = -1;
+    check(!ValidateConfig(cfg).ok(), "reject negative on/off phase");
+    cfg.mesh.traffic.on_time_s = 0;
+    cfg.mesh.traffic.off_time_s = 1;
+    check(ValidateConfig(cfg).ok(), "preserve a zero on phase with positive off phase");
+    cfg.mesh.traffic.on_time_s = 1; cfg.mesh.traffic.off_time_s = 0;
+    check(ValidateConfig(cfg).ok(), "preserve a zero off phase with positive on phase");
+}
+
+static void
+test_seed_rejections()
+{
+    check(parseSeedList("0, 4294967295 ") == std::vector<uint32_t>({0, UINT32_MAX}),
+          "seed parser preserves uint32 endpoints");
+    for (const auto* bad : {"-1", "4294967296", "7junk", "999999999999999999999999"})
+    {
+        const auto pid = fork();
+        if (pid == 0) { parseSeedList(bad); _exit(0); }
+        int status = 0;
+        const bool waited = pid > 0 && waitpid(pid, &status, 0) == pid;
+        check(waited && WIFEXITED(status) && WEXITSTATUS(status) == 1,
+              std::string("reject seed without wrapping/truncating: ") + bad);
+    }
+}
+
 int
 main()
 {
+    test_invalid_numeric_inputs();
+    test_seed_rejections();
     // Config validation
     test_valid_config();
     test_zero_duration();
