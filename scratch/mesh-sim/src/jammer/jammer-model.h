@@ -53,7 +53,8 @@ class JammerModel
      *
      * Replaces any previously loaded jammers. Specs with @c enabled == false
      * are dropped here and never reach the per-tick sum. Copies each spec.
-     * Not called by @ref LinkEvaluator::Configure when @c cfg.jammers is empty.
+     * Not called by @ref LinkEvaluator::Configure when @c cfg.jammers is empty;
+     * that call resets the model instead.
      */
     void Configure(const std::vector<JammerSpec>& jammers,
                    ns3::Ptr<ns3::PropagationLossModel> plModel,

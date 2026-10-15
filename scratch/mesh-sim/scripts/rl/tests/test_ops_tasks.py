@@ -319,3 +319,19 @@ def test_comparison_outcome_reads_the_comparison_status(tmp_path, payload, expec
     outcome = tasks.comparison_outcome(plan)
     assert outcome["state"] == expected
     assert outcome["path"] == str(Path(step["output_dir"]) / step["manifest"])
+
+
+@pytest.mark.parametrize("payload", [[], None, "completed", 3])
+def test_non_object_artifacts_block_execution(tmp_path, payload):
+    from scripts.rl.policy.experiment import step_state
+    plan = _plan(tmp_path)
+    step = plan["steps"][0]
+    _write_manifest(plan, step["id"], {})
+    (Path(step["output_dir"]) / step["manifest"]).write_text(json.dumps(payload))
+    assert step_state(step)[0] == "blocked"
+    assert tasks._manifest_status(step) is None
+    comparison = plan["steps"][-1]
+    _write_manifest(plan, "compare", {})
+    (Path(comparison["output_dir"]) / comparison["manifest"]).write_text(json.dumps(payload))
+    assert step_state(comparison)[0] == "blocked"
+    assert tasks.comparison_outcome(plan)["state"] == "unreadable"

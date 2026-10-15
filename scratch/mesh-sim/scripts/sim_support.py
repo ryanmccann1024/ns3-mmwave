@@ -97,6 +97,36 @@ def strip_inline_comment(value: str) -> str:
     return value.strip()
 
 
+# Characters the C++ trimStr removes (src/util/string-utils.cc).
+_CPP_TRIM = " \t\r\n"
+
+
+## @fn parse_ini
+# @brief Parse an INI file exactly like the simulator's `parseIni` (src/util/ini-parser.cc).
+#
+# @param path  INI file to read.
+# @return Section name -> key -> value. Keys before any header land in section "".
+# @throws OSError if the file cannot be opened.
+#
+# Lines split only at `\n`. Each line is cut at the first `#`, then the first `;`, and
+# trimmed of space, tab, CR and LF. `[name]` starts a section (name trimmed); other
+# lines need `=`, or they are skipped. Keys are case-sensitive and the last duplicate wins.
+def parse_ini(path: str | Path) -> dict[str, dict[str, str]]:
+    """Mirror the C++ parseIni: same comments, trimming, headers, and last-wins keys."""
+    sections: dict[str, dict[str, str]] = {}
+    section = ""
+    for line in Path(path).read_bytes().decode("utf-8", "surrogateescape").split("\n"):
+        line = line.split("#", 1)[0].split(";", 1)[0].strip(_CPP_TRIM)
+        if not line:
+            continue
+        if line[0] == "[" and line[-1] == "]":
+            section = line[1:-1].strip(_CPP_TRIM)
+        elif "=" in line:
+            key, value = line.split("=", 1)
+            sections.setdefault(section, {})[key.strip(_CPP_TRIM)] = value.strip(_CPP_TRIM)
+    return sections
+
+
 ## @fn tail_lines
 # @brief Return the last lines of a text file, for failure messages.
 #

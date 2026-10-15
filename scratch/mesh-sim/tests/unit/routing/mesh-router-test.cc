@@ -435,9 +435,20 @@ test_multiple_independent_flows()
  * Calls each test_* function in order; failures print "FAIL: <name>" to
  * stderr. A new test function must be added to this list to run.
  */
+static void
+test_uint32_max_hops_does_not_wrap()
+{
+    auto links = buildTable(2, {{0,1,100,50,10}});
+    RoutingConfig cfg; cfg.max_hops = UINT32_MAX;
+    const auto result = MeshRouter(cfg).Route(links, {makeFlow(0,1,10)}, 2);
+    check(result[0].routable && approx(result[0].delivered_mbps, 10),
+          "UINT32_MAX hop limit allows a one-hop flow");
+}
+
 int
 main()
 {
+    test_uint32_max_hops_does_not_wrap();
     // Path finding
     test_direct_link();
     test_multi_hop();

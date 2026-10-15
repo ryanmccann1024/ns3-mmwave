@@ -280,3 +280,14 @@ Iteration-two regression cases are in `test_iteration_two.py`: per-node service 
 ### Iteration three checks
 
 `test_iteration_three.py` verifies dense partial-recovery feedback, lagged movement cost and reset, optimizer/network setting wiring, invalid parameter refusals, distinct training/evaluation routes, actual online parameter changes versus a fixed sampled control, fresh checkpoint copies between seeds, and the bounded profile plans sharing baseline caches. These tests use the fake simulator; real radio behavior is checked separately against the already-built binary.
+
+
+The input regressions in `test_config_readers.py` check case-sensitive,
+last-wins INI values, no DEFAULT inheritance, explicit bounds, progress/output
+settings, jammer onset schedules, and invalid joint-action conversion. The
+non-object artifact cases in `test_ops_tasks.py` exercise the current policy
+experiment owner as well as task status and comparison readers.
+`test_policy_comparison.py` rejects duplicate evaluation seeds before pairing.
+Cross-language parser cases reuse the compiled loader fixture in
+`scripts/baselines/tests/test_simulator_defaults.py`; compiler errors fail rather
+than silently skipping when a compiler is available.

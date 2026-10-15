@@ -22,11 +22,13 @@ def config_reader(tmp_path_factory):
     source.write_text(
         """#include "src/config/config-loader.h"
 #include "third_party/json.hpp"
+#include "src/util/ini-parser.h"
 #include <iostream>
 int main(int argc, char** argv) {
     auto cfg = mesh_sim::ConfigLoader::Load(argv[1]);
     auto rw = cfg.nodes.front().random_walk;
     nlohmann::json out = {
+        {"ini", mesh_sim::parseIni(argv[1])},
         {"seed", cfg.seed}, {"run_id", cfg.run_id}, {"band", cfg.band},
         {"rl", {{"x_min", cfg.rl.x_min}, {"x_max", cfg.rl.x_max},
                 {"y_min", cfg.rl.y_min}, {"y_max", cfg.rl.y_max}}},
@@ -94,3 +96,21 @@ def test_committed_workflow_inputs_match_loader(config_reader, name):
     assert (cfg.ground_fixed_cost_m2 == 0) == zero
     assert (cfg.aerial_cost_m2_per_m == 0) == zero
     assert (cfg.ground_cost_m2_per_m == 0) == zero
+
+
+@pytest.mark.parametrize("text", [
+    "[scenario] # comment ]\nseed=9\n",
+    "[scenario]\nseed=2\nseed=9 ; duplicate wins\n",
+    "[scenario]\nSeed=7\nseed=9\n",
+    "[DEFAULT]\nseed=5\n[scenario]\nseed=9\n",
+    "[scenario]\nname=first\fsecond\nseed=9\n",
+])
+def test_python_parser_matches_actual_cpp(config_reader, tmp_path, text):
+    from scripts.sim_support import parse_ini
+    from scripts.rl.env.config import read_scenario_seed
+    path = tmp_path / "run.ini"
+    path.write_text(text + "[output]\ndir=outputs\n")
+    (tmp_path / "nodes.json").write_text('[{"id":"n"}]')
+    actual = json.loads(subprocess.check_output([str(config_reader), str(path)], text=True))
+    assert parse_ini(path) == actual["ini"]
+    assert read_scenario_seed(str(path)) == actual["seed"] == 9
