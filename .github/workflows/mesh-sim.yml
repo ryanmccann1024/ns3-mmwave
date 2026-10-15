@@ -2,10 +2,10 @@ name: mesh-sim smoke
 
 on:
   pull_request:
-    branches: [arpo-main]
+    branches: [arpo-main, develop]
     paths: ['scratch/mesh-sim/**', '.github/workflows/mesh-sim.yml']
   push:
-    branches: [arpo-main]
+    branches: [arpo-main, develop]
     paths: ['scratch/mesh-sim/**', '.github/workflows/mesh-sim.yml']
   workflow_dispatch:
 
