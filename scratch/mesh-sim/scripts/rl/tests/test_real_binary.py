@@ -141,7 +141,7 @@ def test_scripted_positions_and_masks(env, tmp_path):
     assert _slot_xy(obs, 1) == (95.0, 50.0)
 
     manifest = _episode_manifest(Path(env._output_dir))
-    assert manifest["manifest_version"] == 5 and manifest["status"] == "completed"
+    assert manifest["manifest_version"] == 6 and manifest["status"] == "completed"
     assert manifest["exit_code"] == 0 and manifest["stop_reason"] == "done"
     assert manifest["decisions"] == 2 and manifest["last_tick"] == 10
 
@@ -239,7 +239,7 @@ def _edit_ini(text: str, **values: str) -> str:
             lines.append(line)
     missing = set(values) - seen
     assert not missing, f"keys not present in {RUN_CONFIG}: {sorted(missing)}"
-    return "\n".join(lines) + "\n"
+    return ("\n".join(lines) + "\n").replace("[output]\n", "[output]\ndir = outputs\n")
 
 
 def _combined_scenario(tmp_path: Path, decision_interval_s: str,
@@ -437,7 +437,7 @@ def test_custom_selection_observations_rewards_and_replay(custom_env):
 
     out_dir = Path(env._output_dir)
     manifest = _episode_manifest(out_dir)
-    assert manifest["manifest_version"] == 5 and manifest["status"] == "completed"
+    assert manifest["manifest_version"] == 6 and manifest["status"] == "completed"
     assert manifest["cumulative_reward"] == pytest.approx(total)
 
     replay = replay_file(out_dir / "episode-0000" / "steps.jsonl")
@@ -483,7 +483,7 @@ def test_training_run_writes_matching_schema_hashes(tmp_path):
     assert [source[key] for key in ("observation_preset", "reward_components",
                                     "telemetry", "telemetry_every")] == ["cli"] * 4
     assert manifest["observation_schema"]["obs_dim"] == 36
-    assert manifest["reward_schema"]["zero_demand_rule"] == "masked"
+    assert manifest["reward_schema"]["component_details"]["delivery_ratio"]["zero_demand_rule"] == "masked"
 
     hashes = (manifest["observation_schema"]["sha256"],
               manifest["reward_schema"]["sha256"])
@@ -491,7 +491,7 @@ def test_training_run_writes_matching_schema_hashes(tmp_path):
                  if json.loads(path.read_text())["status"] == "completed"]
     assert completed, "no completed episode in the training run"
     episode = json.loads(completed[0].read_text())
-    assert episode["manifest_version"] == 5
+    assert episode["manifest_version"] == 6
     assert (episode["observation_schema_sha256"],
             episode["reward_schema_sha256"]) == hashes
 
@@ -617,7 +617,9 @@ def _digest_flags(payload) -> list[bool]:
 
 def _scenario_copy(tmp_path: Path, name: str) -> Path:
     shutil.copytree(FIXTURE, tmp_path / name)
-    return tmp_path / name / "run.ini"
+    path = tmp_path / name / "run.ini"
+    path.write_text(path.read_text().replace("[output]\n", "[output]\ndir = outputs\n"))
+    return path
 
 
 def _episode_signatures(manifest: dict) -> dict:

@@ -76,6 +76,8 @@ def _scenario(root: Path, *, algorithm: str | None = "geometric",
     if controlled is not None:
         assert SOURCE_CONTROLLED in text
         text = text.replace(SOURCE_CONTROLLED, f"controlled_nodes = {controlled}")
+    # Temporary scenarios cannot derive the repository's automatic output root.
+    text = text.replace("action_type = discrete\n", "") + "\n[output]\ndir = outputs\n"
     return write_scenario(root, ini_text=text)
 
 
@@ -393,6 +395,7 @@ max_hops = 5
 enabled = false
 
 [output]
+dir = outputs
 viz_tick_ms = 100
 """)
     return run_ini
@@ -543,13 +546,13 @@ def test_r11_random_jammer_matches_the_run_burst_seed(tmp_path):
     _assert_matches_links(result, links, "random jammer")
 
 
-def test_r11_constant_jammer_clamp_and_probe_thresholds(tmp_path):
+def test_r11_strong_jammer_disconnects_links_and_probe_thresholds(tmp_path):
     ini = _query_scenario(tmp_path / "s", scenario="RMa", condition_model="static_los",
                           band="sub-6", frequency_ghz=2.4, bandwidth_mhz=20.0,
-                          jammers=[JAMMER])
+                          jammers=[dict(JAMMER, tx_power_dbm=100.0)])
     layout = [_starts(QUERY_NODES)]
     coverage = {}
-    for threshold in (None, 10.0, 1000.0):
+    for threshold in (None, -1000.0, 1000.0):
         probes = {"points": QUERY_PROBES}
         if threshold is not None:
             probes["sinr_db"] = threshold
@@ -558,10 +561,11 @@ def test_r11_constant_jammer_clamp_and_probe_thresholds(tmp_path):
         coverage[threshold] = result.coverage
         off = ~np.eye(len(QUERY_NODES), dtype=bool)
         assert np.isfinite(result.sinr_db[off]).all()
-        assert (result.sinr_db[off] >= 0.0).all() and result.connected[off].all()
-    everything = list(range(len(QUERY_PROBES)))
-    assert all(covered == everything for covered in coverage[None])
-    assert all(set(c) <= set(d) for c, d in zip(coverage[10.0], coverage[None]))
+        assert (result.sinr_db[off] < -6.7).all()
+        assert (result.capacity_mbps[off] == 0.0).all()
+        assert not result.connected[off].any()
+    assert all(covered == [] for covered in coverage[None])
+    assert all(covered == list(range(len(QUERY_PROBES))) for covered in coverage[-1000.0])
     assert all(covered == [] for covered in coverage[1000.0])
 
 
@@ -573,7 +577,6 @@ controlled_nodes = n2, n0
 max_controlled_nodes = 2
 action_profile = move_2d
 decision_interval_s = 0.1
-action_type = discrete
 reward_type = all_links_los
 step_size_m = 1.0
 x_min = -100.0
@@ -677,7 +680,6 @@ controlled_nodes = {controlled}
 max_controlled_nodes = {count}
 action_profile = move_2d
 decision_interval_s = 0.1
-action_type = discrete
 reward_type = all_links_los
 step_size_m = 1.0
 x_min = 0.0
@@ -692,7 +694,7 @@ z_max = 100.0
     root.mkdir(parents=True, exist_ok=True)
     (root / "nodes.json").write_text(json.dumps(nodes, indent=2) + "\n")
     run_ini = root / "run.ini"
-    run_ini.write_text(text)
+    run_ini.write_text(text + "\n[output]\ndir = outputs\n")
     return run_ini
 
 
