@@ -581,7 +581,11 @@ class CentralizedProtocol:
             )
         joint = []
         for slot, value in enumerate(values):
-            if isinstance(value, bool) or int(value) != value:
+            try:
+                is_integer = not isinstance(value, bool) and int(value) == value
+            except (TypeError, ValueError, OverflowError):
+                is_integer = False
+            if not is_integer:
                 raise ValueError(f"slot {slot} action must be an integer, got {value!r}")
             index = int(value)
             if not 0 <= index < SLOT_ACTIONS:

@@ -445,3 +445,10 @@ def test_discard_and_stage_failure_leave_nothing(tmp_path):
     with pytest.raises(FileNotFoundError):
         effective_inputs.stage_effective_inputs(files, run, "standalone")
     assert list(run.iterdir()) == []
+
+
+def test_edit_ini_preserves_form_feed_inside_untouched_value():
+    from scripts.baselines.effective_inputs import edit_ini_text
+    source = "[scenario]\nname = first\fsecond\nseed = 1\n"
+    assert edit_ini_text(source, {("scenario", "seed"): "2"}) == (
+        "[scenario]\nname = first\fsecond\nseed = 2\n")

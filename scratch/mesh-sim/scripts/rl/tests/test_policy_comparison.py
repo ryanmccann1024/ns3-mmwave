@@ -590,3 +590,9 @@ def test_group_key_without_placement_blocks_is_unchanged(tmp_path):
     assert expected <= set(plain_key)
     assert policy_compare._group_key(placed) == {
         **plain_key, "baseline_geometric_fingerprint": "f" * 64}
+
+
+def test_duplicate_evaluation_seeds_are_refused(tmp_path):
+    directory = write_eval(tmp_path / "eval", seeds=(11, 11))
+    with pytest.raises(ComparisonError, match="repeat a seed"):
+        load_evaluation(directory)

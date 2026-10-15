@@ -368,9 +368,12 @@ def step_state(step: dict) -> tuple[str, str]:
     if not manifest.is_file():
         return "blocked", retry
     try:
-        status = json.loads(manifest.read_text()).get("status")
+        data = json.loads(manifest.read_text())
     except (OSError, ValueError):
         return "blocked", retry
+    if not isinstance(data, dict):
+        return "blocked", retry
+    status = data.get("status")
     if step["kind"] == "compare":
         return "done", ""
     if status == "completed":
