@@ -1011,3 +1011,17 @@ def test_train_settings_refused_before_output_or_simulator(
     assert train.main() == 1
     assert not out.exists()
     assert flag.lstrip("-").replace("-", "_") in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("mismatch", ["structure", "reward"])
+def test_scenario_override_never_bypasses_other_contracts(mismatch):
+    saved = _contract()
+    manifest = _manifest(saved)
+    if mismatch == "structure":
+        live = _contract(node_ids=("node-a", "node-b", "node-c", "node-d"))
+        error = StructuralMismatchError
+    else:
+        live = _contract(reward_type="throughput")
+        error = RewardMismatchError
+    with pytest.raises(error):
+        _check(manifest, _StubEnv(live), allow=True)

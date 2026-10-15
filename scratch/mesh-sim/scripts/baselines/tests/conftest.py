@@ -208,3 +208,32 @@ def fake_child(tmp_path: Path) -> Path:
 @pytest.fixture
 def fake_query(tmp_path: Path) -> Path:
     return fake_query_binary(tmp_path / "query-bin")
+
+
+@pytest.fixture(scope="session")
+def cpp_ini_view(tmp_path_factory):
+    """Read edited INI text through the real standalone simulator parser."""
+    import shutil
+    import subprocess
+    compiler = shutil.which("c++")
+    if compiler is None:
+        pytest.skip("C++ compiler unavailable for INI parity")
+    directory = tmp_path_factory.mktemp("ini-reader")
+    source, binary = directory / "reader.cc", directory / "reader"
+    source.write_text('#include "src/util/ini-parser.h"\n'
+                      '#include "third_party/json.hpp"\n#include <iostream>\n'
+                      'int main(int argc, char** argv) { '
+                      'std::cout << nlohmann::json(mesh_sim::parseIni(argv[1])).dump(); }\n')
+    root = Path(__file__).resolve().parents[3]
+    subprocess.run([compiler, "-std=c++17", "-I", str(root), str(source),
+                    str(root / "src/util/ini-parser.cc"),
+                    str(root / "src/util/string-utils.cc"), "-o", str(binary)],
+                   check=True, capture_output=True, text=True)
+
+    def read(text):
+        path = directory / "run.ini"
+        path.write_text(text)
+        result = json.loads(subprocess.check_output([str(binary), str(path)], text=True))
+        return {(section, key): value for section, values in result.items()
+                for key, value in values.items()}
+    return read
