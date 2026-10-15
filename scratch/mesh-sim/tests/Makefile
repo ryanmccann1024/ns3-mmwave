@@ -9,7 +9,7 @@
 # Integration tests (require a built sim binary):
 #   make integration  # run CLI integration tests
 
-UNIT_DIRS := unit/config unit/eval unit/routing unit/traffic unit/rl unit/query
+UNIT_DIRS := unit/config unit/eval unit/routing unit/traffic unit/rl unit/query unit/loader unit/config-rules unit/eval-jammer unit/routing-extra unit/traffic-extra unit/io-cli unit/rl-bridge
 
 # Homebrew LLVM clang-tidy (not on PATH by default).
 CLANG_TIDY ?= $(firstword $(wildcard /usr/local/opt/llvm/bin/clang-tidy) \

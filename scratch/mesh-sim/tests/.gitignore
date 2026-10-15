@@ -11,3 +11,11 @@ query-test
 reward-window-test
 
 joint-motion-test
+
+unit/loader/loader-test
+unit/config-rules/config-rules-test
+unit/eval-jammer/eval-jammer-test
+unit/routing-extra/routing-extra-test
+unit/traffic-extra/traffic-extra-test
+unit/io-cli/io-cli-test
+unit/rl-bridge/rl-bridge-test
