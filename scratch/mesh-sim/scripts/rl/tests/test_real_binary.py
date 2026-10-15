@@ -297,7 +297,12 @@ def test_partial_windows_clipping_and_reward_mean(tmp_path, warmup):
 
     # Reward over a window is the mean of the per-tick rewards, reset excluded.
     fine_rewards = [s["reward"] for s in fine]
-    assert any(reward < 0 for reward in fine_rewards[1:])
+    if float(warmup) == 0.0:
+        assert any(reward < 0 for reward in fine_rewards[1:])
+    else:
+        # The NLOS ticks precede the scoring cutoff in this fixture.
+        assert fine_rewards[1:3] == [0.0, 0.0]
+        assert any(reward > 0 for reward in fine_rewards[3:])
     windows, start = [], 1
     for length in COARSE_WINDOWS:
         windows.append([s["reward"] for s in fine[start:start + length]
