@@ -13,7 +13,6 @@
  * Build and run: `make -C tests/unit/traffic-extra test`.
  */
 
-#include "src/config/config-validator.h"
 #include "src/domain/sim-config.h"
 #include "src/traffic/traffic-matrix.h"
 
@@ -112,18 +111,6 @@ noDeadFlows(const TrafficMatrix& tm)
         }
     }
     return true;
-}
-
-/// ValidateConfig(cfg).ok(), printing any errors to stderr.
-static bool
-validates(const SimConfig& cfg)
-{
-    auto r = ValidateConfig(cfg);
-    for (const auto& e : r.errors)
-    {
-        std::cerr << "  validator: " << e << "\n";
-    }
-    return r.ok();
 }
 
 using FlowKey = std::vector<double>;

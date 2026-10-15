@@ -2,7 +2,7 @@
 /**
  * @file rl-bridge-test.cc
  * @brief Unit tests for RlBridge: init/step messages, masks, facts, window
- *        rewards, joint/legacy action parsing, revalidation, EOF handling,
+ *        rewards, joint action parsing, revalidation, EOF handling,
  *        per-tick bounds clamping, and action-to-velocity mapping.
  *
  * Expectations come from src/rl/README.md (the wire contract), the
@@ -284,7 +284,6 @@ centralCfg(uint32_t numNodes, std::vector<uint32_t> controlled, uint32_t slots,
     return cfg;
 }
 
-// Legacy config: N drone nodes; controlled_indices empty means "last node".
 
 struct L
 {
@@ -539,7 +538,6 @@ test_init_jammer_path_flag()
     });
 }
 
-// rl-bridge.h WriteInit: "Does nothing in legacy mode"; README Modes: legacy has no init.
 
 // rl-bridge.h IsDecisionTick: centralized, ti < num_ticks, ti % k == 0.
 static void
@@ -1107,7 +1105,7 @@ test_clamp_lower_y_and_z()
     });
 }
 
-// rl-bridge.h BeforeAdvance: controlled slots only; non-CVMM skipped; legacy no-op.
+// rl-bridge.h BeforeAdvance: controlled slots only; non-CVMM skipped.
 static void
 test_clamp_scope()
 {
@@ -1253,30 +1251,39 @@ test_determinism_same_stdout()
 }
 
 // =====================================================================
-// legacy mode
-// =====================================================================
-
-// README "Legacy step remains unchanged": type,tick,time_s,obs.{...},reward,done,action_type.
-
-// rl-bridge.h constructor: legacy uses the first controlled index, else the last node.
-
-// sim-config.h action table: 0:-X 1:+X 2:-Y 3:+Y 4:-Z 5:+Z 6:Stay; speed min(dist/tick, cap).
-
-// sim-config.h: legacy target is clamped to the bounding box (x/y/z).
-
-// README legacy EOF: Stay, one "stream closed" warning; Test 9: steps continue.
-
-// README legacy: no action read after done.
-
-// sim-config.h: continuous action is an absolute (x, y[, z]) target.
-
-// rl-bridge.cc:447 comment: "keep current z if absent" for a 2-component target.
-
-// ---- main ----
+static void
+test_scored_windows_cross_warmup_and_terminal_boundary()
+{
+    isolated("scored warmup windows", [] {
+        auto cfg = centralCfg(2, {0}, 1, 3, 5);
+        cfg.warmup_s = 0.25;
+        cfg.rl.reward_type = "throughput";
+        World world;
+        world.AddCvmm(50,50,10);
+        world.AddCvmm(10,10,10);
+        Io io("{\"action\":[4]}\n{\"action\":[4]}\n");
+        runEpisode(cfg, world, [](uint32_t) { return makeTable(2); },
+                   [](uint32_t tick) {
+                       return std::vector<FlowResult>{flow(0,1,100,tick,true)};
+                   });
+        const auto messages = io.Lines();
+        check(messages.size() == 4, "init and decisions at ticks 0,3,5");
+        if (messages.size() != 4) return;
+        check(messages[1]["scored_ticks"] == 0 && messages[1]["reward"] == 0,
+              "warmup reset has no scored reward");
+        check(messages[2]["ticks_in_step"] == 3 && messages[2]["scored_ticks"] == 1 &&
+              approx(messages[2]["reward"],3),
+              "crossing warmup scores only tick 3, not the full elapsed window");
+        check(messages[3]["done"] == true && messages[3]["ticks_in_step"] == 2 &&
+              messages[3]["scored_ticks"] == 2 && approx(messages[3]["reward"],4.5),
+              "short terminal window averages only ticks 4 and 5");
+    });
+}
 
 int
 main()
 {
+    test_scored_windows_cross_warmup_and_terminal_boundary();
     test_init_fields();
     test_init_num_decisions_ceil();
     test_init_speed_caps();

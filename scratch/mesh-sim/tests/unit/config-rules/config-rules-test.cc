@@ -134,12 +134,12 @@ test_tick_count_boundaries()
           "ticks: ratio exactly 1 gives 1 in both modes");
     check(ComputeTickCount(0.9999999, 1.0, true) == 0,
           "ticks: ratio below 1 gives 0 even within the robust tolerance (doc)");
-    check(ComputeTickCount(0.7, 0.1, false) == 6, "ticks: legacy 0.7/0.1 truncates to 6");
+    check(ComputeTickCount(0.7, 0.1, false) == 6, "ticks: uncontrolled simulation 0.7/0.1 truncates to 6");
     check(ComputeTickCount(0.7, 0.1, true) == 7, "ticks: robust 0.7/0.1 rounds to 7");
 
     // 1e-6 tolerance on either side of an integer.
     check(ComputeTickCount(3.0 - 5e-7, 1.0, true) == 3, "ticks: robust 2.9999995 rounds up to 3");
-    check(ComputeTickCount(3.0 - 5e-7, 1.0, false) == 2, "ticks: legacy 2.9999995 truncates to 2");
+    check(ComputeTickCount(3.0 - 5e-7, 1.0, false) == 2, "ticks: uncontrolled simulation 2.9999995 truncates to 2");
     check(ComputeTickCount(3.0 - 2e-6, 1.0, true) == 2, "ticks: robust 2.999998 floors to 2");
     check(ComputeTickCount(3.0 + 5e-7, 1.0, true) == 3, "ticks: robust 3.0000005 gives 3");
     check(ComputeTickCount(3.0 + 2e-6, 1.0, true) == 3, "ticks: robust 3.000002 floors to 3");
@@ -268,14 +268,8 @@ makeLayoutCfg()
 static void
 test_layout_random_walk_control_modes()
 {
-    // Legacy RL control keeps the node's own mobility, so walk bounds still apply.
     auto cfg = makeLayoutCfg();
-    cfg.rl.enabled            = true;
-    cfg.rl.control_mode       = "legacy";
-    cfg.rl.controlled_indices = {1};
-    auto errs = ApplyLayout(cfg, {{1.0, 2.0, 10.0}, {500.0, 0.0, 1.5}});
-    check(hasIn(errs, "outside its random_walk bounds"),
-          "layout-rw: legacy-controlled random walk node still bounded");
+    std::vector<std::string> errs;
 
     // Resolved fields without rl.enabled do not count as central control.
     cfg = makeLayoutCfg();

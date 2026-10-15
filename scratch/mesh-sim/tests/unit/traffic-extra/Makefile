@@ -3,14 +3,7 @@ CXXFLAGS ?= -std=c++17 -Wall -Wpedantic
 ROOT     := ../../..
 COMMON   := ../../common
 
-# config-validator (ns-3-free) is linked only to show that configurations
-# exposing suspected traffic bugs pass validation.
-SRCS := $(ROOT)/src/config/query-config.cc \
-        traffic-extra-test.cc \
-        $(ROOT)/src/traffic/traffic-matrix.cc \
-        $(ROOT)/src/config/config-validator.cc \
-        $(ROOT)/src/config/rl-control.cc \
-        $(ROOT)/src/util/string-utils.cc
+SRCS := traffic-extra-test.cc $(ROOT)/src/traffic/traffic-matrix.cc
 
 OUT := traffic-extra-test
 
