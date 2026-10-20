@@ -32,6 +32,9 @@ jobs:
       - name: Prepare Python environment
         working-directory: scratch/mesh-sim
         run: python3 scripts/rl/bootstrap_venv.py
+      - name: Standalone C++ contracts
+        working-directory: scratch/mesh-sim
+        run: make -C tests test CLANG_TIDY=
       - name: Python contracts
         working-directory: scratch/mesh-sim
         run: .venv/bin/python -m pytest scripts/rl/tests scripts/validation/tests scripts/baselines/tests -q

@@ -26,7 +26,8 @@ MESH_SIM_BIN=<BIN> make integration
 - `make lint` (run first by `make test`) is macOS-oriented: it expects Homebrew
   LLVM paths and `xcrun`. On Linux its output isn't meaningful, and it never
   fails the run (`|| true`). It lints only the ns-3-free sources in `LINT_SRCS`.
-- CI runs `make integration` and the Python suites, not `make test`.
+- CI runs `make test CLANG_TIDY=`, the Python suites, and real-binary integration.
+  See `README.md` here for the added groups and stub limitations.
 
 ## Layout
 
