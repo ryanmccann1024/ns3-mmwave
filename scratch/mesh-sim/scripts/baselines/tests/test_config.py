@@ -489,3 +489,15 @@ def test_planning_seed_rejects_unsupported_worker_values(seed):
 @pytest.mark.parametrize("seed", [1, 2147483647])
 def test_planning_seed_accepts_supported_worker_boundaries(seed):
     assert config.validate_planning_seed(seed) == seed
+
+
+def test_header_comment_bracket_does_not_rename_section(tmp_path):
+    path = _ini(tmp_path, "[baseline] # ignored ]\nalgorithm = none\n")
+    assert config.load_baseline(path).algorithm == "none"
+    assert config.read_ini(path).sections() == ["baseline"]
+
+
+def test_rl_bounds_do_not_accept_python_digit_separators(tmp_path):
+    ini = config.read_ini(_ini(tmp_path, "[rl]\nx_min = 1_000\n"))
+    with pytest.raises(ConfigError, match="not a number"):
+        config.explicit_rl_bounds(ini)

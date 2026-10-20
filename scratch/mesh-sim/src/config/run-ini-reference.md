@@ -82,7 +82,7 @@ and [routing](@ref src_routing) modules for the code that owns them.
 | `[traffic] model` | `constant` | `constant`, `poisson`, or `on_off` demand. |
 | `demand_mbps` | `10` | Requested rate per active flow. |
 | `arrival_rate_hz` | `1` | New flows per second in `poisson` mode. |
-| `on_time_s`, `off_time_s` | `1`, `1` | Mean on/off phase lengths in `on_off` mode. |
+| `on_time_s`, `off_time_s` | `1`, `1` | Mean on/off phase lengths in `on_off` mode; finite, nonnegative, and not both zero. |
 | `holding_time_s` | `0` | Flow lifetime in seconds; `0` means no expiry. |
 | `flow_topology` | `all_pairs` | `all_pairs`, `random_pairs`, or `gateway`. |
 | `random_pair_count` | `3` | Number of flows with `random_pairs` topology. |

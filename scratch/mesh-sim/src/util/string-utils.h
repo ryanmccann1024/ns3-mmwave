@@ -97,11 +97,12 @@ std::string dirOf(const std::string& path);
  * @fn parseSeedList
  * @brief Parse a comma-separated string of seed values into a @c uint32_t vector.
  *
- * Splits @p arg on @c ',' and converts each non-empty token with
- * @c std::stoul. Empty tokens (e.g. the gap in @c "1,,3") are silently
+ * Splits @p arg on @c ',' and converts each non-empty token, which must be
+ * decimal digits (surrounding spaces allowed). Empty tokens (e.g. the gap in @c "1,,3") are silently
  * skipped so that trailing commas and double-commas are tolerated.
  *
- * @note On an invalid token (non-numeric or out of @c uint32_t range) this
+ * @note On an invalid token (non-numeric, signed, trailing junk such as
+ *       @c "7abc", or out of @c uint32_t range) this
  *       function prints an error to @c stderr and calls @c std::exit(1).
  *       It does not throw, matching the hard-exit convention used elsewhere
  *       in the CLI layer.

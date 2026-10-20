@@ -11,3 +11,5 @@ query-test
 reward-window-test
 
 joint-motion-test
+
+unit/eval/reconfigure-test

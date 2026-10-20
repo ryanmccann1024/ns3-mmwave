@@ -59,8 +59,8 @@ class LinkEvaluator
      * (@c −174 + 10·log10(bandwidth_Hz) + noise_figure_dB, in dBm) and one TX and
      * one RX array gain (dBi) per node: the node's own override if set,
      * otherwise the channel default. Configures the internal @ref JammerModel
-     * (carrier and seed included) only when @c cfg.jammers is non-empty.
-     * Safe to call again; per-node gain vectors are rebuilt.
+     * (carrier and seed included) only when @c cfg.jammers is non-empty, and
+     * clears it otherwise. Safe to call again; per-node gain vectors are rebuilt.
      */
     void Configure(const SimConfig& cfg,
                    ns3::Ptr<ns3::PropagationLossModel> plModel,

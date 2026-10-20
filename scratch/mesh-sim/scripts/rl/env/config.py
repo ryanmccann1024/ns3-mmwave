@@ -1,10 +1,9 @@
 """Read scenario seed and provenance using the simulator's INI conventions."""
 
-import configparser
 import hashlib
 from pathlib import Path
 
-from scripts.sim_support import strip_inline_comment
+from scripts.sim_support import parse_ini
 
 _SELECTION_KEYS = ("observation_preset", "reward_components", "reward_weights",
                    "telemetry", "telemetry_every", "observation_parameters", "reward_parameters")
@@ -20,18 +19,24 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _read_ini(run_config: str) -> configparser.ConfigParser:
-    ini = configparser.ConfigParser(interpolation=None)
-    ini.read(run_config)
-    return ini
+def _read_ini(run_config: str) -> dict[str, dict[str, str]]:
+    """Parse with the simulator's rules; an unreadable file reads as empty."""
+    try:
+        return parse_ini(run_config)
+    except OSError:
+        return {}
+
+
+def _get(ini: dict, section: str, key: str, fallback: str | None = None) -> str | None:
+    return ini.get(section, {}).get(key, fallback)
 
 
 def read_scenario_seed(run_config: str) -> int | None:
     """Return [scenario] seed, or None when missing or invalid."""
-    ini = _read_ini(run_config)
-    if ini.has_option("scenario", "seed"):
+    raw = _get(_read_ini(run_config), "scenario", "seed")
+    if raw is not None:
         try:
-            return int(strip_inline_comment(ini.get("scenario", "seed")))
+            return int(raw)
         except ValueError:
             pass
     return None
@@ -40,15 +45,22 @@ def read_scenario_seed(run_config: str) -> int | None:
 def read_explicit_rl_bounds(run_config: str) -> dict[str, float]:
     """Read explicit bounds; simulator defaults are resolved only by a live launch."""
     ini = _read_ini(run_config)
-    return {f"{axis}_{end}": float(strip_inline_comment(ini.get("rl", f"{axis}_{end}")))
-            for axis in "xyz" for end in ("min", "max")
-            if ini.has_option("rl", f"{axis}_{end}")}
+    bounds = {}
+    for axis in "xyz":
+        for end in ("min", "max"):
+            key = f"{axis}_{end}"
+            raw = ini.get("rl", {}).get(key)
+            if raw is not None:
+                if "_" in raw:
+                    raise ValueError(f"rl.{key} is not a plain number: {raw!r}")
+                bounds[key] = float(raw)
+    return bounds
 
 
-def _scenario_file(ini: configparser.ConfigParser, ini_path: Path, key: str,
+def _scenario_file(ini: dict, ini_path: Path, key: str,
                    label: str, default: str = "") -> Path | None:
     """Resolve a [scenario] file relative to the run.ini; blank or absent means none."""
-    raw = strip_inline_comment(ini.get("scenario", key, fallback="")) or default
+    raw = _get(ini, "scenario", key, "") or default
     if not raw:
         return None
     path = Path(raw)
@@ -87,29 +99,20 @@ def read_scenario_identity(run_config: str) -> dict:
 
 def read_rl_selection(run_config: str) -> dict[str, str]:
     """Read [rl] policy options, omitting blank or absent keys."""
-    ini = _read_ini(run_config)
-    raw = {}
-    for key in _SELECTION_KEYS:
-        if not ini.has_option("rl", key):
-            continue
-        value = strip_inline_comment(ini.get("rl", key))
-        if value:
-            raw[key] = value
-    return raw
+    rl = _read_ini(run_config).get("rl", {})
+    return {key: rl[key] for key in _SELECTION_KEYS if rl.get(key)}
 
 
 def read_action_profile(run_config: str) -> str:
     """Return [rl] action_profile, or the C++ loader's default when absent."""
-    ini = _read_ini(run_config)
-    raw = strip_inline_comment(ini.get("rl", "action_profile",
-                                       fallback=_DEFAULT_ACTION_PROFILE))
+    raw = _get(_read_ini(run_config), "rl", "action_profile", _DEFAULT_ACTION_PROFILE)
     return raw or _DEFAULT_ACTION_PROFILE
 
 
 def read_manifest_every_decisions(run_config: str) -> int:
     """Read the Python episode-progress cadence; final manifests are always saved."""
     ini = _read_ini(run_config)
-    raw = strip_inline_comment(ini.get("rl", "manifest_every_decisions", fallback="1"))
+    raw = _get(ini, "rl", "manifest_every_decisions", "1")
     try:
         value = int(raw)
     except ValueError as exc:
@@ -121,19 +124,24 @@ def read_manifest_every_decisions(run_config: str) -> int:
 
 def read_episode_output(run_config: str) -> dict:
     ini = _read_ini(run_config)
-    return {"compact_training": ini.getboolean("rl", "compact_training", fallback=False)}
+    raw = _get(ini, "rl", "compact_training", "false").lower()
+    states = {"1": True, "yes": True, "true": True, "on": True,
+              "0": False, "no": False, "false": False, "off": False}
+    if raw not in states:
+        raise ValueError(f"Not a boolean: {raw}")
+    return {"compact_training": states[raw]}
 
 
 def read_jammer_onsets(run_config: str) -> tuple[tuple[float, ...], tuple[float, ...]]:
     ini = _read_ini(run_config)
-    duration = ini.getfloat("scenario", "duration_s", fallback=0.0)
+    duration = float(_get(ini, "scenario", "duration_s", "0"))
     result = []
     for name in ("training_jammer_onsets_s", "evaluation_jammer_onsets_s"):
-        raw = strip_inline_comment(ini.get("rl", name, fallback=""))
+        raw = _get(ini, "rl", name, "")
         values = tuple(float(v.strip()) for v in raw.split(",") if v.strip())
         if any(not 0 <= v < duration for v in values):
             raise ValueError(f"[rl] {name} must contain finite times in [0,duration_s)")
         result.append(values)
-    if any(result) and not strip_inline_comment(ini.get("scenario", "jammers_file", fallback="")):
+    if any(result) and not _get(ini, "scenario", "jammers_file", ""):
         raise ValueError("jammer onset schedules require jammers_file")
     return tuple(result)

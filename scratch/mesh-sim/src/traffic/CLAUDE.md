@@ -20,7 +20,7 @@ it once per tick for the constant, Poisson, and on-off models.
   draws changes traffic for a given seed.
 - Poisson flows also get initial flows from `Initialize()`. With
   `holding_time_s = 0` arrivals never expire.
-- `gateway_node_id` is tried as a numeric index first, then as a node ID; the
+- `gateway_node_id` matches a node ID first, then an in-range numeric index; the
   validator only accepts an ID match.
 - `Initialize()` throws `std::runtime_error` on an unknown topology.
 
