@@ -79,19 +79,14 @@ def accumulate_tick(window: dict, snapshot: dict, flow_results, reward_type: str
     window['legacy_reward_sum'] += legacy_reward_tick(snapshot, flow_results, reward_type, slot_nodes)
 
 
-def facts_links(snapshot: dict) -> dict:
+def facts_links(snapshot: dict) -> list:
     n = len(snapshot['nodes'])
-    links = {}
-    for i in range(n):
-        for j in range(n):
-            if i == j:
-                continue
-            links[(i, j)] = {
-                'sinr_db': float(snapshot['sinr_db'][i][j]),
-                'capacity_mbps': float(snapshot['capacity_mbps'][i][j]),
-                'is_los': bool(snapshot['is_los'][i][j]),
-            }
-    return links
+    return [
+        [float(snapshot['sinr_db'][i][j]),
+         float(snapshot['capacity_mbps'][i][j]),
+         int(bool(snapshot['is_los'][i][j]))]
+        for i in range(n) for j in range(i + 1, n)
+    ]
 
 
 def slot_node_indices(contract: dict) -> list:
