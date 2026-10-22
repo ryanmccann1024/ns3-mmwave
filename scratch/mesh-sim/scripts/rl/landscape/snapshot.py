@@ -71,10 +71,10 @@ def accumulate_tick(window: dict, snapshot: dict, flow_results, reward_type: str
                 window['unroutable_flow_ticks'] += 1
     n = len(snapshot['nodes'])
     window['connected_pairs_sum'] += sum(
-        1 for i in range(n) for j in range(n) if i != j and snapshot.get('connected', [[]])[i][j]
+        1 for i in range(n) for j in range(i + 1, n) if snapshot.get('connected', [[]])[i][j]
     )
     window['los_pairs_sum'] += sum(
-        1 for i in range(n) for j in range(n) if i != j and snapshot['is_los'][i][j]
+        1 for i in range(n) for j in range(i + 1, n) if snapshot['is_los'][i][j]
     )
     window['legacy_reward_sum'] += legacy_reward_tick(snapshot, flow_results, reward_type, slot_nodes)
 
@@ -96,7 +96,7 @@ def facts_links(snapshot: dict) -> dict:
 
 def slot_node_indices(contract: dict) -> list:
     node_ids = contract['node_ids']
-    return [node_ids.index(nid) for nid in contract['slot_node_ids']]
+    return [node_ids.index(nid) for nid in contract['slot_node_ids'] if nid is not None]
 
 
 def snapshot_reward(
