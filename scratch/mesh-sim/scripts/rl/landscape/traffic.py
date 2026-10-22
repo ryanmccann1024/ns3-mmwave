@@ -153,7 +153,7 @@ def resolve_flows(settings: TrafficSettings, node_ids: list, times_s, flows_csv)
         pairs = topology_pairs(settings, node_ids)
         flows_by_time = {}
         for t in times_s:
-            flows_by_time[_time_key(t)] = [
+            flows_by_time[float(t)] = [
                 Flow(src=src, dst=dst, demand_mbps=float(settings.demand_mbps))
                 for src, dst in pairs
             ]
@@ -166,7 +166,7 @@ def resolve_flows(settings: TrafficSettings, node_ids: list, times_s, flows_csv)
         for t in times_s:
             key = _time_key(t)
             if key in snapshots:
-                result[key] = snapshots[key]
+                result[float(t)] = snapshots[key]
             else:
                 # find last tick at or before t
                 candidates = [k for k in snapshots if k <= key]
@@ -176,7 +176,7 @@ def resolve_flows(settings: TrafficSettings, node_ids: list, times_s, flows_csv)
                         f'using the last written tick t = {max(candidates) / _TIME_SCALE:.6f} s'
                     )
                 best = max(candidates) if candidates else key
-                result[key] = snapshots.get(best, [])
+                result[float(t)] = snapshots.get(best, [])
         return FlowSource(flows=result, method='flows_csv', warnings=tuple(warnings))
 
     if settings.flow_topology == 'random_pairs':
@@ -191,7 +191,7 @@ def resolve_flows(settings: TrafficSettings, node_ids: list, times_s, flows_csv)
         f'(approximation; real ON/OFF phases and arrivals are not reproduced)',
     )
     flows_by_time = {
-        _time_key(t): [
+        float(t): [
             Flow(src=src, dst=dst, demand_mbps=float(settings.demand_mbps))
             for src, dst in pairs
         ]
