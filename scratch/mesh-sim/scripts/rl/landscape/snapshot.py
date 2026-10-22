@@ -7,7 +7,7 @@ composer, so every reward formula stays in one place.
 # Recovered from bytecode — approximate reconstruction
 from dataclasses import dataclass
 
-from scripts.rl.env.rewards import RewardBreakdown, RewardComposer, position_context
+from scripts.rl.env.rewards import RewardBreakdown, RewardComposer
 
 from .router import route
 from .traffic import RoutingSettings
@@ -40,6 +40,7 @@ def _pairs(n: int):
 def empty_window() -> dict:
     return {
         'ticks': 0,
+        'scored_ticks': 0,
         'demand_mbps_sum': 0.0,
         'delivered_mbps_sum': 0.0,
         'flow_ticks_with_demand': 0,
@@ -52,13 +53,15 @@ def empty_window() -> dict:
 
 def legacy_reward_tick(snapshot: dict, flow_results, reward_type: str, slot_nodes) -> float:
     if reward_type == 'all_links_los':
-        return 1.0 if all(bool(snapshot['is_los'][i]) for i in range(len(snapshot['is_los']))) else -1.0
+        n = len(snapshot['is_los'])
+        return 1.0 if all(bool(snapshot['is_los'][i][j]) for i in range(n) for j in range(n) if i != j) else -1.0
     delivered = sum(fr.delivered_mbps for fr in flow_results)
     return delivered
 
 
 def accumulate_tick(window: dict, snapshot: dict, flow_results, reward_type: str, slot_nodes) -> None:
     window['ticks'] += 1
+    window['scored_ticks'] += 1
     for fr in flow_results:
         window['demand_mbps_sum'] += fr.demand_mbps
         window['delivered_mbps_sum'] += fr.delivered_mbps
@@ -126,15 +129,14 @@ def snapshot_reward(
     links = facts_links(snapshot)
     facts = {'nodes': nodes, 'links': links, 'window': window}
 
-    ctx = position_context(
-        contract=contract,
-        nodes=nodes,
-        previous_nodes=previous_nodes,
-        initial_nodes=initial_nodes,
-        interval_ticks=int(interval_ticks),
-    )
+    inputs = {
+        'previous_nodes': previous_nodes,
+        'initial_nodes': initial_nodes,
+        'elapsed_ticks': int(interval_ticks),
+    }
+    ctx = composer.context(facts, contract, inputs=inputs)
 
-    breakdown = composer.compose(facts=facts, context=ctx)
+    breakdown = composer.compose(window, 0.0, contract, context=ctx)
 
     if window['legacy_reward_sum'] and not breakdown.total:
         breakdown = RewardBreakdown(total=window['legacy_reward_sum'])

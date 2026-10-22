@@ -14,7 +14,7 @@ from scripts.baselines.effective_inputs import start_position
 from scripts.rl.env.telemetry import TELEMETRY_FILE
 from scripts.sim_support import parse_ini
 
-CONTRACT = 'mesh_move_2d_v1'
+CONTRACTS = ('mesh_move_2d_v1', 'mesh_move_2d_v2')
 MOVE_LABELS = ('W', 'E', 'S', 'N', 'hold')
 HOLD_ACTION = 4
 WALL_EPS_M = 1e-6
@@ -84,9 +84,9 @@ def load_episode(episode_dir) -> Episode:
         raise EpisodeError(f'{steps} does not start with a header line')
 
     contract = header.get('contract') or {}
-    if contract.get('contract') != CONTRACT:
+    if contract.get('contract') not in CONTRACTS:
         raise EpisodeError(
-            f'{steps}: contract {contract.get("contract")!r} is not {CONTRACT!r}'
+            f'{steps}: contract {contract.get("contract")!r} is not one of {CONTRACTS!r}'
         )
 
     records = {}
