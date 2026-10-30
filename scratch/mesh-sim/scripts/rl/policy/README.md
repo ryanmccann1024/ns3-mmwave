@@ -170,3 +170,14 @@ For the zero-cost/penalized placement workflow, input snapshots and diagnostic
 interpretation see the [placement walkthrough](../../baselines/walkthrough.md).
 Evaluation v4 and comparison v1 outputs require regeneration for this schema;
 changing their version number does not supply missing facts.
+
+## PPO operation and continuation
+
+Frozen deterministic and sampled modes preserve both policy and optimizer
+states. `online_gated_v1` trains eligible windows from one episode;
+`online_sb3_v1` uses the SB3 learning loop. Their defaults/accounting stay
+separate. Post-update checkpoints retain optimized policies. Continuation
+requires a completed saved parent, matching selection, seed and input identity,
+and a larger cumulative budget. Schedules change frozen action selection;
+they do not update weights. `scripts.rl.operate --help` lists single-operation
+commands; `scripts.rl.train m-ppo --help` lists continuation/checkpoint flags.

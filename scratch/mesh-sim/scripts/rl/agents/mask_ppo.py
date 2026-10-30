@@ -58,8 +58,11 @@ class MaskablePpoTrainer:
                      if continuing else self.cfg.total_timesteps)
         callbacks = list(callback or []) if isinstance(callback, (list, tuple)) else ([callback] if callback else [])
         if self.cfg.ent_coef_final is not None:
-            from .callbacks import EntropyDecayCallback
+            from scripts.rl.agents.callbacks import EntropyDecayCallback
             callbacks.insert(0, EntropyDecayCallback(self.cfg.ent_coef, self.cfg.ent_coef_final, remaining))
+        if getattr(self.env.unwrapped,"contract",None) and "mission" in self.env.unwrapped.contract and self.cfg.total_timesteps % self.cfg.n_steps:
+            from scripts.rl.agents.callbacks import MissionBudgetCallback
+            callbacks.append(MissionBudgetCallback(self.cfg.total_timesteps))
         self.model.learn(total_timesteps=remaining, callback=callbacks or None,
                          reset_num_timesteps=not continuing)
         return self.model

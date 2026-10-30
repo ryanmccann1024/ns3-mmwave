@@ -9,8 +9,8 @@ pytest temp dirs, never to `inputs/`.
 
 ```bash
 .venv/bin/python -m pytest scripts/rl/tests -q
-.venv/bin/python -m pytest scripts/rl/tests/test_mesh_env.py::<test_name>
-MESH_SIM_BIN=/abs/path/to/bin .venv/bin/python -m pytest scripts/rl/tests/test_real_binary.py -q
+.venv/bin/python -m pytest scripts/rl/tests/env/test_mesh_env.py::<test_name>
+MESH_SIM_BIN=/abs/path/to/bin .venv/bin/python -m pytest scripts/rl/tests/integration/test_real_binary.py -q
 ```
 
 ## Fakes

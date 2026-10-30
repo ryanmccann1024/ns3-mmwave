@@ -395,3 +395,10 @@ Matrix evaluation can set `reuse_baselines=true`; the CLI uses `--baseline-cache
 `adaptive_campaign` drives `inputs/custom/10-09-3/campaign.json`: four cases × six profiles, validation-only profile selection, eight extensions, archived-reference evaluation and moving-jammer operation. See that input README for the command and budgets. `online` loads one verified checkpoint per operation seed and runs the PPO learning loop with short rollouts; its matched sampled control never trains. Adaptation results use `online_manifest.json` and explicit seed-role labels. `policy/episode_review.py` adds final-minute service and moving-jammer recovery to campaign reports without changing normal evaluation manifest fields.
 
 The CLI modules parse arguments and delegate lifecycle and artifact work to `policy/training.py`, `policy/training_artifacts.py`, `policy/experiment.py`, `policy/evaluate.py` and the metric registry. Compact training keeps final summaries but omits visualization and training telemetry; full evaluation produces reward matrices. Saved schema versions are training 7, episode 6 and evaluation 6.
+
+## Source ownership
+
+Observation and reward registries are packages under `env/`; episode writers
+are under `env/recording/`. Python tests follow their package owners under
+`tests/`, shared fakes are in `tests/support/`, and native checks are in
+`tests/integration/`. This source relocation changes no saved selection ID.
