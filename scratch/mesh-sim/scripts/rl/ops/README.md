@@ -925,8 +925,8 @@ to the CLI or repeat production rules in fake tests. When fetch manifest meaning
 change, update its version, this schema description, and the state/history tests.
 
 ```bash
-.venv/bin/python -m pytest -q scripts/rl/tests/test_ops_fetch.py \
-  scripts/rl/tests/test_ops_fetch_local.py scripts/rl/tests/test_ops_tasks.py
+.venv/bin/python -m pytest -q scripts/rl/tests/cluster/test_ops_fetch.py \
+  scripts/rl/tests/cluster/test_ops_fetch_local.py scripts/rl/tests/cluster/test_ops_tasks.py
 ```
 
 | Tests | What they verify |

@@ -98,6 +98,7 @@ struct NodeSpec
     std::optional<double> tx_array_gain_dbi;
     /// Per-node RX array gain in dBi (>= 0); falls back to @ref ChannelConfig::rx_array_gain_dbi.
     std::optional<double> rx_array_gain_dbi;
+    double failure_at_s = -1.0; ///< Permanent dropout time; -1 disables dropout.
 };
 
 /**

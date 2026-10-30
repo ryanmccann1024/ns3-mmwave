@@ -5,9 +5,11 @@ import json
 
 from dataclasses import dataclass, field
 
-from .config import read_rl_selection
-from .observations import DEFAULT_PRESET, PRESETS, get_preset
-from .rewards import RewardComposer
+from scripts.rl.env.config import read_rl_selection
+from scripts.rl.env.observations import DEFAULT_PRESET
+from scripts.rl.env.observations import PRESETS
+from scripts.rl.env.observations import get_preset
+from scripts.rl.env.rewards import RewardComposer
 
 TELEMETRY_MODES = ("none", "steps")
 _DEFAULTS = {

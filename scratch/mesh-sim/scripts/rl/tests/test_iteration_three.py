@@ -13,7 +13,7 @@ from scripts.rl.env.rewards import RewardComposer, position_context
 from scripts.rl.env.jammer_motion import prepare_motion_config
 from scripts.rl import adaptive_campaign
 from scripts.rl.online import run_online
-from scripts.rl.tests.test_evaluation_pipeline import _train
+from scripts.rl.tests.policy.test_evaluation_pipeline import _train
 from scripts.sim_support import find_mesh_root
 
 

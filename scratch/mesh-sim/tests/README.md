@@ -88,7 +88,7 @@ Use a simulator rebuilt from the integrated source for the separate checks:
 
 ```sh
 MESH_SIM_BIN=/absolute/path/to/simulator make -C tests integration
-MESH_SIM_BIN=/absolute/path/to/simulator .venv/bin/python -m pytest scripts/rl/tests/test_real_binary.py scripts/baselines/tests/test_real_binary.py -q -rs
+MESH_SIM_BIN=/absolute/path/to/simulator .venv/bin/python -m pytest scripts/rl/tests/integration/test_real_binary.py scripts/baselines/tests/test_real_binary.py -q -rs
 ```
 
 Optional dependencies and private inputs can cause skips. Report skips and

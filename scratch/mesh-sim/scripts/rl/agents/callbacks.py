@@ -13,6 +13,15 @@ from scripts.rl.policy.training_artifacts import (CHECKPOINT_DIR, CHECKPOINT_PRE
                                                   list_checkpoints)
 
 
+class MissionBudgetCallback(BaseCallback):
+    """Stop opt-in mission training at its exact decision budget."""
+    def __init__(self, budget):
+        super().__init__()
+        self.budget = budget
+    def _on_step(self):
+        return self.model.num_timesteps < self.budget
+
+
 class BoundedCheckpointCallback(CheckpointCallback):
     """CheckpointCallback that keeps only the newest keep_last checkpoint files."""
 
@@ -96,7 +105,7 @@ class SeededEvalCallback(MaskableEvalCallback):
 
 def build_callbacks(out_dir: str, checkpoint_every: int, keep_last: int,
                     eval_env, eval_every: int, eval_episodes: int, verbose: int,
-                    artifacts=None, restored_steps=0, eval_seeds=()
+                    artifacts=None, restored_steps=0, eval_seeds=(), after_update=False
                     ) -> tuple[list[BaseCallback], MaskableEvalCallback | None]:
     """Wire the cadence options; all units are SB3 timesteps (one env, one decision each)."""
     callbacks: list[BaseCallback] = []
@@ -128,6 +137,16 @@ def build_callbacks(out_dir: str, checkpoint_every: int, keep_last: int,
         )
         eval_callback.n_calls = restored_steps
         callbacks.insert(0, eval_callback)
+    if after_update:
+        if restored_steps or eval_env is None or eval_every <= 0 or checkpoint_every != eval_every or not callbacks:
+            raise ValueError("post-update validation requires fresh training and matching positive checkpoint/eval cadence")
+        from scripts.rl.agents.post_update import PostUpdateValidation
+        # The first update must trigger both underlying callbacks even when it
+        # precedes the normal cadence. The coordinator controls actual timing.
+        for child in callbacks:
+            if hasattr(child, "eval_freq"): child.eval_freq = 1
+            if hasattr(child, "save_freq"): child.save_freq = 1
+        callbacks = [PostUpdateValidation(callbacks, out_dir, eval_every)]
     return callbacks, eval_callback
 
 
