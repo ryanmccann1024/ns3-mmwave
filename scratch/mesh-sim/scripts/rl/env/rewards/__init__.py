@@ -204,6 +204,7 @@ class RewardComponent:
     formula: str = ""
     zero_demand_rule: str = "not_applicable"
     context_builder: Callable | None = None
+    fact_extensions: tuple[str, ...] = ()
 
     def resolve(self, overrides):
         if not isinstance(overrides, dict):
@@ -235,11 +236,14 @@ class RewardComponent:
 
     def schema(self, contract, parameters=None):
         resolved = self.resolve({}) if parameters is None else parameters
-        return {"range": list(self.range), "required_facts": list(self.required_facts),
+        result = {"range": list(self.range), "required_facts": list(self.required_facts),
                 "context_fields": list(self.context_fields), "parameters": dict(resolved),
                 "formula": self.formula.format(**resolved),
                 "zero_demand_rule": self.zero_demand_rule,
                 "contract": {key: contract[key] for key in self.contract_fields}}
+        if self.fact_extensions:
+            result['fact_extensions'] = list(self.fact_extensions)
+        return result
 
 
 _SERVICE_PARAMETERS = {"delivery_threshold": (0.95, 0.0, 1.0),
@@ -328,6 +332,17 @@ COMPONENTS["adaptive_movement_cost"] = RewardComponent(
     context_builder=_movement_context, contract_fields=("coverage",),
     formula="(0.02 + 0.08 * previous_network_health) * travel_fraction")
 
+
+from scripts.rl.env.rewards.mission_terms import register as register_mission_terms
+register_mission_terms(RewardComponent, COMPONENTS, _movement_context)
+from scripts.rl.env.rewards.objectives import register as register_objectives
+register_objectives(RewardComponent, COMPONENTS)
+from scripts.rl.env.rewards.shaping import register as register_shaping
+register_shaping(RewardComponent, COMPONENTS)
+from scripts.rl.env.rewards.coordination import register as register_coordination
+register_coordination(RewardComponent, COMPONENTS)
+from scripts.rl.env.rewards.radio import register as register_radio
+register_radio(RewardComponent, COMPONENTS)
 
 def get_component(name: str) -> RewardComponent:
     """Look up a registered reward component by name."""

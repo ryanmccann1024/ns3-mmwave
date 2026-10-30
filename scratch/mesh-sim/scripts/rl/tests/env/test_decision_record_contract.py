@@ -8,16 +8,10 @@ import pytest
 
 from scripts.rl.env.recording.decisions import DecisionRecorder
 from scripts.rl.env.recording.telemetry import replay_record
-from scripts.rl.tests.env.test_decision_records import SCHEMA_PATH
-from scripts.rl.tests.env.test_decision_records import SCHEMA_V1_PATH
-from scripts.rl.tests.env.test_decision_records import SCHEMA_V1_SHA256
-from scripts.rl.tests.env.test_decision_records import SCRIPTED
-from scripts.rl.tests.env.test_decision_records import _assert_documents_valid
-from scripts.rl.tests.env.test_decision_records import _join_run
-from scripts.rl.tests.env.test_decision_records import _load_schema
-from scripts.rl.tests.env.test_decision_records import _read_sidecar
-from scripts.rl.tests.env.test_decision_records import _settings
-from scripts.rl.tests.env.test_decision_records import _steps
+from scripts.rl.tests.env.test_decision_records import (
+    SCHEMA_PATH, SCHEMA_V1_PATH, SCHEMA_V1_SHA256, SCRIPTED, _assert_documents_valid,
+    _join_run, _load_schema, _read_sidecar, _settings, _steps,
+)
 
 SCHEMA_V2_SHA256 = "2a150730e842974897ddbb4518d2028be210dc200cc66b3890d9235fe7f4be29"
 

@@ -95,6 +95,7 @@ def _load_nodes(run_config: str, ini: configparser.ConfigParser) -> list[dict]:
         nodes.append({
             "id": entry["id"],
             "node_type": entry.get("node_type", "vehicle"),
+            "failure_at_s": entry.get("failure_at_s", -1.0),
             "pos": [float(position.get("x", 0.0)), float(position.get("y", 0.0)),
                     float(position.get("z", 0.0))],
         })
@@ -222,7 +223,7 @@ def _advance(nodes: list[dict], slots: list[int], velocities, speed: float,
 def _init_message(mode: str, num_slots: int, count: int, nodes: list[dict],
                   slots: list[int], speed: float, tick_s: float, interval_s: float,
                   k: int, num_ticks: int, ini: configparser.ConfigParser,
-                  bounds: dict, band: str | None) -> dict:
+                  bounds: dict, band: str | None, run_config: str = "") -> dict:
     ids = [nodes[i]["id"] for i in slots] + [None] * (num_slots - count)
     speeds = [speed] * count + [None] * (num_slots - count)
     init = {
@@ -249,6 +250,26 @@ def _init_message(mode: str, num_slots: int, count: int, nodes: list[dict],
         "wall_policy": "clip",
     }
     init["node_service_columns"] = ["demand_mbps_sum", "delivered_mbps_sum"]
+    if ini.get("mission","kind",fallback="none") != "none":
+        init["mission"]={"version":1,"kind":ini.get("mission","kind"),
+            "investigator_id":ini.get("mission","investigator_id",fallback=""),
+            "coverage_domain":"outdoor_probe_cells","progress_distance_scale_m":100.0}
+        defaults={"goal_x":345,"goal_y":300,"arrival_radius_m":15,"coverage_radius_m":50,
+            "dwell_s":30,"goal_coverage_target":.8,"recovery_delivery_target":.9,
+            "recovery_coverage_ratio":.9,"recovery_worst_target":.8}
+        init["mission"].update({key:ini.getfloat("mission",key,fallback=value) for key,value in defaults.items()})
+    init['avoid_buildings']=ini.getboolean('rl','avoid_buildings',fallback=False)
+    init['avoid_node_collisions']=ini.getboolean('rl','avoid_node_collisions',fallback=False)
+    building_file=ini.get('scenario','buildings_file',fallback='')
+    obstacles=[]
+    if building_file:
+        path=Path(building_file)
+        if not path.is_absolute():path=Path(run_config).parent/path
+        obstacles=[{'id':b['id'],**b.get('bounds',{k:b[k] for k in ('x_min','x_max','y_min','y_max','z_min','z_max') if k in b})} for b in json.loads(path.read_text())]
+    init['navigation']={'version':1,'building_clearance_m':ini.getfloat('rl','building_clearance_m',fallback=0),
+        'mask_building_moves':ini.getboolean('rl','mask_building_moves',fallback=True),'obstacle_sensing_range_m':20.,'buildings':obstacles}
+    if ini.getboolean('mission','team_investigation',fallback=False):
+        init['mission'].update(version=2,team_investigation=True,team_radius_m=ini.getfloat('mission','team_radius_m',fallback=50),team_delivery_target=ini.getfloat('mission','team_delivery_target',fallback=.8))
     init["unsafe_separation_m"] = ini.getfloat("rl", "unsafe_separation_m", fallback=1.0)
     if ini.getboolean("rl", "coverage_enabled", fallback=False):
         init["coverage"] = {"grid_cells": ini.getint("baseline", "coverage_grid_cells", fallback=100),
@@ -315,9 +336,13 @@ def run_centralized(args: dict, ini: configparser.ConfigParser, mode: str,
         sys.stdin.read()
         return 0
 
-    emit(json.dumps(_init_message(mode, num_slots, count, nodes, slots, speed,
-                                  tick_s, interval_s, k, num_ticks, ini, bounds,
-                                  args.get("band"))))
+    init = _init_message(mode, num_slots, count, nodes, slots, speed,
+                         tick_s, interval_s, k, num_ticks, ini, bounds,
+                         args.get("band"), args["run-config"])
+    control_start = ini.getfloat("rl", "control_start_s", fallback=0)
+    if control_start > 0:
+        init.update(deployment_gate={"version":1,"source":"control_start_s"},control_start_s=control_start)
+    emit(json.dumps(init))
 
     tick, decision, revalidated, last_action = 0, 0, [], None
     window_len = 1
@@ -331,7 +356,12 @@ def run_centralized(args: dict, ini: configparser.ConfigParser, mode: str,
             emit("[]")
             sys.stdin.read()
             return 0
+        available=[n['failure_at_s'] < 0 or tick*tick_s<n['failure_at_s'] for n in nodes]
         mask = _mask(nodes, slots, num_slots, bounds)
+        for slot,index in enumerate(slots):
+            if not available[index] or tick*tick_s < control_start:
+                mask[5*slot:5*slot+5]=[0,0,0,0,1]
+                node_velocities[index]=(0.0,0.0)
         obs = _observation(nodes, slots, num_slots)
         if mode == "bad_obs_len" and decision == 0:
             obs = obs[:-1]
@@ -363,14 +393,32 @@ def run_centralized(args: dict, ini: configparser.ConfigParser, mode: str,
         if mode != "no_facts":
             step["facts"] = _facts(nodes, slots, node_velocities, scored,
                                    demand_mbps, reward_tick)
+            if control_start > 0:
+                eligible = sum(i*tick_s >= warmup and i*tick_s > control_start for i in range(start,tick+1))
+                step["facts"]["deployment"] = {"active":tick*tick_s >= control_start,"eligible_ticks":eligible}
             window = step["facts"]["window"]
             step["facts"]["node_service"] = [[2*window["demand_mbps_sum"]/len(nodes),
                                               2*window["delivered_mbps_sum"]/len(nodes)] for _ in nodes]
             safety = step["facts"]["safety"]
+            safety['building_rejected_slots']=[];safety['peer_rejected_slots']=[]
             safety["threshold_m"] = ini.getfloat("rl", "unsafe_separation_m", fallback=1.0)
             safety["unsafe_ticks"] = scored if safety["min_pair_distance_m"] is not None and safety["min_pair_distance_m"] < safety["threshold_m"] else 0
             if ini.getboolean("rl", "coverage_enabled", fallback=False):
                 step["facts"]["coverage"] = {"fraction": 0.75}
+        if ini.get("mission","kind",fallback="none") != "none":
+            facts=step["facts"];facts["node_available"]=available
+            pairs=sum(available)*(sum(available)-1)//2
+            demand=pairs*demand_mbps*scored;delivered=.5*demand
+            facts["mission"]={"goal_coverage_fraction":.75,"survivor_demand_mbps_sum":demand,
+                "survivor_delivered_mbps_sum":delivered,
+                "survivor_node_service":[[2*demand/sum(available),2*delivered/sum(available)] if a else [0.,0.] for a in available]}
+            pair=0
+            for i in range(len(nodes)):
+                for j in range(i+1,len(nodes)):
+                    if not available[i] or not available[j]:facts['links'][pair]=[-999.,0.,0]
+                    pair+=1
+            facts['window']['connected_pairs_sum']=pairs*scored
+            facts['window']['los_pairs_sum']=pairs*scored
         emit(json.dumps(step))
         if decision == 1 and seed in _fail_seeds():
             print(STDERR_MARKER, file=sys.stderr, flush=True)

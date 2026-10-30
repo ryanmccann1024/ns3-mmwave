@@ -9,8 +9,10 @@ from pathlib import Path
 from scripts.sim_support import find_mesh_root, simulator_env, tail_lines
 
 from scripts.rl.env.recording.artifacts import EpisodeArtifacts
-from .config import read_manifest_every_decisions, read_jammer_onsets
-from .jammer_motion import motion_enabled, prepare_motion_config
+from scripts.rl.env.config import read_manifest_every_decisions
+from scripts.rl.env.config import read_jammer_onsets
+from scripts.rl.env.jammer_motion import motion_enabled
+from scripts.rl.env.jammer_motion import prepare_motion_config
 
 _STDERR_TAIL_LINES = 40
 _BAD_LINE_CHARS = 200
@@ -69,7 +71,7 @@ class EpisodeSession:
         if not self._record_viz:
             self._cmd.append("--no-viz")
         schedule = self._jammer_onsets[1 if seed_source == "eval" else 0]
-        if schedule:
+        if schedule and not (motion and motion.get("profile")=="arrive_hold_v1"):
             index = int(seed) if seed_source == "eval" else self._training_resets
             self._cmd.append(f"--jammer-onset-s={schedule[index % len(schedule)]:g}")
         if seed_source != "eval": self._training_resets += 1

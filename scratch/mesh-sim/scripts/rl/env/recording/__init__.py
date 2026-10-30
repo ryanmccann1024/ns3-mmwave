@@ -1,1 +1,1 @@
-"""Episode artifacts, step telemetry and optional decision records."""
+"""Telemetry, episode manifests and decision-record capture."""

@@ -309,6 +309,7 @@ class ObservationPreset:
     parameters: dict = field(default_factory=dict)
     required_facts: tuple[str, ...] = ("nodes", "links")
     compatibility_fields: tuple[str, ...] = ()
+    fact_extensions: tuple[str, ...] = ()
 
     def build(self, facts: dict, contract: dict) -> np.ndarray:
         if self.normalization_fields:
@@ -366,6 +367,51 @@ PRESETS = {
         normalization_fields=LINK_FIELDS + ("velocity_scale_mps",),
         required_facts=("nodes", "links", "window"), compatibility_fields=("bounds",)),
 }
+
+from scripts.rl.env.state.mission import mission_features
+from scripts.rl.env.state.mission import mission_feature_names
+
+def _build_mission(facts, contract, scales):
+    return mission_features(facts, contract, _build_full_facts_v1(facts, contract, scales))
+
+def _mission_space(contract):
+    base = _full_facts_space(contract)
+    extra = len(mission_feature_names(contract))
+    return spaces.Box(low=np.concatenate((base.low, np.zeros(extra,dtype=np.float32))),
+                      high=np.concatenate((base.high, np.ones(extra,dtype=np.float32))),dtype=np.float32)
+
+PRESETS["mission_facts_v1"] = ObservationPreset(
+    "mission_facts_v1","float32",_build_mission,_mission_space,
+    lambda c: _full_facts_features(c)+mission_feature_names(c),_full_normalization,
+    normalization_fields=LINK_FIELDS+("velocity_scale_mps",),
+    required_facts=("nodes","links","window","mission","mission_state","node_available"),
+    compatibility_fields=("bounds","mission"))
+
+from scripts.rl.env.state.mission import navigation_features
+from scripts.rl.env.state.mission import navigation_feature_names
+
+def _build_mission_v2(facts,contract,scales):
+    return np.concatenate((_build_mission(facts,contract,scales),np.asarray(navigation_features(facts,contract),dtype=np.float32)))
+
+def _mission_v2_space(contract):
+    base=_mission_space(contract);extra=len(navigation_feature_names(contract))
+    return spaces.Box(low=np.concatenate((base.low,np.zeros(extra,dtype=np.float32))),
+                      high=np.concatenate((base.high,np.ones(extra,dtype=np.float32))),dtype=np.float32)
+
+PRESETS['mission_facts_v2']=ObservationPreset(
+    'mission_facts_v2','float32',_build_mission_v2,_mission_v2_space,
+    lambda c:_full_facts_features(c)+mission_feature_names(c)+navigation_feature_names(c),_full_normalization,
+    normalization_fields=LINK_FIELDS+('velocity_scale_mps',),
+    required_facts=('nodes','links','window','mission','mission_state','node_available'),
+    compatibility_fields=('bounds','mission','navigation'))
+
+from scripts.rl.env.observations.compact import register as register_compact_observations
+register_compact_observations(ObservationPreset, PRESETS)
+
+from scripts.rl.env.observations.coordination import register as register_coordination_observations
+register_coordination_observations(ObservationPreset, PRESETS)
+from scripts.rl.env.observations.radio import register as register_team_radio_observations
+register_team_radio_observations(ObservationPreset, PRESETS)
 
 DEFAULT_PRESET = "raw_links_v1"
 
@@ -425,6 +471,11 @@ def _preset_schema(preset: ObservationPreset, contract: dict) -> dict:
         "node_ids": _node_ids(contract),
         "slot_node_ids": list(contract["slot_node_ids"]),
     }
+    for key in ("mission","navigation"):
+        if key in preset.compatibility_fields:
+            schema[key] = dict(contract[key])
+    if preset.fact_extensions:
+        schema['fact_extensions'] = list(preset.fact_extensions)
     schema["sha256"] = schema_sha256(schema)
     return schema
 
@@ -432,7 +483,7 @@ def _preset_schema(preset: ObservationPreset, contract: dict) -> dict:
 _STRUCTURAL_FIELDS = ("schema_id", "dtype", "obs_dim", "num_mesh_nodes",
                       "max_controlled_nodes", "feature_names", "contract_id",
                       "dimensions", "action_meanings", "nvec", "normalization",
-                      "required_facts", "compatibility_fields", "parameters", "low", "high")
+                      "required_facts", "compatibility_fields", "parameters", "low", "high", "fact_extensions")
 _SCENARIO_FIELDS = ("node_ids", "slot_node_ids")
 
 

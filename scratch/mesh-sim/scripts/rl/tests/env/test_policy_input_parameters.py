@@ -19,8 +19,7 @@ from scripts.rl.env.recording.telemetry import replay_file
 from scripts.rl.policy.bundle import eval_selection, selection_from_manifest
 from scripts.rl.policy.compat import RewardMismatchError, check_compatibility
 from scripts.rl.policy import metrics
-from scripts.rl.tests.env.test_observations_rewards import CONTRACT
-from scripts.rl.tests.env.test_observations_rewards import FACTS
+from scripts.rl.tests.env.test_observations_rewards import CONTRACT, FACTS
 
 
 @pytest.mark.parametrize("preset,parameter,value", [
@@ -237,10 +236,7 @@ def test_experiment_plan_records_resolved_parameters(tmp_path, multi_run_config)
 
 
 def test_movement_metric_is_compared_and_exported(tmp_path):
-    from scripts.rl.tests.policy.test_policy_comparison import write_eval
-    from scripts.rl.tests.policy.test_policy_comparison import _run
-    from scripts.rl.tests.policy.test_policy_comparison import _outputs
-    from scripts.rl.tests.policy.test_policy_comparison import _pick
+    from scripts.rl.tests.policy.test_policy_comparison import write_eval, _run, _outputs, _pick
     def movement(manifest):
         for name, block in manifest["policies"].items():
             for episode in block["episodes"]:

@@ -12,7 +12,11 @@ def test_ini_uses_case_sensitive_last_wins_and_no_default_inheritance(tmp_path):
     assert config.read_scenario_seed(str(path)) == 9
     assert config.read_rl_selection(str(path)) == {"telemetry": "steps"}
     assert config.read_manifest_every_decisions(str(path)) == 3
-    assert config.read_episode_output(str(path)) == {"compact_training": True}
+    assert config.read_episode_output(str(path)) == {
+        "compact_training": True,
+        "record_validation_telemetry": False,
+        "validation_after_update": False,
+    }
     path.write_text("[DEFAULT]\nseed=91\n[scenario]\n")
     assert config.read_scenario_seed(str(path)) is None
 

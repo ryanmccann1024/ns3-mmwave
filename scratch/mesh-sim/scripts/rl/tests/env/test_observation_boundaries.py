@@ -27,7 +27,7 @@ def make_contract(num_nodes=3, slot_nodes=("node-b", "node-c", None), bounds=Non
     """A protocol-consistent init contract for N nodes and the given slot mapping."""
     node_ids = [f"node-{chr(ord('a') + i)}" for i in range(num_nodes)]
     slots = len(slot_nodes)
-    return {
+    contract = {
         "type": "init",
         "contract": "mesh_move_2d_v2",
         "dimensions": 2,
@@ -58,6 +58,13 @@ def make_contract(num_nodes=3, slot_nodes=("node-b", "node-c", None), bounds=Non
         "warmup_s": 0.0,
     }
 
+    from scripts.rl.tests.env.test_mission_facts import state_inputs
+    _, template = state_inputs()
+    contract['mission'] = {**template['mission'], 'investigator_id': node_ids[0]}
+    contract['navigation'] = {'obstacle_sensing_range_m': 30., 'building_clearance_m': 1., 'buildings': []}
+    contract['node_types'] = ['drone'] * num_nodes
+    return contract
+
 
 def make_facts(contract, positions=None, links=None, window=None):
     """Facts whose link row k is [10+k, 100*(k+1), k%2] unless overridden."""
@@ -73,7 +80,26 @@ def make_facts(contract, positions=None, links=None, window=None):
                         "flow_ticks_with_demand": 15, "unroutable_flow_ticks": 0,
                         "connected_pairs_sum": 12, "los_pairs_sum": 15,
                         "legacy_reward_sum": 5.0}
-    return {"nodes": nodes, "links": links, "window": window}
+    facts = {"nodes": nodes, "links": links, "window": window,
+             'coverage': {'fraction': .5}, 'node_available': [True]*n,
+             'node_service': [[2., 1.]]*n,
+             'mission': {'goal_coverage_fraction': .5, 'survivor_demand_mbps_sum': n,
+                         'survivor_delivered_mbps_sum': n/2, 'survivor_node_service': [[2., 1.]]*n},
+             'safety': {'peer_rejected_slots': [], 'building_rejected_slots': [], 'boundary_contacted_slots': []}}
+    from scripts.rl.env.state.mission import MissionState
+    from scripts.rl.env.state.coordination import CoordinationState
+    facts['mission_state'] = MissionState().advance(facts, contract, 0.)
+    CoordinationState().advance(facts, contract, 0.)
+    return facts
+
+
+def preset_fixture(name, num_nodes, slots):
+    # Compact mission layouts describe every peer, so each peer needs a control slot.
+    if name in ('mission_compact_v1', 'mission_coordination_v1', 'mission_bridge_v1'):
+        ids = tuple(f"node-{chr(ord('a') + i)}" for i in range(num_nodes))
+        slots = ids + (None,)
+    contract = make_contract(num_nodes, slots)
+    return contract, make_facts(contract)
 
 
 def pair_row(n, i, j):
@@ -198,9 +224,9 @@ SHAPES = [
 @pytest.mark.parametrize("preset_name", sorted(PRESETS))
 @pytest.mark.parametrize("num_nodes,slots", SHAPES)
 def test_dtype_dimension_and_space_agree(preset_name, num_nodes, slots):
-    contract = make_contract(num_nodes, slots)
+    contract, facts = preset_fixture(preset_name, num_nodes, slots)
     preset = get_preset(preset_name)
-    obs = preset.build(make_facts(contract), contract)
+    obs = preset.build(facts, contract)
     space = preset.space(contract)
     schema = observation_schema(preset_name, contract)
     names = preset.feature_names(contract)
@@ -234,8 +260,7 @@ def test_zero_demand_and_zero_flow_window_is_finite(preset_name):
 
 @pytest.mark.parametrize("preset_name", sorted(PRESETS))
 def test_build_is_pure_and_deterministic(preset_name):
-    contract = make_contract(3, ("node-b", "node-c", None))
-    facts = make_facts(contract)
+    contract, facts = preset_fixture(preset_name, 3, ("node-b", "node-c", None))
     before = (copy.deepcopy(facts), copy.deepcopy(contract))
     preset = get_preset(preset_name)
     first = preset.build(facts, contract)

@@ -471,7 +471,6 @@ def test_reward_schema_authorities():
     assert delivery_schema["component_details"]["signed_delivery_ratio"]["formula"]
 
 
-
 CENTRALIZED_INI = """[scenario]
 seed = 1
 
