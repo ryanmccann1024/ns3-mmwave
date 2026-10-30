@@ -8,7 +8,7 @@ from pathlib import Path
 
 from scripts.sim_support import find_mesh_root, simulator_env, tail_lines
 
-from .episode_artifacts import EpisodeArtifacts
+from scripts.rl.env.recording.artifacts import EpisodeArtifacts
 from .config import read_manifest_every_decisions, read_jammer_onsets
 from .jammer_motion import motion_enabled, prepare_motion_config
 

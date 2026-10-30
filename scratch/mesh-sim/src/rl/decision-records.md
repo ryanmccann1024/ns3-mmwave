@@ -205,7 +205,7 @@ writer, consumer guide, and tests together; keep the v1 and v2 pins unchanged.
 
 ## Test map
 
-All in `scripts/rl/tests/test_decision_records.py` unless noted; 16, 17, and 20 need `sb3_contrib`.
+All in `scripts/rl/tests/env/test_decision_records.py` unless noted; 16, 17, and 20 need `sb3_contrib`.
 
 | Tests | Protects |
 | --- | --- |

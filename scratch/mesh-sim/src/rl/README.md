@@ -392,3 +392,12 @@ direction. Each tick still updates movement, links, traffic, and reward.
 Init may declare `node_service_columns=["demand_mbps_sum","delivered_mbps_sum"]`. Every facts message then contains `node_service`, one row per `node_ids` entry. Routed flow demand and actual delivered traffic are accumulated at both endpoints; column sums equal twice the network window sums. The Python reader validates this capability while accepting older peers without it. Observation/action shapes are unchanged.
 
 Opt-in `avoid_node_collisions` checks continuous joint movement paths, splits at wall-arrival times, and holds unsafe moving participants before advancement. Holding can change another path, so the joint set is checked again. Rejected slots appear in `revalidated_slots` and applied actions are holds. Building masks still apply. Pure movement tests are in `tests/unit/rl`.
+
+## Optional mission facts and safe movement
+
+Mission configuration adds explicit target/dwell rules, permanent peer failures
+and survivor demand accounting. `control_start_s` can hold control until a
+release time. Movement can enforce building clearance and peer separation;
+actual boundary contacts are reported independently of proximity. Coverage
+can exclude indoor probe cells. These additions are opt-in; the centralized
+wire contract identifier stays unchanged.
