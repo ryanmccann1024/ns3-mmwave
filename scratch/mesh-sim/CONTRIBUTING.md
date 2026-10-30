@@ -193,6 +193,9 @@ needs enough context to explain the behavior and the important tradeoffs.
 
 - **Title:** use the Conventional Commit format from [CLAUDE.md](CLAUDE.md),
   under 72 characters. Name the resulting behavior or responsibility.
+- **Branch:** use a purpose-based prefix such as `feat/`, `fix/`, `refactor/`
+  or `docs/`, followed by a short description. Name the responsibility rather
+  than the author, tool or private experiment phase.
 - **Summary:** start with the concrete problem and what changes for the user.
   Use a short before/after example when it helps. Add a few bullets for distinct
   changes; avoid a file inventory, implementation diary or repeated checklist.
