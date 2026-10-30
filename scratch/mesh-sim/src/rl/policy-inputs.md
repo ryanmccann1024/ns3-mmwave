@@ -2,34 +2,36 @@
 
 @brief Observation presets, reward components, and telemetry for centralized RL policies.
 
-This page covers centralized RL. The simulator computes positions, links,
-traffic, and per-tick reward in C++; every decision message includes those raw
-measurements as `facts`. Python's `selection.py` chooses what the policy sees,
-what reward Gymnasium returns, and whether to save decision records. The
-simulator's physics and action masks do not change when these options change.
-For actions and timing, see the [bridge contract](@ref src_rl); for the Python modules, see the [environment README](@ref scripts_rl_env).
+The simulator computes positions, links, traffic, and the per-tick reward in
+C++, and every decision message includes those raw measurements as `facts`.
+Python's `selection.py` chooses what the policy sees, which reward Gymnasium
+returns, and whether to save decision records. These options do not change the
+simulator's physics or action masks. Actions and timing are in the
+[bridge contract](@ref src_rl); the Python modules are in the
+[environment README](@ref scripts_rl_env).
 
-## Try one selection
+## 1\. Quick start
 
-Add these lines to the `[rl]` section of a centralized scenario's `run.ini`
-(one with `controlled_nodes`):
+1. Add these lines to the `[rl]` section of a centralized scenario's `run.ini`
+   (one with `controlled_nodes`):
 
-```ini
-observation_preset = local_links_v1
-reward_components = delivery_ratio, connectivity
-reward_weights = 1.0, 0.5
-telemetry = steps
-telemetry_every = 2
-```
+   ```ini
+   observation_preset = local_links_v1
+   reward_components = delivery_ratio, connectivity
+   reward_weights = 1.0, 0.5
+   telemetry = steps
+   telemetry_every = 2
+   ```
 
-Then run the training command in the [RL setup guide](../../README.md#selecting-observations-rewards-and-telemetry).
-Its matching CLI flags can override these keys independently; resolution
-is CLI > `run.ini` > default. The resolved values and their sources go into
-`train_manifest.json` and each `episode-NNNN/rl_episode.json`. Omitting
-`reward_components` returns the C++ reward; omitting `telemetry` writes no
-`steps.jsonl`. These choices use centralized control and its validated `facts`.
+2. Run the training command in
+   [Train a policy](@ref mesh_sim_rl_train).
+3. Read the resolved values and their sources in `train_manifest.json` and in
+   each `episode-NNNN/rl_episode.json`.
 
-Follow one policy step:
+Omitting `reward_components` returns the C++ reward. Omitting `telemetry`
+writes no `steps.jsonl`.
+
+One policy step:
 
 ```text
 sim.cc tick loop -> rl-bridge.cc step {obs, mask, reward, facts}
@@ -39,22 +41,28 @@ sim.cc tick loop -> rl-bridge.cc step {obs, mask, reward, facts}
     -> episode.py optionally saves the decision in steps.jsonl
 ```
 
-`observations.py` defines the policy input layouts; `rewards.py` defines reward
-components and combines them; `telemetry.py` writes and replays optional
-decision records. `mesh_env.py` connects those modules to Gymnasium.
+| Module (`scripts/rl/env/`) | Role |
+| --- | --- |
+| `observations/__init__.py` | Policy input layouts (presets) and their schemas. |
+| `rewards/__init__.py` | Reward components and the composer. |
+| `normalization.py` | Shared SINR normalization. |
+| `recording/telemetry.py` | Writes and replays optional decision records. |
+| `mesh_env.py` | Connects these modules to Gymnasium. |
 
-## Selection keys and flags {#src_rl_policy_inputs_selection}
+## 2\. Selection keys and flags {#src_rl_policy_inputs_selection}
 
 These `[rl]` keys are read by the Python env and `train.py`; the simulator
 ignores them. They apply to centralized mode only.
 
 | Key | CLI flag | Type | Default | Meaning |
 |---|---|---|---|---|
-| `observation_preset` | `--observation-preset` | preset name | `raw_links_v1` | Which observation the policy sees. |
-| `reward_components` | `--reward-components` | comma-separated names | absent (the C++ reward) | Components Python composes into the returned reward. |
+| `observation_preset` | `--observation-preset` | preset name | `raw_links_v1` | Which observation the policy sees (section 3). |
+| `observation_parameters` | `--observation-parameters` | JSON object | none | Normalization overrides for the preset (section 3). |
+| `reward_components` | `--reward-components` | comma-separated names | absent (the C++ reward) | Components Python composes into the returned reward (sections 4–5). |
 | `reward_weights` | `--reward-weights` | comma-separated floats | `1.0` per component | One weight per component, in the same order. |
+| `reward_parameters` | `--reward-parameters` | JSON object | none | Per-component parameters (section 5). |
 | `telemetry` | `--telemetry` | `none` or `steps` | `none` | `steps` writes `<episode-dir>/steps.jsonl`. |
-| `telemetry_every` | `--telemetry-every` | positive int | `1` | Save every kth policy decision (requires `telemetry = steps`). |
+| `telemetry_every` | `--telemetry-every` | positive int | `1` | Save every kth policy decision. Requires `telemetry = steps`. |
 
 Run from `scratch/mesh-sim/`. The flags go before the `m-ppo` subcommand:
 
@@ -69,357 +77,611 @@ Run from `scratch/mesh-sim/`. The flags go before the `m-ppo` subcommand:
   m-ppo --total-timesteps 16 --n-steps 16 --seed 1
 ```
 
-Each key resolves independently (CLI > `run.ini` > default), and both manifests
-record the resolved value and its source. An unknown preset or component, a
-weight count that does not match the components, or any non-default value of
-these keys in legacy mode fails before the simulator starts. Centralized runs
-need a simulator binary that exports per-decision facts: an `init` without
-`facts_schema` is rejected before training starts.
+### Resolution and validation
 
-### Observation presets and reward components
+- Each key resolves independently: CLI > `run.ini` > default. Both manifests
+  record the resolved value and its source.
+- `observation_parameters` and `reward_parameters` resolve as complete objects;
+  objects are not merged across sources.
+- These fail before the simulator starts:
+  - an unknown preset or component;
+  - a weight count that does not match the components;
+  - any non-default value of these keys in legacy mode;
+  - unknown, unused, non-numeric, or non-finite parameters.
+- Centralized runs need a simulator binary that exports per-decision facts. An
+  `init` without `facts_schema` is rejected before training starts.
 
-- `raw_links_v1` and `local_links_v1` are described in
-  [What the observation contains](@ref src_rl_policy_inputs_observation).
-- `delivery_ratio`, `connectivity`, `throughput_mbps`, and `legacy` are defined
-  in [One action, several ticks, one reward](@ref src_rl_policy_inputs_reward).
-  `throughput_mbps` is unnormalized: its scale grows with node count and demand.
-- Naming any component makes Python the reward authority: `step()` returns the
-  weighted total, `info["reward"]` holds the per-component values, validity, and
-  weights, and the C++ value stays available as `info["reward"]["legacy"]`.
+### Reward authority
+
+Naming any component makes Python the reward authority:
+
+- `step()` returns the weighted total.
+- `info["reward"]` holds the per-component values, validity flags, weights, and
+  total.
+- The C++ value stays available as `info["reward"]["legacy"]`.
 
 ### Schema fingerprints
 
 Both manifests carry SHA-256 fingerprints of the observation and reward schema
-descriptions. They let a loader detect changed declared layouts, normalization,
-components, or weights. They do not detect every code or physics change and are
-not evidence that a policy transfers between scenarios. A compiled-binary hash,
-when recorded during verification, answers a different question: which
-executable was tested. `manifest_version` labels the saved JSON format, not the
-model or simulator version.
+descriptions. A loader uses them to detect a changed declared layout,
+normalization, component set, or weights. They cover the declared schema only:
+code or physics changes outside it, and the simulator binary, do not change
+them. `manifest_version` labels the saved JSON format, not the model or
+simulator version.
 
-## What the observation contains {#src_rl_policy_inputs_observation}
+## 3\. What the observation contains {#src_rl_policy_inputs_observation}
 
-An observation is the numeric vector passed to the policy. Both presets make
-one block per `max_controlled_nodes` position; a padded position is all zeros
-and does not represent a node. `N` below is the total number of mesh nodes,
-including uncontrolled nodes but not jammers. The vector uses the
-instantaneous `facts.nodes` and `facts.links` at the decision boundary; the
-reward instead summarizes the preceding ticks in `facts.window`.
+An observation is the numeric vector passed to the policy. Every preset makes
+one block per `max_controlled_nodes` slot (`M`); a padded slot is all zeros.
+`N` is the total number of mesh nodes, including uncontrolled nodes, excluding
+jammers. Observations use the instantaneous `facts.nodes` and `facts.links` at
+the decision boundary. The reward instead summarizes the preceding ticks in
+`facts.window`.
 
-| Preset | Per-position values | Type and size |
+| Preset | Per-slot values | dtype | Width per slot |
+| --- | --- | --- | --- |
+| `raw_links_v1` (default) | `active, x, y, z`, then `SINR dB, capacity Mbps` for each other mesh node, in node-file order | `float64` | `4 + 2(N-1)` |
+| `local_links_v1` | `active, x_n, y_n, z_n`, then `present, sinr_valid, sinr_n, cap_n` for each other mesh node | `float32` | `4 + 4(N-1)` |
+| `geometry_v1` | Self xy and relative peer xy, with active/present flags | `float32` | `3 + 3(N-1)` |
+| `service_v1` | Local links plus demand/delivery logs and delivery/connectivity/unroutable ratios | `float32` | `9 + 4(N-1)` |
+| `full_facts_v1` | Service features plus relative peer xyz/velocity, LOS, and service gap | `float32` | `10 + 11(N-1)` |
+| `mission_facts_v1` | Mission inputs ([missions](@ref src_rl_missions)) | `float32` | — |
+| `mission_facts_v2` | `mission_facts_v1` plus four local obstacle ranges, goal offsets, and team arrival/connectivity per slot | `float32` | — |
+| `mission_compact_v1` | One node block, one unordered-link block, six globals (section 3.5) | `float32` | 57 total at three peers |
+| `mission_coordination_v1` | Coordinated mission inputs (section 3.5) | `float32` | 102 / 216 / 357 total at 3 / 6 / 9 peers |
+| `mission_bridge_v1` | `mission_coordination_v1` with whole-team radio support (section 3.5) | `float32` | Same as `mission_coordination_v1` |
+
+Total length is `M ×` the per-slot width. For example, with three mesh nodes and
+`M = 3`, the raw vector has 24 values and the local vector has 36. If only two
+nodes are controlled, the final 8 or 12 values are padding.
+
+Each preset owns its ordered features, Box bounds, required facts, and
+compatibility fields.
+
+### 3.1 `local_links_v1` features
+
+| Feature | How Python derives it from raw facts | Declared range |
 | --- | --- | --- |
-| `raw_links_v1` (default) | `active, x, y, z`, then `SINR dB, capacity Mbps` for each other mesh node, in node-file order | `float64`; `M × [4 + 2(N-1)]` |
-| `local_links_v1` | `active, x_n, y_n, z_n`, then `present, sinr_valid, sinr_n, cap_n` for each other mesh node | `float32`; `M × [4 + 4(N-1)]` |
+| `active`, `present`, `sinr_valid` | 0/1 indicators for slot occupancy, peer presence, and usable SINR/capacity | `[0,1]` |
+| `x_n`, `y_n`, `z_n` | `clamp(2 × (position - axis_min) / (axis_max - axis_min) - 1, -1, 1)` using the `[rl]` movement bounds in meters | `[-1,1]` |
+| `sinr_n` | `clamp((SINR_dB + 20) / 60, 0, 1)` for a valid link | `[0,1]` |
+| `cap_n` | `clamp(log10(1 + capacity_Mbps) / 4, 0, 1)` for a valid link | `[0,1]` |
 
-For `local_links_v1`, each coordinate is mapped from its `[rl]` min/max bound
-to `[-1, 1]` and clamped there. This makes coordinate scales comparable across
-axes. `present=1` means the peer occupies that position in the node list; it
-does **not** say the radio link works. `sinr_valid=0` for a non-finite SINR or
-capacity, the simulator's `-999` SINR sentinel, or any SINR at or below
-`-900` dB. An invalid link's `sinr_n` and `cap_n` are zero.
+- Coordinates map each axis to `[-1, 1]` so their scales are comparable. A node
+  at `x_max` has `x_n = 1` even if its raw x is 100 m.
+- `present = 1` means the peer occupies that position in the node list. It says
+  nothing about whether the radio link works.
+- `sinr_valid = 0` for a non-finite SINR or capacity, the simulator's `-999`
+  sentinel, or any SINR at or below `-900` dB. An invalid link has
+  `sinr_n = cap_n = 0`.
+- `sinr_clip_db: [-20, 40]` names the raw dB endpoints of the SINR formula:
+  -20 dB becomes 0, 10 dB becomes 0.5, and 40 dB or higher becomes 1. These are
+  feature-design limits, not physical SINR limits.
+- Clipping and scaling apply to this policy vector only. C++ link calculations,
+  raw `facts`, `raw_links_v1`, and rewards are unchanged.
 
-For a valid link, `sinr_n = clamp((SINR_dB + 20) / 60, 0, 1)`: values below
-`-20` dB map to 0 and above `40` dB map to 1. Capacity uses
-`cap_n = clamp(log10(1 + capacity_Mbps) / 4, 0, 1)`. The bounded inputs keep
-extreme measurements from dominating this preset's policy vector; the
-`-20`/`40` limits are feature-design choices, **not** physical SINR limits.
-Neither clipping nor scaling changes C++ link calculations, the raw `facts`,
-or `raw_links_v1`. Rewards are not normalized by this observation preset.
+### 3.2 Normalization parameters
 
-For example, with three mesh nodes and `max_controlled_nodes = 3`, the raw
-vector has 24 values and the local vector has 36. If only two nodes are
-controlled, the final 8 or 12 values, respectively, are padding. A node at
-`x_max` has `x_n = 1` in the local preset even if its raw x coordinate is 100 m.
+`observation_parameters` is a JSON object. Example:
 
-`observations.py` also declares a *schema*: ordered feature names, vector
-length, numeric type, normalization rules, and a `low`/`high` bound for each
-value in Gymnasium's `Box`. `low` and `high` describe allowed feature values;
-they are not extra normalization operations. Raw features are unbounded
-(`-∞`/`+∞` in the Box, recorded as JSON `null`); local position features are
-`[-1,1]` and its flags/link features are `[0,1]`. The schema fingerprint in
-the manifest helps reject a saved policy whose input layout changed. For the
-local preset, changing movement bounds also changes the interpretation of
-coordinates and fails the structural compatibility check.
+```ini
+observation_preset = full_facts_v1
+observation_parameters = {"capacity_log10_denominator": 6, "velocity_scale_mps": 60}
+```
 
-## One action, several ticks, one reward {#src_rl_policy_inputs_reward}
+| Parameter | Default | Accepted by |
+| --- | --- | --- |
+| `sinr_min_db` | `-20` | Normalized link presets |
+| `sinr_max_db` | `40` | Normalized link presets |
+| `sinr_invalid_db` | `-900` | Normalized link presets |
+| `capacity_log10_denominator` | `4` | Normalized link presets |
+| `velocity_scale_mps` | `40` | `full_facts_v1` |
 
-If `tick_s = 0.1` and `decision_interval_s = 0.5`, the agent chooses an action
-at tick 0 and the simulator runs ticks 1–5 with it. At tick 5 the agent sees
-the resulting state and one reward computed from those five ticks; ticks 6–10
-form the next window. The reset observation at tick 0 contains a one-tick
-measurement but contributes **no** policy-step reward. The last window can be
-shorter, and `ticks_in_step` reports its actual length.
+SINR parameters require invalid < min < max. Capacity and velocity denominators
+must be positive. Raw and geometry presets accept no normalization overrides.
+
+### 3.3 Schema and Box bounds
+
+`observations/__init__.py` declares a schema for each preset: ordered feature names,
+vector length, dtype, normalization rules, and `low`/`high` bounds for each
+value in Gymnasium's `Box`.
+
+- `low` and `high` declare allowed feature values. They do not normalize
+  anything and are not observed minima or maxima.
+- Raw features are unbounded (`-∞`/`+∞` in the Box, saved as JSON `null`).
+- `local_links_v1` positions are `[-1,1]`; its flags and link features are
+  `[0,1]`.
+- The schema fingerprint lets a loader reject a saved policy whose input layout
+  changed. For `local_links_v1`, changing the movement bounds changes the
+  meaning of coordinates and fails the structural compatibility check.
+- Changing a formula requires a new preset or schema; editing the displayed
+  `low`/`high` arrays is not enough.
+
+### 3.4 Service and geometry presets
+
+`geometry_v1`, `service_v1`, and `full_facts_v1` use zero padding.
+Service-window features use scored-tick sums; a window with zero scored ticks
+has zero service values. Geometry and current link facts stay available during
+warmup so decisions can settle.
+
+### 3.5 Mission presets
+
+- **`mission_compact_v1`.** One node block, one unordered-link block, and six
+  globals: 57 features at three peers, versus 137 uncompacted. It keeps current
+  target offsets and local obstacle ranges and has no future jammer
+  information.
+- **`mission_coordination_v1`.** Includes direct per-peer target closeness,
+  arrival flags, achieved motion, the previous requested action, and native
+  peer-blocking and wall-contact feedback. Future failure timing and future
+  jammer coordinates are never exposed.
+- **`mission_bridge_v1`.** Replaces only the explicit demanded-path support
+  feature of `mission_coordination_v1` with whole-team support, at the same
+  vector width.
+
+The coordinated presets and rewards declare a version-1 `coordination_v1`
+derived-fact extension:
+
+1. `MeshRlEnv` resets its processors each episode.
+2. It advances them after the existing mission state and before building the
+   observation and reward.
+3. Telemetry keeps the derived facts so each record can replay.
+
+The reward-audit tooling reconstructs the full state sequence from native facts and
+completed actions to detect tampering. Reward and observation schemas name the
+extension, and reward parameters pin its mission/coverage goal. Compatibility
+checks require both saved reward and observation identities. Jamming uses the
+native mission kind `coverage`, with saved mission code `3` selecting the
+interference-response objective in the derived extension.
+
+Source: `mission_compact_v1` in `scripts/rl/env/observations/compact.py`,
+`mission_coordination_v1` in `scripts/rl/env/observations/coordination.py`
+and `mission_bridge_v1` in `scripts/rl/env/observations/radio.py`
+The source relocation changed no preset ID, layout or schema hash.
+
+Layouts are specified above; coefficients, physical scales and thresholds
+are in the [mission reward reference](../../docs/rl/mission-rewards.md).
+
+## 4\. One action, several ticks, one reward {#src_rl_policy_inputs_reward}
+
+With `tick_s = 0.1` and `decision_interval_s = 0.5`:
+
+1. The agent chooses an action at tick 0.
+2. The simulator runs ticks 1–5 with it.
+3. At tick 5 the agent sees the resulting state and one reward computed from
+   those five ticks.
+4. Ticks 6–10 form the next window.
+
+The reset observation at tick 0 contains a one-tick measurement but
+contributes **no** policy-step reward. The last window can be shorter;
+`ticks_in_step` reports its length.
+
+### 4.1 Window sums
 
 Every tick, C++ adds the current flow demands and deliveries, connected and
-line-of-sight link counts, and its own per-tick reward to `facts.window`.
-`demand_mbps_sum` and `delivered_mbps_sum` are sums of Mbps readings over
-flows and ticks (Mbps·tick), not transferred bytes. `flow_ticks_with_demand`
-counts flow/tick pairs with positive demand; `unroutable_flow_ticks` counts
-those that could not be routed. `connected_pairs_sum` and `los_pairs_sum` sum
-counts of node pairs over ticks. `legacy_reward_sum` sums C++'s per-tick
-`reward_type` values. The C++ message reward is always
-`legacy_reward_sum / window.scored_ticks`.
+line-of-sight link counts, and its own per-tick reward to `facts.window`
+([field list](@ref src_rl_per_decision_facts)):
 
-When `reward_components` is set, Python computes these components from the
-*same* window, then returns the weighted sum to Gymnasium:
+- `demand_mbps_sum` and `delivered_mbps_sum` are sums of Mbps readings over
+  flows and ticks (Mbps·tick), not transferred bytes.
+- `flow_ticks_with_demand` counts flow/tick pairs with positive demand;
+  `unroutable_flow_ticks` counts those that could not be routed.
+- `connected_pairs_sum` and `los_pairs_sum` sum node-pair counts over ticks.
+  `scored_ticks = 5` with `connected_pairs_sum = 15` means three connected pairs
+  in each of five ticks.
+- `legacy_reward_sum` sums C++'s per-tick `reward_type` values. The C++ message
+  reward is always `legacy_reward_sum / window.scored_ticks`.
+
+### 4.2 Base components
+
+When `reward_components` is set, Python computes the components from the
+*same* window and returns the weighted sum to Gymnasium:
 
 | Component | Value for one window |
 | --- | --- |
-| `delivery_ratio` | `delivered_mbps_sum / demand_mbps_sum`; marked invalid and contributes zero if demand sum ≤ `1e-9` |
+| `delivery_ratio` | `delivered_mbps_sum / demand_mbps_sum`. Invalid, with zero contribution, if the demand sum is ≤ `1e-9`. |
 | `connectivity` | `connected_pairs_sum / (window.scored_ticks × num_links)` |
-| `throughput_mbps` | `delivered_mbps_sum / window.scored_ticks`; not scaled to `[0,1]` |
-| `legacy` | `legacy_reward_sum / window.scored_ticks`; C++ reward, **not** legacy control mode |
+| `throughput_mbps` | `delivered_mbps_sum / window.scored_ticks`. Unnormalized: its scale grows with node count and demand. |
+| `legacy` | `legacy_reward_sum / window.scored_ticks`: the C++ reward. Unrelated to legacy control mode. |
 
-For five ticks, suppose demand sums to 150, delivery to 120, and 12 of the
-possible `5 × 3 = 15` pair/tick observations are connected. Then delivery
-ratio is `120/150 = 0.8`, connectivity is `12/15 = 0.8`, and the example
-weights return `1.0×0.8 + 0.5×0.8 = 1.2`. There is no separate reward per
-controlled node. `info["reward"]` shows the component values, validity flags,
-weights, total, and the original C++ reward for diagnosis. A zero-demand
-window is not treated as successful delivery: its ratio is invalid and has
-zero contribution.
+Worked example: over five ticks, demand sums to 150, delivery to 120, and 12 of
+the `5 × 3 = 15` pair/tick observations are connected. Delivery ratio is
+`120/150 = 0.8`, connectivity is `12/15 = 0.8`, and weights `1.0, 0.5` return
+`1.0×0.8 + 0.5×0.8 = 1.2`.
 
-The reward schema's `authority` says which value Gymnasium returns:
-`cpp` when no components were selected, `python` for the composed sum. C++
-still calculates and exports its base reward in both cases. `reward_window =
-mean` names the C++ averaging rule; Python components use the window sums
-shown above. Neither setting changes how many ticks elapse per decision.
+- There is no separate reward per controlled node.
+- A zero-demand window does not count as successful delivery: its ratio is
+  invalid and contributes zero.
+- `info["reward"]` shows the component values, validity flags, weights, total,
+  and the C++ reward.
 
-## Save and inspect decisions
+### 4.3 Authority and averaging
 
-With `telemetry = steps`, each episode gains `steps.jsonl`. Its first line is
-a header with the run contract, chosen settings, and observation/reward
-schemas. Later lines contain the decision number, tick, action that produced
-the just-finished window, current mask,
-revalidated positions, raw facts/window, returned reward, C++ reward, and an
-observation fingerprint. `telemetry_every = 2` saves reset (decision 0), every
-second policy decision, and the terminal decision even if it falls between
-samples. Unsaved decisions still affect training, `rl_episode.json` totals,
-and the final outcome; this option only reduces the detailed trace.
-`rl_episode.json` is updated every decision regardless of `telemetry_every`.
+The reward schema's `authority` names the value Gymnasium returns: `cpp` when no
+components are selected, `python` for the composed sum. C++ calculates and
+exports its base reward in both cases. `reward_window = mean` names the C++
+averaging rule; Python components use the window sums above. Neither setting
+changes how many ticks elapse per decision.
 
-Records are buffered and flushed every 32 records and on stop, so a hard kill
-can lose up to 32 records. On the `centralized-multi-smoke` fixture a record is
-about 0.9 KB and the header about 3.5 KB (measured by an earlier pass; not
-re-measured here).
+## 5\. Reward component catalog
 
-From the mesh-sim directory, inspect or replay one episode with:
+Rules for every component:
+
+- Each registered component owns its calculation, dependencies, validation,
+  and schema. The composer and replay do not dispatch on component names.
+- Each component has its own hashed identity. Formulas, dependencies, and
+  tunable parameters are part of the reward schema hash. Adding a component
+  never changes an existing component's meaning or identity.
+- All components mask windows with zero scored ticks.
+- Reward scales are independent of observation scales.
+- Components run in Python on bridge facts and do not change the action,
+  mask, or physics. A component that needs a fact the simulator does not emit
+  (for example `facts.node_service` or `init.node_types`) needs a simulator
+  build that emits it.
+
+`reward_parameters` is a JSON object keyed by component:
+
+```ini
+reward_components = service_success, unmet_sinr_quality
+reward_weights = 1, 0.2
+reward_parameters = {"service_success": {"delivery_threshold": 0.9, "routable_threshold": 0.95}, "unmet_sinr_quality": {"delivery_threshold": 0.9}}
+```
+
+### 5.1 Service and delivery
+
+| Component | Rule |
+| --- | --- |
+| `delivery_binary` | `+1` for any delivery, else `-1`. Zero demand is masked. |
+| `signed_delivery_ratio` | `2*clip(delivered/demand,0,1)-1`. Zero demand is masked. |
+| `service_success` | `+1` if delivery and routable fractions meet their thresholds, else `-1`. |
+| `service_failure` | `1` on service failure, else `0`. |
+| `throughput_log_mbps` | `ln(1 + delivered_mbps_sum / window.scored_ticks)`: a scale-compressed throughput utility. |
+| `worst_node_delivery_fraction` | Minimum `delivered_mbps_sum / demand_mbps_sum` over positive-demand rows of `facts.node_service`. Range `[0,1]`. With no offered incident demand: value `0`, validity `0`. |
+| `coverage_fraction` | `facts.coverage.fraction`: connected-core coverage at the decision endpoint. Range `[0,1]`. Requires `[rl] coverage_enabled = true` (section 5.6). |
+| `fair_node_service` | Mean of `sqrt(clip(node incident delivered/offered, 0, 1))`, excluding nodes without demand. Masked when no node has demand. |
+
+- Service components (`service_success`, `service_failure`) own
+  `delivery_threshold` and `routable_threshold`, both default `0.95`, in
+  `(0,1]`. A scored zero-demand window is a service failure.
+- `worst_node_delivery_fraction` and `fair_node_service` need a simulator that
+  emits `facts.node_service`. That table does not expose jammer state or change
+  the observation.
+
+### 5.2 Signal quality
+
+| Component | Rule |
+| --- | --- |
+| `sinr_quality` | Mean normalized current link SINR. Invalid links score zero. |
+| `unmet_sinr_quality` | SINR quality × `clip((delivery_threshold-delivery_ratio)/delivery_threshold,0,1)`. Zero demand uses delivery ratio `0`. |
+| `active_sinr_quality_v1` | Mean of `clip((SINR+20)/60,0,1)` over available peer pairs only. Invalid active links score zero; no available pairs masks the component. |
+
+SINR components own `sinr_min_db`, `sinr_max_db`, and `sinr_invalid_db`
+(section 3.2). `unmet_sinr_quality` also owns `delivery_threshold`.
+
+### 5.3 Movement and safety
+
+| Component | Rule |
+| --- | --- |
+| `travel_fraction` | Mean controlled-slot endpoint xy distance divided by speed × elapsed duration. Also masks a mixed warmup window, because endpoint data cannot separate its scored movement. |
+| `origin_fraction` | Mean controlled-slot distance from the reset position divided by the bounds' xy diagonal. A scored endpoint state cost, including any relocation during warmup. |
+| `span_travel_fraction` | Mean over controlled slots of XY distance traveled this decision divided by a type-specific span: drone 500 m, pedestrian/vehicle 300 m. A soft cost, not a movement limit; an out-and-back trip is charged twice. Requires `node_types`. |
+| `drone_travel_fraction`, `pedestrian_travel_fraction`, `vehicle_travel_fraction` | Sum of that type's normalized slot travel divided by the number of active controlled slots. Zero when the type is absent. |
+| `decision_travel_v1` | Mean physical XY travel divided by slot speed × decision interval. Range `[0,1]`. |
+| `adaptive_movement_cost` | `(0.02 + 0.08 * H_previous) * travel_fraction`, where `H = min(clipped delivery, fair_node_service, coverage)`. Requires `node_service` and live coverage facts. |
+| `unsafe_proximity_fraction` | `facts.safety.unsafe_ticks / window.scored_ticks`. A tick is unsafe when any two mesh nodes are closer than `[rl] unsafe_separation_m` (default 1 m) in 3D. |
+| `peer_cohesion` | Per controlled node: `(initial − current) / span`, where initial and current are the 3D distances to the nearest other mesh node at reset (fixed peer), each with a 20 m floor, and span is 500 m (drone) or 300 m (pedestrian/vehicle). Clip to `[-1,1]`, then average over controlled nodes. Rewards moving together without rewarding crowding below 20 m. Requires `node_types`. |
+
+- `adaptive_movement_cost`: health `H` is zero on reset, updates after reward
+  composition, and never carries between episodes. Its coefficients and lag are
+  declared in the reward schema.
+- Safety counts proximity at every simulator tick, including uncontrolled mesh
+  nodes and excluding jammers. There is no collision physics. A scenario that
+  starts with overlapping nodes can incur the penalty before the policy can
+  move them; check the starting layout.
+- `fair_node_service` and `adaptive_movement_cost` are the Dynamic Balance
+  components.
+- `collision_attempt_fraction` is described with the
+  [building and peer checks](@ref src_rl_building_avoidance).
+
+### 5.4 Mission rewards
+
+These need `[mission]` facts ([missions](@ref src_rl_missions)).
+
+| Component | Rule |
+| --- | --- |
+| `team_goal_proximity_v1` | `clip(1 - team distance / scale_m, 0, 1)`, `scale_m` default 400. Team distance is the mean distance outside the team radius plus the nearest peer's remaining distance outside the arrival radius. |
+| `survivor_service_maintained_v1` | `1` at every post-failure decision that meets the survivor and weakest-peer service targets, `0` when service is lost. Separate from the latched `recovery_complete` bonus. |
+| `available_team_closeness_v1` | Formula in the mission reward reference below. |
+| `demanded_path_sinr_margin_v1` | Formula in the mission reward reference below. |
+| `target_proximity_potential_v1` | Includes an unclipped terminal potential correction and a fixed discount of 0.99. |
+| `available_target_arrival_fraction_v1` | Share of available peers inside the horizontal team-target radius at the completed decision. Pays while present, so a departure removes its share. Excludes forced and mixed windows; invalid with no available peers; independent of offered traffic. Separate from native team completion and dwell. |
+| `coordinated_service_bridge_v1` | Coordinated service reward whose geometric-isolation term is replaced by a deficit in the weakest whole-team widest-path sigmoid SINR, excluding failed relays. |
+| `coordinated_coverage_sufficient_v1` | Coverage area reward capped at the existing per-case target. |
+
+The [mission reward reference](../../docs/rl/mission-rewards.md) gives the
+exact closeness, demanded-path, progress and coordinated formulas, coefficient
+ranges and stage transitions. Radio support comes from current native links
+and does not measure delivery capacity.
+
+Source owners: `scripts/rl/env/rewards/shaping.py` (individual primitives),
+`coordination.py` (fixed and state-dependent combinations) and `radio.py`
+(whole-team radio support and sufficient-area variants). Public component IDs,
+descriptors, registration order and schema hashes remain unchanged.
+
+**Phased rewards (`env/rewards/mission_terms.py`).** `team_approach_cost_v1`,
+`investigation_setup_v1`, `investigation_service_deficit_v1`,
+`recovery_deployment_cost_v1`, `recovery_response_deficit_v1`, and
+`recovery_settle_v1`.
+
+- Investigation approach combines mean and worst remaining team distance with
+  the nearest inner-zone distance.
+- Setup is rewarded only during current connected team arrival.
+- Recovery keeps the reset deployment before measured failure, then scores the
+  largest current service/coverage deficit and qualifying dwell.
+- Losing a current phase condition returns scoring to the earlier objective.
+- The approach scale and deployment scale are tunable.
+- Weights, gates, seed roles, and runtime: `inputs/custom/10-16-4/README.md`.
+
+**Guided rewards (`env/rewards/mission_terms.py`).** `team_distance_delta_v2`,
+`service_gated_coverage_v2`, `coverage_target_maintained_v2`, four
+mission-specific `*_settle_cost_v2` descriptors, `post_failure_service_v2`,
+`post_failure_sinr_v2`, and `post_failure_coverage_deficit_v2`. They use
+measured mission state and movement context, with no new actor observation and
+no future-event information. Goal-dependent movement costs and coverage
+thresholds are tunable. Formulas and weights: `inputs/custom/10-16-5/README.md`.
+
+### 5.5 Level 0 objectives
+
+`level0_coverage_v1`, `level0_investigation_v1`, `level0_recovery_v1`, and
+`level0_jamming_v1` each return `+1` when their single success condition holds,
+otherwise `-0.001`:
+
+| Component | Success condition |
+| --- | --- |
+| `level0_coverage_v1` | Connected outdoor coverage ≥ per-case `target` (reward parameter, default 0.5). |
+| `level0_investigation_v1` | Every available peer within the configured team radius of the target. No connectivity, local coverage, or dwell requirement. |
+| `level0_recovery_v1` | Survivor critical-flow delivered/offered ≥ 0.90. |
+| `level0_jamming_v1` | Aggregate delivered/offered ≥ 0.90 during the emitting interval. |
+
+- Event rewards are zero during deployment waiting and in mixed boundary
+  windows ([deployment gate](@ref src_rl_deployment_gate)).
+- Zero offered traffic cannot produce success.
+- There are no movement, fairness, SINR, or collision-attempt terms. Native
+  building and peer collision constraints stay active.
+
+### 5.6 Facts some components need {#src_rl_policy_inputs_facts}
+
+- **Live coverage.** `[rl] coverage_enabled = true` measures
+  `coverage_fraction` at each decision endpoint, using the same clipped-cell
+  receiver grid and connected-core union as the placement planners. Grid cells,
+  minimum resolution, probe height and gain, and SINR threshold come from the
+  matching `[baseline]` keys. Probe evaluation follows mesh-link evaluation,
+  node-major then probe-major, and shares the configured propagation model, so
+  enabling coverage can change later random draws. Every compared policy must
+  enable it. The reward schema stores the grid settings and the proximity
+  threshold.
+- **Proximity.** `[rl] unsafe_separation_m` is positive and defaults to 1 m.
+- **Buildings.** With `[rl] avoid_buildings = true`, centralized masks reject
+  axis-aligned XY paths that intersect a building within a decision; per-tick
+  revalidation also prevents entry.
+- **Node types.** Type-based components need a simulator that emits
+  `init.node_types`.
+
+These options add `init`/`facts` fields without changing the action shape.
+
+## 6\. Save and inspect decisions
+
+With `telemetry = steps`, each episode gains `steps.jsonl`:
+
+| Line | Contents |
+| --- | --- |
+| First (header) | Run contract, chosen settings, observation and reward schemas. |
+| Each later line | Decision number, tick, the action that produced the just-finished window, current mask, revalidated slots, raw facts and window, returned reward, C++ reward, and `obs_sha256` (observation fingerprint). |
+
+- `telemetry_every = 2` saves reset (decision 0), every second policy decision,
+  and the terminal decision even if it falls between samples.
+- Unsaved decisions still affect training, `rl_episode.json` totals, and the
+  final outcome. `rl_episode.json` is updated every decision regardless of
+  `telemetry_every`.
+- Records are buffered and flushed every 32 records and on stop, so a hard kill
+  can lose up to 32 records.
+- On the `centralized-multi-smoke` fixture a record is about 0.9 KB and the
+  header about 3.5 KB.
+
+From `scratch/mesh-sim/`, inspect or replay one episode:
 
 ```bash
 head -n 2 outputs/rl-multi-custom/episode-0000/steps.jsonl
 .venv/bin/python -c 'from scripts.rl.env.telemetry import replay_file; import sys; print(replay_file(sys.argv[1]))' outputs/rl-multi-custom/episode-0000/steps.jsonl
 ```
 
-Replay rebuilds saved observations and Python-composed rewards from each
-record's raw facts and checks for mismatches. It does not rerun radio physics,
-verify unsaved decisions, or recheck a C++-authored reward. See the
-[test map](@ref src_rl_policy_input_tests) for
-the small fake-simulator and real-binary checks behind this contract.
+**Replay** rebuilds saved observations and Python-composed rewards from each
+record's raw facts and reports mismatches. It does not rerun radio physics,
+check unsaved decisions, or recheck a C++-authored reward. Telemetry v3 replay
+uses the saved resolved parameters and, for movement rewards, the saved
+previous/reset position inputs and elapsed ticks; it recomputes context instead
+of trusting precomputed scores. The [test map](@ref src_rl_policy_input_tests)
+lists the fake-simulator and real-binary checks.
 
-Decision records are a separate opt-in (`--decision-records` on `train.py` and
-`evaluate.py`) that joins each action to the preceding `steps.jsonl` record and
-its outcome window; see [decision records](@ref src_rl_decision_records).
+**Decision records** are a separate opt-in (`--decision-records` on `train.py`
+and `evaluate.py`) that joins each action to the preceding `steps.jsonl` record
+and its outcome window; see [decision records](@ref src_rl_decision_records).
 
-## Reading an RL output directory {#src_rl_reading_output}
+## 7\. Reading an RL output directory {#src_rl_reading_output}
 
-Start with the [output-location table](@ref scripts_rl_output),
-then read these files in order. The ordinary simulator CSV columns are covered
-by the [I/O guide](@ref src_io) and are separate from the RL policy input.
+Start with the [output-location table](@ref scripts_rl_output), then read these
+files in order. The ordinary simulator CSV columns are in the
+[I/O guide](@ref src_io).
 
-| File | First question it answers |
+| File | Question it answers |
 | --- | --- |
-| `train_manifest.json` or `eval_manifest.json` | Which scenario, seed roles, model, observation/reward selection, and schema did this run use? Did the run complete? |
+| `train_manifest.json` or `eval_manifest.json` | Which scenario, seed roles, model, observation/reward selection, and schema did this run use? Did it complete? |
 | `maskable_ppo_mesh.zip`, `best_model.zip`, or `checkpoints/*.zip` (when produced) | Which policy artifact was saved? Use the manifest's path and digest to identify the intended file. |
-| `episode-NNNN/rl_episode.json` | Did this particular episode complete, how many policy steps occurred, and what was its cumulative reward? Filter incomplete or zero-step episodes before aggregating results. |
-| `episode-NNNN/steps.jsonl` (when telemetry is enabled) | What raw facts, action, mask, and reward were recorded at each saved decision? |
-| `episode-NNNN/run.log`, `inputs/`, and `seed-N/` | What resolved simulator configuration and archived inputs produced the raw CSV outputs? |
-| `episode-NNNN/sim_stderr.log` | What did the simulator report on stderr, including launch or runtime diagnostics? |
+| `episode-NNNN/rl_episode.json` | Did this episode complete, how many policy steps occurred, and what was its cumulative reward? Filter incomplete or zero-step episodes before aggregating. |
+| `episode-NNNN/steps.jsonl` (when telemetry is enabled) | Which raw facts, action, mask, and reward were recorded at each saved decision? |
+| `episode-NNNN/run.log`, `inputs/`, and `seed-N/` | Which resolved simulator configuration and archived inputs produced the raw CSV outputs? |
+| `episode-NNNN/sim_stderr.log` | What did the simulator print on stderr, including launch or runtime diagnostics? |
 
-### Decode the trace header before reading a step
+### 7.1 Decode the trace header
 
-The header's `contract.obs_dim` is the length of the **raw C++ `obs` message**.
-The header's `observation_schema.obs_dim` is the length of the **selected vector
-passed to the policy** after Python builds it from `facts`. These can differ:
-with three mesh nodes (`N=3`) and three control slots (`M=3`), the raw
-`raw_links_v1` layout has `M × [4 + 2(N-1)] = 24` values, while
-`local_links_v1` has `M × [4 + 4(N-1)] = 36`. A `local_links_v1` policy sees
-36 values even if the same header says `contract.obs_dim: 24`. Changing the
-selected preset, `N`, or `M` can change the policy dimension; changing the
-positions or seed does not. `slot_node_ids` maps slots to real nodes, with
-`null` for padding; it does not shorten the vector.
+The header holds two observation lengths:
 
-Within `observation_schema`, `feature_names[i]`, `low[i]`, and `high[i]`
-describe the name and declared Gymnasium `Box` bounds of policy feature `i`.
-Those bounds are **not** observed minima/maxima and do not themselves perform
-normalization. They are saved with the preset, normalization settings, physical
-movement `bounds`, and a schema fingerprint so a saved run remains
-interpretable and incompatible model inputs can be detected. The raw preset
-records unbounded Box entries as JSON `null`. For `local_links_v1`:
-
-| Feature | How Python derives it from raw facts | Declared range |
-| --- | --- | --- |
-| `active`, `present`, `sinr_valid` | 0/1 indicators for slot occupancy, peer presence, and usable SINR/capacity | `[0,1]` |
-| `x_n`, `y_n`, `z_n` | `clamp(2 × (position - axis_min) / (axis_max - axis_min) - 1, -1, 1)` using header `bounds` in metres | `[-1,1]` |
-| `sinr_n` | `clamp((SINR_dB + 20) / 60, 0, 1)` for a valid link | `[0,1]` |
-| `cap_n` | `clamp(log10(1 + capacity_Mbps) / 4, 0, 1)` for a valid link | `[0,1]` |
-
-`sinr_clip_db: [-20, 40]` names the **raw dB endpoints** used in that SINR
-formula: -20 dB becomes 0, 10 dB becomes 0.5, and 40 dB or higher becomes 1.
-It does not clamp simulator physics, raw `facts.links`, or the C++ reward.
-Invalid links have `sinr_valid=0` and zero normalized SINR/capacity. An unused
-slot is all zeros. The `normalization` object records which conversions were
-selected; changing the formulas requires changing the preset/schema, not just
-the displayed `low`/`high` arrays.
-
-### Decode the raw facts and decision records
-
-`facts` is **source data**, not the policy vector. The header's
-`contract.facts_columns` gives the row order. `facts.nodes` has one row per
-`node_ids` entry, in `nodes.json` order:
-`[x, y, z, vx, vy, vz, slot]`, with positions in metres, velocities in m/s,
-and `slot=-1` for an uncontrolled node. `facts.links` has one row for each
-unordered mesh-node pair in `i<j` order (first index outer):
-`[sinr_db, capacity_mbps, is_los]`. With nodes A, B, C the three rows are
-`(A,B)`, `(A,C)`, `(B,C)`; `is_los` is 0/1. Jammers are not mesh-node rows.
-
-For a concrete decoding example, suppose the header maps slot 0 to node B and
-sets x bounds `0..100`, y bounds `-50..100`, and z bounds `0..50`. A node-B row
-`[100,-5,10,0,-10,0,0]` means position `(100,-5,10)` m, y velocity -10 m/s,
-and control slot 0. Its policy position is `(x_n,y_n,z_n)=(1,-0.4,-0.6)`.
-If the `(A,B)` link row is `[40.62,5397.59,1]`, the raw SINR is 40.62 dB,
-capacity is 5397.59 Mbps, and the path is LOS. The corresponding local policy
-features are `present=1`, `sinr_valid=1`, `sinr_n=1` (clipped at 40 dB), and
-`cap_n≈0.933`. The actual observation vector is not copied into each trace
-record: `obs_sha256` fingerprints it, and replay reconstructs it from facts.
-
-`facts.window` is different from the instantaneous node/link tables: it sums
-measurements over the ticks since the previous decision. For example,
-`ticks=5` and `connected_pairs_sum=15` means three connected pairs in each of
-five ticks, **not** 15 distinct links. Demand/delivery sums have units of
-Mbps·tick, not transferred bytes; the reward formulas above use these sums.
-`init.node_types` identifies each node in `node_ids` order. `facts.safety`
-counts pair proximity below the configured threshold at every simulator tick, including uncontrolled
-mesh nodes but excluding jammers. It is a near-collision proxy, not a physical
-collision detector. A scenario that starts with overlapping nodes can incur
-this penalty before any policy could move them; inspect the starting layout.
-
-Decision 0 is the reset observation. No action was sent yet, so
-`action_sent=null` and the **policy** `reward=null`. A nonzero `legacy_reward`
-there is the C++ tick-0 diagnostic, not training reward. Decision 1 records
-the action sent after reset and the reward for the resulting window; its action
-has one entry per control slot, including a padded slot's required hold (`4`).
-Training may first reset solely to learn the simulator-dependent spaces before
-PPO starts; that probe can be saved as `episode-0000` with `status=interrupted`,
-`stop_reason=reset`, and zero policy steps. It is not a lost training action.
-
-
-## Configurable service and geometry inputs
-
-| Preset | Per-slot layout | Width |
-| --- | --- | --- |
-| `geometry_v1` | Self xy and relative peer xy, with active/present flags | `3 + 3(N-1)` |
-| `service_v1` | Local links plus demand/delivery logs, delivery/connectivity/unroutable ratios | `9 + 4(N-1)` |
-| `full_facts_v1` | Service features plus relative peer xyz/velocity, LOS, and service gap | `10 + 11(N-1)` |
-
-All three use float32 and zero padding. Each preset owns its ordered features,
-Box bounds, required facts, and compatibility fields. Service-window features
-use scored tick sums; zero scored windows have zero service values. Geometry
-and current link facts remain available during warmup so decisions can settle.
-
-The following `[rl]` options are JSON objects, also accepted as
-`--observation-parameters` and `--reward-parameters`. Resolution remains
-CLI > run.ini > default for each complete object; objects are not merged across
-sources. Unknown, unused, nonnumeric, and nonfinite parameters fail before launch.
-
-```ini
-observation_preset = full_facts_v1
-observation_parameters = {"capacity_log10_denominator": 6, "velocity_scale_mps": 60}
-reward_components = service_success, unmet_sinr_quality
-reward_weights = 1, 0.2
-reward_parameters = {"service_success": {"delivery_threshold": 0.9, "routable_threshold": 0.95}, "unmet_sinr_quality": {"delivery_threshold": 0.9}}
-```
-
-Normalized link presets accept `sinr_min_db` (-20), `sinr_max_db` (40),
-`sinr_invalid_db` (-900), and `capacity_log10_denominator` (4).
-`full_facts_v1` also accepts `velocity_scale_mps` (40). SINR requires
-invalid < min < max; capacity/velocity denominators must be positive.
-Raw and geometry presets accept no normalization overrides.
-
-| Reward | Behavior and owned parameters |
+| Header field | Length of |
 | --- | --- |
-| `delivery_binary` | +1 for any delivery, else -1; zero demand masked |
-| `signed_delivery_ratio` | `2*clip(delivered/demand,0,1)-1`; zero demand masked |
-| `service_success` | +1 if delivery and routable fractions meet thresholds, else -1 |
-| `service_failure` | 1 on service failure, else 0 |
-| `travel_fraction` | Mean controlled-slot endpoint xy distance divided by speed × elapsed duration |
-| `origin_fraction` | Mean controlled-slot distance from reset divided by the bounds xy diagonal |
-| `sinr_quality` | Mean normalized current link SINR; invalid links score zero |
-| `unmet_sinr_quality` | SINR quality × `clip((delivery_threshold-delivery_ratio)/delivery_threshold,0,1)` |
+| `contract.obs_dim` | The **raw C++ `obs` message**. |
+| `observation_schema.obs_dim` | The **selected vector passed to the policy**, built by Python from `facts`. |
 
-Service components own `delivery_threshold` and `routable_threshold`, both 0.95
-by default and in (0,1]. Scored zero-demand service is failure. SINR components
-own the three SINR parameters above; `unmet_sinr_quality` also owns its delivery
-threshold, and zero demand uses delivery ratio zero. These reward scales are
-independent of observation scales. All components mask zero scored windows.
-`travel_fraction` also masks a mixed warmup window because endpoint data cannot
-separate its scored movement. `origin_fraction` is a scored endpoint state cost
-relative to reset, including any relocation during warmup.
+With `N = 3` and `M = 3`, `raw_links_v1` has `M × [4 + 2(N-1)] = 24` values and
+`local_links_v1` has `M × [4 + 4(N-1)] = 36`. A `local_links_v1` policy sees 36
+values while the same header says `contract.obs_dim: 24`. Changing the preset,
+`N`, or `M` can change the policy dimension; changing positions or the seed
+does not. `slot_node_ids` maps slots to nodes, with `null` for padding; padding
+does not shorten the vector.
 
-Resolved numeric values and formula descriptions are saved in the schemas and
-fingerprints, selection, and manifests. Saved-model checks reject changed input
-or reward identity. Telemetry v3 replay uses saved resolved parameters and,
-for movement rewards, saved previous/reset position inputs plus elapsed ticks.
-It recomputes context instead of trusting precomputed scores. Registered components
-own their calculation, dependencies, validation, and schema; the composer and
-replay do not dispatch on component names. Shared SINR normalization belongs to
-`env/normalization.py`.
+Within `observation_schema`, `feature_names[i]`, `low[i]`, and `high[i]` give the
+name and declared `Box` bounds of policy feature `i` (section 3.3). They are
+saved with the preset, the `normalization` object (which conversions were
+selected), the physical movement `bounds`, and a schema fingerprint. The raw
+preset saves unbounded entries as JSON `null`. The `local_links_v1` derivations
+are in section 3.1.
 
-Evaluation v4 streams telemetry through the accumulator declared by each metric.
-Travel and displacement cover controlled nodes only; travel is the sum of xy
-endpoint distances, and displacement is measured from the last unscored endpoint
-(or reset). Initial baseline placement is excluded. Per-node maps stay in JSON;
-scalar travel participates in comparison and CSV export. With no scored windows,
-a mixed warmup window, missing reset, or sparse records, movement metrics are
-null. They do not claim a per-tick path length that telemetry cannot supply.
+### 7.2 Decode the raw facts and decision records
 
-## Live coverage and proximity settings
+`facts` is source data, not the policy vector. `contract.facts_columns` gives
+the row order:
 
-`coverage_fraction` is measured at each decision endpoint, using the same
-clipped-cell receiver grid and connected-core union as the placement planners.
-Enable it with `[rl] coverage_enabled=true`. Grid cells, minimum resolution,
-probe height/gain and SINR threshold come from the corresponding `[baseline]`
-keys. Probe evaluation follows mesh-link evaluation, node-major then
-probe-major. It shares the configured propagation model, so enabling coverage
-can affect subsequent random draws; every compared policy must enable it.
-The new reward schema stores grid settings and the proximity threshold.
+- `facts.nodes`: one row per `node_ids` entry, in `nodes.json` order:
+  `[x, y, z, vx, vy, vz, slot]`, positions in meters, velocities in m/s,
+  `slot = -1` for an uncontrolled node.
+- `facts.links`: one row per unordered mesh-node pair, `i<j` order with the
+  first index outer: `[sinr_db, capacity_mbps, is_los]`. With nodes A, B, C the
+  rows are `(A,B)`, `(A,C)`, `(B,C)`; `is_los` is 0/1. Jammers have no rows.
+- `facts.window`: sums over the ticks since the previous decision (section 4.1).
+- `init.node_types` gives each node's type in `node_ids` order.
 
-`[rl] unsafe_separation_m` is positive and defaults to 1 m. With
-`avoid_buildings=true`, centralized masks reject axis-aligned XY paths that
-intersect a building within a decision; tick revalidation also prevents entry.
-These opt-in changes add fields to init/facts without changing action shape.
+**Example.** The header maps slot 0 to node B and sets x bounds `0..100`, y
+bounds `-50..100`, and z bounds `0..50`.
 
-## Episode progress cadence
+- Node-B row `[100,-5,10,0,-10,0,0]`: position `(100,-5,10)` m, y velocity
+  -10 m/s, control slot 0. Policy position `(x_n,y_n,z_n) = (1,-0.4,-0.6)`.
+- `(A,B)` link row `[40.62,5397.59,1]`: SINR 40.62 dB, capacity 5397.59 Mbps,
+  LOS. Local features `present=1`, `sinr_valid=1`, `sinr_n=1` (clipped at
+  40 dB), `cap_n≈0.933`.
 
-`[rl] manifest_every_decisions` is read by the Python episode writer, with a
-positive-integer default of 1. Set it to 50 to reduce in-progress manifest
-writes; reset and finalization still save complete totals. This does not
-sample `steps.jsonl`: evaluation matrices require every decision. An abrupt
-OS kill can leave up to cadence−1 decisions absent from the disk snapshot.
+The observation vector itself is not stored in each record: `obs_sha256`
+fingerprints it, and replay rebuilds it from facts.
 
-## Weakest-node service reward
+**Decision 0 and 1.**
 
-`worst_node_delivery_fraction` is the minimum `delivered_mbps_sum / demand_mbps_sum` over positive-demand rows of `facts.node_service`. With no offered incident demand it returns 0 with validity 0. It requires a service-enabled rebuilt simulator and has range [0,1]. The additive facts columns do not expose jammer state or alter the observation preset.
+- Decision 0 is the reset observation. No action has been sent, so
+  `action_sent = null` and the policy `reward = null`. A nonzero
+  `legacy_reward` there is the C++ tick-0 diagnostic, not a training reward.
+- Decision 1 records the action sent after reset and the reward for the
+  resulting window. Its action has one entry per slot, including a padded
+  slot's required hold (`4`).
+- Training may first reset only to learn the simulator-dependent spaces before
+  PPO starts. That probe can be saved as `episode-0000` with
+  `status=interrupted`, `stop_reason=reset`, and zero policy steps; no training
+  action is lost.
 
-### Dynamic balance components
+## 8\. Training and evaluation options
 
-`fair_node_service` is mean sqrt(clip(node incident delivered/offered, 0, 1)), excluding nodes without demand; no demanded nodes masks this term. `adaptive_movement_cost` is `(0.02 + 0.08 * H_previous) * travel_fraction`, where H is min(clipped delivery, fair node service, coverage). It requires node_service and live coverage facts. Health is zero on reset, updates after reward composition, and never carries between episodes. Coefficients and lag are declared in the reward schema. This Python composition uses the existing bridge facts and does not change the action or observation wire contract.
+| Option | Read by | Default | Effect |
+| --- | --- | --- | --- |
+| `[rl] manifest_every_decisions` | Python episode writer | `1` (positive int) | In-progress manifest write cadence (section 8.1). |
+| `[rl] record_validation_telemetry` | Python output-settings reader | `false` | Keep full checkpoint-validation steps even with `compact_training = true` (section 8.2). |
+| `[rl] validation_after_update` | Python training | `false` | Schedule checkpoint validation after optimization (section 8.3). |
+| `[rl] jammer_motion_profile` | `env/jammer_motion.py` | empty | `sweep_v1` or `arrive_hold_v1` jammer motion (section 8.5). |
 
-Additional reward components:
+### 8.1 Manifest cadence
 
-| Component | Rule |
-| --- | --- |
-| `throughput_log_mbps` | `ln(1 + delivered_mbps_sum / window.scored_ticks)`; a scale-compressed throughput utility, not raw Mbps |
-| `span_travel_fraction` | Mean over controlled slots of actual XY distance traveled this decision divided by a type-specific reference span: drone 500 m, pedestrian/vehicle 300 m. This is a soft cost, not a movement limit; an out-and-back trip is charged twice. Requires a simulator that emits `node_types`. |
-| `drone_travel_fraction`, `pedestrian_travel_fraction`, `vehicle_travel_fraction` | Sum of the corresponding type's normalized slot travel, divided by the number of all active controlled slots; zero when that type is absent |
-| `unsafe_proximity_fraction` | `facts.safety.unsafe_ticks / window.scored_ticks`; a tick is unsafe when any two mesh nodes are closer than `[rl] unsafe_separation_m` (default 1 m) in 3D |
-| `peer_cohesion` | For each controlled node, compare its current 3D distance to its nearest other mesh node at reset with that initial distance. Both have a 20 m floor; divide `(initial − current)` by the node type's 500 m drone or 300 m pedestrian/vehicle span, clip to `[-1,1]`, then average over controlled nodes. The peer identity stays fixed, so the signal rewards moving together without rewarding crowding below 20 m. Requires `node_types`. |
+Set `manifest_every_decisions = 50` to reduce in-progress manifest writes.
+Reset and finalization still save complete totals. This does not sample
+`steps.jsonl`; evaluation matrices require every decision. An abrupt OS kill
+can leave up to cadence − 1 decisions missing from the disk snapshot.
+
+### 8.2 Validation telemetry
+
+`record_validation_telemetry = true` keeps full checkpoint-validation steps
+when `compact_training = true`. Training steps still follow the normal telemetry
+selection, and validation CSV visualization stays compact. The C++ loader does
+not read this key; the Python reader rejects invalid booleans.
+
+### 8.3 Validation after update
+
+`validation_after_update = true` schedules checkpoint validation after
+optimization, including the first optimized policy and the final update. It
+requires:
+
+- fresh training;
+- matching positive checkpoint and evaluation cadences aligned to complete PPO
+  rollouts;
+- a total budget divisible by that cadence.
+
+The `run.ini` digest records the option. `post_update_validation.json`
+(version 1) records the validated steps and the SB3 update counter. Without the
+option, callbacks keep their default timing.
+
+### 8.4 Frozen-policy online mode
+
+`python -m scripts.rl.online --modes fixed_sampled` runs a frozen-only sampled
+control and never calls PPO `learn`.
+
+- Every episode verifies identical initial and final parameter SHA and zero
+  optimizer update cycles.
+- Independent seeds each reload the verified selected checkpoint.
+- The default runs both `fixed_sampled` and `online` and writes the version-3
+  manifest.
+- An explicit subset writes `online_experiment_version: 4` with a `modes` list.
+  Readers must honor that list and must not invent pending online experiments.
+  Versions 2 and 3 keep their original meaning. Version 4 was also written by
+  the gated campaign writers, so the version alone does not identify the
+  protocol; batch operations write a newer version with an explicit
+  `protocol` (see [Contributing](@ref Contributing)).
+- `mission_focused.py` schedules no online modes.
+
+### 8.5 Jammer arrival profile
+
+`jammer_motion_profile = arrive_hold_v1` archives a reproducible road approach
+for each training episode or evaluation seed: an arrival coordinate and a
+60-second transit, then holding.
+
+- Onset comes from the existing training or evaluation onset schedule, with the
+  same index used by `EpisodeSession`'s CLI onset override.
+- Routes use the open horizontal street `y=200` or vertical street `x=245` in
+  the 400 m `inputs/custom/10-23` inputs. The profile is specific to those
+  scenarios; it does not plan roads on arbitrary maps.
+- Emission ends at `duration_s + tick_s`, so the last sampled tick is still
+  jammed. The archived interval is used instead of the C++ `--jammer-onset-s`
+  override, which ends at `duration_s` and is half-open.
+- `jammer_motion.emission_onset` gives both metric readers the archived timing.
+- An empty profile and `sweep_v1` behave as before; old result files are not
+  reinterpreted or overwritten.
+- Details: `inputs/custom/10-23/README.md`.
+
+The optional `parallel` reference-controller flag (`ScriptedMissionPolicy` in
+`scripts/rl/policy/scripted.py`, formerly `pilot_reference.py`) moves
+each controlled peer independently; without it, the reference controller is
+sequential. Reference controllers are scripted feasibility references and do
+not assist learned-policy routing.
+
+### 8.6 Movement metrics in evaluation
+
+Evaluation v4 streams telemetry through the accumulator each metric declares.
+
+- Travel and displacement cover controlled nodes only.
+- Travel is the sum of xy endpoint distances. Displacement is measured from the
+  last unscored endpoint, or from reset. Initial baseline placement is
+  excluded.
+- Per-node maps stay in JSON; scalar travel is used in comparison and CSV
+  export.
+- Movement metrics are `null` with no scored windows, a mixed warmup window, a
+  missing reset, or sparse records, because telemetry cannot supply a per-tick
+  path length.
+
+### 8.7 Training curriculum
+
+For coordinated investigation (Phase 7), only training reset positions use a
+recorded 5/5/15 curriculum; reward and observations keep Phase 6 semantics.
+Evaluation starts are unchanged. The training `curriculum.json` sidecar records
+the actual reset identities, and the standard train manifest names the original
+evaluation deployment for compatibility.

@@ -9,14 +9,14 @@ and temporary directories; they do not establish radio accuracy. Run them
 from `scratch/mesh-sim/`:
 
 ```bash
-.venv/bin/python -m pytest -q scripts/rl/tests/test_lifecycle_cli.py scripts/rl/tests/test_policy_lifecycle.py
+.venv/bin/python -m pytest -q scripts/rl/tests/policy/test_lifecycle_cli.py scripts/rl/tests/policy/test_policy_lifecycle.py
 ```
 
 The two real-binary checks need a built simulator:
 
 ```bash
 MESH_SIM_BIN=<BIN> .venv/bin/python -m pytest -q \
-  scripts/rl/tests/test_real_binary.py \
+  scripts/rl/tests/integration/test_real_binary.py \
   -k 'building_bypass_fixture_geometry or lifecycle_train_inspect_evaluate_in_fresh_processes'
 ```
 

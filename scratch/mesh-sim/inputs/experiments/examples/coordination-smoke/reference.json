@@ -1,0 +1,9 @@
+{
+  "reference_version": 1,
+  "routes": {
+    "ground-1": [[60, 100, 1.5], [60, 60, 1.5]],
+    "drone-1": [[100, 160, 20]],
+    "vehicle-1": [[160, 100, 1.5], [160, 60, 1.5]]
+  },
+  "description": "Axis-aligned scripted routes that stay at least 20 m from the building and 5 m from other peers; native legality is checked at runtime."
+}

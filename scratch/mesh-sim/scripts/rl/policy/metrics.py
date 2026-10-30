@@ -254,6 +254,11 @@ REGISTRY.update({
     "recovery_time_s": Metric("s", False, True, lambda t: t.recovery, ServiceTotals, optional=True),
 })
 
+from scripts.rl.policy.mission_metrics import MissionTotals
+from scripts.rl.policy.mission_metrics import DEFINITIONS as MISSION_METRICS
+for name,(unit,direction) in MISSION_METRICS.items():
+    REGISTRY[name] = Metric(unit,direction,True,lambda totals,key=name:totals.value(key),MissionTotals,optional=True)
+
 METRICS = {name: (metric.higher_is_better, metric.comparable_across_reward_definitions)
            for name, metric in sorted(REGISTRY.items()) if metric.higher_is_better is not None}
 GROUP_METRICS = tuple(name for name, (_, shared) in METRICS.items() if shared)

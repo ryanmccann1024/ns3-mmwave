@@ -1,0 +1,114 @@
+{
+  "accounting": {
+    "actor_change_l2": 0.01,
+    "eligible_decisions": 64,
+    "episode_decisions": 64,
+    "excluded_prefix_decisions": 0,
+    "optimizer_epochs": 8,
+    "optimizer_state_changed": true,
+    "optimizer_steps": 16,
+    "policy_parameters_changed": true,
+    "tail_policy": "final partial rollout flushed; a singleton tail is skipped",
+    "trained_decisions": 64,
+    "untrained_tail_decisions": 0,
+    "update_cycles": 4,
+    "weight_updates": "weight_updates.json"
+  },
+  "allow_different_scenario": false,
+  "binary_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "ended_at": "2026-10-01T00:01:00+00:00",
+  "episodes": [
+    {
+      "actor_change_l2": 0.01,
+      "decisions": 64,
+      "eligible_decisions": 64,
+      "episode_decisions": 64,
+      "episode_dir": "episode-0001",
+      "excluded_prefix_decisions": 0,
+      "final_optimizer_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "final_parameter_sha256": "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+      "initial_optimizer_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "initial_parameter_sha256": "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+      "metrics": {
+        "connectivity": 1.0,
+        "coverage_fraction_mean": 0.8,
+        "delivery_ratio": 0.8,
+        "displacement_m_final": 4.0,
+        "first_all_los_decision": 3,
+        "los_fraction": 0.5,
+        "post_jammer_delivery_ratio": null,
+        "recovery_time_s": null,
+        "travel_m_total": 12.0,
+        "unroutable_fraction": 0.0,
+        "unsafe_proximity_fraction": 0.0,
+        "worst_node_delivery_fraction": 0.8
+      },
+      "mode": "online_gated_v1",
+      "optimizer_epochs": 8,
+      "optimizer_state_changed": true,
+      "optimizer_steps": 16,
+      "policy_parameters_changed": true,
+      "return": 1.5,
+      "seed": 201,
+      "tail_policy": "final partial rollout flushed; a singleton tail is skipped",
+      "trained_decisions": 64,
+      "untrained_tail_decisions": 0,
+      "update_cycles": 4,
+      "weight_updates": "weight_updates.json"
+    }
+  ],
+  "error": null,
+  "evaluation": {
+    "decisions": 64,
+    "episode_dir": "episode-0001",
+    "eval_manifest": "eval_manifest.json",
+    "steps_sha256": "2b4e7e1a1e1fbb6b1b8e8a2b46a6b0a1c4f1c1d7c6f3bc8b7a4c5d6e7f8091a2",
+    "weight_audit": "weight_audit.json"
+  },
+  "evaluation_seeds": [
+    201
+  ],
+  "label": null,
+  "model": {
+    "adapted_model": "adapted_model.zip",
+    "adapted_model_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "final_parameter_sha256": "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+    "initial_parameter_sha256": "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp"
+  },
+  "online_experiment_version": 5,
+  "optimizer": {
+    "final_optimizer_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "initial_optimizer_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "parent": {
+    "model_path": "<bound model>",
+    "model_selection": "final",
+    "model_sha256": "13b02e28d87743e40c5bc427b373dc0d30aa18c6b6fa1aa36ac204bd37e24353",
+    "num_timesteps": 256,
+    "run_dir": "models/<scenario>/<row>/train/train-seed-101/attempt-1",
+    "train_manifest_sha256": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt"
+  },
+  "protocol": "online_gated_v1",
+  "run_config": "<run.ini>",
+  "scenario_identity": {
+    "run_ini_sha256": "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss"
+  },
+  "schedule": null,
+  "seed": 201,
+  "seed_role": "diagnostic",
+  "settings": {
+    "batch_size": 8,
+    "clip_range": 0.2,
+    "eligible_only": true,
+    "ent_coef": 0.0,
+    "flush_final_partial": true,
+    "gae_lambda": 0.95,
+    "gamma": 0.99,
+    "learning_rate": 0.0003,
+    "n_epochs": 2,
+    "n_steps": 16,
+    "target_kl": null
+  },
+  "started_at": "2026-10-01T00:00:00+00:00",
+  "status": "completed"
+}

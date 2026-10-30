@@ -205,3 +205,12 @@ reward_weights = 1.0, 0.5, -2.5
 ### Python controlled moving jammer
 
 `[rl] jammer_motion_profile = sweep_v1` is interpreted by the Python episode launcher, not by the C++ loader. It resolves one jammer into archived waypoint inputs per episode on the 600-second 400×400 m scenarios. Actual motion and its seed-dependent variant appear in `rl_episode.json` version 6. Raw simulator invocation uses the configured jammers.json directly; use the RL launchers for varied routes.
+
+## Mission and physical controls
+
+`[traffic] flow_topology=explicit_pairs` uses JSON `pairs` with `src`, `dst`
+and positive `demand_mbps`; it requires constant traffic and distinct known
+endpoints. Nodes may set a nonnegative `failure_at_s`. `[mission] kind` selects
+coverage, investigation or recovery; investigation requires a known investigator
+and explicit target geometry. RL exposes `control_start_s`,
+`building_clearance_m` and `mask_building_moves`. Invalid values fail validation.

@@ -8,13 +8,24 @@ import gymnasium
 import numpy as np
 from gymnasium import spaces
 
-from .config import read_scenario_seed
-from .decisions import DecisionRecording
-from .episode import EpisodeSession
-from .observations import get_preset, observation_schema
-from .protocol import CentralizedProtocol, ProtocolError, SLOT_ACTIONS, validate_message
-from .rewards import RewardComposer, reward_schema
-from .selection import RlSelection, resolve_selection, uses_composed_reward
+from scripts.rl.env.config import read_scenario_seed
+from scripts.rl.env.state.mission import MissionState
+from scripts.rl.env.state.mission import validate_mission_facts
+from scripts.rl.env.state.mission import validate_mission_contract
+from scripts.rl.env.recording.decisions import DecisionRecording
+from scripts.rl.env.episode import EpisodeSession
+from scripts.rl.env.observations import get_preset
+from scripts.rl.env.observations import observation_schema
+from scripts.rl.env.protocol import CentralizedProtocol
+from scripts.rl.env.protocol import ProtocolError
+from scripts.rl.env.protocol import SLOT_ACTIONS
+from scripts.rl.env.protocol import validate_message
+from scripts.rl.env.rewards import RewardComposer
+from scripts.rl.env.rewards import reward_schema
+from scripts.rl.env.selection import RlSelection
+from scripts.rl.env.selection import resolve_selection
+from scripts.rl.env.selection import uses_composed_reward
+from scripts.rl.env.state.extensions import make_extensions
 
 
 class MeshRlEnv(gymnasium.Env):
@@ -42,6 +53,8 @@ class MeshRlEnv(gymnasium.Env):
         self._recording = bool(decision_records and decision_records.settings.enabled)
         self._preference_source = (decision_records.context.preference_source if self._recording else None)
         self._last_obs = None
+        self._mission_state = MissionState()
+        self._fact_extensions = make_extensions(self._preset, self._composer)
         self._initial_nodes = self._previous_nodes = None
         self._observation_schema: dict | None = None
         self._reward_schema: dict | None = None
@@ -108,6 +121,8 @@ class MeshRlEnv(gymnasium.Env):
             self.seed_value = int(seed)
             self.seed_source = "gym"
 
+        self._mission_state = MissionState()
+        self._fact_extensions = make_extensions(self._preset, self._composer)
         if self._composer is not None:
             self._composer.reset()
         self._session.stop("interrupted", "reset")
@@ -136,6 +151,7 @@ class MeshRlEnv(gymnasium.Env):
 
         try:
             self._protocol.validate_step(msg)
+            self._advance_mission(msg, action_value)
             info = self._centralized_info(msg)
             obs = self._preset.build(self._protocol.facts, self._contract)
             reward = float(msg["reward"])
@@ -171,6 +187,13 @@ class MeshRlEnv(gymnasium.Env):
             self._session.protocol_error(str(exc))
         return obs, reward, terminated, False, info
 
+    def _advance_mission(self, msg, action=None):
+        if "mission" in self._contract:
+            validate_mission_facts(self._protocol.facts, self._contract, self._protocol.mask)
+            self._mission_state.advance(self._protocol.facts, self._contract, float(msg["time_s"]), bool(msg["done"]))
+            for extension in self._fact_extensions:
+                extension.advance(self._protocol.facts,self._contract,float(msg['time_s']),action)
+
     def _take_preferences(self):
         if self._preference_source is None:
             return None
@@ -202,6 +225,8 @@ class MeshRlEnv(gymnasium.Env):
 
     def _reset_centralized(self, init: dict):
         protocol = CentralizedProtocol(init)
+        if 'mission' in init:
+            validate_mission_contract(init)
         slots = int(init["max_controlled_nodes"])
         signature = {
             "control_mode": "centralized",
@@ -230,7 +255,12 @@ class MeshRlEnv(gymnasium.Env):
             "wall_policy": init["wall_policy"],
             "unsafe_separation_m": init.get("unsafe_separation_m"),
             "avoid_buildings": init.get("avoid_buildings", False),
+            "avoid_node_collisions": init.get("avoid_node_collisions",False),
+            "navigation": init.get("navigation"),
+            "deployment_gate": init.get("deployment_gate"),
+            "control_start_s": init.get("control_start_s", 0),
             "coverage": init.get("coverage"),
+            "mission": init.get("mission"),
         }
         self._check_signature(signature)
         self._control_mode = "centralized"
@@ -247,6 +277,7 @@ class MeshRlEnv(gymnasium.Env):
 
         msg = self._session.read_message()
         obs = protocol.validate_step(msg, first=True)
+        self._advance_mission(msg)
         obs = self._preset.build(protocol.facts, init)
         self._initial_nodes = [list(row) for row in protocol.facts["nodes"]]
         self._previous_nodes = [list(row) for row in self._initial_nodes]

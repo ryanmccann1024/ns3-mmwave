@@ -26,8 +26,8 @@ From `scratch/mesh-sim/`. Never build the simulator; pass an existing binary.
 ```bash
 python3 scripts/rl/bootstrap_venv.py [--check] [--venv <path>]
 .venv/bin/python -m pytest scripts/rl/tests -q
-.venv/bin/python -m pytest scripts/rl/tests/test_mesh_env.py::<test_name>
-MESH_SIM_BIN=/abs/path/to/bin .venv/bin/python -m pytest scripts/rl/tests/test_real_binary.py -q
+.venv/bin/python -m pytest scripts/rl/tests/env/test_mesh_env.py::<test_name>
+MESH_SIM_BIN=/abs/path/to/bin .venv/bin/python -m pytest scripts/rl/tests/integration/test_real_binary.py -q
 .venv/bin/python -m pip install -r requirements-tuning.txt   # only for ops.tune / its tests
 
 .venv/bin/python -m scripts.rl.validate_config ...   # pre-flight a scenario; --launch does one reset

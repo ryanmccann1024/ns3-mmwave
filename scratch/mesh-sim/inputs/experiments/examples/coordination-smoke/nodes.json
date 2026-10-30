@@ -1,0 +1,8 @@
+[
+  {"id": "ground-1", "role": "peer", "node_type": "pedestrian", "mobility": "constant_velocity",
+   "position": {"x": 80, "y": 100, "z": 1.5}, "velocity": {"vx": 0, "vy": 0, "vz": 0}},
+  {"id": "drone-1", "role": "peer", "node_type": "drone", "mobility": "constant_velocity",
+   "position": {"x": 100, "y": 100, "z": 20}, "velocity": {"vx": 0, "vy": 0, "vz": 0}},
+  {"id": "vehicle-1", "role": "peer", "node_type": "vehicle", "mobility": "constant_velocity",
+   "position": {"x": 120, "y": 100, "z": 1.5}, "velocity": {"vx": 0, "vy": 0, "vz": 0}}
+]

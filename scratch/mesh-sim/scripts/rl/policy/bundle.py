@@ -18,6 +18,7 @@ _SELECTION_KEYS = ("observation_preset", "reward_components", "reward_weights",
                    "telemetry", "telemetry_every", "observation_parameters", "reward_parameters")
 _SCENARIO_SHA_KEYS = ("run_ini_sha256", "nodes_json_sha256", "buildings_json_sha256",
                       "jammers_json_sha256")
+_READABLE_MANIFEST_VERSIONS = (4, 5, 6, MANIFEST_VERSION)
 
 
 @dataclass(frozen=True)
@@ -89,7 +90,7 @@ def _read_bundle(run_dir, model: str, recovering=False) -> ModelBundle:
     manifest = read_manifest(run_dir)
 
     version = manifest.get("manifest_version")
-    if version not in (4, 5, 6, MANIFEST_VERSION):
+    if version not in _READABLE_MANIFEST_VERSIONS:
         raise BundleError(
             f"train manifest version {version!r} is not {MANIFEST_VERSION}; "
             "retrain with current tooling")
@@ -274,3 +275,181 @@ def model_identity(bundle, deterministic=True) -> dict:
                       "sb3_contrib": versions["sb3_contrib"],
                       "torch": versions["torch"]},
     }
+
+
+MODEL_BINDING_VERSION = 1
+_BINDING_FIELDS = ("model_binding_version", "run_dir", "model_selection", "model_path",
+                   "model_sha256", "optimizer_sha256", "num_timesteps", "n_updates",
+                   "train_manifest_path", "train_manifest_sha256")
+
+
+def parameter_digest(model) -> str:
+    """SHA-256 over policy parameters: sorted state_dict names, then raw CPU tensor bytes."""
+    digest = hashlib.sha256()
+    for name, tensor in sorted(model.policy.state_dict().items()):
+        digest.update(name.encode())
+        digest.update(tensor.detach().cpu().numpy().tobytes())
+    return digest.hexdigest()
+
+
+def _optimizer_state_digest(state: dict) -> str:
+    """Hash an optimizer state_dict deterministically.
+
+    For each per-parameter entry in ascending integer parameter index, and each
+    of its keys in sorted order: the key name, then for a tensor its dtype,
+    shape and raw contiguous CPU bytes, or for any other value its canonical
+    JSON text. Then each param group, in order, as canonical JSON (sorted keys,
+    tuples as lists, non-JSON values by ``str``). Every item is length-prefixed
+    so adjacent fields cannot run together.
+    """
+    import torch
+
+    digest = hashlib.sha256()
+
+    def put(data: bytes):
+        digest.update(len(data).to_bytes(8, "big"))
+        digest.update(data)
+
+    for index in sorted(state.get("state", {}), key=int):
+        put(f"state:{int(index)}".encode())
+        for key, value in sorted(state["state"][index].items()):
+            put(str(key).encode())
+            if isinstance(value, torch.Tensor):
+                value = value.detach().cpu().contiguous()
+                put(f"{value.dtype}:{tuple(value.shape)}".encode())
+                put(value.numpy().tobytes())
+            else:
+                put(json.dumps(value, sort_keys=True, default=str).encode())
+    for group in state.get("param_groups", []):
+        put(json.dumps(group, sort_keys=True, default=str).encode())
+    return digest.hexdigest()
+
+
+def optimizer_digest(model) -> str:
+    """SHA-256 of the live policy optimizer state; see ``_optimizer_state_digest``."""
+    return _optimizer_state_digest(model.policy.optimizer.state_dict())
+
+
+def checkpoint_optimizer_digest(zip_path) -> str:
+    """Optimizer digest read from a saved ZIP without loading the policy or an env."""
+    import io
+    import torch
+
+    with zipfile.ZipFile(zip_path) as archive:
+        if "policy.optimizer.pth" not in archive.namelist():
+            raise BundleError(f"{zip_path} has no optimizer state")
+        raw = archive.read("policy.optimizer.pth")
+    state = torch.load(io.BytesIO(raw), map_location="cpu", weights_only=True)
+    return _optimizer_state_digest(state)
+
+
+def checkpoint_counters(zip_path) -> dict:
+    """Read the saved SB3 counters and state presence from a model ZIP (read-only)."""
+    try:
+        with zipfile.ZipFile(zip_path) as archive:
+            names = set(archive.namelist())
+            data = json.loads(archive.read("data")) if "data" in names else None
+    except (OSError, zipfile.BadZipFile, json.JSONDecodeError) as exc:
+        raise BundleError(f"{zip_path} is not a readable model ZIP: {exc}") from exc
+    if not isinstance(data, dict):
+        raise BundleError(f"{zip_path} has no SB3 data record")
+    counters = {}
+    for key in ("num_timesteps", "_n_updates"):
+        value = data.get(key)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise BundleError(f"{zip_path} data.{key} is not a non-negative integer: {value!r}")
+        counters[key] = value
+    return {"num_timesteps": counters["num_timesteps"], "n_updates": counters["_n_updates"],
+            "policy_state_present": "policy.pth" in names,
+            "optimizer_state_present": "policy.optimizer.pth" in names}
+
+
+def _manifest_model_selection(manifest: dict, model_path: Path, model_sha256: str) -> str:
+    """Which recorded model of the manifest this file is; refuse an unrecorded file."""
+    resolved = model_path.resolve()
+    for selection, path_key, sha_key in (("final", "model_path", "model_sha256"),
+                                         ("best", "best_model_path", "best_model_sha256")):
+        if manifest.get(path_key) and Path(manifest[path_key]).resolve() == resolved:
+            if manifest.get(sha_key) != model_sha256:
+                raise BundleError(f"bound {selection} model digest differs from its manifest")
+            return selection
+    for entry in manifest.get("checkpoints") or []:
+        if Path(entry["path"]).resolve() == resolved:
+            if entry.get("sha256") != model_sha256:
+                raise BundleError("bound checkpoint digest differs from its manifest entry")
+            return "checkpoint"
+    raise BundleError(f"{model_path} is not recorded by its training manifest")
+
+
+def bind_model(run_dir, model_path) -> dict:
+    """Write-once binding record for a model file recorded by a training manifest.
+
+    Fields (``MODEL_BINDING_VERSION`` 1): ``model_binding_version``; ``run_dir``
+    and ``train_manifest_path`` (absolute original paths); ``train_manifest_sha256``
+    (the manifest bytes at binding time); ``model_selection`` (``final``, ``best``
+    or ``checkpoint``); ``model_path`` (absolute original path); ``model_sha256``;
+    ``optimizer_sha256`` (``checkpoint_optimizer_digest``); ``num_timesteps`` and
+    ``n_updates`` (the ZIP's ``data.num_timesteps`` / ``data._n_updates``).
+    """
+    run_dir = Path(run_dir).resolve()
+    model_path = Path(model_path).resolve()
+    manifest_path = run_dir / MANIFEST_NAME
+    manifest = read_manifest(run_dir)
+    model_sha256 = sha256_file(model_path)
+    counters = checkpoint_counters(model_path)
+    return {"model_binding_version": MODEL_BINDING_VERSION, "run_dir": str(run_dir),
+            "model_selection": _manifest_model_selection(manifest, model_path, model_sha256),
+            "model_path": str(model_path), "model_sha256": model_sha256,
+            "optimizer_sha256": checkpoint_optimizer_digest(model_path),
+            "num_timesteps": counters["num_timesteps"], "n_updates": counters["n_updates"],
+            "train_manifest_path": str(manifest_path),
+            "train_manifest_sha256": sha256_file(manifest_path)}
+
+
+def read_bound_checkpoint(binding: dict) -> ModelBundle:
+    """Verify a write-once model binding against the original bytes; never rewrites them.
+
+    The manifest may record any status (an interrupted parent attempt); the
+    binding's pinned manifest/model/optimizer digests and counters are the
+    evidence. Any missing field, changed byte or counter mismatch raises
+    ``BundleError``. ``num_timesteps`` of the result comes from the ZIP.
+    """
+    if not isinstance(binding, dict):
+        raise BundleError("model binding must be a JSON object")
+    missing = [key for key in _BINDING_FIELDS if key not in binding]
+    if missing:
+        raise BundleError(f"model binding lacks {missing}")
+    if binding["model_binding_version"] != MODEL_BINDING_VERSION:
+        raise BundleError(f"model binding version {binding['model_binding_version']!r} "
+                          f"is not {MODEL_BINDING_VERSION}")
+    run_dir = Path(binding["run_dir"])
+    manifest_path = Path(binding["train_manifest_path"])
+    model_path = Path(binding["model_path"])
+    if manifest_path != run_dir / MANIFEST_NAME:
+        raise BundleError("binding manifest is not the run directory's training manifest")
+    for path, key in ((manifest_path, "train_manifest_sha256"), (model_path, "model_sha256")):
+        if not path.is_file():
+            raise BundleError(f"bound file is missing: {path}")
+        actual = sha256_file(path)
+        if actual != binding[key]:
+            raise BundleError(f"bound file digest mismatch for {path}: "
+                              f"recorded {binding[key]}, found {actual}")
+    manifest = read_manifest(run_dir)
+    if manifest.get("manifest_version") not in _READABLE_MANIFEST_VERSIONS:
+        raise BundleError(f"bound manifest version {manifest.get('manifest_version')!r} "
+                          "is not readable")
+    if manifest.get("control_mode") != "centralized":
+        raise BundleError("bound model is not from a centralized training run")
+    selection = _manifest_model_selection(manifest, model_path, binding["model_sha256"])
+    if selection != binding["model_selection"]:
+        raise BundleError(f"binding says {binding['model_selection']!r}, manifest records {selection!r}")
+    counters = checkpoint_counters(model_path)
+    if not (counters["policy_state_present"] and counters["optimizer_state_present"]):
+        raise BundleError("bound model lacks policy or optimizer state")
+    if (counters["num_timesteps"], counters["n_updates"]) != (binding["num_timesteps"],
+                                                               binding["n_updates"]):
+        raise BundleError("bound model counters differ from the binding")
+    if checkpoint_optimizer_digest(model_path) != binding["optimizer_sha256"]:
+        raise BundleError("bound model optimizer state differs from the binding")
+    return ModelBundle(run_dir.resolve(), manifest, selection, model_path.resolve(),
+                       binding["model_sha256"], counters["num_timesteps"])

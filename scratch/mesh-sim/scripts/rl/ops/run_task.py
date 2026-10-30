@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""CLI for one experiment task or comparison."""
+"""CLI for one experiment task or comparison, or one scheduled plan v3 step."""
 
 import argparse
 import sys
-from scripts.rl.ops.task_execution import run_task, run_compare
+from scripts.rl.ops.task_execution import run_task, run_compare, run_step
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
@@ -18,11 +18,21 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="Compare even when an evaluation is missing or partial")
     p.add_argument("--record", default=None,
                    help="Write a JSON record of this run to PATH")
+    p.add_argument("--step", default=None,
+                   help="Plan v3: run one scheduled task attempt (used by the batch scheduler)")
+    p.add_argument("--attempt", type=int, default=None,
+                   help="Plan v3: the attempt number recorded in the task's receipt")
     return p
 
 
 def _dispatch(argv=None) -> int:
     args = _build_parser().parse_args(argv)
+    if args.step is not None or args.attempt is not None:
+        if args.step is None or args.attempt is None or args.compare or args.task_index is not None \
+                or args.allow_incomplete or args.record:
+            print("--step needs --attempt and no legacy option", file=sys.stderr)
+            return 1
+        return run_step(args.output_root, args.step, args.attempt)
     if args.compare == (args.task_index is not None):
         print("pass exactly one of --task-index or --compare", file=sys.stderr)
         return 1
