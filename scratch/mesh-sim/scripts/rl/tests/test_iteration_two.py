@@ -88,7 +88,7 @@ def test_baseline_cache_rescores_without_mutating_cache(sim_binary, multi_run_co
     first = json.loads((tmp_path/'eval1/eval_manifest.json').read_text())
     second = json.loads((tmp_path/'eval2/eval_manifest.json').read_text())
     assert second['status'] == 'completed' and second['episodes_completed'] == 6
-    assert second['eval_manifest_version'] == 6
+    assert second['eval_manifest_version'] == 8
     for policy in ('hold','random_valid'):
         for a,b in zip(first['policies'][policy]['episodes'],second['policies'][policy]['episodes']):
             assert a['actions_sha256'] == b['actions_sha256']

@@ -50,7 +50,7 @@ def _manifest(policies, *, seeds=SEEDS, label=None, training_seed=101,
                 episodes.append(_episode(seed, value))
         blocks[name] = {"episodes": episodes, "summary": {}}
     return {
-        "eval_manifest_version": 6, "status": "completed", "label": label,
+        "eval_manifest_version": 8, "status": "completed", "label": label,
         "seeds": list(seeds),
         "metric_source": {"kind": "telemetry_window", "warmup_excluded": True},
         "seed_roles": {"training_seed": training_seed, "held_out": held_out},

@@ -147,7 +147,7 @@ def test_empty_warmup_evaluation_comparison_keeps_null_metrics_and_decisions(
         == 0
     )
     manifest = json.loads((eval_dir / "eval_manifest.json").read_text())
-    assert manifest["eval_manifest_version"] == 6
+    assert manifest["eval_manifest_version"] == 8
     assert manifest["metric_source"]["warmup_excluded"] is True
     for block in manifest["policies"].values():
         for episode in block["episodes"]:
@@ -230,7 +230,7 @@ def test_placement_policies_start_from_their_plans(sim_binary, tmp_path, monkeyp
     )
 
     manifest = json.loads((eval_dir / "eval_manifest.json").read_text())
-    assert manifest["status"] == "completed" and manifest["eval_manifest_version"] == 6
+    assert manifest["status"] == "completed" and manifest["eval_manifest_version"] == 8
     assert manifest["run_config"] == str(Path(run_config).resolve())
     assert manifest["scenario_identity"] == read_scenario_identity(run_config)
     assert list(manifest["policies"]) == ["hold", "geometric", "optimization"]

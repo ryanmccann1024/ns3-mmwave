@@ -18,7 +18,7 @@ from scripts.rl.policy.metrics import (CSV_METRICS, METRIC_SOURCE,
                                        episode_metrics as reduce_episode_metrics)
 
 EVAL_MANIFEST_NAME = "eval_manifest.json"
-EVAL_MANIFEST_VERSION = 6
+EVAL_MANIFEST_VERSION = 8
 DEFAULT_POLICIES = ("model", "hold", "random_valid")
 PLACEMENT_POLICIES = ("geometric", "optimization")
 POLICY_NAMES = DEFAULT_POLICIES + PLACEMENT_POLICIES
@@ -170,8 +170,8 @@ def episode_metrics(episode_dir: Path, num_links: int) -> dict:
         episode_path = episode_dir / "rl_episode.json"
         if episode_path.is_file():
             episode = json.loads(episode_path.read_text())
-            contract["jammer_onset_s"] = next((float(token.split("=", 1)[1])
-                for token in episode.get("command", []) if token.startswith("--jammer-onset-s=")), None)
+            from scripts.rl.env.jammer_motion import emission_onset
+            contract["jammer_onset_s"] = emission_onset(episode)
         return reduce_episode_metrics(records, num_links, contract)
 
 
