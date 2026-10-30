@@ -9,16 +9,8 @@ import pytest
 from scripts.rl import experiment
 from scripts.rl.ops import reconcile
 
-from scripts.rl.tests.support.ops_test_support import a
-from scripts.rl.tests.support.ops_test_support import compare_element
-from scripts.rl.tests.support.ops_test_support import intent
-from scripts.rl.tests.support.ops_test_support import leaf
-from scripts.rl.tests.support.ops_test_support import q
-from scripts.rl.tests.support.ops_test_support import receipt
-from scripts.rl.tests.support.ops_test_support import snap
-from scripts.rl.tests.support.ops_test_support import table
-from scripts.rl.tests.support.ops_test_support import write_manifest
-from scripts.rl.tests.support.ops_test_support import written_plan
+from scripts.rl.tests.support.ops_test_support import (a, compare_element, intent, leaf, q, receipt, snap,
+                               table, write_manifest, written_plan)
 
 QUEUED = ("PENDING", "CONFIGURING", "REQUEUED")
 RUNNING = ("RUNNING", "COMPLETING", "SUSPENDED", "RESIZING", "SIGNALING", "STAGE_OUT")

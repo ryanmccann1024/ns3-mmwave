@@ -18,8 +18,7 @@ import pytest
 from scripts.rl.cli_common import write_json
 from scripts.rl.ops import slurm
 
-from scripts.rl.tests.support.ops_test_support import config_body
-from scripts.rl.tests.support.ops_test_support import make_venv
+from scripts.rl.tests.support.ops_test_support import config_body, make_venv
 
 
 @pytest.fixture

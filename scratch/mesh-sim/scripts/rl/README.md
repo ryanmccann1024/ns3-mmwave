@@ -402,3 +402,14 @@ Observation and reward registries are packages under `env/`; episode writers
 are under `env/recording/`. Python tests follow their package owners under
 `tests/`, shared fakes are in `tests/support/`, and native checks are in
 `tests/integration/`. This source relocation changes no saved selection ID.
+
+## Shared batch launcher
+
+Use `bash scripts/rl/run-experiments.sh validate --matrix <batch.json>` first.
+`plan` records immutable inputs, `run` executes bounded workers, `status` reads
+receipts and `resume` prepares/retries interrupted tasks with identity checks.
+A simulator is required only for native plan/run operations. Existing-parent
+continuation is supported; same-batch parent/child training is not. The retired
+campaign scripts are replaced by explicit configurations. See the batch
+reference in `docs/rl/batch-reference.md` and the tracked example.
+

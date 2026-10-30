@@ -6,14 +6,9 @@ import subprocess
 import pytest
 
 from scripts.rl.cluster import jobs, operations, receipts, reconcile, recovery, slurm, submission
-from scripts.rl.tests.cluster.test_ops_cluster import env
-from scripts.rl.tests.cluster.test_ops_cluster import venv
-from scripts.rl.tests.cluster.test_ops_cluster import _run
-from scripts.rl.tests.cluster.test_ops_cluster import _complete
-from scripts.rl.tests.cluster.test_ops_cluster import _tree
-from scripts.rl.tests.cluster.test_ops_cluster import _CompareStub
-from scripts.rl.tests.cluster.test_ops_cluster import _snapshot
-from scripts.rl.tests.cluster.test_ops_cluster import _receipt
+from scripts.rl.tests.cluster.test_ops_cluster import (
+    env, venv, _run, _complete, _tree, _CompareStub, _snapshot, _receipt,
+)
 
 
 def _finish(env):

@@ -83,7 +83,6 @@ def test_sample_stats_omits_ci_unless_requested():
     assert "ci95" not in stats.sample_stats([1.0, 2.0, 3.0], use_ci=False)
 
 
-
 def test_sample_stats_accepts_ints_and_negative_values_and_leaves_input_alone():
     values = [-3, 1, 5]
     result = stats.sample_stats(values, use_ci=True)

@@ -1,7 +1,7 @@
 """Shared builders for the generated ops tests: plans, receipts, snapshots, fake cluster.
 
 Everything is written under pytest's tmp_path. The scheduler is always
-``scripts/rl/tests/fake_slurm.py``; no real SLURM or rsync is ever invoked.
+``scripts/rl/tests/support/fake_slurm.py``; no real SLURM or rsync is ever invoked.
 """
 
 import json

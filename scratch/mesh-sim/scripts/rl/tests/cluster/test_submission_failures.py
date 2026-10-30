@@ -1,7 +1,7 @@
 """Cluster CLI flows against fake_slurm: submission protocol, compare, cancel, refusals.
 
 Expectations come from scripts/rl/ops/README.md "Cluster runs" and its
-subsections. The scheduler is always scripts/rl/tests/fake_slurm.py.
+subsections. The scheduler is always scripts/rl/tests/support/fake_slurm.py.
 """
 
 import json
@@ -12,13 +12,7 @@ import pytest
 
 from scripts.rl.cluster import slurm
 
-from scripts.rl.tests.support.ops_test_support import array_of
-from scripts.rl.tests.support.ops_test_support import cluster_env
-from scripts.rl.tests.support.ops_test_support import complete
-from scripts.rl.tests.support.ops_test_support import flag
-from scripts.rl.tests.support.ops_test_support import live_states
-from scripts.rl.tests.support.ops_test_support import read_receipt
-from scripts.rl.tests.support.ops_test_support import run_cluster
+from scripts.rl.tests.support.ops_test_support import (array_of, cluster_env, complete, flag, live_states, read_receipt, run_cluster)
 
 
 @pytest.fixture
