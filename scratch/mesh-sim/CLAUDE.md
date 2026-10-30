@@ -52,6 +52,8 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
 - Use the human's configured Git author/committer identity. Never add
   `Co-Authored-By`, `Signed-off-by`, or AI-generated attribution to commits or
   PR text; verify the final message before publishing.
+- PR descriptions, review size and dependency handling follow
+  [CONTRIBUTING.md](CONTRIBUTING.md#6-pull-requests) and the repository PR template.
 
 ## Code guidelines
 
