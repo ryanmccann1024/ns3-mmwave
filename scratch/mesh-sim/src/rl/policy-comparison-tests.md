@@ -6,10 +6,10 @@ Run these from `scratch/mesh-sim/`. These files use temporary
 manifests, a stub executor, or `fake_sim.py`; they do not need an ns-3 build:
 
 ```bash
-.venv/bin/python -m pytest -q scripts/rl/tests/test_policy_comparison.py \
-  scripts/rl/tests/test_experiment_matrix.py \
-  scripts/rl/tests/test_evaluation_pipeline.py \
-  scripts/rl/tests/test_metrics.py
+.venv/bin/python -m pytest -q scripts/rl/tests/policy/test_policy_comparison.py \
+  scripts/rl/tests/experiments/test_experiment_matrix.py \
+  scripts/rl/tests/policy/test_evaluation_pipeline.py \
+  scripts/rl/tests/policy/test_metrics.py
 ```
 
 | Test file | Input | What it checks | Expected result |
@@ -32,7 +32,7 @@ For the built simulator, run the focused fresh-process smoke test after setting
 ```bash
 MESH_SIM_BIN=/absolute/path/to/ns3.42-sim-debug \
   .venv/bin/python -m pytest -q \
-  scripts/rl/tests/test_real_binary.py::test_experiment_matrix_smoke_in_fresh_processes
+  scripts/rl/tests/integration/test_real_binary.py::test_experiment_matrix_smoke_in_fresh_processes
 ```
 
 That test uses one temporary matrix with two training seeds and two held-out

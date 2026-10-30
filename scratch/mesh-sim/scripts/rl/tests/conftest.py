@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-FAKE_SIM = Path(__file__).resolve().parent / "fake_sim.py"
+FAKE_SIM = Path(__file__).resolve().parent / "support" / "fake_sim.py"
 
 MULTI_RUN_INI = """[scenario]
 name = fake-multi

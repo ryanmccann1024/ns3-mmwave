@@ -30,7 +30,7 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
 # Python tests, from scratch/mesh-sim/
 .venv/bin/python -m pytest scripts/rl/tests -q
 .venv/bin/python -m pytest scripts/validation/tests
-.venv/bin/python -m pytest scripts/rl/tests/test_mesh_env.py::<test_name>
+.venv/bin/python -m pytest scripts/rl/tests/env/test_mesh_env.py::<test_name>
 ```
 
 - `make lint` (run by `make test`) uses clang-tidy with `xcrun`, so it is

@@ -21,7 +21,7 @@ Run from `scratch/mesh-sim/` as a module (package-relative imports):
 `plot.example.ini` has a hardcoded `data_dir` pointing at an old run; copy it
 or edit `data_dir` before running. There is no test directory here; the only
 test touching this package is
-`scripts/rl/tests/test_policy_comparison.py::test_plotting_uses_the_shared_statistics`.
+`scripts/rl/tests/policy/test_policy_comparison.py::test_plotting_uses_the_shared_statistics`.
 
 ## Architecture
 
