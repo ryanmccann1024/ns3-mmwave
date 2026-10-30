@@ -183,3 +183,45 @@ inputs and outputs.
 
 The [placement guide](@ref mesh_sim_placement_start) runs both cost settings
 and shows the limits of planner predictions.
+
+## 6\. Pull requests
+
+Use the repository's [PR template](../../.github/pull_request_template.md).
+Write for someone who has not followed the implementation conversation. A small
+change may need only a paragraph and its validation results; a larger change
+needs enough context to explain the behavior and the important tradeoffs.
+
+- **Title:** use the Conventional Commit format from [CLAUDE.md](CLAUDE.md),
+  under 72 characters. Name the resulting behavior or responsibility.
+- **Summary:** start with the concrete problem and what changes for the user.
+  Use a short before/after example when it helps. Add a few bullets for distinct
+  changes; avoid a file inventory, implementation diary or repeated checklist.
+- **Validation:** list actual checks and results, including commands or a short
+  reproduction where useful. Distinguish checks of this branch from checks of
+  the combined dependency stack. State relevant skipped, blocked or unrun
+  checks and why. Pending CI is pending, never a local pass.
+- **Review notes:** include only material compatibility/migration details,
+  limitations, dependencies or a decision needing review. Delete the section
+  when it adds nothing. Link related issues and PRs; keep local paths and
+  unpublished coordination records out of the description.
+
+Keep one coherent reviewer concern per PR, including its implementation, tests
+and user-facing contract. Aim for roughly 4,000 changed lines (additions plus
+deletions, accounting for renames), with flexibility to keep necessary pieces
+together. Count generated/vendored assets and fixtures separately from authored
+code, tests and prose. Explain larger exceptions and give a useful review order.
+File count alone is not a reason to split.
+
+The base is the branch that will receive the change; use `develop` for the
+current feature work unless the maintainer specifies otherwise. Declare every
+unmerged dependency. A PR targeting `develop` includes pending ancestor changes
+in its main diff: provide an incremental comparison link, keep it draft while
+blocked, and merge prerequisites first. Do not describe those dependent branches
+as independently mergeable. Recheck the diff and CI after each prerequisite
+lands; squash/rebase merges may require an explicit restack.
+
+Before publishing, verify the intended fork/base, exact changed-file list and
+configured human identity. Preserve unrelated work and exclude private planning
+records, outputs, trained models and large result bundles. Do not add automated
+attribution or sign-off trailers. Publish as draft while required validation or
+dependencies remain outstanding; the maintainer decides when to merge.
