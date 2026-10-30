@@ -18,6 +18,13 @@ Thin SB3 wrappers used by `train.py` and `policy/bundle.py`.
   `checkpoints/checkpoint_<N>_steps.zip`) and `MaskableEvalCallback` wiring.
   All cadences are SB3 timesteps, i.e. one RL decision each. `policy/bundle.py`
   depends on the checkpoint naming via `list_checkpoints`.
+- `post_update.py` -- `PostUpdateCheckpoints` (`--checkpoint-timing
+  after-update`): saves only after a completed optimizer update and records
+  each event in `post_update_checkpoints.json`; `validate_after_update_schedule`
+  rejects cadences/budgets not aligned with rollouts and complete episodes and
+  never extends a budget. `PostUpdateValidation` keeps the
+  `validation_after_update` behavior. Batch checkpoint recovery depends on
+  these counters (`num_timesteps`, `_n_updates`); keep them exact.
 - `q_learning.py` -- exploratory tabular agent for the legacy single-node mode;
   not on the training, evaluation, or experiment path.
 

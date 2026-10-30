@@ -62,8 +62,14 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
   the new behavior belongs to an existing module or a cohesive extraction.
   File size is a review signal, not a quota; avoid both monoliths and tiny
   wrappers created only to lower a line count.
-- Comments, Doxygen blocks, and README/doc pages follow the documenter agent's rules
-  (`~/.claude/agents/documenter.md`); use that agent for documentation work.
+- Comments, Doxygen blocks, and README/doc pages follow the tracked
+  documentation standard in [docs/documentation-standard.md](docs/documentation-standard.md).
+  [CONTRIBUTING.md](CONTRIBUTING.md) owns the update-together checklist and
+  schema/version details.
+- Documentation tasks may edit the files authorized by the active task.
+  Verification and command execution follow the human's task direction and the
+  project rules above. When documentation generation is part of the task, use
+  the recipe in [README.md](README.md#readme_docs).
 - When adding new source files, update `CMakeLists.txt`'s source list.
 - New C++ unit test suites: follow `tests/CLAUDE.md` (add to `UNIT_DIRS`).
 - Before changing a user-visible behavior (`run.ini`/CLI option, RL

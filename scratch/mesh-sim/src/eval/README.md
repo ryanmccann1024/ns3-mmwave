@@ -26,8 +26,15 @@ Its standalone unit tests (no ns-3 needed) run from `scratch/mesh-sim/`:
 make -C tests/unit/eval test
 ```
 
-The tests cover `sinr-capacity.h` and `link-table.cc`. `link-evaluator.cc`
-needs ns-3 and is exercised only by the full simulator.
+The Makefile (C++17) builds and runs two binaries. `eval-test` covers the
+Shannon/table capacity, unknown-name rejection, CQI `SinrToMcsIndex`,
+`link-table.cc` and `coverage-grid.cc`; it has no Silvus capacity/index checks.
+`reconfigure-test` compiles the real `link-evaluator.cc`
+and `jammer-model.cc` against local ns-3 stubs (a deterministic loss model and
+a fixed LOS condition model) and checks one thing: that calling `Configure`
+again without jammers clears the old jammer. Neither exercises a real
+propagation model or the full simulator; checking those requires full-simulator
+execution rather than this stub suite.
 
 ## Output
 
@@ -65,15 +72,17 @@ No files are written. Two in-memory structures are produced each tick.
 - `shannon`: `B·log2(1+SINR)`.
 - `table`: CQI spectral efficiency times bandwidth (16 entries, indices 0–15).
 - `silvus`: Silvus single-stream MCS 0–6, scaled from 20 MHz to the configured bandwidth.
-- Any SINR below `SINR_MIN_DB` (−6.7 dB) gives 0 Mbps.
-- An unknown model name throws `std::runtime_error` from `SinrToCapacity`.
+- Any SINR below `SINR_MIN_DB` (−6.7 dB) gives 0 Mbps; `SinrToCapacity` returns this before it reads the model name.
+- `amc_model` has no validator whitelist. An unknown name therefore passes `ValidateConfig` and throws `std::runtime_error` from `SinrToCapacity` only when a link is at or above the threshold, part-way through a run. `main` does not catch this exception around the evaluation loop. Archiving and the run-log attempt precede it, but `run.log` may have failed to open and the seed's outputs may be incomplete (@ref src_io_run_record "What a run records").
+- MCS selection is separate from capacity: `link-evaluator.cc` uses `SinrToSilvusMcsIndex` only when the name is exactly `silvus`; every other name uses `SinrToMcsIndex` (the CQI path). Capacity is converted first, then the index is chosen.
+- To extend the capacity selector, see @ref mesh_sim_add_capacity_model "Add a capacity model".
 
 ### Connectivity
 - `LinkTable::IsConnected` and `ConnectedLinkCount` default to `sinr_db >= -6.7`, a literal that matches `SINR_MIN_DB`.
 - `metrics-writer.cc` skips links with `sinr_db <= -900` as invalid (the `-999` sentinel).
 
 ### Probe links
-- `EvaluateProbe` (used only by `src/query/`) runs the same private body as `Evaluate`; only the RX gain comes from the request instead of a node's gain, and `rx_id` is `LinkEvaluator::kProbeRxId`. Floors, jammer path (larger of probe-end and TX-end power) and the jammed-SINR clamp are identical.
+- `EvaluateProbe` (used only by `src/query/`) runs the same private body as `Evaluate`; only the RX gain comes from the request instead of a node's gain, and `rx_id` is `LinkEvaluator::kProbeRxId`. Path-loss floors, jammer path (larger of probe-end and TX-end power) and the unclamped SINR calculation are identical; negative SINR is preserved.
 
 ### Call order
 - `LinkEvaluator::Configure` must run before `Evaluate`, `EvaluateProbe` or `EvaluateAll`. It throws `std::runtime_error` on a null model pointer.

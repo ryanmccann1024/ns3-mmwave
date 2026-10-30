@@ -1,7 +1,8 @@
 # scripts/baselines
 
-Read [README.md](README.md) for the versioned configuration example, source
-coordinate/objective explanations, and active-planner extension steps.
+Read the guide in [docs/placement/](../../docs/placement/start-here.md) for the
+end-to-end code path and the steps to add a placement method, and
+[README.md](README.md) for keys, mapping and outputs.
 
 - Keep CLIs to argument parsing and delegation. Do not put configuration,
   schema, node-authority, or planner search logic in them.
@@ -22,8 +23,8 @@ coordinate/objective explanations, and active-planner extension steps.
   performance. Decisions continue during warmup; scored facts begin at warmup.
 - Preserve all nine pinned `third_party/arpo_placement` source files. Put
   explanations in documentation and runtime adaptations outside that tree.
-- The active contract is mapping v2, baseline manifest/plan v3, evaluation v5
-  and comparison v2. RF planning has been removed. Delegate to the engine
+- Current artifact schema versions are owned by
+  [CONTRIBUTING.md](../../CONTRIBUTING.md). RF planning has been removed. Delegate to the engine
   [guide](planners/README.md) and keep binary/library identity in
   `runtime_identity.py`, separate from artifact schemas and generic I/O.
 - Require a dedicated channel-planning seed and record optimizer, training,

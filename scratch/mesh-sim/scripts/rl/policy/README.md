@@ -15,6 +15,15 @@ walkthrough see [Model lifecycle](@ref scripts_rl_model_lifecycle).
 | [`evaluate.py`](@ref scripts/rl/policy/evaluate.py) | Baseline and model policies, the per-episode loop, per-episode metrics, and `eval_manifest.json` writing. |
 | [`compare_inputs.py`](@ref scripts/rl/policy/compare_inputs.py) | Loads `eval_manifest.json` files and flattens them into per-episode rows. |
 | [`compare.py`](@ref scripts/rl/policy/compare.py) | Paired model-minus-baseline statistics, run grouping, and `exit_code`. |
+| [`training.py`](@ref scripts/rl/policy/training.py), [`training_artifacts.py`](@ref scripts/rl/policy/training_artifacts.py) | Training lifecycle, resume and continuation, curriculum factory, `train_manifest.json`. |
+| [`experiment.py`](@ref scripts/rl/policy/experiment.py) | Version 1 matrix compatibility facade; public helper names unchanged. |
+| [`operation.py`](@ref scripts/rl/policy/operation.py) | One saved policy on one evaluation seed: frozen and online modes, `DiagnosticEnv`/`OperationEnv`, `online_manifest.json`; also the standalone `online` algorithm (`run_online`). |
+| [`online_adaptation.py`](@ref scripts/rl/policy/online_adaptation.py) | `OnlinePolicy`: the gated online protocol (`online_gated_v1`). |
+| [`schedules.py`](@ref scripts/rl/policy/schedules.py) | Frozen execution schedules: initial sampling, stall bursts, coverage sample-then-deterministic/hold. |
+| [`replay_gate.py`](@ref scripts/rl/policy/replay_gate.py) | Native saved-action replay gate and its pass test. |
+| [`reward_audit.py`](@ref scripts/rl/policy/reward_audit.py) | Named reward reconstruction audits. |
+| [`scripted.py`](@ref scripts/rl/policy/scripted.py) | `ReferencePolicy`, `ScriptedMissionPolicy`, baseline runs and outcome validation. |
+| [`mission_metrics.py`](@ref scripts/rl/policy/mission_metrics.py), [`episode_review.py`](@ref scripts/rl/policy/episode_review.py) | Mission metrics and endpoint/physical/motion reviews. |
 
 ## Lifecycle
 
@@ -29,11 +38,56 @@ Train, evaluate, and compare are three separate commands. This package serves th
 Test maps: [lifecycle](@ref src_rl_policy_lifecycle_tests) and
 [comparison](@ref src_rl_policy_comparison_tests).
 
+`training.py::train_mppo` also accepts an optional campaign-owned
+`post_update_callback_factory(artifacts)`. With it, the ordinary per-step
+checkpoint callback is suppressed, and the returned callback owns optimized
+checkpoint timing. It cannot be combined with in-training evaluation. Omitted
+behavior is unchanged. The post-update checkpoint workflow supports both
+fresh and continued runs, evaluating saved checkpoints after training so
+evaluation does not disturb the training random state.
+
+`train_mppo` also takes `checkpoint_timing`, `decisions_per_episode`,
+`curriculum` and `continuation`, the library side of the `train.py m-ppo`
+options `--checkpoint-timing`, `--decisions-per-episode`,
+`--curriculum-schedule` and `--continue-from-run-dir`/`--continue-model`.
+`after-update` timing uses `agents/post_update.py`'s `PostUpdateCheckpoints`;
+the decisions-per-episode assertion is checked against the native `init`
+contract after the first reset, before any update. Test map:
+`test_checkpoint_recovery_support.py` in [scripts/rl/tests](@ref scripts_rl_tests).
+
+## Batch operations
+
+Batch tasks operate one model on one evaluation seed through
+`operation.run_operation`. Modes, records, preserved online defaults and
+schedules are specified in the
+[batch experiment reference](@ref mesh_sim_rl_batch_protocols); this section
+records only the invariants this package owns.
+
+- Frozen modes (`frozen_deterministic`, `frozen_sampled`, optionally scheduled)
+  fail if the parameter or optimizer digest changes.
+- `online_gated_v1` and `online_sb3_v1` are separate protocols from one
+  scientific engine each; neither is merged into the other. Each reloads its
+  parent for every evaluation seed.
+- `run_operation` writes `online_manifest.json` with an explicit `protocol`;
+  `run_online` (the standalone CLI) keeps its legacy envelope, whose version
+  alone does not identify the protocol (see [Contributing](@ref Contributing)).
+- `bundle.py` provides `parameter_digest`, `optimizer_digest`,
+  `checkpoint_counters`, and write-once model bindings (`bind_model`,
+  `read_bound_checkpoint`) that re-verify the manifest bytes, model SHA-256,
+  counters and optimizer digest without rewriting the source run.
+- A replay gate passes only by `replay_gate.gate_passed`; a zero exit code is
+  not success.
+
+Tests: `test_operation.py`, `test_online_protocols.py` (map in
+[scripts/rl/tests](@ref scripts_rl_tests)).
+
 ## Bundle Verification
 
 `read_bundle` refuses a run unless all of these hold:
 
-- `manifest_version` equals `MANIFEST_VERSION` imported from `training_artifacts.py` (currently 6).
+- `manifest_version` is the current `MANIFEST_VERSION` from `training_artifacts.py`, or one of
+  the earlier versions `bundle.py` still lists as readable; anything else is refused with
+  "retrain with current tooling". Version numbers live in [Contributing](@ref Contributing).
 - `status` is `completed`.
 - `control_mode` is `centralized`.
 - The chosen model file exists and its SHA-256 matches the digest in the manifest.
@@ -149,8 +203,8 @@ they are approximate.
 
 | Step | Where |
 | --- | --- |
-| Evaluate | `<output-dir>/eval_manifest.json` (`EVAL_MANIFEST_VERSION` 5) plus per-episode simulator output. |
-| Compare | `<output-dir>/episodes.csv` and `<output-dir>/comparison.json` (`COMPARISON_VERSION` 2). |
+| Evaluate | `<output-dir>/eval_manifest.json` (`eval_manifest_version` = `EVAL_MANIFEST_VERSION`) plus per-episode simulator output. |
+| Compare | `<output-dir>/episodes.csv` and `<output-dir>/comparison.json` (`COMPARISON_VERSION`). Current version numbers are in [Contributing](@ref Contributing). |
 
 ## Conventions
 
@@ -166,18 +220,7 @@ they are approximate.
 - Run the CLIs as `python -m scripts.rl.evaluate` / `python -m scripts.rl.compare` from
   `scratch/mesh-sim/`; evaluation needs a built simulator binary.
 
-For the zero-cost/penalized placement workflow, input snapshots and diagnostic
-interpretation see the [placement walkthrough](../../baselines/walkthrough.md).
-Evaluation v4 and comparison v1 outputs require regeneration for this schema;
-changing their version number does not supply missing facts.
-
-## PPO operation and continuation
-
-Frozen deterministic and sampled modes preserve both policy and optimizer
-states. `online_gated_v1` trains eligible windows from one episode;
-`online_sb3_v1` uses the SB3 learning loop. Their defaults/accounting stay
-separate. Post-update checkpoints retain optimized policies. Continuation
-requires a completed saved parent, matching selection, seed and input identity,
-and a larger cumulative budget. Schedules change frozen action selection;
-they do not update weights. `scripts.rl.operate --help` lists single-operation
-commands; `scripts.rl.train m-ppo --help` lists continuation/checkpoint flags.
+For placement inputs, snapshots and how to read a plan, see
+[Placement baselines](@ref mesh_sim_placement_start).
+Evaluation and comparison outputs written at an earlier schema version require
+regeneration; changing their version number does not supply missing facts.

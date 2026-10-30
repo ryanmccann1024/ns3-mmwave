@@ -54,6 +54,8 @@ RNG stream indices before the propagation model is created. Coverage-enabled liv
 
 - Behavior depends only on the `SimConfig` passed in.
 - Unknown mobility or propagation scenario strings throw `std::runtime_error`.
+- **Scenario names.** `ValidateConfig` (`config-validator.cc`) accepts `UMi`, `UMa`, `RMa`, `InH` and `InF` for `[channel] scenario` without looking at `channel_model`. The 3GPP branch of `ConfigurePropagationModel` (`topology-builder.cc`) rejects `InF` and additionally recognizes `InH-Mixed` and `InH-Open`, which the validator rejects; the NYU branch accepts exactly the validator's five names. A config such as `channel_model = 3gpp` with `scenario = InF` therefore passes validation and fails in `Build()`.
+- **When `Build()` fails.** `sim.cc` calls `topo.Build()` inside the per-seed loop, after the inputs are archived and `run.log` has been attempted, and the call is not inside a `try`/`catch` in `main`: there is no handled `return 1` path for it. The failing seed has not yet opened its CSV writer or written `summary.json`, so this attempt adds no CSV or summary files to its `seed-<N>/` folder; earlier seeds in the same batch, or a reused output directory, may already hold results, and `run.log` may itself have failed to open silently. Expect possibly partial output; no process exit code or platform message is documented for this case. The canonical list of what a run preserves is @ref src_io_run_record "What a run records".
 - Comments use Doxygen `/** */` blocks; full docs live in the header.
 
 ## Dependencies

@@ -39,7 +39,7 @@ is one full query: the t = 0 mesh link table plus every node-to-probe link.
 
 - **Core.** Connected components over all mesh nodes; the core is the largest,
   ties going to the component holding the smallest roster index. No root.
-- **Coverage.** Probes sit at the clipped-cell centres of the coverage grid and
+- **Coverage.** Probes sit at the clipped-cell centers of the coverage grid and
   carry their clipped areas (the areas sum to the AOI). A probe counts once if
   any core node covers it. Nodes outside the core contribute nothing.
 - **Connectivity.** `BIG = 2 x AOI` per selected node outside the core.
@@ -49,7 +49,7 @@ is one full query: the t = 0 mesh link table plus every node-to-probe link.
   end up apart. Weight per pair: `resilience` AOI, `balanced` 0.02 x AOI,
   `coverage` 0.
 - **Separation tie-break.** `0.4 x cell_m² x mean over selected of
-  min(nearest-neighbour distance / rectangle diagonal, 1)`; the default is
+  min(nearest-neighbor distance / rectangle diagonal, 1)`; the default is
   below one coverage cell, while an overridden coefficient may exceed it.
 - **Movement.** Per selected node, from its ORIGINAL start:
   `0` if displacement ≤ 1e-6 m, else `fixed_cost_m2 + cost_m2_per_m x d`.
@@ -105,7 +105,7 @@ changed-pairs-only queries, because sampled draws depend on evaluation order
    the start layout (two queries) and continue from the better one (ties go
    to the greedy layout). The best layout seen is returned. `warm_start = current` skips greedy planning
    and records that fact explicitly.
-2. Each iteration draws a move with weights renormalised after dropping the
+2. Each iteration draws a move with weights renormalized after dropping the
    Desktop `altitude` move: nudge 0.55/0.85, teleport 0.20/0.85, swap
    0.10/0.85.
    - `nudge`: Gaussian x/y step on one selected node.
@@ -216,11 +216,15 @@ To add a score term, register a `ScoreComponent` in `components.py` with
 The facts include `result`, `layout`, `core`, coverage, separation, movement,
 disconnected nodes and vulnerability. Add it to an `ObjectivePreset` with its
 anchor schedule; the composer needs no new name branch. Unused or unknown
-component parameters are rejected. To add an optimizer, register a module in
-`solver.STRATEGIES` exposing `solve`, `settings`, and optionally
-`validate_request`. Keep its settings validation and search mechanics with
+component parameters are rejected. To add an optimizer, add its name to
+`config.PLACEMENT_METHODS` and create `scripts/baselines/planners/<name>.py`
+exposing `solve`, `settings`, and optionally `validate_request`.
+`solver.STRATEGIES` is derived from `PLACEMENT_METHODS`; do not edit it as a
+separate registry. Keep its settings validation and search mechanics with
 that owner. Add public INI/matrix selectors in their configuration owners
-when exposing a new strategy through those entry points.
+when exposing a new strategy through those entry points. The full list of
+files to change, with a worked example, is in
+\ref mesh_sim_placement_add "Add a baseline".
 
 ## Engine example and artifacts
 
@@ -282,3 +286,14 @@ units use a stub evaluator to test protocol limits, pipe draining, deadlines
 and reaping. Real t=0 parity, sampled-channel isolation, timing, cancellation
 and performance remain checks for a human-built binary; the unit passes and
 syntax checks do not establish them.
+
+### Outdoor probe domains for scenario checks
+
+`PlanRequest.probe_exclusion_buildings` optionally excludes probe centers inside
+uninflated 3D building bounds, inclusive on edges, at the configured probe height.
+Both `prepare_scorer` and `ScoringContext.build` use this same filtered grid;
+its retained cell area is the coverage denominator, matching native
+`BuildCoverageGrid`. Empty domains are rejected. The default empty exclusion
+list preserves rectangular scoring. Engine settings version 2 fingerprints
+these exclusions, forbidden building bounds and minimum separation whenever
+constraints are supplied. Initial placement still does not represent navigation.
