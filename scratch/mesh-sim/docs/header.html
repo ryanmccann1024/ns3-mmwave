@@ -1,59 +1,221 @@
-<!-- HTML header for doxygen 1.9.1-->
+<!-- HTML header for doxygen 1.18.0-->
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="$langISO">
 <head>
 <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
-<meta http-equiv="X-UA-Compatible" content="IE=9"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
 <meta name="generator" content="Doxygen $doxygenversion"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <!--BEGIN PROJECT_NAME--><title>$projectname: $title</title><!--END PROJECT_NAME-->
 <!--BEGIN !PROJECT_NAME--><title>$title</title><!--END !PROJECT_NAME-->
+<script type="text/javascript">
+    // Site-wide text size chosen with the control at the bottom of the
+    // sidebar (see below). Applied first so pages never flash at the wrong
+    // size; theme/mesh-sim.css divides viewport heights by --ms-zoom.
+    (function () {
+        let zoom = 1
+        try { zoom = parseFloat(localStorage.getItem('mesh-sim-text-size')) || 1 } catch (e) {}
+        document.documentElement.style.zoom = zoom
+        document.documentElement.style.setProperty('--ms-zoom', zoom)
+    })()
+</script>
+<!--BEGIN PROJECT_ICON-->
+<link rel="icon" href="$relpath^$projecticon" type="image/x-icon" />
+<!--END PROJECT_ICON-->
 <link href="$relpath^tabs.css" rel="stylesheet" type="text/css"/>
-<script type="text/javascript" src="$relpath^jquery.js"></script>
+<!--BEGIN FULL_SIDEBAR-->
+<meta name="doxygen-page-layout" content="1" />
+<!--END FULL_SIDEBAR-->
+<!--BEGIN HTML_DYNAMIC_SECTIONS-->
 <script type="text/javascript" src="$relpath^dynsections.js"></script>
+<!--END HTML_DYNAMIC_SECTIONS-->
+<!--BEGIN HTML_CODE_FOLDING-->
+<script type="text/javascript" src="$relpath^codefolding.js"></script>
+<!--END HTML_CODE_FOLDING-->
+<!--BEGIN COPY_CLIPBOARD-->
+<script type="text/javascript" src="$relpath^clipboard.js"></script>
+<!--END COPY_CLIPBOARD-->
 $treeview
 $search
 $mathjax
+$darkmode
+$mermaidjs
 <link href="$relpath^$stylesheet" rel="stylesheet" type="text/css" />
 $extrastylesheet
-<!-- ... other metadata & script includes ... -->
-        <script type="text/javascript" src="$relpath^doxygen-awesome-darkmode-toggle.js"></script>
-        <script type="text/javascript">
-            DoxygenAwesomeDarkModeToggle.init()
-        </script>
+<!-- Lato and Roboto Slab for theme/mesh-sim.css; system fonts are used offline. -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&amp;family=Roboto+Slab:wght@400;700&amp;display=swap" rel="stylesheet" type="text/css"/>
+<!-- doxygen-awesome-css v2.5.0 extensions (see theme/provenance.md); scripts are copied
+     to the HTML root by HTML_EXTRA_FILES and each is initialised per upstream docs/extensions.md -->
+<script type="text/javascript" src="$relpath^doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="$relpath^doxygen-awesome-fragment-copy-button.js"></script>
+<script type="text/javascript" src="$relpath^doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="$relpath^doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    DoxygenAwesomeDarkModeToggle.init()
+    DoxygenAwesomeFragmentCopyButton.init()
+    DoxygenAwesomeParagraphLink.init()
+    DoxygenAwesomeInteractiveToc.init()
+</script>
+<!-- Mesh-Sim behaviour, in its own block so it still runs if a theme script
+     above fails to load. -->
+<script type="text/javascript">
+    // Keep the sidebar synced to the open page: theme/mesh-sim.css hides the
+    // sync toggle, so clear any "sync off" state a reader stored earlier.
+    if (typeof Cookie !== 'undefined') Cookie.eraseSetting('navpath')
+
+    // Code in table cells never breaks inside a name (theme/mesh-sim.css);
+    // only long tokens such as paths and hashes may break anywhere, so they
+    // cannot push a table past the text column.
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('table.markdownTable td code, table.markdownTable td span.tt, table.markdownTable th code, table.markdownTable th span.tt, table.doxtable td code, table.doxtable td span.tt').forEach(function (el) {
+            if (el.textContent.trim().length > 22) el.classList.add('ms-long')
+        })
+    })
+
+    // "Code by module" overview (topics.html): tag each row of Doxygen's group
+    // table with its depth (row ids are row_0_, row_0_1_, ...) so
+    // theme/mesh-sim.css can style languages, categories and modules apart.
+    document.addEventListener('DOMContentLoaded', function () {
+        const table = document.querySelector('div.contents table.directory')
+        if (!table || !/topics\.html$/.test(location.pathname)) return
+        table.classList.add('ms-api-index')
+        table.querySelectorAll('tr[id^="row_"]').forEach(function (tr) {
+            tr.classList.add('ms-l' + Math.min((tr.id.match(/_/g) || []).length - 2, 4))
+        })
+    })
+
+    // Sidebar group captions (styled by li.ms-caption in theme/mesh-sim.css).
+    // The home page is the tree root (its row is hidden; the project name in
+    // the header links home), so its subpages are the first top-level entries,
+    // in the order of the \subpage links in index.md's documentation map.
+    // Each caption goes above the top-level entry that links to the given
+    // page; a caption whose page is missing is skipped.
+    document.addEventListener('DOMContentLoaded', function () {
+        const captions = [
+            ['mesh_sim_start_here.html', 'Get started'],
+            ['mesh_sim_placement_start.html', 'Guides'],
+            ['topics.html', 'API reference'],
+        ]
+        const tree = document.getElementById('nav-tree-contents')
+        if (!tree) return
+        const pageOf = function (li) {
+            const a = li.querySelector(':scope > div.item .label a')
+            const href = a && a.getAttribute('href')
+            return href ? href.split('#')[0].split('/').pop() : ''
+        }
+        const place = function () {
+            const top = tree.querySelector(':scope > ul > li > ul')
+            if (!top || top.querySelector(':scope > li.ms-caption')) return
+            for (const [page, text] of captions) {
+                const li = Array.from(top.children).find(c => pageOf(c) === page)
+                if (!li) continue
+                const caption = document.createElement('li')
+                caption.className = 'ms-caption'
+                caption.textContent = text
+                top.insertBefore(caption, li)
+            }
+        }
+        new MutationObserver(place).observe(tree, { childList: true, subtree: true })
+        place()
+    })
+
+    // Text size control: a bar pinned to the bottom of the sidebar. The
+    // choice is kept in localStorage, so it applies to every page.
+    document.addEventListener('DOMContentLoaded', function () {
+        const sideNav = document.getElementById('side-nav')
+        if (!sideNav) return
+        const steps = [0.7, 0.8, 0.9, 1, 1.1, 1.25]
+        const read = function () {
+            try { return parseFloat(localStorage.getItem('mesh-sim-text-size')) || 1 } catch (e) { return 1 }
+        }
+        const bar = document.createElement('div')
+        bar.id = 'ms-text-size'
+        bar.innerHTML = '<span class="ms-ts-label">Text size</span>' +
+            '<button type="button" data-step="-1" aria-label="Smaller text" title="Smaller text">A&#8722;</button>' +
+            '<button type="button" class="ms-ts-value" data-step="0" title="Reset to 100%"></button>' +
+            '<button type="button" data-step="1" aria-label="Larger text" title="Larger text">A+</button>'
+        const value = bar.querySelector('.ms-ts-value')
+        const apply = function (zoom) {
+            document.documentElement.style.zoom = zoom
+            document.documentElement.style.setProperty('--ms-zoom', zoom)
+            value.textContent = Math.round(zoom * 100) + '%'
+            try { localStorage.setItem('mesh-sim-text-size', String(zoom)) } catch (e) {}
+            window.dispatchEvent(new Event('resize'))
+        }
+        bar.addEventListener('click', function (event) {
+            const button = event.target.closest('button')
+            if (!button) return
+            const step = parseInt(button.dataset.step, 10)
+            if (step === 0) { apply(1); return }
+            let i = steps.indexOf(read())
+            if (i < 0) i = steps.indexOf(1)
+            apply(steps[Math.min(steps.length - 1, Math.max(0, i + step))])
+        })
+        value.textContent = Math.round(read() * 100) + '%'
+        sideNav.appendChild(bar)
+    })
+
+    // Authored diagrams (\dotfile, files named dot_*.svg) come as fixed-size
+    // iframes that overflow the reading column. Show them as images instead,
+    // which scale down to fit (.ms-dot in theme/mesh-sim.css).
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('div.contents iframe[src^="dot_"]').forEach(function (frame) {
+            const img = document.createElement('img')
+            img.src = frame.getAttribute('src')
+            img.className = 'ms-dot'
+            img.width = frame.width
+            img.height = frame.height
+            const caption = frame.parentElement.querySelector('.caption')
+            img.alt = caption ? caption.textContent.trim() : 'Diagram'
+            frame.replaceWith(img)
+        })
+    })
+</script>
 </head>
 <body>
+<!--BEGIN FULL_SIDEBAR-->
+<div id="side-nav" class="ui-resizable side-nav-resizable"><!-- do not remove this div, it is closed by doxygen! -->
+<!--END FULL_SIDEBAR-->
+
 <div id="top"><!-- do not remove this div, it is closed by doxygen! -->
 
 <!--BEGIN TITLEAREA-->
 <div id="titlearea">
 <table cellspacing="0" cellpadding="0">
  <tbody>
- <tr style="height: 56px;">
+ <tr id="projectrow">
   <!--BEGIN PROJECT_LOGO-->
-  <td id="projectlogo"><img alt="Logo" src="$relpath^$projectlogo"/></td>
+  <td id="projectlogo"><img alt="Logo" src="$relpath^$projectlogo"$logosize/></td>
   <!--END PROJECT_LOGO-->
   <!--BEGIN PROJECT_NAME-->
-  <td id="projectalign" style="padding-left: 0.5em;">
-   <div id="projectname">$projectname
-   <!--BEGIN PROJECT_NUMBER-->&#160;<span id="projectnumber">$projectnumber</span><!--END PROJECT_NUMBER-->
+  <td id="projectalign">
+   <div id="projectname"><a href="$relpath^index.html">$projectname</a><!--BEGIN PROJECT_NUMBER--><span id="projectnumber">&#160;$projectnumber</span><!--END PROJECT_NUMBER-->
    </div>
    <!--BEGIN PROJECT_BRIEF--><div id="projectbrief">$projectbrief</div><!--END PROJECT_BRIEF-->
   </td>
   <!--END PROJECT_NAME-->
   <!--BEGIN !PROJECT_NAME-->
    <!--BEGIN PROJECT_BRIEF-->
-    <td style="padding-left: 0.5em;">
+    <td>
     <div id="projectbrief">$projectbrief</div>
     </td>
    <!--END PROJECT_BRIEF-->
   <!--END !PROJECT_NAME-->
   <!--BEGIN DISABLE_INDEX-->
    <!--BEGIN SEARCHENGINE-->
-   <td>$searchbox</td>
+     <!--BEGIN !FULL_SIDEBAR-->
+    <td>$searchbox</td>
+     <!--END !FULL_SIDEBAR-->
    <!--END SEARCHENGINE-->
   <!--END DISABLE_INDEX-->
  </tr>
+  <!--BEGIN SEARCHENGINE-->
+   <!--BEGIN FULL_SIDEBAR-->
+   <tr><td colspan="2">$searchbox</td></tr>
+   <!--END FULL_SIDEBAR-->
+  <!--END SEARCHENGINE-->
  </tbody>
 </table>
 </div>

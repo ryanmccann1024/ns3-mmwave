@@ -1,0 +1,3142 @@
+/*
+ * Mesh-Sim site layer over doxygen-awesome-css.
+ *
+ * Loaded last through HTML_EXTRA_STYLESHEET, so it overrides the vendored theme
+ * without editing it (theme/doxygen-awesome-css/ stays byte-identical to
+ * upstream; see theme/provenance.md). The look follows the Read the Docs Sphinx
+ * theme used by the FUSION documentation: a dark sidebar under a blue header,
+ * uppercase group captions, Lato body text with Roboto Slab headings and an
+ * 800 px reading column. Fonts load from Google Fonts in header.html and fall
+ * back to system fonts offline. Flat colours only: no gradients.
+ */
+
+/* ---------- Tokens ---------- */
+
+html {
+    --primary-color: #2980b9;
+    --primary-dark-color: #1f6391;
+    --primary-light-color: #6ab0de;
+    --on-primary-color: #ffffff;
+    --link-color: #2980b9;
+
+    --page-background-color: #fcfcfc;
+    --page-foreground-color: #404040;
+    --page-secondary-foreground-color: #6a6a6a;
+    --separator-color: #e1e4e5;
+
+    --side-nav-background: #343131;
+    --side-nav-foreground: #d9d9d9;
+    --side-nav-arrow-opacity: 1;
+    --side-nav-arrow-hover-opacity: 1;
+    --side-nav-fixed-width: 340px; /* must equal TREEVIEW_WIDTH in Doxyfile */
+    --top-height: 124px;
+    --searchbar-height: 38px;
+
+    --code-background: #ffffff;
+    --code-foreground: #e74c3c;
+    --fragment-background: #f8f8f8;
+    --fragment-foreground: #404040;
+    --tablehead-background: #fcfcfc;
+    --blockquote-background: #f3f6f6;
+    --toc-background: transparent;
+
+    --note-color: #e7f2fa;
+    --note-color-dark: #6ab0de;
+    --note-color-darker: #404040;
+    --warning-color: #ffedcc;
+    --warning-color-dark: #f0b37e;
+    --warning-color-darker: #404040;
+
+    --font-family: "Lato", "proxima-nova", "Helvetica Neue", Arial, sans-serif;
+    --ms-heading-font: "Roboto Slab", "ff-tisa-web-pro", Georgia, serif;
+    --font-family-monospace: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+    --border-radius-large: 4px;
+    --border-radius-medium: 3px;
+    --border-radius-small: 2px;
+    --box-shadow: none;
+
+    --page-font-size: 18px;
+    --navigation-font-size: 16.5px;
+    --content-line-height: 30px;
+    --content-maxwidth: 960px;
+    --title-font-size: 18px;
+    --code-font-size: 15px;
+    --toc-font-size: 15px;
+    --memname-font-size: 16px;
+    --memtitle-font-size: 20px;
+
+    --ms-header-background: #2980b9;
+    --ms-caption: #55a5d9;
+    --ms-nav-hover: #4e4a4a;
+    --ms-nav-current: #fcfcfc;
+    --ms-nav-current-text: #404040;
+    --ms-row-odd: #f3f6f6;
+    --ms-thumb: rgba(0, 0, 0, .2);
+}
+
+/* Dark values are declared twice, like the vendored theme: once for the OS
+ * preference and once for the toggle's explicit html.dark-mode class. */
+@media (prefers-color-scheme: dark) {
+    html:not(.light-mode) {
+        --primary-color: #5aa9e6;
+        --primary-dark-color: #8cc4ef;
+        --primary-light-color: #2f6d99;
+        --link-color: #5aa9e6;
+
+        --page-background-color: #1d1e20;
+        --page-foreground-color: #d4d7da;
+        --page-secondary-foreground-color: #9aa0a6;
+        --separator-color: #34373a;
+
+        --side-nav-background: #232222;
+        --code-background: #26282b;
+        --code-foreground: #ff8a7a;
+        --fragment-background: #232528;
+        --fragment-foreground: #d4d7da;
+        --tablehead-background: #1d1e20;
+        --blockquote-background: #232528;
+
+        --note-color: #1d2a33;
+        --note-color-dark: #2f6d99;
+        --note-color-darker: #d4d7da;
+        --warning-color: #33291c;
+        --warning-color-dark: #a8743f;
+        --warning-color-darker: #d4d7da;
+
+        --ms-header-background: #1f5f8b;
+        --ms-nav-hover: #3a3838;
+        --ms-nav-current: #1d1e20;
+        --ms-nav-current-text: #e6e6e6;
+        --ms-row-odd: #232528;
+        --ms-thumb: rgba(255, 255, 255, .18);
+    }
+}
+
+html.dark-mode {
+    --primary-color: #5aa9e6;
+    --primary-dark-color: #8cc4ef;
+    --primary-light-color: #2f6d99;
+    --link-color: #5aa9e6;
+
+    --page-background-color: #1d1e20;
+    --page-foreground-color: #d4d7da;
+    --page-secondary-foreground-color: #9aa0a6;
+    --separator-color: #34373a;
+
+    --side-nav-background: #232222;
+    --code-background: #26282b;
+    --code-foreground: #ff8a7a;
+    --fragment-background: #232528;
+    --fragment-foreground: #d4d7da;
+    --tablehead-background: #1d1e20;
+    --blockquote-background: #232528;
+
+    --note-color: #1d2a33;
+    --note-color-dark: #2f6d99;
+    --note-color-darker: #d4d7da;
+    --warning-color: #33291c;
+    --warning-color-dark: #a8743f;
+    --warning-color-darker: #d4d7da;
+
+    --ms-header-background: #1f5f8b;
+    --ms-nav-hover: #3a3838;
+    --ms-nav-current: #1d1e20;
+    --ms-nav-current-text: #e6e6e6;
+    --ms-row-odd: #232528;
+    --ms-thumb: rgba(255, 255, 255, .18);
+}
+
+body {
+    background: var(--page-background-color);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Sidebar header (project name and search) ---------- */
+
+#top {
+    background: var(--ms-header-background);
+}
+
+@media screen and (min-width: 768px) {
+    #top {
+        box-sizing: border-box;
+        border-right: none;
+    }
+    #side-nav {
+        box-sizing: border-box;
+        padding-right: 0;
+        border-right: none;
+    }
+    /* navtree.js sizes the tree from a stored width; fill the sidebar. */
+    #nav-tree {
+        width: 100% !important;
+        box-sizing: border-box;
+        border-right: none;
+    }
+}
+
+#titlearea {
+    padding: 14px 0 2px;
+    text-align: center;
+}
+
+#titlearea table {
+    margin: 0 auto;
+}
+
+#projectname {
+    font-family: var(--font-family);
+    font-size: 25px;
+    font-weight: 700;
+    color: #fcfcfc;
+}
+
+#projectname a {
+    color: #fcfcfc !important;
+    text-decoration: none;
+}
+
+#projectnumber {
+    margin-left: 6px;
+    font-size: 14px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, .75);
+}
+
+#MSearchBox {
+    border: 1px solid #2472a4;
+    border-radius: 50px;
+    box-shadow: none;
+    background: #ffffff;
+}
+
+#MSearchBox.MSearchBoxActive {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, .35);
+}
+
+#MSearchField {
+    color: #404040;
+    font-family: var(--font-family);
+}
+
+html.dark-mode #MSearchBox,
+html.dark-mode #MSearchField {
+    background: #ffffff;
+    color: #404040;
+}
+
+/* ---------- Sidebar tree ---------- */
+
+#side-nav,
+#nav-tree {
+    background: var(--side-nav-background);
+}
+
+#nav-tree {
+    padding: 4px 0 24px;
+}
+
+#nav-tree .label,
+#nav-tree a {
+    font-family: var(--font-family);
+    font-size: var(--navigation-font-size);
+}
+
+#nav-tree a {
+    color: var(--side-nav-foreground) !important;
+}
+
+/* Entries wrap onto a second line rather than being cut off with an
+ * ellipsis; the arrow (or indent spacer) stays aligned with the first line. */
+#nav-tree li {
+    white-space: normal;
+}
+
+#nav-tree .item {
+    display: flex;
+    align-items: flex-start;
+    height: auto;
+    min-height: var(--tree-item-height);
+    overflow: visible;
+    margin: 0;
+    padding: 0 12px 0 18px;
+    border-radius: 0;
+}
+
+#nav-tree .item > a:first-child,
+#nav-tree .item > span.arrow {
+    flex: none;
+    display: flex;
+    align-items: center;
+    height: 36px;
+}
+
+#nav-tree .item > a:first-child > span.arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 36px;
+}
+
+#nav-tree .label {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 0 7px 5px;
+    line-height: 1.35;
+}
+
+#nav-tree .item:hover {
+    background: var(--ms-nav-hover);
+}
+
+/* The first tree row repeats the project name shown in the header. Hide it
+ * and pull every level left by one indent step to compensate. */
+#nav-tree-contents > ul > li > div.item {
+    display: none;
+}
+
+#nav-tree .item > :first-child {
+    margin-left: -16px;
+}
+
+/* Expand arrows: always visible, so it is clear which entries open. */
+#nav-tree .arrow {
+    opacity: 1;
+}
+
+#nav-tree span.arrowhead,
+.selected span.arrowhead {
+    border-color: #a3a3a3;
+    border-width: 0 1.5px 1.5px 0;
+}
+
+#nav-tree .item > a:hover span.arrowhead {
+    border-color: #ffffff;
+}
+
+/* Current page: a light bar with dark bold text, as in Read the Docs. */
+#nav-tree .selected {
+    background: var(--ms-nav-current) !important;
+}
+
+#nav-tree .selected::after {
+    display: none;
+}
+
+#nav-tree .selected a {
+    color: var(--ms-nav-current-text) !important;
+    font-weight: 700;
+}
+
+#nav-tree .selected span.arrowhead {
+    border-color: #808080;
+}
+
+/* Group captions inserted by header.html above top-level tree entries. */
+#nav-tree li.ms-caption {
+    margin: 18px 0 0;
+    padding: 0 22px;
+    height: 36px;
+    line-height: 36px;
+    font-family: var(--font-family);
+    font-size: 14.5px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    color: var(--ms-caption);
+    white-space: nowrap;
+}
+
+/* Sync stays on (header.html clears any stored "off" state), so its toggle
+ * is not needed. */
+#nav-sync {
+    display: none !important;
+}
+
+/* ---------- Text size control ---------- */
+
+/* header.html sets CSS zoom on the page from the saved text size and mirrors
+ * it in --ms-zoom. Zoom also scales viewport units, so full-height panes
+ * divide 100vh by it to keep filling the window. The sidebar leaves room at
+ * the bottom for the control bar. */
+html {
+    --ms-zoom: 1;
+    --ms-text-size-bar: 46px;
+}
+
+@media screen and (min-width: 768px) {
+    #side-nav {
+        height: calc(100vh / var(--ms-zoom) - var(--top-height)) !important;
+    }
+
+    #nav-tree {
+        height: calc(100vh / var(--ms-zoom) - var(--top-height) - var(--ms-text-size-bar)) !important;
+    }
+
+    #doc-content {
+        height: calc(100vh / var(--ms-zoom)) !important;
+    }
+}
+
+#ms-text-size {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: var(--ms-text-size-bar);
+    padding: 0 16px 0 22px;
+    box-sizing: border-box;
+    border-top: 1px solid rgba(255, 255, 255, .08);
+    background: var(--side-nav-background);
+    font-family: var(--font-family);
+}
+
+#ms-text-size .ms-ts-label {
+    flex: 1;
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    color: var(--ms-caption);
+}
+
+#ms-text-size button {
+    min-width: 34px;
+    height: 28px;
+    padding: 0 8px;
+    border: 1px solid rgba(255, 255, 255, .18);
+    border-radius: var(--border-radius-medium);
+    background: transparent;
+    color: var(--side-nav-foreground);
+    font-family: var(--font-family);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+#ms-text-size button:hover {
+    background: var(--ms-nav-hover);
+}
+
+#ms-text-size button.ms-ts-value {
+    min-width: 54px;
+    border-color: transparent;
+    font-weight: 400;
+}
+
+@media screen and (max-width: 767px) {
+    #ms-text-size {
+        display: none;
+    }
+}
+
+/* ---------- Scrollbars ---------- */
+
+/* The sidebar scrolls without a visible scrollbar, as in Read the Docs, so
+ * the current-page bar reaches the sidebar edge. */
+#nav-tree {
+    scrollbar-width: none;
+}
+
+#nav-tree::-webkit-scrollbar {
+    display: none;
+}
+
+#doc-content {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ms-thumb) transparent;
+}
+
+#doc-content::-webkit-scrollbar {
+    width: 10px;
+}
+
+#doc-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#doc-content::-webkit-scrollbar-thumb {
+    background: var(--ms-thumb);
+    border: 3px solid transparent;
+    border-radius: 10px;
+    background-clip: content-box;
+}
+
+/* ---------- Footer bar ---------- */
+
+/* Doxygen's bottom bar (breadcrumb and "Generated by doxygen") is hidden;
+ * navtree.js still needs #nav-path in the page, so it stays in the DOM. */
+#nav-path {
+    display: none !important;
+}
+
+/* The page then uses the full window height; see "Text size control" for the
+ * #doc-content height rule. */
+
+/* ---------- Content ---------- */
+
+#doc-content {
+    background: var(--page-background-color);
+}
+
+div.header {
+    border-bottom: none;
+}
+
+div.header .title,
+div.contents h1,
+div.contents h2,
+div.contents h3,
+div.contents h4 {
+    font-family: var(--ms-heading-font);
+    font-weight: 700;
+    letter-spacing: 0;
+    color: var(--page-foreground-color);
+}
+
+div.header .title {
+    font-size: 34px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+/* API pages (class, namespace, file) carry long qualified names; their
+ * titles are set a step smaller. They are the pages with Doxygen's
+ * generated section headings (h2.groupheader). */
+body:has(h2.groupheader) div.header .title {
+    font-size: 27px;
+}
+
+/* One heading scale on every page. Doxygen emits a page's top section level
+ * as h1 when the page title is a Markdown "#" heading, but as h2 on @page
+ * pages, so whichever level comes first gets the same size. */
+div.contents h1,
+div.contents h2 {
+    font-size: 26px;
+    line-height: 1.3;
+    margin: 1.6em 0 .6em;
+}
+
+div.contents h3 {
+    font-size: 21px;
+    line-height: 1.35;
+    margin: 1.4em 0 .5em;
+}
+
+div.contents h4 {
+    font-size: 18px;
+    margin: 1.2em 0 .4em;
+}
+
+div.contents:has(h1) h2 { font-size: 21px; }
+div.contents:has(h1) h3 { font-size: 18px; }
+
+/* API pages: section and member headings. */
+div.contents h2.groupheader {
+    font-size: 22px;
+    margin-top: 1.4em;
+}
+
+h2.memtitle {
+    font-family: var(--font-family-monospace);
+    font-size: 17px;
+    font-weight: 600;
+}
+
+/* Dense content (tables, lists of classes and files, member summaries) is
+ * set a step below body text so it fits the column. */
+table.markdownTable,
+table.doxtable,
+table.fieldtable,
+table.directory,
+table.memberdecls,
+table.memname,
+div.memdoc {
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+th.markdownTableHeadLeft,
+th.markdownTableHeadRight,
+th.markdownTableHeadCenter,
+th.markdownTableHeadNone,
+table.doxtable th {
+    font-size: 16px !important;
+}
+
+/* Class and file lists: long qualified names wrap inside a fixed share of
+ * the row instead of pushing the descriptions off the page. */
+table.directory td.entry {
+    width: 50%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+table.directory td.desc {
+    width: 50%;
+}
+
+/* Member signatures: long parameter lists wrap; anything still too wide
+ * scrolls inside its box rather than past the column. */
+div.memproto {
+    overflow-x: auto;
+}
+
+table.memname td.paramtype,
+table.memname td.paramname {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* Long code in list items (error messages, paths) wraps instead of pushing
+   the list past the text column. */
+div.contents li span.tt {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+/* Code in table cells stays on one line: the column widens to fit it.
+ * header.html marks tokens longer than 22 characters (paths, hashes,
+ * commands) ms-long; only those wrap, anywhere, so a table never outgrows
+ * the text column. */
+table.markdownTable td code,
+table.doxtable td code,
+table.markdownTable td span.tt,
+table.doxtable td span.tt,
+table.markdownTable th span.tt,
+table.markdownTable th code {
+    font-size: 85%;
+    white-space: nowrap;
+}
+
+table.markdownTable td code.ms-long,
+table.markdownTable td span.tt.ms-long,
+table.markdownTable th code.ms-long,
+table.markdownTable th span.tt.ms-long,
+table.doxtable td code.ms-long,
+table.doxtable td span.tt.ms-long {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* The theme makes Markdown tables inline-blocks, which scroll sideways once
+ * they have more than three or four columns. As real tables their cells
+ * wrap instead. */
+.contents table.markdownTable:not(.memberdecls):not(.mlabels):not(.fieldtable):not(.memname) {
+    display: table;
+    margin: var(--spacing-medium) 0;
+    box-shadow: 0 0 0 1px var(--separator-color);
+}
+
+.contents table.markdownTable:not(.memberdecls):not(.mlabels):not(.fieldtable):not(.memname) tbody {
+    display: table-row-group;
+    margin: 0;
+    box-shadow: none;
+}
+
+/* Browsers ignore max-width on tables, so tables with four or more columns
+ * take the full column width; their cells wrap to fit it. */
+.contents table.markdownTable:not(.memberdecls):not(.mlabels):not(.fieldtable):not(.memname):has(th:nth-child(4)) {
+    width: 100%;
+}
+
+div.contents hr {
+    height: 0;
+    margin: 28px 0;
+    border: 0;
+    border-top: 1px solid var(--separator-color);
+}
+
+div.contents a {
+    color: var(--link-color);
+}
+
+div.contents a:hover {
+    color: #3091d1;
+    text-decoration: none;
+}
+
+/* Inline code: small red monospace on white with a hairline, as in RTD. */
+div.contents p code,
+div.contents li code,
+div.contents td code,
+div.contents dd code {
+    padding: 0 5px;
+    border: 1px solid var(--separator-color);
+    border-radius: 0;
+    background: var(--code-background);
+    color: var(--code-foreground);
+    font-size: 80%;
+    white-space: normal;
+}
+
+div.contents a code,
+div.contents a.el code {
+    color: var(--link-color);
+}
+
+/* Code blocks: flat grey panel with a hairline. */
+div.fragment,
+pre.fragment {
+    border: 1px solid var(--separator-color);
+    border-radius: 0;
+    background: var(--fragment-background);
+}
+
+/* Tables: hairline grid, bold header, striped rows. */
+table.markdownTable tbody,
+table.doxtable tbody,
+table.fieldtable {
+    border-radius: 0;
+}
+
+th.markdownTableHeadLeft,
+th.markdownTableHeadRight,
+th.markdownTableHeadCenter,
+th.markdownTableHeadNone,
+table.doxtable th {
+    border-bottom: 2px solid var(--separator-color) !important;
+    font-weight: 700;
+    border-radius: 0 !important;
+}
+
+table.markdownTable td,
+table.markdownTable th {
+    padding: 8px 14px;
+}
+
+/* Markdown tables need a header row; hide it when every cell is empty
+ * (a two-column "label | text" table written as `| | |`). */
+tr.markdownTableHead:not(:has(th:not(:empty))) {
+    display: none;
+}
+
+tr.markdownTableRowOdd td {
+    background: var(--ms-row-odd);
+}
+
+/* Notes and warnings: coloured title bar over a tinted body. */
+dl.note,
+dl.remark,
+dl.warning,
+dl.attention {
+    padding: 12px;
+    border-left: none;
+    border-radius: 0;
+}
+
+dl.note dt,
+dl.remark dt,
+dl.warning dt,
+dl.attention dt {
+    display: block;
+    margin: -12px -12px 10px;
+    padding: 6px 12px;
+    color: #ffffff;
+    font-weight: 700;
+}
+
+dl.note dt,
+dl.remark dt {
+    background: var(--note-color-dark);
+}
+
+dl.warning dt,
+dl.attention dt {
+    background: var(--warning-color-dark);
+}
+
+dl.note dd,
+dl.remark dd,
+dl.warning dd,
+dl.attention dd {
+    margin: 0;
+}
+
+div.toc {
+    border-left: 1px solid var(--separator-color);
+    border-radius: 0;
+    box-shadow: none;
+}
+
+div.contents div.toc h3 {
+    font-family: var(--font-family);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-size: 12.5px;
+    color: var(--page-secondary-foreground-color);
+}
+
+/* A heading such as "## 1. Background" becomes a list inside its table of
+ * contents link (write "## 1\. Background" to avoid it). Flatten any such list
+ * so the entry keeps the normal size and the box does not grow a scrollbar. */
+div.toc li a ol,
+div.toc li a ul,
+div.toc li a li {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+div.toc li a {
+    overflow-wrap: anywhere;
+}
+
+/* The table of contents is a collapsible "On this page" box at the top of
+ * the page at every width (the theme's narrow-screen behaviour), so the
+ * text, tables and drawings always get the full column. */
+#doc-content > div > div.contents,
+.PageDoc > div.contents {
+    display: block;
+}
+
+div.contents .toc {
+    float: none;
+    width: auto;
+    min-width: 0;
+    max-height: 45vh;
+    margin: 0 0 24px 0;
+    position: relative;
+    top: 0;
+    padding: 0 16px;
+    border: 1px solid var(--separator-color);
+    border-radius: var(--border-radius-medium);
+    background-color: var(--ms-row-odd);
+}
+
+div.contents .toc.interactive {
+    max-height: calc(14px + 2 * 14px);
+    overflow: hidden;
+}
+
+div.contents .toc.interactive.open {
+    max-height: 45vh;
+    overflow: auto;
+}
+
+div.contents .toc > h3 {
+    cursor: pointer;
+    margin: 0;
+    padding: 14px 0;
+}
+
+div.contents .toc.interactive > h3::before {
+    content: "";
+    display: inline-block;
+    width: 0;
+    height: 0;
+    margin: 0 8px 2px 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid var(--page-secondary-foreground-color);
+    transform: rotate(-90deg);
+    transition: transform var(--animation-duration) ease-out;
+}
+
+div.contents .toc.interactive.open > h3::before {
+    transform: rotate(0deg);
+}
+
+div.contents .toc ul {
+    padding-bottom: 12px;
+}
+
+/* ---------- Diagrams ---------- */
+
+/* Graphs scroll sideways only when they really are wider than the column
+ * (the theme always shows a scrollbar). */
+.dotgraph {
+    overflow-x: auto;
+}
+
+/* Authored diagrams (\dotfile) are swapped from iframes to images by
+ * header.html so they scale down to the column width. */
+img.ms-dot {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 8px auto 4px;
+}
+
+div.image {
+    margin: 16px 0 8px;
+}
+
+div.image img {
+    height: auto;
+}
+
+div.image .caption,
+.dotgraph .caption {
+    font-size: 14px;
+    color: var(--page-secondary-foreground-color);
+}
+
+/* ---------- Landing page (index.md) ---------- */
+
+/* Bold term with an indented description, like an RST definition list. */
+dl.ms-terms {
+    margin: 12px 0 0;
+}
+
+dl.ms-terms dt {
+    margin-top: 14px;
+    font-weight: 700;
+}
+
+dl.ms-terms dd {
+    margin: 4px 0 0 24px;
+}
+
+.ms-tagline {
+    font-weight: 700;
+}
+
+.ms-figure {
+    margin: 12px 0 8px;
+    text-align: center;
+}
+
+/* Full-width screenshot under the tagline. */
+.ms-hero {
+    margin: 20px 0 12px;
+}
+
+.ms-hero div.image {
+    margin: 0;
+}
+
+.ms-hero div.image img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--border-radius-large);
+}
+
+.ms-hero div.image .caption {
+    margin-top: 8px;
+    text-align: left;
+    line-height: 22px;
+}
+
+/* Navigation cards: two per row (three with ms-cards-3), one column on narrow
+ * screens. Cards in a row share a height so their edges line up. */
+.ms-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+    margin: 20px 0 8px;
+}
+
+.ms-cards.ms-cards-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+    .ms-cards,
+    .ms-cards.ms-cards-3 {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.ms-card {
+    padding: 20px 24px 22px;
+    border: 1px solid var(--separator-color);
+    border-radius: var(--border-radius-large);
+    background: var(--page-background-color);
+}
+
+.ms-card.ms-card-primary {
+    border-top: 4px solid var(--primary-color);
+}
+
+.ms-card-title {
+    margin: 0 0 10px;
+    font-family: var(--ms-heading-font);
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.ms-card-text {
+    margin: 0 0 12px;
+}
+
+.ms-card .ms-label {
+    margin: 16px 0 4px;
+    font-weight: 700;
+}
+
+.ms-card-title + .ms-label {
+    margin-top: 0;
+}
+
+.ms-card ul,
+.ms-card ol {
+    margin: 0;
+    padding-left: 22px;
+}
+
+.ms-card li {
+    margin: 4px 0;
+}
+
+/* ---------- Layer comparison (Start here: how Mesh-Sim differs from ns-3) ---------- */
+
+.ms-stack {
+    margin: 20px 0 24px;
+    border-top: 1px solid var(--separator-color);
+}
+
+.ms-stack-row {
+    display: grid;
+    grid-template-columns: 160px 1fr 1fr;
+    border-bottom: 1px solid var(--separator-color);
+}
+
+.ms-stack-row > div {
+    padding: 12px 14px;
+    line-height: 1.5;
+}
+
+.ms-stack-head > div {
+    font-weight: 700;
+}
+
+.ms-stack-layer {
+    font-weight: 700;
+}
+
+.ms-stack-same,
+.ms-stack-replaced,
+.ms-stack-none {
+    border-left: 4px solid;
+}
+
+.ms-stack-same {
+    border-left-color: var(--primary-color);
+    background: var(--note-color);
+}
+
+.ms-stack-replaced {
+    border-left-color: var(--warning-color-dark);
+    background: var(--warning-color);
+}
+
+.ms-stack-none {
+    border-left-color: var(--separator-color);
+}
+
+.ms-stack-tag {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 700;
+}
+
+@media (max-width: 700px) {
+    .ms-stack-row {
+        grid-template-columns: 1fr;
+    }
+
+    .ms-stack-head {
+        display: none;
+    }
+
+    .ms-stack-row > div:nth-child(2)::before {
+        content: "ns3-mmWave: ";
+        font-weight: 700;
+    }
+
+    .ms-stack-row > div {
+        padding: 8px 14px;
+    }
+}
+
+/* ---------- Output folder figure (Understand the result) ---------- */
+
+.ms-outtree {
+    margin: 16px 0 20px;
+    border: 1px solid var(--separator-color);
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: 15px;
+    line-height: 1.45;
+}
+
+.ms-ot-head,
+.ms-ot-row {
+    display: grid;
+    grid-template-columns: minmax(210px, 30%) minmax(0, 1fr) 170px;
+    gap: 14px;
+    align-items: baseline;
+    padding: 9px 14px;
+}
+
+.ms-ot-head {
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--page-secondary-foreground-color);
+    background: var(--ms-row-odd);
+}
+
+.ms-ot-row {
+    border-top: 1px solid var(--separator-color);
+}
+
+.ms-ot-row > code:first-child {
+    justify-self: start;
+    font-size: 14px;
+    font-weight: 600;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--page-foreground-color);
+}
+
+.ms-ot-dir > code:first-child {
+    color: var(--primary-color);
+}
+
+.ms-ot-l1 > code:first-child {
+    padding-left: 20px;
+}
+
+.ms-ot-l2 > code:first-child {
+    padding-left: 40px;
+}
+
+.ms-ot-row > span:nth-child(3) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.ms-ot-tag {
+    font-style: normal;
+    font-size: 12px;
+    line-height: 20px;
+    padding: 0 8px;
+    border-radius: 10px;
+    border: 1px solid currentColor;
+}
+
+.ms-ot-you { color: var(--page-secondary-foreground-color); }
+.ms-ot-plot { color: #8e6cc7; }
+.ms-ot-viz { color: #27ae60; }
+
+@media screen and (max-width: 767px) {
+    .ms-ot-head {
+        display: none;
+    }
+
+    .ms-ot-head,
+    .ms-ot-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 4px;
+    }
+}
+
+/* ---------- Repository map (repo-map.md, rendered by theme/repo-map.js) ---------- */
+
+/* Category colours match the system overview diagram: blue simulator,
+ * purple Python tools, amber inputs; docs teal, tests and vendored grey. */
+html {
+    --ms-map-sim: #2980b9;
+    --ms-map-tool: #8e6cc7;
+    --ms-map-data: #c99a1e;
+    --ms-map-docs: #16a085;
+    --ms-map-test: #6f7d8a;
+    --ms-map-vendor: #98a2ab;
+    --ms-map-card: #ffffff;
+    --ms-map-soft: #f5f7f9;
+    --ms-map-mark: #fdeaa8;
+}
+
+@media (prefers-color-scheme: dark) {
+    html:not(.light-mode) {
+        --ms-map-sim: #5aa9e6;
+        --ms-map-tool: #b39ddb;
+        --ms-map-data: #e0b84a;
+        --ms-map-docs: #48c9b0;
+        --ms-map-test: #9aa0a6;
+        --ms-map-vendor: #7d858c;
+        --ms-map-card: #232528;
+        --ms-map-soft: #1f2123;
+        --ms-map-mark: #6b5a1e;
+    }
+}
+
+html.dark-mode {
+    --ms-map-sim: #5aa9e6;
+    --ms-map-tool: #b39ddb;
+    --ms-map-data: #e0b84a;
+    --ms-map-docs: #48c9b0;
+    --ms-map-test: #9aa0a6;
+    --ms-map-vendor: #7d858c;
+    --ms-map-card: #232528;
+    --ms-map-soft: #1f2123;
+    --ms-map-mark: #6b5a1e;
+}
+
+/* The map page gets a wider column than reading pages. */
+body.ms-map-page {
+    --content-maxwidth: 1320px;
+}
+
+.ms-cat-sim { --ms-c: var(--ms-map-sim); }
+.ms-cat-tool { --ms-c: var(--ms-map-tool); }
+.ms-cat-data { --ms-c: var(--ms-map-data); }
+.ms-cat-docs { --ms-c: var(--ms-map-docs); }
+.ms-cat-test { --ms-c: var(--ms-map-test); }
+.ms-cat-vendor { --ms-c: var(--ms-map-vendor); }
+.ms-cat-root { --ms-c: var(--page-secondary-foreground-color); }
+.ms-external { --ms-c: var(--page-secondary-foreground-color); }
+
+.ms-map {
+    margin: 20px 0 32px;
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+.ms-map a {
+    text-decoration: none;
+}
+
+.ms-map ul,
+.ms-map ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+div.contents .ms-map li {
+    margin: 0;
+    padding: 0;
+}
+
+div.contents .ms-map li::before {
+    content: none;
+}
+
+.ms-map-ico {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    fill: var(--ms-c, var(--page-secondary-foreground-color));
+}
+
+.ms-map mark {
+    background: var(--ms-map-mark);
+    color: inherit;
+    border-radius: 2px;
+    padding: 0 1px;
+}
+
+/* Search */
+
+.ms-map-search {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 16px;
+    font: inherit;
+    font-size: 17px;
+    color: var(--page-foreground-color);
+    background: var(--ms-map-card);
+    border: 1px solid var(--separator-color);
+    border-radius: 8px;
+}
+
+.ms-map-search:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--primary-light-color);
+}
+
+/* Two columns: folder tree and detail pane */
+
+.ms-map-body {
+    display: grid;
+    grid-template-columns: 270px minmax(0, 1fr);
+    gap: 24px;
+    margin-top: 16px;
+    align-items: start;
+}
+
+.ms-map-side {
+    position: sticky;
+    top: 12px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    padding: 12px 8px 12px 0;
+    border-right: 1px solid var(--separator-color);
+    font-size: 15px;
+}
+
+.ms-map-home {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    color: var(--page-foreground-color) !important;
+}
+
+.ms-map-home:hover,
+.ms-map-trow:hover {
+    background: var(--ms-map-soft);
+}
+
+.ms-map-home.ms-selected,
+.ms-map-trow.ms-selected {
+    background: var(--ms-map-soft);
+    box-shadow: inset 3px 0 0 var(--ms-c, var(--primary-color));
+}
+
+.ms-map-side-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 18px 0 6px 10px;
+}
+
+.ms-map-side-title {
+    flex: 1;
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-map-link-btn {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 13px;
+    color: var(--link-color);
+    cursor: pointer;
+}
+
+.ms-map-trow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px 4px 4px;
+    border-radius: 6px;
+    color: var(--page-foreground-color) !important;
+}
+
+.ms-map-tname {
+    font-family: var(--font-family-monospace);
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ms-map-tkids {
+    margin-left: 13px !important;
+    padding-left: 6px !important;
+    border-left: 1px solid var(--separator-color);
+}
+
+.ms-map-tnode:not(.ms-open) > .ms-map-tkids {
+    display: none;
+}
+
+.ms-map-caret {
+    flex: none;
+    position: relative;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+}
+
+.ms-map-caret:hover {
+    background: var(--separator-color);
+}
+
+.ms-map-caret::before {
+    content: "";
+    position: absolute;
+    left: 6px;
+    top: 5px;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-left: 6px solid var(--page-secondary-foreground-color);
+    transition: transform .15s ease-out;
+}
+
+.ms-map-caret.ms-empty {
+    visibility: hidden;
+}
+
+.ms-open > .ms-map-trow .ms-map-caret::before {
+    transform: rotate(90deg);
+}
+
+/* Detail pane */
+
+.ms-map-pane {
+    min-width: 0;
+}
+
+.ms-map-crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+    font-size: 15px;
+}
+
+.ms-map-crumb {
+    color: var(--link-color) !important;
+}
+
+.ms-map-crumb:hover {
+    text-decoration: underline;
+}
+
+.ms-map-crumb-sep {
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-map-crumb-here {
+    font-weight: 600;
+}
+
+.ms-map-head {
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--separator-color);
+}
+
+.ms-map-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 16px;
+}
+
+div.contents .ms-map h2.ms-map-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 26px;
+    line-height: 1.25;
+}
+
+.ms-map-title .ms-map-ico {
+    width: 26px;
+    height: 26px;
+}
+
+.ms-map-guide {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #ffffff !important;
+    background: var(--ms-c, var(--primary-color));
+}
+
+.ms-map-guide:hover {
+    filter: brightness(1.08);
+}
+
+.ms-map-head-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-top: 8px;
+    font-size: 14.5px;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-map-area {
+    font-weight: 600;
+    color: var(--ms-c);
+}
+
+.ms-map-head-desc {
+    margin: 10px 0 0;
+    font-size: 17px;
+    line-height: 1.55;
+}
+
+div.contents .ms-map h3.ms-map-section {
+    margin: 28px 0 12px;
+    padding: 0;
+    font-family: var(--font-family);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--page-secondary-foreground-color);
+}
+
+/* Lanes on "How it fits together" */
+
+.ms-map-lane {
+    margin: 0 0 18px;
+    padding: 16px 18px 18px;
+    border: 1px solid var(--separator-color);
+    border-radius: 10px;
+    background: var(--ms-map-soft);
+}
+
+.ms-map-lane-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 12px;
+    margin-bottom: 14px;
+}
+
+.ms-map-lane-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffffff;
+    background: var(--page-secondary-foreground-color);
+    align-self: center;
+}
+
+div.contents .ms-map h3.ms-map-lane-title {
+    margin: 0;
+    padding: 0;
+    font-size: 20px;
+}
+
+.ms-map-lane-text {
+    font-size: 15px;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-map-steps {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+}
+
+.ms-map-steps + .ms-map-steps,
+.ms-map-steps + .ms-map-row-label {
+    margin-top: 12px;
+}
+
+.ms-map-steps.ms-unordered {
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.ms-map-row-label {
+    margin: 0 0 8px;
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-map-arrow {
+    flex: none;
+    align-self: center;
+    width: 28px;
+    text-align: center;
+    font-size: 20px;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-fan {
+    align-items: center;
+}
+
+.ms-fan > .ms-map-step {
+    flex: 0 1 200px;
+}
+
+.ms-map-fan-stack {
+    display: grid;
+    flex: 1 1 auto;
+    gap: 8px;
+    padding-left: 14px;
+    border-left: 2px solid var(--separator-color);
+}
+
+.ms-map-fan-stack .ms-map-step {
+    max-width: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 12px;
+}
+
+.ms-map-step {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 230px;
+    box-sizing: border-box;
+    padding: 10px 12px 11px;
+    border: 1px solid var(--separator-color);
+    border-top: 4px solid var(--ms-c);
+    border-radius: 8px;
+    background: var(--ms-map-card);
+    color: var(--page-foreground-color) !important;
+    transition: transform .12s ease-out, box-shadow .12s ease-out;
+}
+
+.ms-map-steps.ms-unordered .ms-map-step {
+    flex: 0 1 220px;
+}
+
+a.ms-map-step:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .1);
+}
+
+.ms-map-step.ms-external {
+    border-style: dashed;
+    border-top-style: solid;
+}
+
+.ms-map-step-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ms-map-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #ffffff;
+    background: var(--ms-c);
+}
+
+.ms-map-step-name {
+    font-family: var(--font-family-monospace);
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.ms-map-step-label {
+    font-size: 14.5px;
+    line-height: 1.4;
+    color: var(--page-foreground-color);
+}
+
+.ms-map-step-path {
+    font-family: var(--font-family-monospace);
+    font-size: 12.5px;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-map-lane-side {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 18px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--separator-color);
+}
+
+.ms-map-lane-side-label {
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-map-side-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14.5px;
+}
+
+.ms-map-side-text {
+    color: var(--page-secondary-foreground-color);
+}
+
+/* Pills: links to other folders */
+
+.ms-map-pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--ms-c);
+    font-family: var(--font-family-monospace);
+    font-size: 14px;
+    color: var(--ms-c) !important;
+    background: var(--ms-map-card);
+    white-space: nowrap;
+}
+
+a.ms-map-pill:hover {
+    color: #ffffff !important;
+    background: var(--ms-c);
+}
+
+/* "Where it fits" and connections */
+
+.ms-map-connect {
+    display: grid;
+    gap: 10px;
+    padding: 14px 16px;
+    border: 1px solid var(--separator-color);
+    border-left: 4px solid var(--primary-color);
+    border-radius: 8px;
+    background: var(--ms-map-soft);
+}
+
+.ms-map-connect-row {
+    display: grid;
+    grid-template-columns: 130px minmax(0, 1fr);
+    gap: 12px;
+    align-items: baseline;
+}
+
+.ms-map-connect-label {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-map-connect-val {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    font-size: 15.5px;
+}
+
+.ms-map-connect-list {
+    display: grid;
+    gap: 6px;
+}
+
+.ms-map-connect-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.ms-map-connect-why,
+.ms-map-muted {
+    color: var(--page-secondary-foreground-color);
+    font-size: 15px;
+}
+
+.ms-map-lane-link {
+    font-weight: 600;
+    color: var(--link-color) !important;
+}
+
+/* Folder cards */
+
+.ms-map-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+}
+
+.ms-map-card {
+    display: block;
+    padding: 12px 14px 13px;
+    border: 1px solid var(--separator-color);
+    border-left: 4px solid var(--ms-c);
+    border-radius: 8px;
+    background: var(--ms-map-card);
+    color: var(--page-foreground-color) !important;
+    transition: transform .12s ease-out, box-shadow .12s ease-out;
+}
+
+.ms-map-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .1);
+}
+
+.ms-map-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ms-map-card-name {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-family-monospace);
+    font-size: 16px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.ms-map-card-meta {
+    flex: none;
+    font-size: 13px;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-map-card-desc {
+    margin: 6px 0 0;
+    font-size: 15px;
+    line-height: 1.45;
+    color: var(--page-secondary-foreground-color);
+}
+
+/* File list */
+
+.ms-map-files {
+    border: 1px solid var(--separator-color);
+    border-radius: 8px;
+    background: var(--ms-map-card);
+    overflow: hidden;
+}
+
+.ms-map-file {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 11px 14px;
+    border-top: 1px solid var(--separator-color);
+}
+
+.ms-map-file:first-child {
+    border-top: 0;
+}
+
+.ms-map-file > .ms-map-ico {
+    margin-top: 2px;
+}
+
+.ms-map-file-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.ms-map-file-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+}
+
+.ms-map-file-name {
+    font-family: var(--font-family-monospace);
+    font-size: 15.5px;
+    font-weight: 600;
+    color: var(--page-foreground-color) !important;
+    overflow-wrap: anywhere;
+}
+
+a.ms-map-file-name:hover {
+    color: var(--link-color) !important;
+}
+
+.ms-map-file-path {
+    font-family: var(--font-family-monospace);
+    font-size: 13px;
+    color: var(--page-secondary-foreground-color) !important;
+}
+
+a.ms-map-file-path:hover {
+    color: var(--link-color) !important;
+}
+
+.ms-map-file-desc {
+    margin-top: 3px;
+    font-size: 15px;
+    line-height: 1.45;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-map-file-open {
+    flex: none;
+    align-self: center;
+    padding: 4px 12px;
+    border: 1px solid var(--separator-color);
+    border-radius: 6px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--link-color) !important;
+    white-space: nowrap;
+}
+
+.ms-map-file-open:hover {
+    border-color: var(--link-color);
+}
+
+.ms-map-badge {
+    padding: 0 8px;
+    font-size: 12px;
+    line-height: 20px;
+    border-radius: 10px;
+    border: 1px solid var(--separator-color);
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-map-file.ms-flash {
+    animation: ms-map-flash 2s ease-out;
+}
+
+@keyframes ms-map-flash {
+    0%, 40% { background: var(--ms-map-mark); }
+    100% { background: transparent; }
+}
+
+/* Narrow screens: tree above the pane, collapsed */
+
+@media screen and (max-width: 1000px) {
+    .ms-map-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ms-map-side {
+        position: static;
+        max-height: 260px;
+        border-right: 0;
+        border-bottom: 1px solid var(--separator-color);
+    }
+
+    .ms-map-connect-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 4px;
+    }
+
+    .ms-map-steps {
+        flex-wrap: wrap;
+        gap: 10px 0;
+    }
+}
+
+/* ---------- Input and output files map (files/index.md) ---------- */
+
+/* Four stages top to bottom: scenario files, simulator, run folder, results.
+ * Colours follow the system overview: amber files, blue simulator, purple
+ * Python tools, green visualizer. Every file card links to its page. */
+html {
+    --ms-io-viz: #27ae60;
+}
+
+@media (prefers-color-scheme: dark) {
+    html:not(.light-mode) {
+        --ms-io-viz: #4cc386;
+    }
+}
+
+html.dark-mode {
+    --ms-io-viz: #4cc386;
+}
+
+.ms-iomap {
+    margin: 18px 0 10px;
+    font-size: 15px;
+    line-height: 1.4;
+}
+
+.ms-io-stage {
+    --ms-c: var(--ms-map-data);
+    padding: 12px 14px 14px;
+    border: 1px solid var(--separator-color);
+    border-left: 5px solid var(--ms-c);
+    border-radius: 8px;
+    background: var(--ms-map-soft);
+}
+
+.ms-io-stage.ms-io-sim { --ms-c: var(--ms-map-sim); }
+.ms-io-stage.ms-io-res { --ms-c: var(--ms-map-tool); }
+
+.ms-io-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin-bottom: 10px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--page-foreground-color);
+}
+
+.ms-io-head .ms-io-note {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-io-num {
+    display: inline-grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--ms-c);
+    color: #fff;
+    font-size: 13.5px;
+}
+
+.ms-io-head code,
+.ms-io-folder-head code {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.ms-io-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 10px;
+}
+
+/* seed-N/ sits inside the run folder as its own dashed sub-folder. */
+.ms-io-folder {
+    margin-top: 12px;
+    padding: 10px 12px 12px;
+    border: 1.5px dashed color-mix(in srgb, var(--ms-c) 60%, transparent);
+    border-radius: 8px;
+}
+
+.ms-io-folder-head {
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: var(--page-secondary-foreground-color);
+}
+
+a.ms-io-file,
+div.ms-io-file {
+    --ms-c: var(--ms-map-data);
+    display: block;
+    padding: 8px 11px 10px;
+    border: 1px solid var(--separator-color);
+    border-top: 3px solid var(--ms-c);
+    border-radius: 6px;
+    background: var(--ms-map-card);
+    color: var(--page-foreground-color);
+    text-decoration: none !important;
+    transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+}
+
+a.ms-io-file:hover {
+    border-color: var(--ms-c);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    transform: translateY(-1px);
+}
+
+.ms-io-file.ms-io-cat-sim { --ms-c: var(--ms-map-sim); }
+.ms-io-file.ms-io-cat-tool { --ms-c: var(--ms-map-tool); }
+.ms-io-file.ms-io-cat-viz { --ms-c: var(--ms-io-viz); }
+
+div.ms-io-file.ms-io-plain {
+    border-top-style: dashed;
+}
+
+.ms-io-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2px 8px;
+}
+
+.ms-io-name code {
+    font-size: 15px;
+    font-weight: 700;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--page-foreground-color);
+}
+
+.ms-io-name b {
+    font-size: 15px;
+}
+
+a.ms-io-file .ms-io-name code,
+a.ms-io-file .ms-io-name b {
+    color: var(--primary-color);
+}
+
+.ms-io-badge {
+    flex: none;
+    padding: 0 8px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--ms-c) 18%, transparent);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--page-foreground-color);
+    white-space: nowrap;
+}
+
+.ms-io-desc {
+    display: block;
+    margin-top: 3px;
+    font-size: 14px;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-io-desc code {
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+/* Down arrow between stages, with a short label beside it. */
+.ms-io-arrow {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 40px;
+    margin-left: 30px;
+    padding-left: 26px;
+    font-size: 13.5px;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-io-arrow::before {
+    content: "";
+    position: absolute;
+    left: 6px;
+    top: 3px;
+    bottom: 11px;
+    border-left: 2px solid var(--page-secondary-foreground-color);
+}
+
+.ms-io-arrow::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 2px;
+    border: 7px solid transparent;
+    border-top: 9px solid var(--page-secondary-foreground-color);
+    border-bottom: 0;
+}
+
+.ms-io-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin: 6px 0 18px;
+    font-size: 13.5px;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-io-legend span::before {
+    content: "";
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    margin-right: 6px;
+    border-radius: 3px;
+    background: var(--ms-c);
+    vertical-align: -1px;
+}
+
+.ms-io-legend .ms-io-cat-file { --ms-c: var(--ms-map-data); }
+.ms-io-legend .ms-io-cat-sim { --ms-c: var(--ms-map-sim); }
+.ms-io-legend .ms-io-cat-tool { --ms-c: var(--ms-map-tool); }
+.ms-io-legend .ms-io-cat-viz { --ms-c: var(--ms-io-viz); }
+
+/* ---------- File reference pages (files/*.md) ---------- */
+
+/* One type scale for these pages: 16px text (as in tables), 14.5px for
+ * secondary text, code at 0.88em of the text around it. */
+
+/* One colour per run.ini section, shared by the anatomy figure and the key
+ * cards of that section. */
+html {
+    --ms-sec-scenario: #2980b9;
+    --ms-sec-channel: #8e6cc7;
+    --ms-sec-nyu: #c060a1;
+    --ms-sec-traffic: #27ae60;
+    --ms-sec-routing: #c99a1e;
+    --ms-sec-output: #6f7d8a;
+}
+
+@media (prefers-color-scheme: dark) {
+    html:not(.light-mode) {
+        --ms-sec-scenario: #5aa9e6;
+        --ms-sec-channel: #b39ddb;
+        --ms-sec-nyu: #e08cc4;
+        --ms-sec-traffic: #4cc386;
+        --ms-sec-routing: #e0b84a;
+        --ms-sec-output: #9aa0a6;
+    }
+}
+
+html.dark-mode {
+    --ms-sec-scenario: #5aa9e6;
+    --ms-sec-channel: #b39ddb;
+    --ms-sec-nyu: #e08cc4;
+    --ms-sec-traffic: #4cc386;
+    --ms-sec-routing: #e0b84a;
+    --ms-sec-output: #9aa0a6;
+}
+
+.ms-sec-scenario { --ms-c: var(--ms-sec-scenario); }
+.ms-sec-channel { --ms-c: var(--ms-sec-channel); }
+.ms-sec-nyu { --ms-c: var(--ms-sec-nyu); }
+.ms-sec-traffic { --ms-c: var(--ms-sec-traffic); }
+.ms-sec-routing { --ms-c: var(--ms-sec-routing); }
+.ms-sec-output { --ms-c: var(--ms-sec-output); }
+
+.ms-ini .tt,
+.ms-ini code,
+.ms-keys .tt,
+.ms-keys code {
+    font-size: 0.88em;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+/* Find box: filters the key cards (theme/key-find.js). */
+.ms-find {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 18px 0 10px;
+}
+
+.ms-find-field {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.ms-find-icon {
+    position: absolute;
+    top: 50%;
+    left: 14px;
+    width: 19px;
+    height: 19px;
+    transform: translateY(-50%);
+    fill: none;
+    stroke: var(--page-secondary-foreground-color);
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    pointer-events: none;
+}
+
+.ms-find input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 12px 44px 12px 44px;
+    border: 1.5px solid color-mix(in srgb, var(--primary-color) 45%, var(--separator-color));
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--primary-color) 5%, var(--page-background-color));
+    color: var(--page-foreground-color);
+    font: inherit;
+    font-size: 16px;
+}
+
+.ms-find input::placeholder {
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-find input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    background: var(--page-background-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+.ms-find-kbd {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    padding: 0 7px;
+    border: 1px solid var(--separator-color);
+    border-radius: 5px;
+    background: var(--page-background-color);
+    font-family: var(--font-family-monospace);
+    font-size: 13px;
+    color: var(--page-secondary-foreground-color);
+    pointer-events: none;
+}
+
+.ms-find input:focus ~ .ms-find-kbd,
+.ms-find input:not(:placeholder-shown) ~ .ms-find-kbd {
+    display: none;
+}
+
+.ms-find-count {
+    flex: none;
+    font-size: 14.5px;
+    color: var(--page-secondary-foreground-color);
+}
+
+/* Generic group colours for file pages whose groups are not run.ini
+ * sections. */
+.ms-c-blue { --ms-c: var(--ms-sec-scenario); }
+.ms-c-purple { --ms-c: var(--ms-sec-channel); }
+.ms-c-pink { --ms-c: var(--ms-sec-nyu); }
+.ms-c-green { --ms-c: var(--ms-sec-traffic); }
+.ms-c-amber { --ms-c: var(--ms-sec-routing); }
+.ms-c-grey { --ms-c: var(--ms-sec-output); }
+
+/* Anatomy: the example file cut into its sections, each beside a plain
+ * description of what those lines say. The rows share the columns
+ * (subgrid), so the code column fits the longest line, up to 62%. */
+.ms-ini {
+    display: grid;
+    grid-template-columns: fit-content(62%) minmax(0, 1fr);
+    margin: 16px 0 12px;
+    border: 1px solid var(--separator-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.ms-ini-row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    border-left: 5px solid var(--ms-c);
+}
+
+.ms-ini-row + .ms-ini-row {
+    border-top: 1px solid var(--separator-color);
+}
+
+.ms-ini-code {
+    margin: 0;
+    padding: 12px 16px;
+    background: var(--fragment-background);
+    font-family: var(--font-family-monospace);
+    font-size: 14px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--fragment-foreground);
+}
+
+.ms-ini-code b {
+    color: var(--ms-c);
+}
+
+.ms-ini-note {
+    padding: 12px 16px;
+    font-size: 16px;
+    line-height: 1.5;
+    background: var(--page-background-color);
+}
+
+.ms-ini-note strong {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--ms-c);
+}
+
+/* Key cards: three columns per key (name and default, what it does, allowed
+ * values), under a header row. The cards of one list share the list's
+ * columns (subgrid), so the name column fits the longest name in the list. */
+.ms-keys {
+    display: grid;
+    grid-template-columns: fit-content(36%) minmax(0, 1fr) minmax(130px, 24%);
+    column-gap: 20px;
+    margin: 14px 0 18px;
+    border: 1px solid var(--separator-color);
+    border-top: 4px solid var(--ms-c);
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+.ms-key {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    row-gap: 6px;
+    padding: 12px 16px;
+    background: var(--page-background-color);
+}
+
+.ms-key + .ms-key {
+    border-top: 1px solid var(--separator-color);
+}
+
+.ms-key.ms-key-head {
+    padding-top: 8px;
+    padding-bottom: 8px;
+    background: var(--ms-map-soft);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-key p {
+    margin: 0;
+}
+
+.ms-key-name {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.ms-key-name > .tt,
+.ms-key-name > code {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--page-foreground-color);
+    background: none;
+    border: 0;
+    padding: 0;
+    white-space: normal;
+    overflow-wrap: normal;
+    word-break: normal;
+}
+
+.ms-key-def {
+    padding: 1px 9px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--ms-c) 15%, transparent);
+    font-size: 14.5px;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-keys .ms-key-def .tt,
+.ms-keys .ms-key-def code {
+    margin-left: 2px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-size: 0.95em;
+    font-weight: 600;
+    color: var(--page-foreground-color);
+}
+
+.ms-key-note {
+    margin-top: 6px;
+    font-size: 14.5px;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-key-vals {
+    font-size: 14.5px;
+}
+
+.ms-key-cli {
+    display: block;
+    margin-top: 6px;
+    color: var(--page-secondary-foreground-color);
+}
+
+/* Collapsible groups (format rules). */
+details.ms-more {
+    margin: 10px 0;
+    padding: 9px 16px;
+    border: 1px solid var(--separator-color);
+    border-radius: 8px;
+    background: var(--page-background-color);
+}
+
+details.ms-more summary {
+    cursor: pointer;
+    width: fit-content;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+details.ms-more summary .ms-more-count {
+    font-weight: 400;
+    color: var(--page-secondary-foreground-color);
+}
+
+@media screen and (max-width: 760px) {
+    .ms-ini,
+    .ms-ini-row,
+    .ms-keys,
+    .ms-key {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ms-key-name > .tt,
+    .ms-key-name > code {
+        overflow-wrap: anywhere;
+    }
+
+    .ms-key.ms-key-head {
+        display: none;
+    }
+}
+
+/* ---------- Step cards and drawings (channel-models.md walkthrough) ---------- */
+
+/* A step card: a small drawing in the step's section colour beside a short
+   explanation. */
+.ms-flow-step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1fr);
+    gap: 18px;
+    margin: 0 0 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--separator-color);
+    border-left: 5px solid var(--ms-c);
+    border-radius: 8px;
+    background: var(--ms-map-soft);
+}
+
+.ms-flow-art {
+    display: grid;
+    place-items: center;
+    align-self: start;
+    min-height: 96px;
+    border-radius: 6px;
+    background: var(--page-background-color);
+    color: var(--ms-c);
+}
+
+.ms-flow-art svg {
+    display: block;
+    width: 140px;
+    height: 92px;
+    overflow: visible;
+}
+
+.ms-flow-art svg text {
+    font-family: var(--font-family);
+    font-size: 10px;
+    fill: var(--page-secondary-foreground-color);
+}
+
+.ms-flow-art .ms-ink {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.ms-flow-art .ms-soft {
+    fill: currentColor;
+    fill-opacity: .18;
+    stroke: currentColor;
+    stroke-width: 1.5;
+}
+
+.ms-flow-art .ms-dot {
+    fill: currentColor;
+}
+
+.ms-flow-art .ms-faint {
+    fill: none;
+    stroke: var(--page-secondary-foreground-color);
+    stroke-width: 1.2;
+    stroke-dasharray: 3 3;
+}
+
+.ms-flow-art .ms-bad {
+    fill: none;
+    stroke: #c0392b;
+    stroke-width: 2;
+    stroke-dasharray: 4 3;
+}
+
+.ms-flow-body p {
+    margin: 0 0 6px;
+}
+
+/* Side-by-side panels (the two route drawings). */
+.ms-flow-split {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px;
+    margin: 8px 0 4px;
+    font-size: 14.5px;
+}
+
+.ms-flow-split code,
+.ms-flow-body p code {
+    font-size: 0.88em;
+}
+
+.ms-flow-split > div {
+    padding: 8px 10px;
+    font-size: 16px;
+    line-height: 1.45;
+    border: 1px solid var(--separator-color);
+    border-radius: 6px;
+    background: var(--page-background-color);
+}
+
+@media screen and (max-width: 760px) {
+    .ms-flow-step {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+    }
+
+}
+
+/* Step cards on the channel models walkthrough: a drawing and one or two
+   sentences above the step's formula and table. */
+.ms-step-card {
+    margin: 4px 0 14px;
+}
+
+.ms-flow-art .ms-thin {
+    stroke-width: 1.5;
+    opacity: .55;
+}
+
+.ms-flow-art .ms-thick {
+    stroke-width: 4;
+}
+
+.ms-flow-art svg text.ms-strong {
+    font-weight: 700;
+    fill: var(--page-foreground-color);
+}
+
+/* The example's scene: a full-width drawing of the nodes. */
+.ms-flow-art.ms-scene {
+    margin: 12px 0 14px;
+    padding: 12px;
+    border: 1px solid var(--separator-color);
+}
+
+.ms-flow-art.ms-scene svg,
+.ms-routes .ms-flow-art svg {
+    width: 100%;
+    height: auto;
+    max-width: 640px;
+}
+
+.ms-flow-art.ms-scene svg text {
+    font-size: 15px;
+}
+
+.ms-routes .ms-flow-art {
+    border: 1px solid var(--separator-color);
+    padding: 8px;
+}
+
+.ms-routes .ms-flow-art svg text {
+    font-size: 12px;
+}
+
+/* MathJax display formulas scroll inside the column on narrow screens. */
+mjx-container[display="true"] {
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+}
+
+/* Routing and traffic drawings: buildings, panel grids and timelines. */
+.ms-flow-art .ms-bldg {
+    fill: var(--page-secondary-foreground-color);
+    fill-opacity: .14;
+    stroke: var(--page-secondary-foreground-color);
+    stroke-width: 1;
+}
+
+.ms-routes-3 .ms-flow-art svg text {
+    font-size: 30px;
+}
+
+.ms-routes-3 .ms-flow-art svg text.ms-big {
+    font-size: 34px;
+}
+
+.ms-flow-split.ms-routes-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ms-flow-split.ms-routes-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ms-flow-art .ms-arrival {
+    fill-opacity: .4;
+}
+
+.ms-flow-art.ms-timeline svg {
+    max-width: 100%;
+}
+
+@media screen and (max-width: 760px) {
+    .ms-flow-split.ms-routes-3,
+    .ms-flow-split.ms-routes-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* nodes.json drawings: tracks on the mobility map, its legend, and the
+   file-order strip. */
+.ms-flow-art .ms-track {
+    fill: none;
+    stroke: var(--ms-c);
+    stroke-width: 3;
+    stroke-linejoin: round;
+}
+
+.ms-flow-art g[class*="ms-c-"] {
+    color: var(--ms-c);
+}
+
+.ms-flow-art .ms-start {
+    fill: var(--ms-c, currentColor);
+}
+
+.ms-flow-art .ms-end {
+    fill: var(--page-background-color);
+    stroke: var(--ms-c, currentColor);
+    stroke-width: 3;
+}
+
+.ms-flow-art .ms-wp {
+    fill: var(--page-background-color);
+    stroke: var(--ms-c, currentColor);
+    stroke-width: 2;
+}
+
+.ms-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin-top: 8px;
+    font-size: 14.5px;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-legend .ms-key-dot {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    margin-right: 6px;
+    border-radius: 50%;
+    vertical-align: -1px;
+    border: 2px solid var(--page-secondary-foreground-color);
+}
+
+.ms-legend .ms-key-dot.ms-start {
+    background: var(--page-secondary-foreground-color);
+}
+
+.ms-legend .ms-key-dot.ms-wp {
+    border-radius: 1px;
+}
+
+.ms-order {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 12px 0 14px;
+}
+
+.ms-order-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 120px;
+    padding: 10px 14px;
+    border: 1px solid var(--separator-color);
+    border-radius: 8px;
+    background: var(--ms-map-soft);
+    font-size: 14.5px;
+    color: var(--page-secondary-foreground-color);
+}
+
+.ms-order-item code {
+    font-size: 15px;
+}
+
+.ms-order-idx {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--ms-sec-scenario);
+    color: #fff;
+    font-weight: 700;
+}
+
+.ms-gain svg text {
+    font-size: 15px;
+}
+
+/* buildings.json: the five LOS cases, each a drawing over a caption. */
+.ms-flow-split.ms-routes-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.ms-flow-art.ms-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 8px 8px 10px;
+    border: 1px solid var(--separator-color);
+}
+
+.ms-panel svg {
+    width: 100%;
+    height: auto;
+}
+
+.ms-panel-cap {
+    font-size: 14.5px;
+    line-height: 1.4;
+    color: var(--page-foreground-color);
+}
+
+.ms-panel-cap strong {
+    display: block;
+    color: var(--ms-c);
+}
+
+@media screen and (max-width: 900px) {
+    .ms-flow-split.ms-routes-5 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* jammers.json: the checks a jammer passes before it reaches a node. */
+.ms-gates {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 8px;
+    margin: 12px 0 16px;
+}
+
+.ms-gate {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 72px;
+    padding: 8px 10px;
+    border: 1px solid var(--separator-color);
+    border-left: 4px solid var(--ms-sec-scenario);
+    border-radius: 6px;
+    background: var(--ms-map-soft);
+    font-size: 14.5px;
+}
+
+.ms-gate strong {
+    color: var(--page-foreground-color);
+}
+
+.ms-gate code {
+    font-size: 0.88em;
+}
+
+.ms-gate.ms-gate-end {
+    border-left-color: var(--ms-sec-traffic);
+}
+
+.ms-gate-arrow {
+    align-self: center;
+    color: var(--page-secondary-foreground-color);
+    font-size: 16px;
+}
+
+@media screen and (max-width: 900px) {
+    .ms-gate-arrow {
+        display: none;
+    }
+}
+
+/* How a run works: the tick loop inside the run map. */
+.ms-io-cards.ms-loop-steps {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.ms-loop-steps .ms-io-file {
+    position: relative;
+}
+
+.ms-loop-steps .ms-io-badge {
+    align-self: flex-start;
+    margin-top: 4px;
+}
+
+.ms-loop-back {
+    margin-top: 8px;
+    text-align: right;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--ms-c);
+}
+
+.ms-flow-art .ms-tick {
+    fill: var(--page-background-color);
+    stroke: currentColor;
+    stroke-width: 2;
+}
+
+@media screen and (max-width: 900px) {
+    .ms-io-cards.ms-loop-steps {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* The namespace list is generated (DoxygenLayout.xml explains why) but kept out
+   of the sidebar; "Code by module" is the API entry point. */
+#nav-tree-contents li:has(> div.item a[href$="namespaces.html"]) {
+    display: none;
+}
+
+/* Inline code inside layout components (cards, stacks, output trees) never
+   breaks mid-token; the surrounding text wraps instead. */
+.ms-card code,
+.ms-stack code,
+.ms-outtree code,
+.ms-gate code {
+    white-space: nowrap;
+}
+
+/* Reference, project and research pages stay generated as link targets but are kept off
+   the home page and the sidebar (see the ms-hidden block at the end of index.md). */
+.ms-hidden {
+    display: none;
+}
+
+#nav-tree-contents li:has(> div.item a[href$="/src.html"], > div.item a[href="src.html"]),
+#nav-tree-contents li:has(> div.item a[href$="mesh_sim_run_flow.html"]),
+#nav-tree-contents li:has(> div.item a[href$="mesh_sim_setting_trace.html"]),
+#nav-tree-contents li:has(> div.item a[href$="mesh_sim_add_capacity_model.html"]),
+#nav-tree-contents li:has(> div.item a[href="scripts.html"], > div.item a[href$="/scripts.html"]),
+#nav-tree-contents li:has(> div.item a[href$="Inputs.html"]),
+#nav-tree-contents li:has(> div.item a[href$="scripts_rl_ops_tests.html"]),
+#nav-tree-contents li:has(> div.item a[href$="Contributing.html"]),
+#nav-tree-contents li:has(> div.item a[href$="documentation_standard.html"]),
+#nav-tree-contents li:has(> div.item a[href$="generating_the_docs.html"]),
+#nav-tree-contents li:has(> div.item a[href$="mesh_sim_research.html"]),
+#nav-tree-contents li:has(> div.item a[href^="md_scripts_2rl_2phase__"]) {
+    display: none;
+}
+
+/* ------------------------------------------------------------------ API pages
+   Doxygen's class, file, namespace and group pages. Member summary tables read
+   as a list (light rows, muted type column, bold names) instead of stacked
+   gray boxes; detailed member docs are cards; the summary links at the top
+   form one row of small pills. */
+table.memberdecls {
+    border-spacing: 0;
+    margin-bottom: 8px;
+}
+
+table.memberdecls tr[class^="memitem:"] td,
+table.memberdecls tr[class^="memdesc:"] td {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+}
+
+table.memberdecls tr[class^="memitem:"] td {
+    padding: 10px 12px 2px;
+    border-top: 1px solid var(--separator-color) !important;
+    vertical-align: top;
+}
+
+table.memberdecls tr[class^="memitem:"] td.memItemLeft,
+table.memberdecls tr[class^="memitem:"] td.memTemplItemLeft {
+    color: var(--page-secondary-foreground-color);
+    font-size: 0.86em;
+    white-space: nowrap;
+    width: 1%;
+}
+
+table.memberdecls tr[class^="memitem:"] td.memItemRight a.el,
+table.memberdecls tr[class^="memitem:"] td.memTemplItemRight a.el {
+    font-weight: 600;
+}
+
+table.memberdecls tr[class^="memdesc:"] td {
+    padding: 0 12px 10px;
+    color: var(--page-secondary-foreground-color);
+    font-size: 0.92em;
+}
+
+table.memberdecls tr.memSeparator td,
+table.memberdecls td.memSeparator {
+    display: none;
+}
+
+div.memitem {
+    margin: 18px 0 28px;
+    border: 1px solid var(--separator-color);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+div.memproto {
+    padding: 10px 14px;
+    border: none;
+    border-bottom: 1px solid var(--separator-color);
+    background: var(--ms-map-soft, var(--side-nav-background));
+}
+
+div.memdoc {
+    padding: 12px 16px 4px;
+    border: none;
+}
+
+h2.memtitle {
+    margin-top: 28px;
+    border: none;
+    background: none;
+    font-size: 1.05em;
+}
+
+div.header div.summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    float: none;
+    margin: 0 0 6px;
+    font-size: 0.78em;
+}
+
+div.header div.summary a {
+    padding: 2px 10px;
+    border: 1px solid var(--separator-color);
+    border-radius: 999px;
+    text-decoration: none;
+}
+
+div.header div.summary {
+    color: transparent;   /* hides the "|" separators between the pills */
+}
+
+/* "Code by module" overview (topics.html). header.html tags each row with its
+   depth: ms-l0 language (Simulator, Python tools), ms-l1 category, ms-l2
+   module, ms-l3 sub-package, ms-l4 one level deeper (the campaign phases).
+   Rows read as an outline, not a striped grid. */
+table.directory.ms-api-index {
+    width: 100%;
+    border: none;
+    border-collapse: collapse;
+    box-shadow: none;
+    background: none;
+}
+
+table.directory.ms-api-index tr,
+table.directory.ms-api-index td {
+    background: none !important;
+    border: none;
+}
+
+table.directory.ms-api-index td {
+    padding: 4px 10px;
+    vertical-align: baseline;
+}
+
+table.directory.ms-api-index td.entry {
+    width: 30%;
+    white-space: nowrap;
+}
+
+table.directory.ms-api-index td.desc {
+    color: var(--page-secondary-foreground-color);
+    font-size: 0.92em;
+}
+
+table.directory.ms-api-index span.spacer {
+    display: inline-block;
+    width: 0;
+}
+
+table.directory.ms-api-index tr.ms-l0 td {
+    padding-top: 30px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--primary-color);
+}
+
+table.directory.ms-api-index tr.ms-l0:first-child td {
+    padding-top: 6px;
+}
+
+table.directory.ms-api-index tr.ms-l0 td.entry a {
+    font-size: 1.3em;
+    font-weight: 700;
+    color: var(--page-foreground-color);
+}
+
+table.directory.ms-api-index tr.ms-l1 td {
+    padding-top: 18px;
+}
+
+table.directory.ms-api-index tr.ms-l1 td.entry a {
+    font-weight: 700;
+    color: var(--page-foreground-color);
+}
+
+table.directory.ms-api-index tr.ms-l2 td.entry {
+    padding-left: 26px;
+}
+
+table.directory.ms-api-index tr.ms-l2 td.entry a {
+    font-family: var(--font-family-monospace);
+    font-size: 0.95em;
+}
+
+table.directory.ms-api-index tr.ms-l3 td.entry {
+    padding-left: 48px;
+}
+
+table.directory.ms-api-index tr.ms-l3 td.entry a {
+    font-family: var(--font-family-monospace);
+    font-size: 0.88em;
+}
+
+table.directory.ms-api-index tr.ms-l3 td.desc {
+    font-size: 0.86em;
+}
+
+table.directory.ms-api-index tr.ms-l4 td.entry {
+    padding-left: 70px;
+}
+
+table.directory.ms-api-index tr.ms-l4 td.entry a {
+    font-family: var(--font-family-monospace);
+    font-size: 0.85em;
+}
+
+table.directory.ms-api-index tr.ms-l4 td.desc {
+    font-size: 0.84em;
+}

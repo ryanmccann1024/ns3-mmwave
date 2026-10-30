@@ -1,49 +1,50 @@
-- @subpage Inputs
-
 /**
- * @page scripts Scripts
- * Field data processing and simulation validation pipelines.
+ * @page scripts Python tools
+ * Python packages for field data, validation, sweeps, plotting, placement
+ * baselines and RL. Run each as `python -m scripts.<pkg>.<module>` from
+ * `scratch/mesh-sim/`.
  *
- * ## Simulation Packages   
- * - @subpage scripts_arpo_data
- * - @subpage scripts_validation
- * - @subpage scripts_sweep
- * - @subpage scripts_plotting
- * - @subpage scripts_baselines
- * - @subpage scripts_baselines_planners
- * ## RL Packages   
- * - @subpage scripts_rl
-	* - @subpage scripts_rl_env
-	* - @subpage scripts_rl_agents
-	* - @subpage scripts_rl_ops
-	* - @subpage scripts_rl_policy
-	* - @subpage scripts_rl_tests
+ * ## Simulation tools
+ * - @subpage scripts_arpo_data — Turns raw ARPO field-test CSVs into per-day plots, GPS traces and per-scenario traces
+ * - @subpage scripts_validation — Checks simulator output against ARPO field data and against stored regression results
+ * - @subpage scripts_sweep — Runs a grid of simulations from one sweep INI file into a single output folder
+ * - @subpage scripts_plotting — Turns simulator CSV and JSON outputs into figures
+ * - @subpage scripts_baselines — Plans geometric and optimization node placements before a run, scored by the simulator channel
+ * - @subpage scripts_baselines_planners — The two placement planners, their shared objective and the channel scorer
+ * ## RL tools
+ * - @subpage scripts_rl — Command guide for RL training, evaluation, comparison and experiment matrices
+	* - @subpage scripts_rl_env — Gymnasium environment that runs the simulator as a subprocess over the RL JSON protocol
+	* - @subpage scripts_rl_agents — MaskablePPO wrapper, training callbacks and an exploratory Q-learning agent
+	* - @subpage scripts_rl_ops — Benchmarking, tuning and cluster operations for an experiment plan
+	* - @subpage scripts_rl_policy — Verifies a saved training run, runs policies and computes paired statistics
+	* - @subpage scripts_rl_tests — Map of the RL, ops and placement-baseline Python tests and their helpers
+	* - @subpage scripts_rl_experiments — Batch domain: matrix version 2 validation, the plan v3 task graph and named selection rules
+	* - @ref mesh_sim_rl_batch_reference "Batch experiment reference" — Every batch field, path, identity, state, protocol and the retired-command map
  */
 
 /**
- * @page src Src
- * ns-3 mesh simulator source modules.
+ * @page src Simulator modules
+ * C++ simulator source modules, split by concern. All code lives in namespace
+ * `mesh_sim`.
  *
- * ## Simulation Modules   
- * - @subpage src_domain
- * - @subpage src_config
-	* - @subpage src_config_run_ini_reference
- * - @subpage src_eval
- * - @subpage src_routing
- * - @subpage src_jammer
- * - @subpage src_traffic
- * - @subpage src_io
- * - @subpage src_util
- * - @subpage src_cli
- * - @subpage src_setup
- * - @subpage src_query
- * ## RL Modules   
- * - @subpage src_rl
-	* - @subpage src_rl_policy_inputs
-	* - @subpage src_rl_policy_input_tests
-	* - @subpage src_rl_policy_lifecycle_tests
-	* - @subpage src_rl_policy_comparison_tests
-  * - @subpage src_rl_decision_records
-*/
-
- * - @subpage tests
+ * ## Simulation modules
+ * - @subpage src_domain — Plain-struct configuration and result types shared by every simulator layer
+ * - @subpage src_config — Loads `run.ini` and its JSON files into a `SimConfig` and checks it for errors
+	* - @subpage src_config_run_ini_reference — Every `run.ini` key the simulator reads, with defaults and units
+ * - @subpage src_eval — Computes radio link quality for every node pair each simulation tick
+ * - @subpage src_routing — Flow-level routing over the mesh link graph, with congestion scaling and latency
+ * - @subpage src_jammer — Adds interference from jammer emitters to per-link SINR in the sub-6 band
+ * - @subpage src_traffic — Flow-level traffic demand generation
+ * - @subpage src_io — Writes the output files: per-tick CSVs, a per-seed JSON summary, a run log and progress
+ * - @subpage src_util — String, path and INI helpers shared by config, cli and io
+ * - @subpage src_cli — Command-line parsing and pre-simulation setup
+ * - @subpage src_setup — Creates the ns-3 nodes, mobility models, buildings and propagation models for a run
+ * - @subpage src_query — `--channel-query`: scores candidate start layouts through the simulator's own channel path
+ * ## RL modules
+ * - @subpage src_rl — Wire contract for the stdin/stdout JSON bridge to the Python Gymnasium environment
+	* - @subpage src_rl_policy_inputs — Observation presets, reward components and telemetry for centralized policies
+	* - @subpage src_rl_policy_input_tests — Map of the centralized RL and policy-input tests
+	* - @subpage src_rl_policy_lifecycle_tests — Map of the policy lifecycle (validate, train, inspect, evaluate) tests
+	* - @subpage src_rl_policy_comparison_tests — Map of the policy comparison, experiment-matrix and evaluation-pipeline tests
+	* - @subpage src_rl_decision_records — Opt-in per-episode records of what a centralized policy saw, requested and got back
+ */
