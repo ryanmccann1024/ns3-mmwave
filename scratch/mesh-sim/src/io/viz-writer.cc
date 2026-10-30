@@ -146,10 +146,11 @@ VizWriter::WritePositions(double time_s,
     for (uint32_t i = 0; i < mobs.size(); ++i)
     {
         Vector pos = mobs[i]->GetPosition();
-        const std::string& role = (i < m_cfg.nodes.size()) ? m_cfg.nodes[i].role : "peer";
+        const std::string& role = (i < m_cfg.nodes.size()) ? m_cfg.nodes[i].node_type : "drone";
+        const bool active = i >= m_cfg.nodes.size() || m_cfg.nodes[i].failure_at_s < 0.0 || time_s < m_cfg.nodes[i].failure_at_s;
         m_posFile << time_s << "," << i << ","
                   << pos.x << "," << pos.y << "," << pos.z
-                  << "," << role << ",1\n";
+                  << "," << role << "," << (active ? 1 : 0) << "\n";
     }
 }
 

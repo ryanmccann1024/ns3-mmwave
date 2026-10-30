@@ -3,7 +3,7 @@
 Run from `scratch/mesh-sim/`:
 
 ```bash
-.venv/bin/python -m pytest scripts/rl/tests/test_ops_tasks.py scripts/rl/tests/test_ops_benchmark.py scripts/rl/tests/test_ops_tune.py scripts/rl/tests/test_ops_process.py scripts/rl/tests/test_ops_cluster.py scripts/rl/tests/test_cluster_recovery.py -q -rs
+.venv/bin/python -m pytest scripts/rl/tests/cluster/test_ops_tasks.py scripts/rl/tests/cluster/test_ops_benchmark.py scripts/rl/tests/tuning/test_ops_tune.py scripts/rl/tests/ops/test_ops_process.py scripts/rl/tests/cluster/test_ops_cluster.py scripts/rl/tests/cluster/test_cluster_recovery.py -q -rs
 ```
 
 | Test group | Input and expected behavior |

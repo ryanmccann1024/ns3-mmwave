@@ -140,6 +140,8 @@ WriteRunLog(const std::string&       base_output_dir,
     out << "  tx_power_dbm        = " << cfg.channel.tx_power_dbm         << "\n";
     out << "  traffic.model       = " << cfg.mesh.traffic.model            << "\n";
     out << "  traffic.topology    = " << cfg.mesh.traffic.flow_topology    << "\n";
+    for (const auto& pair : cfg.mesh.traffic.pairs)
+        out << "  traffic.pair = " << pair.src << "," << pair.dst << "," << pair.demand_mbps << "\n";
     out << "  traffic.demand_mbps = " << cfg.mesh.traffic.demand_mbps      << "\n";
     out << "  routing.algorithm   = " << cfg.mesh.routing.algorithm        << "\n";
     out << "  routing.max_hops    = " << cfg.mesh.routing.max_hops         << "\n";
@@ -171,14 +173,31 @@ WriteRunLog(const std::string&       base_output_dir,
     }
 
     out << "  output.viz_enabled = " << (cfg.viz_enabled ? "true" : "false") << "\n";
+    out << "  rl.building_clearance_m = " << cfg.rl.building_clearance_m << "\n";
+    out << "  rl.mask_building_moves = " << cfg.rl.mask_building_moves << "\n";
     out << "  rl.unsafe_separation_m = " << cfg.rl.unsafe_separation_m << "\n";
     out << "  rl.avoid_node_collisions = " << (cfg.rl.avoid_node_collisions ? "true" : "false") << "\n";
+    if (cfg.rl.mission.kind != "none")
+    {
+        const auto& m = cfg.rl.mission;
+        out << "  mission.kind = " << m.kind << "\n";
+        out << "  mission.team_investigation = " << m.team_investigation << "\n";
+        out << "  mission.team_radius_m = " << m.team_radius_m << "\n";
+        out << "  mission.team_delivery_target = " << m.team_delivery_target << "\n";
+        out << "  mission.investigator_id = " << m.investigator_id << "\n";
+        out << "  mission.goal_xy = " << m.goal_x << "," << m.goal_y << "\n";
+        out << "  mission.coverage_domain = outdoor_probe_cells\n";
+        for (const auto& node : cfg.nodes)
+            if (node.failure_at_s >= 0.0)
+                out << "  node.failure_at_s." << node.id << " = " << node.failure_at_s << "\n";
+    }
     out << "  rl.control_mode     = " << cfg.rl.control_mode                 << "\n";
     out << "  rl.reward_warmup    = exclude\n";
     out << "  rl.contract         = " << rlContract                          << "\n";
     out << "  rl.controlled_nodes = "
         << (rlControlled.empty() ? "(none)" : rlControlled)                  << "\n";
     out << "  rl.max_controlled_nodes = " << cfg.rl.num_slots                << "\n";
+    out << "  rl.control_start_s = " << cfg.rl.control_start_s << "\n";
     out << "  rl.decision_interval_s  = "
         << (cfg.rl.decision_interval_ticks * cfg.tick_s)                     << "\n";
     out << "  rl.decision_interval_ticks = " << cfg.rl.decision_interval_ticks << "\n";
