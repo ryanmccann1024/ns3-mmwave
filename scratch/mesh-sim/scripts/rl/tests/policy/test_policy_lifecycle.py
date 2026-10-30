@@ -788,8 +788,6 @@ def test_write_json_replaces_the_file_atomically(tmp_path):
     assert list(tmp_path.glob("*.tmp")) == []
 
 
-
-
 # 6. Recovery and durable artifacts ----------------------------------------------
 
 @pytest.fixture

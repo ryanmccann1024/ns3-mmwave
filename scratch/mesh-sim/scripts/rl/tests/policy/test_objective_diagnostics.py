@@ -43,6 +43,21 @@ def test_survivor_sinr_excludes_failed_links_but_scores_invalid_active_links_zer
     assert composer.compose({'scored_ticks':2},0,{},context).total==0
 
 
+def test_compact_training_keeps_validation_telemetry_when_requested(sim_binary,multi_run_config,tmp_path,monkeypatch):
+    import sys
+    from scripts.rl import train
+    ini=Path(multi_run_config)
+    ini.write_text(ini.read_text()+'\ncompact_training=true\nrecord_validation_telemetry=true\ntelemetry=none\n')
+    out=tmp_path/'train'
+    monkeypatch.setattr(sys,'argv',['train','--sim-binary',sim_binary,'--run-config',str(ini),
+        '--output-dir',str(out),'--verbose','0','m-ppo','--seed','101','--total-timesteps','16',
+        '--n-steps','8','--batch-size','8','--eval-every-steps','8','--eval-episodes','2','--eval-seeds','201,202'])
+    assert train.main()==0
+    assert not list(out.glob('episode-*/steps.jsonl'))
+    for step in (8,16):
+        record=json.loads((out/'eval'/f'checkpoint-{step}'/'reward_matrix.json').read_text())
+        assert {e['seed'] for e in record['episodes']}=={201,202}
+        assert not record['excluded']
 
 
 @pytest.mark.parametrize('mission',['coverage','investigation','recovery'])

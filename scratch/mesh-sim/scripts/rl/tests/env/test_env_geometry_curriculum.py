@@ -449,6 +449,42 @@ def _load_in_subprocess(*args):
     return json.loads(result.stdout.strip().splitlines()[-1])
 
 
+def test_saved_zip_with_renamed_registry_inputs_deserializes(sim_binary, tmp_path):
+    pytest.importorskip('sb3_contrib')
+    from scripts.rl.agents.config import Cadence, MaskablePPOConfig
+    from scripts.rl.env.selection import resolve_selection
+    from scripts.rl.policy.training import train_mppo
+    scenario = tmp_path/'scenario'
+    scenario.mkdir()
+    (scenario/'run.ini').write_text(MISSION_INI)
+    (scenario/'nodes.json').write_text(NODES_JSON)
+    for stage in ('near', 'intermediate'):
+        (scenario/stage).mkdir()
+        shutil.copy(scenario/'run.ini', scenario/stage/'run.ini')
+        shutil.copy(scenario/'nodes.json', scenario/stage/'nodes.json')
+    (scenario/'schedule.json').write_text(json.dumps(
+        {'near': 'near/run.ini', 'intermediate': 'intermediate/run.ini', 'original': 'run.ini'}))
+    schedule = load_curriculum_schedule(scenario/'schedule.json')
+    run_config = str(scenario/'run.ini')
+    selection = resolve_selection(run_config)
+    assert selection.observation_preset == 'mission_compact_v1'
+    run = tmp_path/'train'
+    run.mkdir()
+    cfg = MaskablePPOConfig(total_timesteps=8, n_steps=4, batch_size=4, n_epochs=1, net_arch=(8, 8), seed=101, verbose=0)
+    train_mppo(cfg, sim_binary, run_config, str(run), None, 'cli', selection, Cadence(eval_every=0),
+               env_factory=partial(CurriculumEnv, schedule=schedule['schedule']))
+    manifest = json.loads((run/'train_manifest.json').read_text())
+    assert manifest['status'] == 'completed'
+    resets = json.loads((run/'curriculum.json').read_text())['resets']
+    assert resets and {r['stage'] for r in resets} == {'near'}
+
+    model_path = Path(manifest['model_path'])
+    references, legacy_references = _serialized_module_refs(model_path)
+    assert references == 0 and legacy_references == 0
+    expected = _zip_digest(model_path)
+    loaded = _load_in_subprocess('bundle', run, sim_binary, run_config, tmp_path/'reload')
+    assert loaded == {'digest': expected, 'type': 'MaskablePPO', 'legacy_loaded': []}
+    assert _load_in_subprocess('zip', model_path)['digest'] == expected
 
 
 def test_historical_zip_deserializes_without_legacy_modules():
