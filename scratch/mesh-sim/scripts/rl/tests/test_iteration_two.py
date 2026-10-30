@@ -14,7 +14,7 @@ from scripts.rl.env.rewards import RewardComposer, position_context
 from scripts.rl.env.selection import resolve_selection
 from scripts.rl.policy.baseline_cache import ensure_baselines
 from scripts.rl.policy.evaluate import episode_metrics
-from scripts.rl.tests.test_evaluation_pipeline import _train
+from scripts.rl.tests.policy.test_evaluation_pipeline import _train
 from scripts.sim_support import find_mesh_root
 
 

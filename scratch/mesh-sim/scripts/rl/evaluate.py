@@ -11,7 +11,8 @@ from scripts.rl.cli_common import (MANIFEST_NAME, add_scenario_arguments,
                                    add_selection_arguments, selection_from_args,
                                    add_decision_record_arguments, decision_records_from_args,
                                    automatic_output_root)
-from scripts.rl.env.decisions import DecisionContext, DecisionRecording
+from scripts.rl.env.recording.decisions import DecisionContext
+from scripts.rl.env.recording.decisions import DecisionRecording
 from scripts.rl.policy.preferences import PreferenceCapture
 from scripts.rl.env.config import read_scenario_identity
 from scripts.rl.env.mesh_env import MeshRlEnv

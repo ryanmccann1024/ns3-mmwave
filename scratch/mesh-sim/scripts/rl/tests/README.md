@@ -12,8 +12,8 @@ skips. Install the Python requirements first as described in the [main
 README](@ref readme_python_environment).
 
 ```bash
-.venv/bin/python -m pytest scripts/rl/tests/test_mesh_env.py -q
-MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary .venv/bin/python -m pytest scripts/rl/tests/test_real_binary.py -q
+.venv/bin/python -m pytest scripts/rl/tests/env/test_mesh_env.py -q
+MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary .venv/bin/python -m pytest scripts/rl/tests/integration/test_real_binary.py -q
 make -C tests/unit/config test
 MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary make -C tests integration
 ```

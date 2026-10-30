@@ -13,7 +13,7 @@ import numpy as np
 
 from scripts.rl.cli_common import now_iso, package_versions, write_json
 from scripts.rl.env.protocol import SLOT_ACTIONS
-from scripts.rl.env.telemetry import TELEMETRY_FILE
+from scripts.rl.env.recording.telemetry import TELEMETRY_FILE
 from scripts.rl.policy.metrics import (CSV_METRICS, METRIC_SOURCE,
                                        episode_metrics as reduce_episode_metrics)
 

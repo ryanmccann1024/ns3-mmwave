@@ -219,6 +219,22 @@ def rectangle_grid(rect: dict, cells: int, min_resolution_m: float, max_points=1
     return points, cell, (ww * hh).ravel()
 
 
+def coverage_grid(request, max_points=10000):
+    """Shared probe domain; optionally omit indoor centers like native CoverageGrid."""
+    points, cell, weights = rectangle_grid(request.rectangle, request.grid.coverage_cells,
+        request.grid.min_resolution_m, max_points=max_points)
+    boxes = getattr(request, "probe_exclusion_buildings", ())
+    if boxes:
+        z = request.probe.height_m
+        keep = np.array([not any(b["x_min"] <= x <= b["x_max"] and
+            b["y_min"] <= y <= b["y_max"] and b["z_min"] <= z <= b["z_max"]
+            for b in boxes) for x,y in points], dtype=bool)
+        points, weights = points[keep], weights[keep]
+        if not len(points):
+            raise ValueError("coverage domain has no outdoor probes")
+    return points, cell, weights
+
+
 @dataclass(frozen=True)
 class ScoringContext:
     """Everything the shared score needs that does not depend on a layout."""
@@ -279,9 +295,7 @@ class ScoringContext:
         if probes is None:
             raise ValueError("the scorer has no probes; call prepare_scorer first")
         rect = dict(request.rectangle)
-        points, cell_m, weights = rectangle_grid(
-            rect, request.grid.coverage_cells, request.grid.min_resolution_m
-        )
+        points, cell_m, weights = coverage_grid(request)
         sent = np.asarray(probes["points"], dtype=float)
         if sent.shape != points.shape or not np.allclose(
             sent, points, rtol=0, atol=PROBE_MATCH_TOL_M
@@ -290,7 +304,7 @@ class ScoringContext:
         candidates, candidate_cell_m, _ = rectangle_grid(
             rect, request.grid.candidate_cells, request.grid.min_resolution_m
         )
-        aoi = rectangle_area(rect)
+        aoi = float(weights.sum()) if getattr(request, "probe_exclusion_buildings", ()) else rectangle_area(rect)
         return cls(
             objective=request.objective,
             ids=tuple(str(node.id) for node in nodes),
@@ -344,12 +358,8 @@ class ScoringContext:
 
 def prepare_scorer(request, scorer) -> None:
     """Send the coverage grid to the scorer once, before any evaluation."""
-    points, _, _ = rectangle_grid(
-        request.rectangle,
-        request.grid.coverage_cells,
-        request.grid.min_resolution_m,
-        max_points=getattr(scorer, "limits", {}).get("max_probes", 10000),
-    )
+    points, _, _ = coverage_grid(request,
+        max_points=getattr(scorer, "limits", {}).get("max_probes", 10000))
     scorer.set_probes(
         points,
         height_m=request.probe.height_m,
