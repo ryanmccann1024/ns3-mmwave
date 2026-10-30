@@ -225,7 +225,7 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
         mesh_sim::CoverageGrid coverageGrid;
         if (cfg.rl.enabled && cfg.rl.coverage_enabled)
         {
-            coverageGrid = mesh_sim::BuildCoverageGrid(cfg.rl);
+            coverageGrid = mesh_sim::BuildCoverageGrid(cfg.rl, cfg.rl.mission.kind == "none" ? std::vector<mesh_sim::BuildingSpec>{} : cfg.buildings);
             topo.SetProbes(coverageGrid.probes);
         }
         topo.Build();
@@ -233,6 +233,7 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
         auto mobs = topo.GetMobilityModels();
         auto jammerMobs = topo.GetJammerMobilityModels();
         uint32_t N = static_cast<uint32_t>(mobs.size());
+        std::vector<bool> available(N, true);
 
         /// @brief Bind the propagation/condition models to a LinkEvaluator
         ///        that will compute per-tick SINR/capacity/MCS.
@@ -289,7 +290,26 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
             }
 
             /// @brief Evaluate all N*(N-1)/2 links at the current positions.
-            linkTable.Update(N, linkEval.EvaluateAll(mobs, t));
+            for (uint32_t i = 0; i < N; ++i)
+                if (cfg.nodes[i].failure_at_s >= 0.0 && t >= cfg.nodes[i].failure_at_s)
+                {
+                    available[i] = false;
+                    if (auto cv = mobs[i]->GetObject<ns3::ConstantVelocityMobilityModel>())
+                        cv->SetVelocity(ns3::Vector(0,0,0));
+                }
+            if (rlBridge) rlBridge->SetAvailable(available);
+            auto evaluated = linkEval.EvaluateAll(mobs, t);
+            size_t pair = 0;
+            for (uint32_t i = 0; i < N; ++i)
+                for (uint32_t j = i+1; j < N; ++j, ++pair)
+                    if (!available[i] || !available[j])
+                    {
+                        const double distance = evaluated[pair].distance_m;
+                        evaluated[pair] = mesh_sim::LinkResult{};
+                        evaluated[pair].tx_id = i; evaluated[pair].rx_id = j;
+                        evaluated[pair].distance_m = distance;
+                    }
+            linkTable.Update(N, evaluated);
 
             /// @brief Advance traffic state and route active flows over
             ///        the freshly-evaluated link table.
@@ -335,9 +355,11 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
                         std::vector<std::vector<bool>> covered(N, std::vector<bool>(probeMobs.size()));
                         for (uint32_t i = 0; i < N; ++i)
                             for (size_t p = 0; p < probeMobs.size(); ++p)
-                                covered[i][p] = linkEval.EvaluateProbe(mobs[i], probeMobs[p], i,
+                                covered[i][p] = available[i] && linkEval.EvaluateProbe(mobs[i], probeMobs[p], i,
                                     coverageGrid.probes.rx_gain_dbi, t).sinr_db >= coverageGrid.probes.sinr_db;
-                        rlBridge->SetCoverage(mesh_sim::ConnectedCoverage(linkTable, coverageGrid, covered));
+                        rlBridge->SetCoverage(mesh_sim::ConnectedCoverage(linkTable, coverageGrid, covered, available));
+                        if (cfg.rl.mission.kind == "investigation")
+                            rlBridge->SetGoalCoverage(mesh_sim::GoalCoverage(linkTable, coverageGrid, covered, cfg.rl.mission, available));
                     }
                     rlBridge->Step(ti, t, mobs, linkTable, done);
                     if (!done)

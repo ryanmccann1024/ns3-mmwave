@@ -130,10 +130,9 @@ class VizWriter
      * @brief Write one position row per node to @c positions.csv.
      *
      * Queries each @c MobilityModel for its current (x, y, z) in metres and
-     * writes the node's @c role from @c cfg.nodes as @c node_type (falling
-     * back to @c "peer").
-     * The @c active column is always @c 1 — nodes are never deactivated
-     * mid-simulation in mesh-sim.
+     * writes the peer's physical @c node_type from @c cfg.nodes.
+     * The @c active column becomes @c 0 at its permanent @c failure_at_s;
+     * positions remain available for replay while the peer is offline.
      */
     void WritePositions(double time_s,
                         const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs);

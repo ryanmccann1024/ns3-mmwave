@@ -7,8 +7,10 @@ from pathlib import Path
 from datetime import datetime
 
 from scripts.sim_support import find_mesh_root
-from scripts.rl.env.decision_settings import (OBS_VECTOR_MODES, PREFERENCE_MODES,
-                                             DecisionRecordSettings, resolve_decision_records)
+from scripts.rl.env.recording.settings import OBS_VECTOR_MODES
+from scripts.rl.env.recording.settings import PREFERENCE_MODES
+from scripts.rl.env.recording.settings import DecisionRecordSettings
+from scripts.rl.env.recording.settings import resolve_decision_records
 from scripts.artifact_io import now_iso, sha256_file, write_json
 from scripts.rl.bootstrap_venv import DIRECT_DEPS
 from scripts.rl.env.config import read_scenario_seed

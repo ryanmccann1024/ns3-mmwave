@@ -14,7 +14,7 @@ from scripts.rl.env.rewards import RewardComposer, position_context
 from scripts.rl.env.selection import resolve_selection
 from scripts.rl.policy.baseline_cache import ensure_baselines
 from scripts.rl.policy.evaluate import episode_metrics
-from scripts.rl.tests.test_evaluation_pipeline import _train
+from scripts.rl.tests.policy.test_evaluation_pipeline import _train
 from scripts.sim_support import find_mesh_root
 
 
@@ -88,7 +88,7 @@ def test_baseline_cache_rescores_without_mutating_cache(sim_binary, multi_run_co
     first = json.loads((tmp_path/'eval1/eval_manifest.json').read_text())
     second = json.loads((tmp_path/'eval2/eval_manifest.json').read_text())
     assert second['status'] == 'completed' and second['episodes_completed'] == 6
-    assert second['eval_manifest_version'] == 6
+    assert second['eval_manifest_version'] == 8
     for policy in ('hold','random_valid'):
         for a,b in zip(first['policies'][policy]['episodes'],second['policies'][policy]['episodes']):
             assert a['actions_sha256'] == b['actions_sha256']

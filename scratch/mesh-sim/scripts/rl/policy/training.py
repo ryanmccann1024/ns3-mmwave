@@ -8,7 +8,8 @@ from scripts.rl.policy.bundle import eval_selection
 
 from scripts.rl.agents.callbacks import build_callbacks, Cadence
 from scripts.rl.agents.mask_ppo import MaskablePPOConfig, MaskablePpoTrainer
-from scripts.rl.env.decisions import DecisionContext, DecisionRecording
+from scripts.rl.env.recording.decisions import DecisionContext
+from scripts.rl.env.recording.decisions import DecisionRecording
 from scripts.rl.env.config import read_scenario_identity
 from scripts.rl.env.mesh_env import MeshRlEnv
 from scripts.rl.policy.compat import check_compatibility
