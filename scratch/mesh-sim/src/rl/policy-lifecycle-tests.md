@@ -9,14 +9,14 @@ and temporary directories; they do not establish radio accuracy. Run them
 from `scratch/mesh-sim/`:
 
 ```bash
-.venv/bin/python -m pytest -q scripts/rl/tests/test_lifecycle_cli.py scripts/rl/tests/test_policy_lifecycle.py
+.venv/bin/python -m pytest -q scripts/rl/tests/policy/test_lifecycle_cli.py scripts/rl/tests/policy/test_policy_lifecycle.py
 ```
 
 The two real-binary checks need a built simulator:
 
 ```bash
 MESH_SIM_BIN=<BIN> .venv/bin/python -m pytest -q \
-  scripts/rl/tests/test_real_binary.py \
+  scripts/rl/tests/integration/test_real_binary.py \
   -k 'building_bypass_fixture_geometry or lifecycle_train_inspect_evaluate_in_fresh_processes'
 ```
 
@@ -41,6 +41,23 @@ fails with pytest output; its files are confined to pytest's temporary paths.
 | `test_policy_lifecycle.py`: `test_seed_roles_flag_training_and_selection_overlap`, `test_seed_roles_without_an_evaluation_block_only_checks_the_training_seed`, `test_seed_roles_without_a_bundle_are_unknown` | Training manifest and evaluation seeds → `seed_roles` flags overlap with the training or model-selection seed; no bundle → held-out status unknown (`None`). |
 | `test_real_binary.py`: `test_building_bypass_fixture_geometry` | Built binary and building fixture → scripted hold/movement produces expected LOS and positions. |
 | `test_real_binary.py`: `test_lifecycle_train_inspect_evaluate_in_fresh_processes` | Built binary and fixture → train, inspect, and evaluate in separate processes with verified artifacts and completed episodes. |
+
+`test_checkpoint_recovery_support.py` covers after-update checkpoints,
+continuation options and model digests/bindings. Real-PPO cases drive `train`
+against `fake_sim.py` ("fake simulator") or optimize a tiny in-process masked
+stub env ("stub env"); ZIPs are generated under `tmp_path`. Cases needing
+`sb3_contrib` skip without it.
+
+| Test | Input → expected output |
+| --- | --- |
+| `test_post_update_callback_milestones_counters_and_file_fields` | Stub model → saves only after updates at cumulative milestones; `post_update_checkpoints.json` fields and counters. |
+| `test_after_update_schedule_rejects_misaligned_budgets` | Cadence/rollout/episode/budget/restored-step combinations → misaligned schedules refused, never extended. |
+| `test_existing_argv_parses_with_unchanged_defaults`, `test_cli_refuses_invalid_options_before_any_output` | Existing `train` argv → unchanged defaults; continuation combined with resume flags, `--continue-model` without `--continue-from-run-dir`, misaligned after-update options, zero decisions per episode → refused before any output. |
+| `test_decisions_per_episode_mismatch_fails_before_training` | Fake simulator with 2 decisions per episode, assertion 4 → refused before any update. |
+| `test_after_update_training_and_continuation` | Fake simulator → fresh after-update run, then a `final`-model continuation to a larger cumulative budget. |
+| `test_optimizer_digest_survives_save_load_and_changes_after_a_step`, `test_checkpoint_counters_reads_without_loading` | Stub env → optimizer digest stable across save/load and changed by a step; parameter digest equals the online algorithm's; ZIP counters read without loading. |
+| `test_bound_checkpoint_accepts_original_bytes_and_refuses_changes` | Checkpoint of an interrupted attempt read through its binding → accepted with original bytes; changed manifest, ZIP, counters or optimizer → refused. |
+| `test_curriculum_schedule_trains_and_records_hashes` | Fake simulator → curriculum env trains; the manifest pins the schedule and stage INIs. |
 
 Recovery checks in `test_policy_lifecycle.py` interrupt real SB3 training driven
 by the fake simulator, verify checkpoint records before failure, then restore

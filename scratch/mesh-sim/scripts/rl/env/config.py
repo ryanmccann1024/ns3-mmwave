@@ -124,12 +124,15 @@ def read_manifest_every_decisions(run_config: str) -> int:
 
 def read_episode_output(run_config: str) -> dict:
     ini = _read_ini(run_config)
-    raw = _get(ini, "rl", "compact_training", "false").lower()
     states = {"1": True, "yes": True, "true": True, "on": True,
               "0": False, "no": False, "false": False, "off": False}
-    if raw not in states:
-        raise ValueError(f"Not a boolean: {raw}")
-    return {"compact_training": states[raw]}
+    output = {}
+    for key in ("compact_training", "record_validation_telemetry", "validation_after_update"):
+        raw = _get(ini, "rl", key, "false").lower()
+        if raw not in states:
+            raise ValueError(f"Not a boolean: {raw}")
+        output[key] = states[raw]
+    return output
 
 
 def read_jammer_onsets(run_config: str) -> tuple[tuple[float, ...], tuple[float, ...]]:

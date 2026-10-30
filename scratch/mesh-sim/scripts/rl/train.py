@@ -13,11 +13,13 @@ from scripts.rl.cli_common import (add_scenario_arguments, add_selection_argumen
                                    selection_from_args)
 from scripts.rl.policy.bundle import (check_run_overlap, read_recovery_bundle,
                                       selection_from_manifest)
-from scripts.rl.policy.training import train_mppo
+from scripts.rl.agents.post_update import CHECKPOINT_TIMINGS
+from scripts.rl.policy.training import (continuation_parent, curriculum_env_factory, train_mppo,
+                                        validate_training_options)
 from scripts.sim_support import parse_seed_spec
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Train an RL agent on mesh-sim")
     add_scenario_arguments(p)
     p.add_argument("--output-dir", default="")
@@ -48,6 +50,16 @@ def main() -> int:
                      help="Continue from a verified checkpoint in this previous run")
     ppo.add_argument("--resume-checkpoint", default=None,
                      help="checkpoints/<file>.zip; omitted -> latest retained checkpoint")
+    ppo.add_argument("--continue-from-run-dir", default=None,
+                     help="Continue a verified completed run; exclusive with --resume-run-dir")
+    ppo.add_argument("--continue-model", default=None,
+                     help="final (default), best, or checkpoints/<file>.zip of that run")
+    ppo.add_argument("--checkpoint-timing", choices=CHECKPOINT_TIMINGS, default="standard",
+                     help="after-update saves only after an optimizer update, without validation")
+    ppo.add_argument("--decisions-per-episode", type=int, default=None,
+                     help="Assert the simulator's decisions per episode; never changes it")
+    ppo.add_argument("--curriculum-schedule", default=None,
+                     help="Existing curriculum schedule JSON for the training env only")
     ppo.add_argument("--seed", type=int, default=None,
                      help="Training seed; defaults to [scenario] seed in run.ini")
     ppo.add_argument("--tensorboard-log", default=None)
@@ -68,8 +80,11 @@ def main() -> int:
     # QR-DQN (disabled for now — kept so the CLI shape is stable)
     qr = sub.add_parser("qr-dqn", help="Quantile-Regression DQN (disabled)")
     qr.add_argument("--seed", type=int, default=None)
+    return p
 
-    args = p.parse_args()
+
+def main(argv=None) -> int:
+    args = build_parser().parse_args(argv)
 
     if args.modeltype == "qr-dqn":
         print("qr-dqn is disabled in this version", file=sys.stderr)
@@ -78,7 +93,7 @@ def main() -> int:
     if args.modeltype != "m-ppo":
         return 1
 
-    resume = None
+    resume = env_factory = curriculum = None
     try:
         records = decision_records_from_args(args)
         cadence = Cadence(checkpoint_every=args.checkpoint_every_steps,
@@ -87,8 +102,15 @@ def main() -> int:
                           eval_episodes=args.eval_episodes)
         if args.resume_checkpoint and not args.resume_run_dir:
             raise ValueError("--resume-checkpoint requires --resume-run-dir")
+        if args.continue_model is not None and not args.continue_from_run_dir:
+            raise ValueError("--continue-model requires --continue-from-run-dir")
+        if args.continue_from_run_dir and args.resume_run_dir:
+            raise ValueError("--continue-from-run-dir and --resume-run-dir are mutually exclusive")
         if args.resume_run_dir:
             resume = read_recovery_bundle(args.resume_run_dir, args.resume_checkpoint)
+        elif args.continue_from_run_dir:
+            resume = continuation_parent(args.continue_from_run_dir, args.continue_model or "final")
+        if resume is not None:
             if args.total_timesteps <= resume.num_timesteps:
                 raise ValueError("--total-timesteps must exceed the restored timestep count")
             flags = ("observation_preset", "reward_components", "reward_weights",
@@ -128,10 +150,14 @@ def main() -> int:
         cadence.eval_seed = cadence.eval_seeds[0]
         cfg = MaskablePPOConfig(**{key: getattr(args, key) for key in PPO_FIELDS},
                                 seed=seed, verbose=args.verbose, tensorboard_log=args.tensorboard_log)
+        if args.curriculum_schedule is not None:
+            env_factory, curriculum = curriculum_env_factory(args.curriculum_schedule)
+        validate_training_options(cfg, cadence, resume, args.checkpoint_timing,
+                                  args.decisions_per_episode, curriculum)
         out_dir = resolve_out_dir(args.output_dir)
         if resume is not None:
             check_run_overlap(out_dir, resume.run_dir)
-    except (ValueError, OSError) as exc:
+    except (ValueError, OSError, ImportError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
 
@@ -146,7 +172,10 @@ def main() -> int:
 
     try:
         train_mppo(cfg, args.sim_binary, args.run_config, out_dir,
-                   args.band, seed_source, selection, cadence, resume, records)
+                   args.band, seed_source, selection, cadence, resume, records,
+                   env_factory=env_factory, checkpoint_timing=args.checkpoint_timing,
+                   decisions_per_episode=args.decisions_per_episode, curriculum=curriculum,
+                   continuation=(args.continue_model or "final") if args.continue_from_run_dir else None)
     except Exception as exc:
         print(f"Training failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1

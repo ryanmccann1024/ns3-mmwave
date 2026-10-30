@@ -94,8 +94,8 @@ class LinkEvaluator
      *    of the jammer power at the receiver and at the transmitter.
      * -# With no jammer power, @c sinr_db = rx_power_dbm − noise floor (plain
      *    SNR, no inter-node interference). Otherwise
-     *    @c sinr_db = 10·log10(signal / (noise + jammer)), clamped to a
-     *    minimum of 0 dB.
+     *    @c sinr_db = 10·log10(signal / (noise + jammer)); negative values
+     *    are preserved (there is no 0 dB floor).
      * -# Capacity comes from @ref SinrToCapacity. The MCS index comes from
      *    @ref SinrToSilvusMcsIndex when the model is @c "silvus", else
      *    @ref SinrToMcsIndex.
@@ -140,7 +140,7 @@ class LinkEvaluator
      * @throws std::runtime_error as @ref Evaluate.
      *
      * Path loss floors, the jammer path (larger of probe-end and TX-end power)
-     * and the jammed-SINR clamp are identical to @ref Evaluate.
+     * and the unclamped SINR calculation are identical to @ref Evaluate.
      */
     LinkResult EvaluateProbe(ns3::Ptr<ns3::MobilityModel> txMob,
                              ns3::Ptr<ns3::MobilityModel> probeMob,

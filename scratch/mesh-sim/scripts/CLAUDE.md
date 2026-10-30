@@ -12,7 +12,7 @@ read it before editing there.
 | `arpo_data/` | raw ARPO field CSVs -> per-day / per-scenario traces and plots |
 | `validation/` | field traces -> scenarios, batch runs, sim-vs-field comparison, regression and smoke checks |
 | `sweep/` | one sim run per point of a `run.ini` grid |
-| `rl/` | Gymnasium env, training, evaluation, experiments, cluster ops |
+| `rl/` | Gymnasium env, training, evaluation, experiment matrices and batches (`rl/run-experiments.sh`), cluster ops |
 | `baselines/` | placement planners (`geometric`, `optimization`) scored by the simulator's `--channel-query` worker; see its `README.md` |
 | `plotting/` | post-sim figures from finished `seed-N/` folders |
 | `baselines/` | placement configuration, mapping, effective inputs, and baseline artifacts |
@@ -73,6 +73,12 @@ needs ns-3's shared libraries) and close its stdin unless it is the RL bridge.
   values in run provenance. Fixed diagnostic limits can remain private.
 - Reuse existing owners first. Extract a cohesive responsibility when unrelated
   logic accumulates or is repeated; do not split every helper or add a framework.
+- RL experiment orchestration has one maintained launcher,
+  `rl/run-experiments.sh`, which only locates the root, normalizes path flags
+  and `exec`s `rl/experiment.py`. Batch planning lives in `rl/experiments/`,
+  local scheduling/receipts/recovery in `rl/ops/` (`local.py`, `recovery.py`).
+  Do not add another campaign runner, queue or phase-named package; express a
+  new study as batch configuration.
 
 ## Conventions
 

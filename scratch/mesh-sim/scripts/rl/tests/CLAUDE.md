@@ -9,26 +9,25 @@ pytest temp dirs, never to `inputs/`.
 
 ```bash
 .venv/bin/python -m pytest scripts/rl/tests -q
-.venv/bin/python -m pytest scripts/rl/tests/test_mesh_env.py::<test_name>
-MESH_SIM_BIN=/abs/path/to/bin .venv/bin/python -m pytest scripts/rl/tests/test_real_binary.py -q
+.venv/bin/python -m pytest scripts/rl/tests/env/test_mesh_env.py::<test_name>
+MESH_SIM_BIN=/abs/path/to/bin .venv/bin/python -m pytest scripts/rl/tests/integration/test_real_binary.py -q
 ```
 
 ## Fakes
 
-- `fake_sim.py` -- stand-in simulator speaking the same flags and RL protocol
+- `support/fake_sim.py` -- stand-in simulator speaking the same flags and RL protocol
   (legacy unless `[rl] controlled_nodes` is set). `FAKE_SIM_MODE` selects fault
   modes; `FAKE_SIM_FAIL_SEEDS` kills chosen seeds mid-episode. It has no radio
   model, so it proves protocol handling, never movement or reward correctness.
   Protocol changes in `src/rl/rl-bridge.cc` must be mirrored here.
-- `fake_slurm.py` -- `sbatch`/`squeue`/`sacct`/`scancel` shims sharing one JSON
+- `support/fake_slurm.py` -- `sbatch`/`squeue`/`sacct`/`scancel` shims sharing one JSON
   state file (`FAKE_SLURM_STATE`), installed via `fake_slurm.install(tmp_path)`.
-- `conftest.py` -- shared `sim_binary` (shell shim that execs `fake_sim.py`) and
-  `multi_run_config` (centralized 3-node scenario) fixtures. Older modules keep
-  local copies; new tests should use the shared fixtures.
+- `conftest.py` -- shared `sim_binary` (shell shim that execs `support/fake_sim.py`) and
+  `multi_run_config` (centralized 3-node scenario) fixtures. Use these fixtures and the shared `support/` helpers in new tests.
 
 ## Skips
 
-- `test_real_binary.py` skips entirely without `MESH_SIM_BIN`; it uses
+- `integration/test_real_binary.py` skips entirely without `MESH_SIM_BIN`; it uses
   `inputs/baselines/p1-multi-smoke/`. Run it against a fresh build after any
   protocol or `mesh_env` change.
 - Tests needing `sb3_contrib`, Optuna (`requirements-tuning.txt`), or pandas
@@ -40,13 +39,21 @@ MESH_SIM_BIN=/abs/path/to/bin .venv/bin/python -m pytest scripts/rl/tests/test_r
 Each test's input and expected output is documented, and new tests should be
 added to the matching map:
 
-- `README.md` here -- `test_mesh_env.py`, `test_real_binary.py`, the C++
-  config/CLI RL tests, `test_ops_*.py`, and `test_bootstrap_venv.py`.
-- `src/rl/policy-input-tests.md` -- `test_observations_rewards.py` and the
-  policy-input cases in `test_mesh_env.py` / `test_real_binary.py`.
-- `src/rl/policy-lifecycle-tests.md` -- `test_lifecycle_cli.py`,
-  `test_policy_lifecycle.py`.
-- `src/rl/policy-comparison-tests.md` -- `test_evaluation_pipeline.py`,
-  `test_experiment_matrix.py`, `test_policy_comparison.py`.
-- `src/rl/decision-records.md` -- `test_decision_records.py`, `test_decision_record_contract.py`, and
-  `test_decision_records_join_real_steps` in `test_real_binary.py`.
+- `README.md` here -- `env/test_mesh_env.py`, `integration/test_real_binary.py`, the C++
+  config/CLI RL tests, `test_ops_{tasks,benchmark,cluster,fetch,tune}.py`,
+  `tooling/test_bootstrap_venv.py`, and the batch operation owners
+  `policy/test_online_protocols.py`, `policy/test_operation.py` (including the `operate` CLI)
+  and `env/test_env_geometry_curriculum.py`.
+- `ops-tests.md` here -- task execution, measurement, tuning and cluster
+  recovery cases, and the batch scheduler and recovery tests
+  `ops/test_ops_local.py` and `ops/test_ops_recovery.py`.
+- `src/rl/policy-input-tests.md` -- `env/test_observations_rewards.py`,
+  `env/test_registry_identity.py` and the policy-input cases in `env/test_mesh_env.py` /
+  `integration/test_real_binary.py`.
+- `src/rl/policy-lifecycle-tests.md` -- `policy/test_lifecycle_cli.py`,
+  `policy/test_policy_lifecycle.py`, `agents/test_checkpoint_recovery_support.py`.
+- `src/rl/policy-comparison-tests.md` -- `policy/test_evaluation_pipeline.py`,
+  `experiments/test_experiment_matrix.py`, `policy/test_policy_comparison.py`, `experiments/test_matrix_v2.py`,
+  `experiments/test_gui_index.py`, `experiments/test_conversion_parity.py`.
+- `src/rl/decision-records.md` -- `env/test_decision_records.py`, `env/test_decision_record_contract.py`, and
+  `test_decision_records_join_real_steps` in `integration/test_real_binary.py`.

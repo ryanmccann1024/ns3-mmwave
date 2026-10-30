@@ -43,8 +43,22 @@ struct TimingInfo
                                                    ///<   (@c end - @c start as a double).
 };
 
+struct MissionConfig
+{
+    std::string kind = "none";
+    std::string investigator_id;
+    bool team_investigation = false; ///< Require the available team near the goal.
+    double team_radius_m = 50.0, team_delivery_target = 0.8;
+    double goal_x = 345.0, goal_y = 300.0;
+    double arrival_radius_m = 15.0, coverage_radius_m = 50.0;
+    double dwell_s = 30.0, goal_coverage_target = 0.8;
+    double recovery_delivery_target = 0.9, recovery_coverage_ratio = 0.9;
+    double recovery_worst_target = 0.8;
+};
+
 struct RlConfig
 {
+    MissionConfig mission;
     bool        enabled             = false;         ///< Enable RL mode when @c true.
     std::string reward_type         = "throughput";  ///< Reward signal:
                                                      ///<   @c "throughput" or @c "all_links_los".
@@ -69,11 +83,14 @@ struct RlConfig
     int         max_controlled_nodes = 0;     ///< Slot count @c M; @c 0 means the resolved
                                               ///<   controlled-node count.
     std::string action_profile = "move_2d";   ///< Centralized action profile; @c "move_2d" only.
+    double      control_start_s = 0.0;       ///< Hold controlled peers until this deployment time.
     double      decision_interval_s = 0.0;    ///< Seconds between RL decisions; @c 0 means
                                               ///<   @ref SimConfig::tick_s (one decision per tick).
 
     double unsafe_separation_m = 1.0;
     bool avoid_buildings = false;
+    double building_clearance_m = 0.0; ///< Clearance around walls and roofs.
+    bool mask_building_moves = true; ///< False permits proposals which physics rejects.
     bool avoid_node_collisions = false; ///< Reject joint paths closer than unsafe_separation_m.
     bool coverage_enabled = false;
     int coverage_grid_cells = 100;

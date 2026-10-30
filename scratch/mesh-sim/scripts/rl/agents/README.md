@@ -11,6 +11,7 @@ For the overall RL code map, setup, and training command, see
 |------|------|
 | [`mask_ppo.py`](@ref scripts/rl/agents/mask_ppo.py) | `MaskablePPOConfig` and `MaskablePpoTrainer`: wraps the env in `ActionMasker` and builds a `MaskablePPO` model. |
 | [`callbacks.py`](@ref scripts/rl/agents/callbacks.py) | `BoundedCheckpointCallback`, `list_checkpoints`, and `build_callbacks` (checkpoint and evaluation wiring). |
+| [`post_update.py`](@ref scripts/rl/agents/post_update.py) | `PostUpdateCheckpoints` and `PostUpdateValidation`: checkpoint and validation timing after completed PPO updates, and `validate_after_update_schedule`. |
 | [`q_learning.py`](@ref scripts/rl/agents/q_learning.py) | `TabularQLearning`: exploratory agent, not used for training. |
 | `__init__.py` | Re-exports `TabularQLearning`, `MaskablePpoTrainer`, `MaskablePPOConfig`. |
 
@@ -56,6 +57,27 @@ All cadences are SB3 timesteps (one env, one decision each).
 - Enabled when `eval_every > 0` and an eval env is given.
 - Uses `MaskableEvalCallback` with deterministic, masked actions.
 - The best model and eval log are written under `<out_dir>` itself.
+
+### After-update checkpoints
+
+`train.py m-ppo --checkpoint-timing after-update` replaces the per-step
+checkpoint callback with `PostUpdateCheckpoints`, which saves only after a
+completed optimizer update, so a checkpoint's weights, optimizer state and
+`_n_updates` agree.
+
+- Requires `--eval-every-steps 0`, a positive cadence that is a multiple of
+  `n_steps` and of the episode length, and a total budget that is a multiple of
+  the cadence; restored steps must sit on a rollout boundary. A misaligned
+  schedule is refused, never extended.
+- Each event is recorded in `post_update_checkpoints.json` with its cumulative
+  steps, completed episodes (`steps // decisions_per_episode`), optimizer
+  counter and timing.
+- Batch checkpoint recovery restarts only from these verified post-update
+  checkpoints; see the
+  [batch experiment reference](@ref mesh_sim_rl_batch_resume).
+
+Test map: `test_checkpoint_recovery_support.py` in
+[scripts/rl/tests](@ref scripts_rl_tests).
 
 ## Q-learning (exploratory)
 

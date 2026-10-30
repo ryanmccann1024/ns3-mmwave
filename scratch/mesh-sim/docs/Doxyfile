@@ -1,4 +1,4 @@
-# Doxyfile 1.9.1
+# Based on the Doxygen 1.9.1 configuration; maintained for Doxygen 1.18.0.
 
 # This file describes the settings to be used by the documentation system
 # doxygen (www.doxygen.org) for a project.
@@ -38,7 +38,7 @@ PROJECT_NAME           = "Mesh-Sim"
 # could be handy for archiving the generated documentation or if some version
 # control system is used.
 
-PROJECT_NUMBER         = "v0.1.0"
+PROJECT_NUMBER         = "v1.0.0"
 
 # Using the PROJECT_BRIEF tag one can provide an optional one line description
 # for a project that appears at the top of each page and should give viewer a
@@ -99,7 +99,6 @@ OUTPUT_LANGUAGE        = English
 # Possible values are: None, LTR, RTL and Context.
 # The default value is: None.
 
-OUTPUT_TEXT_DIRECTION  = None
 
 # If the BRIEF_MEMBER_DESC tag is set to YES, doxygen will include brief member
 # descriptions after the members that are listed in the file and class
@@ -170,7 +169,8 @@ FULL_PATH_NAMES        = YES
 # will be relative from the directory where doxygen is started.
 # This tag requires that the tag FULL_PATH_NAMES is set to YES.
 
-STRIP_FROM_PATH        =
+STRIP_FROM_PATH        = .. \
+                         .api-src
 
 # The STRIP_FROM_INC_PATH tag can be used to strip a user-defined part of the
 # path mentioned in the documentation of a class, which tells the reader which
@@ -233,7 +233,7 @@ MULTILINE_CPP_IS_BRIEF = NO
 # documentation blocks is shown as doxygen documentation.
 # The default value is: YES.
 
-PYTHON_DOCSTRING       = YES
+PYTHON_DOCSTRING       = NO
 
 # If the INHERIT_DOCS tag is set to YES then an undocumented member inherits the
 # documentation from any documented member that it re-implements.
@@ -601,7 +601,7 @@ CASE_SENSE_NAMES       = YES
 # scope will be hidden.
 # The default value is: NO.
 
-HIDE_SCOPE_NAMES       = NO
+HIDE_SCOPE_NAMES       = YES
 
 # If the HIDE_COMPOUND_REFERENCE tag is set to NO (default) then doxygen will
 # append additional text to a page's title, such as Class Reference. If set to
@@ -773,7 +773,7 @@ FILE_VERSION_FILTER    =
 # DoxygenLayout.xml, doxygen will parse it automatically even if the LAYOUT_FILE
 # tag is left empty.
 
-LAYOUT_FILE            =
+LAYOUT_FILE            = DoxygenLayout.xml
 
 # The CITE_BIB_FILES tag can be used to specify one or more bib files containing
 # the reference definitions. This must be a list of .bib files. The .bib
@@ -852,7 +852,7 @@ WARN_FORMAT            = "$file:$line: $text"
 # messages should be written. If left blank the output is written to standard
 # error (stderr).
 
-WARN_LOGFILE           =
+WARN_LOGFILE           = doxygen-warnings.log
 
 #---------------------------------------------------------------------------
 # Configuration options related to the input files
@@ -865,6 +865,7 @@ WARN_LOGFILE           =
 # Note: If this tag is empty the current directory is searched.
 
 INPUT                  = ../scripts \
+                         .api-src/scripts \
                          ../scripts/arpo_data/ \
 			             ../scripts/validation/ \
 			             ../src/ \
@@ -873,7 +874,80 @@ INPUT                  = ../scripts \
                          ../inputs/README.md \
                          ../inputs/baselines/README.md \
                          ../tests/README.md \
-                         topics.dox
+                         topics.dox \
+                         api-groups.dox \
+                         index.md \
+                         getting-started/start-here.md \
+                         getting-started/install-and-build.md \
+                         getting-started/first-run.md \
+                         getting-started/understand-the-result.md \
+                         getting-started/change-one-setting.md \
+                         getting-started/quickstart.md \
+                         files/index.md \
+                         files/run-ini.md \
+                         files/channel-models.md \
+                         files/channel-3gpp.md \
+                         files/channel-nyu.md \
+                         files/channel-los.md \
+                         files/channel-capacity.md \
+                         files/traffic.md \
+                         files/routing.md \
+                         files/nodes-json.md \
+                         files/buildings-json.md \
+                         files/jammers-json.md \
+                         files/run-log.md \
+                         files/summary-json.md \
+                         files/links-csv.md \
+                         files/flows-csv.md \
+                         files/routes-csv.md \
+                         files/positions-csv.md \
+                         files/rx-power-csv.md \
+                         files/mcs-csv.md \
+                         files/figures.md \
+                         generating-the-docs.md \
+                         system-overview.md \
+                         repo-map.md \
+                         how-a-run-works.md \
+                         follow-a-setting.md \
+                         add-a-capacity-model.md \
+                         placement/start-here.md \
+                         placement/run-a-baseline.md \
+                         placement/understand-the-plan.md \
+                         placement/how-the-searches-work.md \
+                         placement/how-a-plan-is-made.md \
+                         placement/add-a-baseline.md \
+                         field-data/start-here.md \
+                         field-data/prepare-field-traces.md \
+                         field-data/build-a-field-scenario.md \
+                         field-data/run-and-compare.md \
+                         field-data/read-the-comparison.md \
+                         field-data/transforms-and-assumptions.md \
+                         field-data/why-the-sides-differ.md \
+                         field-data/jammed-windows.md \
+                         field-data/extend-the-comparison.md \
+                         rl/start-here.md \
+                         rl/example-scenario.md \
+                         rl/how-it-works.md \
+                         rl/configure.md \
+                         rl/train.md \
+                         rl/read-a-training-run.md \
+                         rl/evaluate-and-compare.md \
+                         rl/assumptions.md \
+                         rl/experiments-and-operations.md \
+                         rl/batch-reference.md \
+                         rl/code-map.md \
+                         rl/scenario-checks.md \
+                         rl/extend.md \
+                         rl/add-an-algorithm.md \
+                         documentation-standard.md \
+                         research/index.md \
+                         research/sources.md \
+                         research/flow-abstraction.md \
+                         research/link-model-assumptions.md \
+                         research/field-calibration-limits.md \
+                         research/jammer-model.md \
+                         rl/mission-rewards.md \
+                         research/rl-and-placement-evolution.md
 
 
 # This tag can be used to specify the character encoding of the source files
@@ -979,7 +1053,11 @@ EXCLUDE_SYMLINKS       = NO
 # exclude all test directories for example use the pattern */test/*
 
 EXCLUDE_PATTERNS       = */CLAUDE.md \
-                         *__init__.py
+                         *__init__.py \
+                         */tests/*.py \
+                         */test_*.py \
+                         */conftest.py \
+                         */mesh-sim/scripts/*.py
 
 # The EXCLUDE_SYMBOLS tag can be used to specify one or more symbol names
 # (namespaces, classes, functions, etc.) that should be excluded from the
@@ -1016,7 +1094,8 @@ EXAMPLE_RECURSIVE      = NO
 # that contain images that are to be included in the documentation (see the
 # \image command).
 
-IMAGE_PATH             =
+IMAGE_PATH             = diagrams \
+                         screenshots
 
 # The INPUT_FILTER tag can be used to specify a program that doxygen should
 # invoke to filter for each input file. Doxygen will invoke the filter program
@@ -1050,7 +1129,8 @@ INPUT_FILTER           =
 # need to set EXTENSION_MAPPING for the extension otherwise the files are not
 # properly processed by doxygen.
 
-FILTER_PATTERNS        =
+# Adapt this page's links for HTML only; keep source Markdown intact (POSIX sed).
+FILTER_PATTERNS = "*documentation-standard.md=sed -e 's|(../README[.]md[#]readme_docs)|(@ref readme_docs)|g' -e 's|(../README[.]md)|(@ref mesh_sim_overview)|g' -e 's|(../CONTRIBUTING[.]md)|(@ref Contributing)|g' -e 's|[[]CLAUDE[.]md[]](../CLAUDE[.]md)|`CLAUDE.md`|g' -e 's|(../../../../ns3-mmwave-viz/README[.]md)|(../../../../../ns3-mmwave-viz/docs/html/viz_readme.html)|g'"
 
 # If the FILTER_SOURCE_FILES tag is set to YES, the input filter (if set using
 # INPUT_FILTER) will also be used to filter the input files that are used for
@@ -1072,7 +1152,7 @@ FILTER_SOURCE_PATTERNS =
 # (index.html). This can be useful if you have a project on for instance GitHub
 # and want to reuse the introduction page also for the doxygen output.
 
-USE_MDFILE_AS_MAINPAGE = ../README.md
+USE_MDFILE_AS_MAINPAGE = index.md
 
 #---------------------------------------------------------------------------
 # Configuration options related to source browsing
@@ -1169,13 +1249,11 @@ VERBATIM_HEADERS       = YES
 # generated with the -Duse_libclang=ON option for CMake.
 # The default value is: NO.
 
-CLANG_ASSISTED_PARSING = NO
 
 # If clang assisted parsing is enabled and the CLANG_ADD_INC_PATHS tag is set to
 # YES then doxygen will add the directory of each input to the include path.
 # The default value is: YES.
 
-CLANG_ADD_INC_PATHS    = YES
 
 # If clang assisted parsing is enabled you can provide the compiler with command
 # line options that you would normally use when invoking the compiler. Note that
@@ -1183,7 +1261,6 @@ CLANG_ADD_INC_PATHS    = YES
 # specified with INPUT and INCLUDE_PATH.
 # This tag requires that the tag CLANG_ASSISTED_PARSING is set to YES.
 
-CLANG_OPTIONS          =
 
 # If clang assisted parsing is enabled you can provide the clang parser with the
 # path to the directory containing a file called compile_commands.json. This
@@ -1196,7 +1273,6 @@ CLANG_OPTIONS          =
 # Note: The availability of this option depends on whether or not doxygen was
 # generated with the -Duse_libclang=ON option for CMake.
 
-CLANG_DATABASE_PATH    =
 
 #---------------------------------------------------------------------------
 # Configuration options related to the alphabetical class index
@@ -1294,9 +1370,10 @@ HTML_STYLESHEET        =
 # list). For an example see the documentation.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-HTML_EXTRA_STYLESHEET  = awesome-css/doxygen-awesome.css \
-                         awesome-css/doxygen-awesome-sidebar-only.css \
-                         awesome-css/doxygen-awesome-sidebar-only-darkmode-toggle.css
+HTML_EXTRA_STYLESHEET  = theme/doxygen-awesome-css/doxygen-awesome.css \
+                         theme/doxygen-awesome-css/doxygen-awesome-sidebar-only.css \
+                         theme/doxygen-awesome-css/doxygen-awesome-sidebar-only-darkmode-toggle.css \
+                         theme/mesh-sim.css
 
 FULL_SIDEBAR           = NO
 HTML_COLORSTYLE        = LIGHT
@@ -1309,7 +1386,14 @@ HTML_COLORSTYLE        = LIGHT
 # files will be copied as-is; there are no commands or markers available.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-HTML_EXTRA_FILES       = awesome-css/doxygen-awesome-darkmode-toggle.js
+HTML_EXTRA_FILES       = theme/doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js \
+                         theme/key-find.js \
+                         theme/doxygen-awesome-css/doxygen-awesome-fragment-copy-button.js \
+                         theme/doxygen-awesome-css/doxygen-awesome-paragraph-link.js \
+                         theme/doxygen-awesome-css/doxygen-awesome-interactive-toc.js \
+                         theme/repo-map.js \
+                         research/evidence/research-source-manifest.json \
+                         research/evidence/research-slide-text.txt
 
 # The HTML_COLORSTYLE_HUE tag controls the color of the HTML output. Doxygen
 # will adjust the colors in the style sheet and background images according to
@@ -1348,7 +1432,6 @@ HTML_COLORSTYLE_GAMMA  = 80
 # The default value is: NO.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-HTML_TIMESTAMP         = NO
 
 # If the HTML_DYNAMIC_MENUS tag is set to YES then the generated HTML
 # documentation will contain a main index with vertical navigation menus that
@@ -1360,6 +1443,10 @@ HTML_TIMESTAMP         = NO
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
 HTML_DYNAMIC_MENUS     = YES
+
+# doxygen-awesome-css fragment copy button replaces Doxygen's own clipboard
+# button; upstream requires NO for Doxygen >= 1.10.0.
+HTML_COPY_CLIPBOARD    = NO
 
 # If the HTML_DYNAMIC_SECTIONS tag is set to YES then the generated HTML
 # documentation will contain sections that can be hidden and shown after the
@@ -1600,6 +1687,10 @@ DISABLE_INDEX          = NO
 
 GENERATE_TREEVIEW      = YES
 
+# doxygen-awesome-css interactive TOC replaces Doxygen's page outline panel;
+# upstream requires NO for Doxygen >= 1.14.0.
+PAGE_OUTLINE_PANEL     = NO
+
 # The ENUM_VALUES_PER_LINE tag can be used to set the number of enum values that
 # doxygen will group on one line in the generated HTML documentation.
 #
@@ -1615,7 +1706,7 @@ ENUM_VALUES_PER_LINE   = 4
 # Minimum value: 0, maximum value: 1500, default value: 250.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-TREEVIEW_WIDTH         = 250
+TREEVIEW_WIDTH         = 340
 
 # If the EXT_LINKS_IN_WINDOW option is set to YES, doxygen will open links to
 # external symbols imported via tag files in a separate window.
@@ -1653,7 +1744,6 @@ FORMULA_FONTSIZE       = 10
 # The default value is: YES.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-FORMULA_TRANSPARENT    = YES
 
 # The FORMULA_MACROFILE can contain LaTeX \newcommand and \renewcommand commands
 # to create new LaTeX commands to be used in formulas as building blocks. See
@@ -1670,7 +1760,8 @@ FORMULA_MACROFILE      =
 # The default value is: NO.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-USE_MATHJAX            = NO
+USE_MATHJAX            = YES
+MATHJAX_VERSION        = MathJax_3
 
 # When MathJax is enabled you can set the default output format to be used for
 # the MathJax output. See the MathJax site (see:
@@ -1680,7 +1771,7 @@ USE_MATHJAX            = NO
 # The default value is: HTML-CSS.
 # This tag requires that the tag USE_MATHJAX is set to YES.
 
-MATHJAX_FORMAT         = HTML-CSS
+MATHJAX_FORMAT         = chtml
 
 # When MathJax is enabled you need to specify the location relative to the HTML
 # output directory using the MATHJAX_RELPATH option. The destination directory
@@ -1693,7 +1784,7 @@ MATHJAX_FORMAT         = HTML-CSS
 # The default value is: https://cdn.jsdelivr.net/npm/mathjax@2.
 # This tag requires that the tag USE_MATHJAX is set to YES.
 
-MATHJAX_RELPATH        = https://cdn.jsdelivr.net/npm/mathjax@2
+MATHJAX_RELPATH        = https://cdn.jsdelivr.net/npm/mathjax@3.2.2
 
 # The MATHJAX_EXTENSIONS tag can be used to specify one or more MathJax
 # extension names that should be enabled during MathJax rendering. For example
@@ -1806,7 +1897,7 @@ EXTRA_SEARCH_MAPPINGS  =
 # If the GENERATE_LATEX tag is set to YES, doxygen will generate LaTeX output.
 # The default value is: YES.
 
-GENERATE_LATEX         = YES
+GENERATE_LATEX         = NO
 
 # The LATEX_OUTPUT tag is used to specify where the LaTeX docs will be put. If a
 # relative path is entered the value of OUTPUT_DIRECTORY will be put in front of
@@ -1966,7 +2057,6 @@ LATEX_HIDE_INDICES     = NO
 # The default value is: NO.
 # This tag requires that the tag GENERATE_LATEX is set to YES.
 
-LATEX_SOURCE_CODE      = NO
 
 # The LATEX_BIB_STYLE tag can be used to specify the style to use for the
 # bibliography, e.g. plainnat, or ieeetr. See
@@ -1982,7 +2072,6 @@ LATEX_BIB_STYLE        = plain
 # The default value is: NO.
 # This tag requires that the tag GENERATE_LATEX is set to YES.
 
-LATEX_TIMESTAMP        = NO
 
 # The LATEX_EMOJI_DIRECTORY tag is used to specify the (relative or absolute)
 # path from which the emoji images will be read. If a relative path is entered,
@@ -2056,7 +2145,6 @@ RTF_EXTENSIONS_FILE    =
 # The default value is: NO.
 # This tag requires that the tag GENERATE_RTF is set to YES.
 
-RTF_SOURCE_CODE        = NO
 
 #---------------------------------------------------------------------------
 # Configuration options related to the man page output
@@ -2161,7 +2249,6 @@ DOCBOOK_OUTPUT         = docbook
 # The default value is: NO.
 # This tag requires that the tag GENERATE_DOCBOOK is set to YES.
 
-DOCBOOK_PROGRAMLISTING = NO
 
 #---------------------------------------------------------------------------
 # Configuration options for the AutoGen Definitions output
@@ -2314,7 +2401,7 @@ TAGFILES               =
 # tag file that is based on the input files it reads. See section "Linking to
 # external documentation" for more information about the usage of tag files.
 
-GENERATE_TAGFILE       =
+GENERATE_TAGFILE       = html/mesh-sim.tag
 
 # If the ALLEXTERNALS tag is set to YES, all external class will be listed in
 # the class index. If set to NO, only the inherited external classes will be
@@ -2348,7 +2435,6 @@ EXTERNAL_PAGES         = YES
 # powerful graphs.
 # The default value is: YES.
 
-CLASS_DIAGRAMS         = YES
 
 # You can include diagrams made with dia in doxygen documentation. Doxygen will
 # then run dia to produce the diagram and insert it in the documentation. The
@@ -2390,14 +2476,12 @@ DOT_NUM_THREADS        = 0
 # The default value is: Helvetica.
 # This tag requires that the tag HAVE_DOT is set to YES.
 
-DOT_FONTNAME           = Helvetica
 
 # The DOT_FONTSIZE tag can be used to set the size (in points) of the font of
 # dot graphs.
 # Minimum value: 4, maximum value: 24, default value: 10.
 # This tag requires that the tag HAVE_DOT is set to YES.
 
-DOT_FONTSIZE           = 10
 
 # By default doxygen will tell dot to use the default font as specified with
 # DOT_FONTNAME. If you specify a different font using DOT_FONTNAME you can set
@@ -2405,6 +2489,12 @@ DOT_FONTSIZE           = 10
 # This tag requires that the tag HAVE_DOT is set to YES.
 
 DOT_FONTPATH           =
+
+# Mesh-Sim: shared font and node styling for the generated inheritance graphs.
+DOT_COMMON_ATTR        = "fontname=\"Helvetica Neue,Helvetica,Arial,sans-serif\",fontsize=11"
+DOT_EDGE_ATTR          = "labelfontname=\"Helvetica Neue,Helvetica,Arial,sans-serif\",labelfontsize=10"
+DOT_NODE_ATTR          = "shape=box,height=0.3,width=0.5,margin=\"0.12,0.05\""
+
 
 # If the CLASS_GRAPH tag is set to YES then doxygen will generate a graph for
 # each documented class showing the direct and indirect inheritance relations.
@@ -2421,14 +2511,14 @@ CLASS_GRAPH            = YES
 # The default value is: YES.
 # This tag requires that the tag HAVE_DOT is set to YES.
 
-COLLABORATION_GRAPH    = YES
+COLLABORATION_GRAPH    = NO
 
 # If the GROUP_GRAPHS tag is set to YES then doxygen will generate a graph for
 # groups, showing the direct groups dependencies.
 # The default value is: YES.
 # This tag requires that the tag HAVE_DOT is set to YES.
 
-GROUP_GRAPHS           = YES
+GROUP_GRAPHS           = NO
 
 # If the UML_LOOK tag is set to YES, doxygen will generate inheritance and
 # collaboration diagrams in a style similar to the OMG's Unified Modeling
@@ -2488,7 +2578,7 @@ TEMPLATE_RELATIONS     = NO
 # The default value is: YES.
 # This tag requires that the tag HAVE_DOT is set to YES.
 
-INCLUDE_GRAPH          = YES
+INCLUDE_GRAPH          = NO
 
 # If the INCLUDED_BY_GRAPH, ENABLE_PREPROCESSING and SEARCH_INCLUDES tags are
 # set to YES then doxygen will generate a graph for each documented file showing
@@ -2497,7 +2587,7 @@ INCLUDE_GRAPH          = YES
 # The default value is: YES.
 # This tag requires that the tag HAVE_DOT is set to YES.
 
-INCLUDED_BY_GRAPH      = YES
+INCLUDED_BY_GRAPH      = NO
 
 # If the CALL_GRAPH tag is set to YES then doxygen will generate a call
 # dependency graph for every global function or class method.
@@ -2528,7 +2618,7 @@ CALLER_GRAPH           = NO
 # The default value is: YES.
 # This tag requires that the tag HAVE_DOT is set to YES.
 
-GRAPHICAL_HIERARCHY    = YES
+GRAPHICAL_HIERARCHY    = NO
 
 # If the DIRECTORY_GRAPH tag is set to YES then doxygen will show the
 # dependencies a directory has on other directories in a graphical way. The
@@ -2537,7 +2627,7 @@ GRAPHICAL_HIERARCHY    = YES
 # The default value is: YES.
 # This tag requires that the tag HAVE_DOT is set to YES.
 
-DIRECTORY_GRAPH        = YES
+DIRECTORY_GRAPH        = NO
 
 # The DOT_IMAGE_FORMAT tag can be used to set the image format of the images
 # generated by dot. For an explanation of the image formats see the section
@@ -2554,7 +2644,7 @@ DIRECTORY_GRAPH        = YES
 # The default value is: png.
 # This tag requires that the tag HAVE_DOT is set to YES.
 
-DOT_IMAGE_FORMAT       = png
+DOT_IMAGE_FORMAT       = svg
 
 # If DOT_IMAGE_FORMAT is set to svg, then this option can be set to YES to
 # enable generation of interactive SVG images that allow zooming and panning.
@@ -2579,7 +2669,7 @@ DOT_PATH               =
 # command).
 # This tag requires that the tag HAVE_DOT is set to YES.
 
-DOTFILE_DIRS           =
+DOTFILE_DIRS           = diagrams
 
 # The MSCFILE_DIRS tag can be used to specify one or more directories that
 # contain msc files that are included in the documentation (see the \mscfile
@@ -2645,7 +2735,6 @@ MAX_DOT_GRAPH_DEPTH    = 0
 # The default value is: NO.
 # This tag requires that the tag HAVE_DOT is set to YES.
 
-DOT_TRANSPARENT        = NO
 
 # Set the DOT_MULTI_TARGETS tag to YES to allow dot to generate multiple output
 # files in one run (i.e. multiple -o and -T options on the command line). This
@@ -2654,7 +2743,6 @@ DOT_TRANSPARENT        = NO
 # The default value is: NO.
 # This tag requires that the tag HAVE_DOT is set to YES.
 
-DOT_MULTI_TARGETS      = NO
 
 # If the GENERATE_LEGEND tag is set to YES doxygen will generate a legend page
 # explaining the meaning of the various boxes and arrows in the dot generated

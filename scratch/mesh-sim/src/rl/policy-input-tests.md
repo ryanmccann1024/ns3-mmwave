@@ -20,11 +20,11 @@ simulator. No reference snapshots are created or changed by these tests.
 | `test_real_binary.py`: `test_structural_malformed_actions_hold_everything`, `test_malformed_action_stops_a_moving_node`, `test_semantic_errors_only_affect_invalid_slots` | Bad joint actions → all hold for a malformed list, or only invalid positions hold and appear in `revalidated_slots`. |
 | `test_real_binary.py`: `test_close_mid_episode_is_interrupted` | Real run closed after one step → simulator process and reader thread gone, episode manifest `interrupted` with `stop_reason = close`. |
 | `test_real_binary.py`: `test_partial_windows_clipping_and_reward_mean` | Coarse versus one-tick decisions → matching shared positions and mean reward over each full/partial window. |
-| `test_observations_rewards.py`: `test_local_links_v1_exact_slot_vector`, `test_local_links_v1_padded_slot_is_zero`, `test_local_links_v1_clips_extreme_links`, `test_raw_links_matches_cpp_layout` | Raw facts → exact preset values, bounded local features, zero padding, unchanged raw layout. |
-| `test_observations_rewards.py`: `test_schema_hash_is_deterministic_and_strict_json`, `test_raw_links_schema_uses_null_bounds_but_infinite_box`, `test_check_schema_rejects_structural_change`, `test_check_schema_reports_identity_change_as_warning` | Saved/live schemas → stable fingerprint, correct Box bounds, structural rejection and identity warnings. |
-| `test_observations_rewards.py`: `test_delivery_ratio_masks_zero_demand`, `test_other_components`, `test_composer_total_is_weighted_sum_over_valid_components`, `test_legacy_component_reproduces_cpp_reward`, `test_composer_rejects_bad_configuration`, `test_reward_schema_authorities` | Synthetic window sums/configuration → component formulas, validity, weighted total, C++ alias, schema authority, and errors for invalid weights/names. |
-| `test_observations_rewards.py`: `test_resolve_selection_precedence`, `test_resolve_selection_rejects_invalid_keys`, `test_selection_does_not_reimplement_simulator_control_validation` | CLI/INI/default choices → recorded precedence or a pre-launch validation error. |
-| `test_observations_rewards.py`: `test_telemetry_records_replay_without_mismatch`, `test_should_save_sampling` | Synthetic steps → header and sampled records; replay reports zero observation/reward mismatches. |
+| `test_observations_rewards/__init__.py`: `test_local_links_v1_exact_slot_vector`, `test_local_links_v1_padded_slot_is_zero`, `test_local_links_v1_clips_extreme_links`, `test_raw_links_matches_cpp_layout` | Raw facts → exact preset values, bounded local features, zero padding, unchanged raw layout. |
+| `test_observations_rewards/__init__.py`: `test_schema_hash_is_deterministic_and_strict_json`, `test_raw_links_schema_uses_null_bounds_but_infinite_box`, `test_check_schema_rejects_structural_change`, `test_check_schema_reports_identity_change_as_warning` | Saved/live schemas → stable fingerprint, correct Box bounds, structural rejection and identity warnings. |
+| `test_observations_rewards/__init__.py`: `test_delivery_ratio_masks_zero_demand`, `test_other_components`, `test_composer_total_is_weighted_sum_over_valid_components`, `test_legacy_component_reproduces_cpp_reward`, `test_composer_rejects_bad_configuration`, `test_reward_schema_authorities` | Synthetic window sums/configuration → component formulas, validity, weighted total, C++ alias, schema authority, and errors for invalid weights/names. |
+| `test_observations_rewards/__init__.py`: `test_resolve_selection_precedence`, `test_resolve_selection_rejects_invalid_keys`, `test_selection_does_not_reimplement_simulator_control_validation` | CLI/INI/default choices → recorded precedence or a pre-launch validation error. |
+| `test_observations_rewards/__init__.py`: `test_telemetry_records_replay_without_mismatch`, `test_should_save_sampling` | Synthetic steps → header and sampled records; replay reports zero observation/reward mismatches. |
 | `test_mesh_env.py`: `test_custom_preset_and_reward_block`, `test_negative_legacy_reward_window`, `test_zero_demand_masks_delivery_ratio` | Fake decisions → local observation shape, inspectable reward parts, preserved negative reward, zero-demand validity flag. |
 | `test_mesh_env.py`: `test_telemetry_file_only_when_selected`, `test_telemetry_default_cadence_replays`, `test_telemetry_stride_keeps_full_manifest_totals`, `test_default_selection_telemetry_replays_via_raw_links` | Telemetry off/on/strided → optional `steps.jsonl`, successful replay, complete manifest totals even for unsaved decisions. |
 | `test_mesh_env.py`: `test_binary_without_facts_is_rejected`, `test_training_records_selection_and_schema_hashes` | Old fake protocol or tiny training run → clear missing-facts failure or matching saved selection/schema fingerprints; training check skips without `sb3_contrib`. |
@@ -36,6 +36,18 @@ scoring windows, descriptor-owned compatibility, reward dependency fingerprints,
 unsupported/corrupt traces, telemetry I/O failures, and per-step/aggregate reward
 overflow. Failure tests require a reaped child and a finalized failed manifest.
 
+
+`test_registry_identity.py` pins every registered reward component and
+observation preset against `tests/fixtures/registry_identity.json`: the ID,
+registration-order index, descriptor (formula, zero-demand rule, context
+fields, parameters, normalization) and the schema SHA-256 computed with default
+parameters against one fixed synthetic contract. Adding, removing, reordering
+or changing an item fails. The defining module is recorded but deliberately not
+compared, so the functional renames of the former `phase*` environment files
+(see [Policy inputs](@ref src_rl_policy_inputs)) pass without regenerating the
+fixture. The hashes are identities against the synthetic contract, not a saved
+run's manifest hash; actual saved-model loading is checked by
+`test_env_geometry_curriculum.py::test_saved_zip_with_renamed_registry_inputs_deserializes`.
 
 `test_policy_input_parameters.py` covers configured scales changing both input
 values and schema hashes; threshold effects and model rejection; CLI/INI precedence
@@ -50,6 +62,6 @@ area, connected-core union, no double counting and deterministic core ties.
 `test_live_coverage_and_building_mask` in `test_real_binary.py` checks receiver
 coverage facts and swept building masks after the user rebuilds the binary.
 
-Iteration-two additive `node_service` facts are checked for row count, nonnegative demand, delivered <= demand and double-counted endpoint conservation. `test_iteration_two.py` checks weakest-node reward masking and old-peer rejection when the new component is requested.
+Iteration-two additive `node_service` facts are checked for row count, nonnegative demand, delivered <= demand and double-counted endpoint conservation. `policy/test_baseline_statistics.py` checks weakest-node reward masking and old-peer rejection when the new component is requested.
 
-Iteration-three reward cases in `scripts/rl/tests/test_iteration_three.py` verify zero-demand exclusion, nonzero fair feedback while the minimum is zero, previous-condition movement charges, and reset isolation.
+Iteration-three reward cases in `scripts/rl/tests/policy/test_adaptation_metrics.py` verify zero-demand exclusion, nonzero fair feedback while the minimum is zero, previous-condition movement charges, and reset isolation.

@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace mesh_sim
 {
@@ -35,8 +36,15 @@ namespace mesh_sim
  * | @c "random_pairs"  | @c random_pair_count flows with uniformly random src/dst.  |
  * | @c "gateway"       | Every non-gateway node sends to the gateway node.          |
  */
+struct TrafficPairSpec
+{
+    std::string src, dst;
+    double demand_mbps = 0.0;
+};
+
 struct TrafficConfig
 {
+    std::vector<TrafficPairSpec> pairs; ///< Explicit peer pairs and per-flow demand.
     std::string model = "constant";  ///< Traffic model: @c "constant", @c "poisson",
                                      ///<   or @c "on_off".
 
