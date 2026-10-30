@@ -186,12 +186,12 @@ and shows the limits of planner predictions.
 
 ## 6\. Pull requests
 
-Use the repository's [PR template](../../.github/pull_request_template.md).
+Use the repository's [PR template](https://github.com/ryanmccann1024/ns3-mmwave/blob/develop/.github/pull_request_template.md).
 Write for someone who has not followed the implementation conversation. A small
 change may need only a paragraph and its validation results; a larger change
 needs enough context to explain the behavior and the important tradeoffs.
 
-- **Title:** use the Conventional Commit format from [CLAUDE.md](CLAUDE.md),
+- **Title:** use the Conventional Commit format from `CLAUDE.md`,
   under 72 characters. Name the resulting behavior or responsibility.
 - **Branch:** use a purpose-based prefix such as `feat/`, `fix/`, `refactor/`
   or `docs/`, followed by a short description. Name the responsibility rather
