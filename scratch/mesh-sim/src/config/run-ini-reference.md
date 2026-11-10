@@ -84,7 +84,8 @@ and [routing](@ref src_routing) modules for the code that owns them.
 | `arrival_rate_hz` | `1` | New flows per second in `poisson` mode. |
 | `on_time_s`, `off_time_s` | `1`, `1` | Mean on/off phase lengths in `on_off` mode; finite, nonnegative, and not both zero. |
 | `holding_time_s` | `0` | Flow lifetime in seconds; `0` means no expiry. |
-| `flow_topology` | `all_pairs` | `all_pairs`, `random_pairs`, or `gateway`. |
+| `flow_topology` | `all_pairs` | `all_pairs`, `random_pairs`, `gateway`, or `explicit_pairs`. |
+| `pairs` | `[]` | JSON array of directed flows for `explicit_pairs`. |
 | `random_pair_count` | `3` | Number of flows with `random_pairs` topology. |
 | `gateway_node_id` | blank | Gateway node ID, required with `gateway` topology. |
 | `[routing] algorithm` | `shortest_path` | Inverse-capacity shortest path, widest-capacity path (`max_throughput`), or fewest hops (`min_hop`). |
@@ -206,11 +207,53 @@ reward_weights = 1.0, 0.5, -2.5
 
 `[rl] jammer_motion_profile = sweep_v1` is interpreted by the Python episode launcher, not by the C++ loader. It resolves one jammer into archived waypoint inputs per episode on the 600-second 400×400 m scenarios. Actual motion and its seed-dependent variant appear in `rl_episode.json` version 6. Raw simulator invocation uses the configured jammers.json directly; use the RL launchers for varied routes.
 
-## Mission and physical controls
+## Mission and physical controls {#src_config_mission_controls}
 
-`[traffic] flow_topology=explicit_pairs` uses JSON `pairs` with `src`, `dst`
-and positive `demand_mbps`; it requires constant traffic and distinct known
-endpoints. Nodes may set a nonnegative `failure_at_s`. `[mission] kind` selects
-coverage, investigation or recovery; investigation requires a known investigator
-and explicit target geometry. RL exposes `control_start_s`,
-`building_clearance_m` and `mask_building_moves`. Invalid values fail validation.
+`[mission] kind` defaults to `none`. The other modes require centralized RL
+and `[rl] coverage_enabled = true`. Only investigation uses the goal coordinates
+and requires them to lie inside the configured RL bounds.
+
+| Mission key | Default | Meaning |
+| --- | --- | --- |
+| `kind` | `none` | `none`, `coverage`, `investigation`, or `recovery`. |
+| `investigator_id` | blank | Controlled peer for an investigation. It must stay available. |
+| `goal_x`, `goal_y` | `345`, `300` | Finite coordinates in meters. Investigation requires them inside RL bounds. |
+| `arrival_radius_m` | `15` | Investigator arrival radius in meters. |
+| `coverage_radius_m` | `50` | Goal coverage radius in meters. |
+| `dwell_s` | `30` | Required time satisfying mission gates in seconds. |
+| `goal_coverage_target` | `0.8` | Required coverage fraction. Zero disables the gate for investigation. |
+| `team_investigation` | `false` | Require the available team near the goal in investigation mode. |
+| `team_radius_m` | `50` | Team arrival radius in meters. |
+| `team_delivery_target` | `0.8` | Required team delivery fraction. Zero disables the gate for investigation. |
+| `recovery_delivery_target` | `0.9` | Required aggregate survivor delivery fraction. |
+| `recovery_coverage_ratio` | `0.9` | Required ratio to pre-failure coverage. Zero disables the recovery coverage gate. |
+| `recovery_worst_target` | `0.8` | Required delivery fraction for the worst-served survivor. |
+
+The goal coverage measure uses outdoor probe centers inside the radius.
+A positive investigation coverage target requires at least one such center.
+When the target is zero, coverage is still measured if the region has probes.
+An empty region reports zero.
+
+`failure_at_s` in `nodes.json` defaults to `-1`, which disables dropout. A
+scheduled failure requires recovery mode and a tick-aligned time strictly
+between zero and `duration_s`. Recovery requires a scheduled failure and at
+least two surviving peers. The node keeps its roster index for output and is
+excluded from radio service, coverage, and peer-collision checks after dropout.
+
+`[traffic] flow_topology = explicit_pairs` reads `pairs` as inline JSON in
+`run.ini`. Each `src` and `dst` must name distinct peers and `demand_mbps` must
+be finite and positive. Each entry creates one directed flow, independent of
+roster size. The reverse direction is a separate entry.
+
+```ini
+[traffic]
+model = constant
+flow_topology = explicit_pairs
+pairs = [{"src":"node0","dst":"node1","demand_mbps":5.0}]
+```
+
+| RL key | Default | Meaning |
+| --- | --- | --- |
+| `control_start_s` | `0` | Hold control until this decision-aligned time in seconds. |
+| `building_clearance_m` | `0` | Expand the building bounds by this distance in meters for movement checks. |
+| `mask_building_moves` | `true` | With `avoid_buildings` enabled, remove intersecting proposals from the action mask. Physical enforcement remains active when masking is disabled. |

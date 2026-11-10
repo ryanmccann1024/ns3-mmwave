@@ -2,7 +2,11 @@
 
 from dataclasses import dataclass, field
 
-from scripts.rl.env.observations import SchemaMismatchError, check_schema
+from scripts.rl.env.observations import (
+    SchemaMismatchError,
+    check_schema,
+    restore_legacy_node_types,
+)
 
 STRUCTURAL_FIELDS = ("contract", "dimensions", "action_meanings", "max_controlled_nodes",
                      "num_mesh_nodes", "obs_dim", "mask_dim", "facts_schema")
@@ -117,8 +121,10 @@ def check_compatibility(manifest: dict, env, *, live_identity: dict, live_band,
     live_contract = env.contract or {}
     _check_structural(saved_contract, live_contract)
 
-    schema_warnings = check_schema(manifest.get("observation_schema") or {},
-                                   env.observation_schema or {})
+    saved_observation = restore_legacy_node_types(
+        manifest.get("observation_schema") or {}, saved_contract
+    )
+    schema_warnings = check_schema(saved_observation, env.observation_schema or {})
     _check_reward(manifest, saved_contract, live_contract, env.reward_schema)
 
     differences = list(schema_warnings) + _scenario_differences(

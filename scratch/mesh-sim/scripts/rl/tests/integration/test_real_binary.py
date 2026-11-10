@@ -117,6 +117,33 @@ def test_live_spaces_and_metadata(env):
     assert list(obs[16:24]) == [0.0] * 8
 
 
+def test_live_mission_observation_with_partial_control(tmp_path):
+    scenario = tmp_path / "scenario"
+    scenario.mkdir()
+    shutil.copyfile(FIXTURE / "nodes.json", scenario / "nodes.json")
+    ini = scenario / "run.ini"
+    config = RUN_CONFIG.read_text().replace(
+        "[rl]\n", "[rl]\ncoverage_enabled = true\nobservation_preset = mission_compact_v1\n"
+    )
+    config = config.replace("[output]\n", f"[output]\ndir = {tmp_path / 'native-output'}\n")
+    ini.write_text(
+        config
+        + "\n[mission]\nkind = investigation\ninvestigator_id = node-b\n"
+        + "goal_x = 50\ngoal_y = 0\ngoal_coverage_target = 0\n"
+    )
+
+    instance = MeshRlEnv(MESH_SIM_BIN, str(ini), output_dir=str(tmp_path / "mission"))
+    try:
+        observation, _ = instance.reset()
+        assert instance.contract["slot_node_ids"] == ["node-b", "node-c", None]
+        assert instance.contract["mission"]["kind"] == "investigation"
+        assert instance.observation_space.contains(observation)
+        observation, _, _, _, _ = instance.step([4, 4, 4])
+        assert instance.observation_space.contains(observation)
+    finally:
+        instance.close()
+
+
 # Scripted positions and masks ----------------------------------------------------
 
 def test_scripted_positions_and_masks(env, tmp_path):
