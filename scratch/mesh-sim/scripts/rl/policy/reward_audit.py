@@ -114,11 +114,14 @@ def _reconstruct_history(header, rows, selection, verify, decompose, tail_metric
                 components[k] += v
             if "coordination_v1" in f and f["coordination_v1"]["eligible"]:
                 stages[f["coordination_v1"]["stage"]] += 1
-                if any(c.fact_extensions for c in q.components):
-                    terms, weights = decompose(f, contract, q)
-                    if (abs(sum(terms[k] * v for k, v in weights.items()) - score.total) > _TOLERANCE
-                            and f["coordination_v1"]["terms"]["demand"] > 0):
-                        raise ValueError("term decomposition mismatch")
+                for component in q.components:
+                    name = component.name
+                    if "coordination_v1" not in component.fact_extensions or not score.valid[name]:
+                        continue
+                    terms, weights = decompose(f, contract, q.parameters[name], name)
+                    expected = sum(terms[key] * weight for key, weight in weights.items())
+                    if abs(expected - score.components[name]) > _TOLERANCE:
+                        raise ValueError(f"term decomposition mismatch for {name}")
             changed += 1
             if tail_metrics and row["time_s"] > 540 and f.get("coordination_v1", {}).get("eligible"):
                 from scripts.rl.env.rewards.radio import global_bridge_support
@@ -137,18 +140,16 @@ def _reconstruct_history(header, rows, selection, verify, decompose, tail_metric
     return result
 
 
-def _coordinated_decomposition(f, contract, q):
+def _coordinated_decomposition(f, contract, parameters, name):
     from scripts.rl.env.rewards.coordination import decomposition
-    name = q.components[0].name
-    return decomposition(f, contract, q.parameters[name], "adaptive" in name)
+    return decomposition(f, contract, parameters, "adaptive" in name)
 
 
-def _team_radio_decomposition(f, contract, q):
-    name = q.components[0].name
+def _team_radio_decomposition(f, contract, parameters, name):
     if name in _TEAM_RADIO_COMPONENTS:
         from scripts.rl.env.rewards.radio import decomposition
-        return decomposition(f, contract, q.parameters[name])
-    return _coordinated_decomposition(f, contract, q)
+        return decomposition(f, contract, parameters)
+    return _coordinated_decomposition(f, contract, parameters, name)
 
 
 def reconstruct_coordinated(header, rows, selection=None, verify=False):

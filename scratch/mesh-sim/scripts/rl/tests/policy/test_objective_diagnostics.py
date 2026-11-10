@@ -9,7 +9,66 @@ from scripts.rl.env.rewards import RewardComposer
 from scripts.rl.env.selection import resolve_selection
 from scripts.rl.env.mesh_env import MeshRlEnv
 from scripts.rl.env.recording.telemetry import replay_file
+from scripts.rl.policy.mission_metrics import compute_mission_metrics
+from scripts.rl.policy.reward_audit import reconstruct_coordinated
+from scripts.rl.tests.env.test_observation_boundaries import make_contract, make_facts
 from scripts.sim_support import find_mesh_root
+
+
+@pytest.mark.parametrize("mission", ["coverage", "investigation"])
+def test_mission_metrics_keep_zero_demand_score_undefined(mission):
+    contract = make_contract(slot_nodes=("node-a", "node-b", "node-c"))
+    contract["mission"]["kind"] = mission
+    facts = make_facts(contract)
+    facts["window"].update(demand_mbps_sum=0.0, delivered_mbps_sum=0.0)
+    facts["safety"]["unsafe_ticks"] = 0
+    facts["node_service"] = [[0.0, 0.0] for _ in contract["node_ids"]]
+    facts["mission"].update(
+        survivor_demand_mbps_sum=0.0,
+        survivor_delivered_mbps_sum=0.0,
+        survivor_node_service=facts["node_service"],
+    )
+    steps = [
+        {"decision": decision, "time_s": decision * 0.5, "scored_ticks": 5, "facts": facts}
+        for decision in range(contract["num_decisions"] + 1)
+    ]
+
+    metrics = compute_mission_metrics(steps, contract)
+
+    assert metrics["mission_score"] is None
+    assert metrics["original_demand_delivery"] is None
+    assert metrics["coverage_mean"] == facts["coverage"]["fraction"]
+
+
+def test_coordinated_audit_replays_weighted_component_after_delivery():
+    contract = make_contract(slot_nodes=("node-a", "node-b", "node-c"))
+    contract["mission"]["kind"] = "coverage"
+    contract.update(num_decisions=600, num_ticks=3000, reward_warmup="exclude")
+    facts = make_facts(contract)
+    rows = [
+        {
+            "decision": decision,
+            "time_s": decision * 0.5,
+            "action_sent": [4, 4, 4] if decision else None,
+            "legacy_reward": 0.0,
+            "ticks_in_step": 5,
+            "facts": facts,
+        }
+        for decision in range(contract["num_decisions"] + 1)
+    ]
+    component = "coordinated_coverage_fixed_v1"
+    selection = {
+        "observation_preset": "raw_links_v1",
+        "reward_components": ["delivery_ratio", component],
+        "reward_weights": [0.25, 2.0],
+    }
+
+    result = reconstruct_coordinated({"contract": contract, "selection": selection}, rows)
+
+    assert result["reward_components_sum"] == pytest.approx(
+        {"delivery_ratio": 480.0, component: 300.0}
+    )
+    assert result["return_"] == pytest.approx(720.0)
 
 
 def test_maintenance_reward_is_current_not_latched():

@@ -10,7 +10,7 @@ import time
 import traceback
 
 from scripts.artifact_io import write_json, sha256_file, now_iso, canonical_sha256
-from scripts.sim_support import find_mesh_root
+from scripts.sim_support import find_mesh_root, parse_ini
 from scripts.rl.env.seeded_env import SeededEnv as BaseSeededEnv
 from scripts.rl.scenario_check.inputs import read_ini
 from scripts.rl.scenario_check.inputs import write_ini
@@ -96,16 +96,20 @@ def require_binary(binary, mesh):
 
 def snapshot(source, target):
     shutil.copytree(source,target)
+    source_root = source.resolve()
+    target_root = target.resolve()
     # Pin every input reference to this archive, including per-seed jammer routes.
-    for p in target.rglob('*.ini'):
-        ini = read_ini(p)
+    for archived_ini in target_root.rglob("*.ini"):
+        source_ini = source_root / archived_ini.relative_to(target_root)
+        ini = read_ini(archived_ini)
+        scenario = parse_ini(source_ini).get("scenario", {})
         for key in ('nodes_file','buildings_file','jammers_file'):
-            value = ini['scenario'].get(key,'')
+            value = scenario.get(key)
             if value:
-                original = Path(value).resolve()
-                relative = original.relative_to(source.resolve())
-                ini['scenario'][key] = str((target/relative).resolve())
-        write_ini(p,ini)
+                original = (source_ini.parent / value).resolve()
+                relative = original.relative_to(source_root)
+                ini['scenario'][key] = str(target_root / relative)
+        write_ini(archived_ini, ini)
     hashes = {str(p.relative_to(target)):sha256_file(p) for p in sorted(target.rglob('*'))
               if p.is_file() and p.name != 'scenario-check.json'}
     saved = json.loads((target/'scenario-check.json').read_text())

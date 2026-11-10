@@ -71,6 +71,34 @@ def test_snapshot_rebases_and_fingerprint_rejects_edit(tmp_path):
         validate_inputs(tmp_path/'inputs')
 
 
+def test_snapshot_resolves_inputs_relative_to_the_source_ini(tmp_path, monkeypatch):
+    source = tmp_path / "campaign"
+    config = source / "case" / "seed-202" / "run.ini"
+    config.parent.mkdir(parents=True)
+    (source / "scenario-check.json").write_text("{}")
+    (config.parent / "nodes.json").write_text("[]")
+    (config.parent / "jammers.json").write_text("[]")
+    buildings = config.parent.parent / "buildings.json"
+    buildings.write_text("[]")
+    config.write_text(
+        "[scenario]\nnodes_file = nodes.json # beside the seed INI\n"
+        f"buildings_file = {buildings}\n"
+        "jammers_file = ./jammers.json\n"
+    )
+    monkeypatch.chdir(tmp_path)
+
+    target = tmp_path / "snapshot"
+    digests = snapshot(source, target)
+
+    archived_ini = target / config.relative_to(source)
+    scenario = read_ini(archived_ini)["scenario"]
+    assert Path(scenario["nodes_file"]) == archived_ini.parent / "nodes.json"
+    assert Path(scenario["jammers_file"]) == archived_ini.parent / "jammers.json"
+    assert Path(scenario["buildings_file"]) == target / buildings.relative_to(source)
+    assert archived_ini.relative_to(target).as_posix() in digests
+    assert "nodes_file = nodes.json # beside the seed INI" in config.read_text()
+
+
 @pytest.mark.skipif(not INPUT.is_dir() or not (ROOT/'inputs/custom/10-23/scenario-check-02').is_dir(), reason='private scenario fixtures unavailable')
 def test_jammer_silent_approach_and_paired_schedule():
     routes = []

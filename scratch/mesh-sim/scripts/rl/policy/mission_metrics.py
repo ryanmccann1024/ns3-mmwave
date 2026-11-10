@@ -85,15 +85,17 @@ def compute_mission_metrics(steps, contract):
     goal=statistics.mean(r['facts']['mission']['goal_coverage_fraction'] for r in rows)
     complete=last['investigation_completed_at_s'] is not None
     recovered=last['recovery_completed_at_s'] is not None
-    if contract['mission']['kind']=='coverage':
-        score=.5*coverage+.3*whole+.2*worst
-    elif contract['mission']['kind']=='investigation':
-        goal_term=last.get('team_arrival_fraction',0) if contract['mission'].get('team_investigation') else goal
-        score=.5*complete+.2*goal_term+.2*whole+.1*worst
+    kind = contract["mission"]["kind"]
+    if kind == "coverage":
+        score = None if whole is None else 0.5 * coverage + 0.3 * whole + 0.2 * worst
+    elif kind == "investigation":
+        goal_term = last.get("team_arrival_fraction", 0) if contract["mission"].get("team_investigation") else goal
+        score = None if whole is None else 0.5 * complete + 0.2 * goal_term + 0.2 * whole + 0.1 * worst
     else:
         postcoverage=statistics.mean(r['facts']['coverage']['fraction'] for r in post) if post else 0.0
         score=.4*recovered+.3*(ratio(post,True) or 0)+.2*postcoverage+.1*(mean('survivor_worst_service',post) or 0)
-    score-=.05*movement+2*unsafe
+    if score is not None:
+        score -= 0.05 * movement + 2 * unsafe
     full_demand=sum(r['facts']['window']['demand_mbps_sum'] for r in post)
     survivor_demand=sum(r['facts']['mission']['survivor_demand_mbps_sum'] for r in post)
     return {
