@@ -25,14 +25,14 @@ decision.
 
 One decision, end to end:
 
-1. `sim.cc` runs the ticks of the window. Each tick, `rl-bridge.cc` clamps
-   velocities, then accumulates the tick's reward and facts.
+1. `sim.cc` runs the ticks of the window. Each tick, `rl-motion.cc` clamps
+   velocities and `rl-bridge.cc` accumulates the tick's reward and facts.
 2. At the decision tick, `rl-bridge.cc` writes a `step` message.
 3. `scripts/rl/env/mesh_env.py` validates it, builds the selected observation
    and reward, and returns them from Gymnasium's `step()`.
 4. MaskablePPO picks one masked action per slot; Python writes
    `{"action":[…]}`.
-5. `rl-bridge.cc` revalidates the action and applies it until the next decision.
+5. `rl-motion.cc` revalidates the action and applies it until the next decision.
 
 ## 2\. Configure control
 
@@ -377,15 +377,21 @@ measure.
 
 ### Missions {#src_rl_missions}
 
-`[mission] kind = coverage|investigation|recovery` adds an `init.mission`
-object with `version: 1`, and per-step `facts.node_available` and
-`facts.mission`. `facts.mission` holds goal-region coverage
-(`goal_coverage_fraction`), survivor demand and delivery sums, and per-node
-survivor endpoint service (`survivor_node_service`).
+The @ref src_config_mission_controls "mission configuration reference" lists
+defaults and valid combinations. `[mission] kind = coverage|investigation|recovery`
+adds `init.mission` and per-step `facts.node_available` in `node_ids` order.
+`facts.mission` reports goal-region coverage (`goal_coverage_fraction`) at the
+decision endpoint. It is zero outside investigation and for an empty goal region
+when the coverage gate is disabled. Regular network coverage uses the full
+retained outdoor grid.
+
+Survivor demand and delivery sums count only flows whose two endpoints were
+available on the scored tick. `survivor_node_service` has one demand and delivery
+row per `node_ids` entry. Each column sums to twice its survivor total.
 
 - **Dropped peer.** It keeps its slot but has a hold-only mask, zero velocity,
-  zero link capacity, and no coverage contribution. Its original offered demand
-  is still measured.
+  zero link capacity, and no coverage contribution. Peer-motion collision checks
+  skip it. Its original offered demand is still measured.
 - **Mission state.** Python builds `mission_state` with previous distance and
   health, measured failure time, dwell counters, pre-failure coverage, and
   completion times. Telemetry keeps these measurements and replays them with the
@@ -505,9 +511,9 @@ When changing the protocol or a saved-file format, follow the
 
 | File | Role |
 |------|------|
-| `rl-bridge.h` / `rl-bridge.cc` | `RlBridge`: writes `init` and `step` messages, reads actions, builds masks, clamps velocity each tick, revalidates actions. |
+| `rl-bridge.h` / `rl-bridge.cc` | `RlBridge`: exchanges messages and accumulates decision-window facts. |
+| `rl-motion.cc` / `joint-motion.h` | Builds action masks, applies velocities, and checks joint paths before advancing the simulator. |
 | `reward-window.h` | `RewardWindow`: counts elapsed and scored ticks and averages post-warmup rewards. |
-| `joint-motion.h` | Continuous joint-path distance helpers for collision avoidance. |
 | `rl-agent.h` | Unused no-op placeholder. Only the rl-bridge unit test includes it. |
 | `README.md` | This page: the message, mode, and action contract. |
 | @ref src_rl_policy_inputs "policy-inputs.md" | Observation presets, reward components, telemetry. |
@@ -520,8 +526,8 @@ When changing the protocol or a saved-file format, follow the
 
 1. The tick loop in [`sim.cc`](../../sim.cc) advances the ticks.
 2. `src/config/rl-control.cc` resolves the selected nodes and timing.
-3. [`rl-bridge.cc`](rl-bridge.cc) exchanges observations, rewards, masks, and
-   actions, and accumulates the tick reward.
+3. [`rl-bridge.cc`](rl-bridge.cc) exchanges messages and accumulates the tick
+   reward. [`rl-motion.cc`](rl-motion.cc) applies actions.
 4. `scripts/rl/env/mesh_env.py` builds what Gymnasium returns for one `step`.
 
 For training, follow [`train.py`](@ref rl/train.py) (CLI and model output) into
