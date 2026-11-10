@@ -639,7 +639,7 @@ for each training episode or evaluation seed: an arrival coordinate and a
 
 ### 8.3 Movement metrics in evaluation
 
-Evaluation v4 streams telemetry through the accumulator each metric declares.
+Evaluation streams telemetry through the accumulator each metric declares.
 
 - Travel and displacement cover controlled nodes only.
 - Travel is the sum of xy endpoint distances. Displacement is measured from the

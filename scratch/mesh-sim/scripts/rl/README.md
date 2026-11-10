@@ -225,7 +225,7 @@ evaluation never informs model selection.
 | File | Version | Contents |
 | --- | --- | --- |
 | `train_manifest.json` | 4 | `status`/`error`, `algorithm`, `seed` and `seed_source`, `control_mode`, the live `contract`, resolved `selection`, `observation_schema` and `reward_schema` (with SHA-256), `scenario_identity` (SHA-256 of `run.ini`, `nodes.json`, and when configured `buildings.json` and `jammers.json`), `model_path`/`model_sha256`, `best_model_path`/`best_model_sha256`/`best_mean_reward`, a `checkpoints` list of `{path, sha256, num_timesteps}`, the `evaluation` block (or `null`), `hyperparameters`, `package_versions`, `python_version`, `platform`. |
-| `eval_manifest.json` | 2 | Version-1 fields plus `label`; `seed_roles` (training, model-selection, held-out seeds, any overlap, whether overlap was allowed, whether held out); `training` (copied from the training manifest); `metric_source`; `episodes_expected` and `episodes_completed`. Every policy holds one record per requested seed, in seed order, with `status` `completed`, `failed`, or `not_run`; each record adds `error`, `metrics.unroutable_fraction`, and a `summary_json` pointer that is never parsed. |
+| `eval_manifest.json` | 8 | Evaluation label, seed roles, training identity, metric source, episode counts, and one status and metrics record per policy and seed. Version 8 includes mission metrics. |
 
 Models trained with older tooling carry an older `manifest_version` and cannot
 be loaded; retrain with the current tooling. The evaluation manifest is
@@ -278,7 +278,7 @@ them. The statistics and exit codes are explained in the
 | `--baselines a,b` | Restrict baselines; default is every non-`model` policy present. |
 | `--json` | Print `comparison.json` instead of the summary lines. |
 
-It reads only `eval_manifest.json` files, refuses version-1 manifests, and writes
+It reads `eval_manifest.json` version 8 files and writes
 `episodes.csv` (one row per evaluation directory, policy, and seed) and
 `comparison.json`. Neither file carries a timestamp, so repeating the command
 reproduces byte-identical output. A listed directory without a readable manifest
@@ -388,13 +388,13 @@ multi-seed difficulty checks; criteria are included in the saved signature.
 
 See [iteration-two configuration](../../inputs/custom/10-09-2/README.md). `campaign.py` runs only requested execution stages; main-only skips preflight. Optional `initial_scenarios` gates remaining main jobs on the first group. Saved-model diagnostics compare deterministic/sampled inference and explicit scenario transfer without weight updates.
 
-Matrix evaluation can set `reuse_baselines=true`; the CLI uses `--baseline-cache-dir`, validates a binary/scenario/seed/planner identity, reuses immutable baseline trajectories, and rescales their composed rewards. `eval_manifest_version=3` records `baseline_cache`; comparison readers accept 2 and 3. `--stochastic-model` enables sampled inference, reseeded for each evaluation episode. `--decision-record-seeds` restricts detailed sidecars to selected held-out seeds.
+Matrix evaluation can set `reuse_baselines=true`; the CLI uses `--baseline-cache-dir`, validates a binary/scenario/seed/planner identity, reuses immutable baseline trajectories, and rescales their composed rewards. The evaluation manifest records `baseline_cache`. `--stochastic-model` enables sampled inference, reseeded for each evaluation episode. `--decision-record-seeds` restricts detailed sidecars to selected held-out seeds.
 
 ## Bounded profiles and continuing operation
 
 `adaptive_campaign` drives `inputs/custom/10-09-3/campaign.json`: four cases × six profiles, validation-only profile selection, eight extensions, archived-reference evaluation and moving-jammer operation. See that input README for the command and budgets. `online` loads one verified checkpoint per operation seed and runs the PPO learning loop with short rollouts; its matched sampled control never trains. Adaptation results use `online_manifest.json` and explicit seed-role labels. `policy/episode_review.py` adds final-minute service and moving-jammer recovery to campaign reports without changing normal evaluation manifest fields.
 
-The CLI modules parse arguments and delegate lifecycle and artifact work to `policy/training.py`, `policy/training_artifacts.py`, `policy/experiment.py`, `policy/evaluate.py` and the metric registry. Compact training keeps final summaries but omits visualization and training telemetry; full evaluation produces reward matrices. Saved schema versions are training 7, episode 6 and evaluation 6.
+The CLI modules parse arguments and delegate lifecycle and artifact work to `policy/training.py`, `policy/training_artifacts.py`, `policy/experiment.py`, `policy/evaluate.py` and the metric registry. Compact training keeps final summaries but omits visualization and training telemetry; full evaluation produces reward matrices. Saved schema versions are training 7, episode 6 and evaluation 8.
 
 ## Source ownership
 

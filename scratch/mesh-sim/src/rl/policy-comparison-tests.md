@@ -48,6 +48,12 @@ held-out overlap detection, matrix CLI seed expansion, exclusion of reset and
 incomplete telemetry, column means, cumulative means, and two checkpoint
 matrices from a short real MaskablePPO run against the fake simulator.
 
-`test_iteration_two.py` checks that shared baseline rescoring changes returns while preserving action hashes and physical metrics, and does not mutate cached files. New evaluation manifests are version 3; readers accept existing version 2.
+`test_iteration_two.py` checks that shared baseline rescoring changes returns
+while preserving action hashes, physical metrics, and cached files.
+
+`test_objective_diagnostics.py` checks that zero-demand mission scores remain
+undefined and that reward audits replay a weighted coordinated component in a
+composed reward. `test_scenario_check.py` covers rebasing scenario inputs from
+their original INI directory when writing the input archive.
 
 Iteration-three tests verify constructor/manifest/CLI parameter wiring and six bounded plans with one shared baseline cache per scenario. The online test proves parameter updates occur in continuing operation, are absent from the sampled control, and do not carry between seeds.

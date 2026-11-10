@@ -149,7 +149,7 @@ they are approximate.
 
 | Step | Where |
 | --- | --- |
-| Evaluate | `<output-dir>/eval_manifest.json` (`EVAL_MANIFEST_VERSION` 5) plus per-episode simulator output. |
+| Evaluate | `<output-dir>/eval_manifest.json` (`EVAL_MANIFEST_VERSION` 8) plus per-episode simulator output. |
 | Compare | `<output-dir>/episodes.csv` and `<output-dir>/comparison.json` (`COMPARISON_VERSION` 2). |
 
 ## Conventions
@@ -168,5 +168,5 @@ they are approximate.
 
 For the zero-cost/penalized placement workflow, input snapshots and diagnostic
 interpretation see the [placement walkthrough](../../baselines/walkthrough.md).
-Evaluation v4 and comparison v1 outputs require regeneration for this schema;
-changing their version number does not supply missing facts.
+Regenerate evaluation manifests from earlier versions before comparing runs
+with the current reader.
