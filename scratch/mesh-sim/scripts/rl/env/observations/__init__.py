@@ -496,12 +496,29 @@ def _preset_schema(preset: ObservationPreset, contract: dict) -> dict:
         "node_ids": _node_ids(contract),
         "slot_node_ids": list(contract["slot_node_ids"]),
     }
-    for key in ("mission","navigation"):
+    for key in ("mission", "navigation"):
         if key in preset.compatibility_fields:
             schema[key] = dict(contract[key])
+    if "node_types" in preset.compatibility_fields:
+        schema["node_types"] = list(contract["node_types"])
     if preset.fact_extensions:
-        schema['fact_extensions'] = list(preset.fact_extensions)
+        schema["fact_extensions"] = list(preset.fact_extensions)
     schema["sha256"] = schema_sha256(schema)
+    return schema
+
+
+def restore_legacy_node_types(schema: dict, recorded_contract: dict) -> dict:
+    """Recover an omitted schema field from the contract saved with the artifact."""
+    node_types = recorded_contract.get("node_types")
+    if (
+        "node_types" not in schema
+        and "node_types" in schema.get("compatibility_fields", [])
+        and isinstance(node_types, list)
+        and schema.get("sha256") == schema_sha256(schema)
+    ):
+        restored = {**schema, "node_types": list(node_types)}
+        restored["sha256"] = schema_sha256(restored)
+        return restored
     return schema
 
 

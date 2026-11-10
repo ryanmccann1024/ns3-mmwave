@@ -10,6 +10,7 @@ import numpy as np
 
 from scripts.rl.env.observations import get_preset
 from scripts.rl.env.observations import observation_schema
+from scripts.rl.env.observations import restore_legacy_node_types
 from scripts.rl.env.protocol import CentralizedProtocol
 from scripts.rl.env.rewards import RewardBreakdown
 from scripts.rl.env.rewards import RewardComposer
@@ -186,7 +187,8 @@ def _validate_header(header: dict) -> CentralizedProtocol:
     selection = header["selection"]
     expected_observation = observation_schema(selection["observation_preset"], contract, selection["observation_parameters"])
     expected_reward = reward_schema(selection["reward_components"], selection["reward_weights"], contract=contract, parameters=selection["reward_parameters"])
-    if header["observation_schema"] != expected_observation:
+    recorded_observation = restore_legacy_node_types(header["observation_schema"], contract)
+    if recorded_observation != expected_observation:
         raise ValueError("Telemetry observation schema does not match its selection and contract")
     if header["reward_schema"] != expected_reward:
         raise ValueError("Telemetry reward schema does not match its selection and contract")

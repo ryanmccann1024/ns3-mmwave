@@ -136,7 +136,12 @@ For slot-based layouts, total length is `M ×` the per-slot width. With three me
 nodes are controlled, the final 8 or 12 values are padding.
 
 Each preset owns its ordered features, Box bounds, required facts, and
-compatibility fields.
+compatibility fields. Structural fields define how the policy interprets the
+vector, including its shape, dtype, feature order, and scaling. A preset may
+also require matching simulator settings. For example, the compact mission
+presets record ordered `node_types` because they encode each peer's type in the
+vector. A legacy artifact can recover this field from its recorded init
+contract. The compatibility check uses those recorded types.
 
 ### 3.1 `local_links_v1` features
 
@@ -221,8 +226,9 @@ warmup so decisions can settle.
   feature of `mission_coordination_v1` with whole-team support, at the same
   vector width.
 
-The coordinated presets and rewards declare a version-1 `coordination_v1`
-derived-fact extension:
+A fact extension is a versioned Python processor that derives additional
+inputs from native simulator facts and decision history. The coordinated
+presets and rewards declare the `coordination_v1` extension.
 
 1. `MeshRlEnv` resets its processors each episode.
 2. It advances them after the existing mission state and before building the
@@ -237,8 +243,7 @@ interference-response objective in the derived extension.
 
 Source: `mission_compact_v1` in `scripts/rl/env/observations/compact.py`,
 `mission_coordination_v1` in `scripts/rl/env/observations/coordination.py`
-and `mission_bridge_v1` in `scripts/rl/env/observations/radio.py`
-The source relocation changed no preset ID, layout or schema hash.
+and `mission_bridge_v1` in `scripts/rl/env/observations/radio.py`.
 
 Layouts are specified above; coefficients, physical scales and thresholds
 are in the [mission reward reference](../../docs/rl/mission-rewards.md).
@@ -421,7 +426,8 @@ descriptors, registration order and schema hashes remain unchanged.
   largest current service/coverage deficit and qualifying dwell.
 - Losing a current phase condition returns scoring to the earlier objective.
 - The approach scale and deployment scale are tunable.
-- Weights, gates, seed roles, and runtime: `inputs/custom/10-16-4/README.md`.
+- The component declarations in `env/rewards/mission_terms.py` specify each
+  formula, its parameters, and when it contributes.
 
 **Guided rewards (`env/rewards/mission_terms.py`).** `team_distance_delta_v2`,
 `service_gated_coverage_v2`, `coverage_target_maintained_v2`, four
@@ -429,26 +435,41 @@ mission-specific `*_settle_cost_v2` descriptors, `post_failure_service_v2`,
 `post_failure_sinr_v2`, and `post_failure_coverage_deficit_v2`. They use
 measured mission state and movement context, with no new actor observation and
 no future-event information. Goal-dependent movement costs and coverage
-thresholds are tunable. Formulas and weights: `inputs/custom/10-16-5/README.md`.
+thresholds are tunable. See the component declarations in
+`env/rewards/mission_terms.py` for the formulas and parameter defaults.
 
-### 5.5 Level 0 objectives
+### 5.5 Binary and continuous mission objectives
 
 `level0_coverage_v1`, `level0_investigation_v1`, `level0_recovery_v1`, and
-`level0_jamming_v1` each return `+1` when their single success condition holds,
-otherwise `-0.001`:
+`level0_jamming_v1` return `+1` for success and `-0.001` for failure
+when their scoring window is eligible.
 
 | Component | Success condition |
 | --- | --- |
 | `level0_coverage_v1` | Connected outdoor coverage ≥ per-case `target` (reward parameter, default 0.5). |
 | `level0_investigation_v1` | Every available peer within the configured team radius of the target. No connectivity, local coverage, or dwell requirement. |
 | `level0_recovery_v1` | Survivor critical-flow delivered/offered ≥ 0.90. |
-| `level0_jamming_v1` | Aggregate delivered/offered ≥ 0.90 during the emitting interval. |
+| `level0_jamming_v1` | Aggregate delivered/offered ≥ 0.90 in an eligible window. |
 
 - Event rewards are zero during deployment waiting and in mixed boundary
   windows ([deployment gate](@ref src_rl_deployment_gate)).
-- Zero offered traffic cannot produce success.
+- Recovery and jamming require offered traffic to produce success.
 - There are no movement, fairness, SINR, or collision-attempt terms. Native
   building and peer collision constraints stay active.
+
+The continuous objectives return scores in [0, 1].
+
+| Component | Measurement |
+| --- | --- |
+| `connected_outdoor_area_fraction_v1` | Current outdoor coverage fraction of the connected mesh. |
+| `team_target_distance_score_v1` | One minus the mean available peer distance beyond the team radius divided by the planar field diagonal, clipped to [0, 1]. |
+| `survivor_critical_delivery_fraction_v1` | Survivor critical traffic delivered divided by offered demand. |
+| `jammed_traffic_delivery_fraction_v1` | Aggregate traffic delivered divided by offered demand. |
+
+The continuous service objectives contribute only in fully eligible scored
+windows with offered demand. The investigation distance score requires an
+available peer. Both objective families are defined in
+`scripts/rl/env/rewards/objectives.py`.
 
 ### 5.6 Facts some components need {#src_rl_policy_inputs_facts}
 
@@ -615,7 +636,6 @@ for each training episode or evaluation seed: an arrival coordinate and a
   override, which ends at `duration_s` and is half-open.
 - An empty profile and `sweep_v1` behave as before; old result files are not
   reinterpreted or overwritten.
-- Details: `inputs/custom/10-23/README.md`.
 
 ### 8.3 Movement metrics in evaluation
 

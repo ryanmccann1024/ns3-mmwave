@@ -59,18 +59,33 @@ def calculate(window, reward, contract, parameters, context, adaptive):
 FORMULAS = {
     "service": (
         "0.50 D + 0.40 F + 0.10 L - 0.05 I - 0.02 T - 0.02 B - 0.02 J",
-        "restore: (0.60-l) D + 0.40 F + l L - 0.05 I - 0.002 T - 0.02 B - 0.02 J, l=0.10+0.20*(1-current active-pair LOS fraction); settle: 0.65 D + 0.35 F - 0.05 I - 0.05 T - 0.02 B - 0.02 J",
+        "restore: (0.60-l) D + 0.40 F + l L - 0.05 I - 0.002 T - 0.02 B - 0.02 J, "
+        "l=0.10+0.20*(1-current active-pair LOS fraction); settle: 0.65 D + 0.35 F - 0.05 I - "
+        "0.05 T - 0.02 B - 0.02 J",
     ),
     "investigation": (
         "0.45 Q + 0.45 A + 0.10 K + P - 0.02 T - 0.02 B - 0.02 J",
-        "approach: 0.70 Q + 0.30 A + P - 0.002 T; assemble/dwell: 0.10 Q + 0.70 A + 0.20 K + P - 0.01 T; settle: 0.10 Q + 0.60 A + 0.20 K + 0.10 D + P - 0.05 T; all stages subtract 0.02 B + 0.02 J",
+        "approach: 0.70 Q + 0.30 A + P - 0.002 T; assemble/dwell: 0.10 Q + 0.70 A + 0.20 K + P "
+        "- 0.01 T; settle: 0.10 Q + 0.60 A + 0.20 K + 0.10 D + P - 0.05 T; all stages subtract "
+        "0.02 B + 0.02 J",
     ),
     "coverage": (
         "0.85 area + 0.15 F - 0.02 T - 0.02 B - 0.02 J",
-        "expand: 0.95 area + 0.05 F - 0.002 T - 0.02 B - 0.02 J; settle: 0.75 area + 0.25 F - 0.05 T - 0.02 B - 0.02 J",
+        "expand: 0.95 area + 0.05 F - 0.002 T - 0.02 B - 0.02 J; settle: 0.75 area + 0.25 F - "
+        "0.05 T - 0.02 B - 0.02 J",
     ),
 }
-DEFINITIONS = " D=relevant delivered/offered; F=mean lowest ceil(active demanded peers/3) endpoint service; L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores, threshold -6.7 dB and scale 4 dB; I=clip(largest XY minimum-spanning-tree edge/150 m,0,1); T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction; Q=0.5 mean + 0.5 minimum of exp(-excess target distance/100 m); A=available peers inside the target / available peers; K=current full-team radio connectivity; P={potential_scale}*({gamma}*Phi_now-Q_previous), terminal Phi=0, otherwise Phi=Q. No compact-clustering term in coverage. Settling requires 30 s current success; relapse fallback after 5 s, severe loss immediately; coverage threshold {coverage_goal}."
+DEFINITIONS = (
+    " D=relevant delivered/offered; F=mean lowest ceil(active demanded peers/3) endpoint service; "
+    "L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores, threshold -6.7 dB and "
+    "scale 4 dB; I=clip(largest XY minimum-spanning-tree edge/150 m,0,1); T=mean available "
+    "actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction;"
+    " Q=0.5 mean + 0.5 minimum of exp(-excess target distance/100 m); A=available peers inside the "
+    "target / available peers; K=current full-team radio connectivity; "
+    "P={potential_scale}*({gamma}*Phi_now-Q_previous), terminal Phi=0, otherwise Phi=Q. No "
+    "compact-clustering term in coverage. Settling requires 30 s current success; relapse fallback "
+    "after 5 s, severe loss immediately; coverage threshold {coverage_goal}."
+)
 
 
 def register(T, registry):
@@ -105,5 +120,7 @@ def register(T, registry):
                 },
                 fact_extensions=("coordination_v1",),
                 formula=formulas[int(adaptive)] + DEFINITIONS,
-                zero_demand_rule="invalid during forced/mixed windows or with no active peers; service requires offered demand; failed peers excluded; geometric arrival does not require traffic",
+                zero_demand_rule="invalid during forced/mixed windows or with no active peers; service requires "
+                "offered demand; failed peers excluded; geometric arrival does not require "
+                "traffic",
             )
