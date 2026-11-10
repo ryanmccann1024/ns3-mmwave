@@ -21,11 +21,13 @@ specified in `src/rl/policy-inputs.md`. Read those before changing anything here
   message (contract `mesh_move_2d_v2`, facts `mesh_facts_v2`, window sums,
   tick monotonicity) and the outgoing joint action shape. Raise `ProtocolError`;
   never coerce.
-- `observations.py` -- presets `raw_links_v1` (default, float64) and
+- `mission_protocol.py` -- validates native mission metadata and decision facts.
+- `state/mission.py` -- reconstructs arrival, dwell, and recovery across decisions.
+- `observations/` -- presets `raw_links_v1` (default, float64) and
   `local_links_v1` (float32, normalized to RL bounds); `observation_schema` +
   `schema_sha256`; `check_schema` raises on structural fields, warns on
   `node_ids` / `slot_node_ids`.
-- `rewards.py` -- components `delivery_ratio`, `connectivity`,
+- `rewards/` -- components `delivery_ratio`, `connectivity`,
   `throughput_mbps`, `legacy`; `RewardComposer` sums only components whose
   window is valid.
 - `selection.py` -- `RlSelection`, resolved CLI > `run.ini [rl]` > default, with

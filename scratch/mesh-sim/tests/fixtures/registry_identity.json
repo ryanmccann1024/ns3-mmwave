@@ -1036,7 +1036,7 @@
         "id": "mission_compact_v1",
         "index": 7,
         "module": "scripts.rl.env.phase4_observations",
-        "schema_sha256": "679b0925dce47f38ebb748e01cc41362a09c15f75d4d25bc46175bb225b3ae8c"
+        "schema_sha256": "71efe8bddcb68b3a727fff0e157dc983be60ea0fc43b94fd7a26be560ba7de31"
       },
       {
         "context_fields": [],
@@ -1192,7 +1192,7 @@
         "id": "mission_coordination_v1",
         "index": 8,
         "module": "scripts.rl.env.phase6_observations",
-        "schema_sha256": "007a45c89769b40de3ed1c9258f744b381006e68bdfba23174ce4d0451fa6b69"
+        "schema_sha256": "8403d7613dc52a4d3200a7d0aa44c028f7ebe351ffb9edcefff80ed5d0699308"
       },
       {
         "context_fields": [],
@@ -1346,7 +1346,7 @@
         "id": "mission_bridge_v1",
         "index": 9,
         "module": "scripts.rl.env.phase7_observations",
-        "schema_sha256": "201794fb6065318b977d62f39218c743089a40f528eb9d4872e3aee1da6a26d0"
+        "schema_sha256": "cef7c8384bd62753f43bf9319be96064f45cfd0edd98259f44d216a3ecec0c0a"
       }
     ],
     "registration_order": [

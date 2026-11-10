@@ -7,6 +7,11 @@ from typing import Callable, Sequence
 from scripts.artifact_io import canonical_sha256
 from scripts.rl.env.normalization import Normalization
 from scripts.rl.env.normalization import SINR_FIELDS
+from scripts.rl.env.rewards.mission_terms import register as register_mission_terms
+from scripts.rl.env.rewards.objectives import register as register_objectives
+from scripts.rl.env.rewards.shaping import register as register_shaping
+from scripts.rl.env.rewards.coordination import register as register_coordination
+from scripts.rl.env.rewards.radio import register as register_radio
 
 DEMAND_EPS = 1e-9
 MOVEMENT_SPAN_M = {"drone": 500.0, "pedestrian": 300.0, "vehicle": 300.0}
@@ -333,15 +338,10 @@ COMPONENTS["adaptive_movement_cost"] = RewardComponent(
     formula="(0.02 + 0.08 * previous_network_health) * travel_fraction")
 
 
-from scripts.rl.env.rewards.mission_terms import register as register_mission_terms
 register_mission_terms(RewardComponent, COMPONENTS, _movement_context)
-from scripts.rl.env.rewards.objectives import register as register_objectives
 register_objectives(RewardComponent, COMPONENTS)
-from scripts.rl.env.rewards.shaping import register as register_shaping
 register_shaping(RewardComponent, COMPONENTS)
-from scripts.rl.env.rewards.coordination import register as register_coordination
 register_coordination(RewardComponent, COMPONENTS)
-from scripts.rl.env.rewards.radio import register as register_radio
 register_radio(RewardComponent, COMPONENTS)
 
 def get_component(name: str) -> RewardComponent:

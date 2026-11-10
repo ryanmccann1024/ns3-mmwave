@@ -391,18 +391,28 @@ def test_building_destination_exclusion_respects_altitude(tmp_path, monkeypatch)
 
 
 def test_outdoor_context_uses_same_filtered_probes_and_denominator():
-    """Pure context check; no channel worker is started."""
-    request=make_request([entry('a',20,20,20)],{'a'},coverage_cells=16,
-        rectangle={'x_min':0,'x_max':40,'y_min':0,'y_max':40},min_resolution_m=1)
-    request.probe_exclusion_buildings=({'x_min':5,'x_max':15,'y_min':5,'y_max':15,'z_min':0,'z_max':10},)
+    """Pure context check with a scorer that captures the probe request."""
+    request = make_request(
+        [entry("a", 20, 20, 20)],
+        {"a"},
+        coverage_cells=16,
+        rectangle={"x_min": 0, "x_max": 40, "y_min": 0, "y_max": 40},
+        min_resolution_m=1,
+    )
+    request.probe_exclusion_buildings = (
+        {"x_min": 5, "x_max": 15, "y_min": 5, "y_max": 15, "z_min": 0, "z_max": 10},
+    )
+
     class ProbeCapture:
-        limits={}
-        probes=None
-        def set_probes(self,points,**kwargs):
-            self.probes={'points':points,**kwargs}
-    scorer=ProbeCapture()
-    prepare_scorer(request,scorer)
-    context=ScoringContext.build(request,scorer)
-    assert len(context.coverage_points)==12
-    assert context.aoi_m2==1200
-    assert context.coverage_weights.sum()==1200
+        limits = {}
+        probes = None
+
+        def set_probes(self, points, **kwargs):
+            self.probes = {"points": points, **kwargs}
+
+    scorer = ProbeCapture()
+    prepare_scorer(request, scorer)
+    context = ScoringContext.build(request, scorer)
+    assert len(context.coverage_points) == 12
+    assert context.aoi_m2 == 1200
+    assert context.coverage_weights.sum() == 1200
