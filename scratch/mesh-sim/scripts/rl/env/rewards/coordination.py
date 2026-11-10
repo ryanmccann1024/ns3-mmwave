@@ -56,6 +56,8 @@ def calculate(window, reward, contract, parameters, context, adaptive):
     return sum(terms[k] * weight for k, weight in weights.items()), True
 
 
+# TODO: Give each reward version one source for its weights, term definitions,
+# and formula metadata. Preserve the saved v1 formula text and schema hashes.
 FORMULAS = {
     "service": (
         "0.50 D + 0.40 F + 0.10 L - 0.05 I - 0.02 T - 0.02 B - 0.02 J",
