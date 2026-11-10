@@ -414,12 +414,15 @@ class CentralizedProtocol:
             if "time_s" in msg:
                 if deployment["active"] != (msg["time_s"] >= self._control_start_s):
                     _fail("deployment active disagrees with control_start_s")
-                expected = sum(msg["time_s"] - i*self._tick_s > self._control_start_s
-                               for i in range(msg["scored_ticks"]))
+                expected = sum(
+                    msg["time_s"] - offset * self._tick_s > self._control_start_s
+                    for offset in range(msg["scored_ticks"])
+                )
                 if ticks != expected:
                     _fail("deployment eligible_ticks disagree with sample times")
                 if not deployment["active"] and "mask" in msg:
-                    if msg["mask"] != [0,0,0,0,1]*self._num_slots:
+                    hold_mask = [0, 0, 0, 0, 1] * self._num_slots
+                    if msg["mask"] != hold_mask:
                         _fail("deployment prefix must mask every movement action")
         elif deployment is not None:
             _fail("unadvertised deployment facts")
@@ -439,7 +442,7 @@ class CentralizedProtocol:
                 if not math.isclose(sum(row[column] for row in service), total, rel_tol=1e-6, abs_tol=1e-6):
                     _fail("facts.node_service endpoint sums must equal twice the network sums")
         if "safety" in facts:
-            self._check_safety(facts["safety"], msg["scored_ticks"], self._num_nodes,self._num_slots)
+            self._check_safety(facts["safety"], msg["scored_ticks"], self._num_nodes, self._num_slots)
         if self._unsafe_separation_m is not None and facts.get("safety", {}).get("threshold_m") != self._unsafe_separation_m:
             _fail("facts.safety threshold does not match init.unsafe_separation_m")
         coverage = facts.get("coverage")
@@ -454,14 +457,22 @@ class CentralizedProtocol:
 
     @staticmethod
     def _check_safety(safety, ticks: int, num_nodes: int, num_slots: int | None = None) -> None:
-        required={"threshold_m", "unsafe_ticks", "min_pair_distance_m"}
-        attempts={"building_rejected_slots","peer_rejected_slots"}
-        contact={"boundary_contacted_slots"}
-        if not isinstance(safety,dict) or set(safety) not in (required,required|attempts,required|attempts|contact):
+        required = {"threshold_m", "unsafe_ticks", "min_pair_distance_m"}
+        attempts = {"building_rejected_slots", "peer_rejected_slots"}
+        contact = {"boundary_contacted_slots"}
+        allowed_fields = (required, required | attempts, required | attempts | contact)
+        if not isinstance(safety, dict) or set(safety) not in allowed_fields:
             _fail(f"facts.safety has invalid fields: {safety!r}")
-        for key in (attempts|contact) & set(safety):
-            slots=safety[key]
-            if not isinstance(slots,list) or any(not _is_int(i) or i<0 or (num_slots is not None and i>=num_slots) for i in slots) or len(slots)!=len(set(slots)):
+        for key in (attempts | contact) & safety.keys():
+            slots = safety[key]
+            if (
+                not isinstance(slots, list)
+                or any(
+                    not _is_int(slot) or slot < 0 or (num_slots is not None and slot >= num_slots)
+                    for slot in slots
+                )
+                or len(slots) != len(set(slots))
+            ):
                 _fail(f"facts.safety.{key} must contain unique nonnegative slot indices")
         if not _is_finite_number(safety["threshold_m"]) or safety["threshold_m"] <= 0:
             _fail(f"facts.safety threshold_m must be positive: {safety!r}")

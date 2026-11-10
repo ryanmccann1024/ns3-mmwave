@@ -219,19 +219,32 @@ def rectangle_grid(rect: dict, cells: int, min_resolution_m: float, max_points=1
     return points, cell, (ww * hh).ravel()
 
 
+def _inside_building(x: float, y: float, z: float, bounds: dict) -> bool:
+    return inside(x, y, bounds) and bounds["z_min"] <= z <= bounds["z_max"]
+
+
 def coverage_grid(request, max_points=10000):
-    """Shared probe domain; optionally omit indoor centers like native CoverageGrid."""
-    points, cell, weights = rectangle_grid(request.rectangle, request.grid.coverage_cells,
-        request.grid.min_resolution_m, max_points=max_points)
-    boxes = getattr(request, "probe_exclusion_buildings", ())
-    if boxes:
-        z = request.probe.height_m
-        keep = np.array([not any(b["x_min"] <= x <= b["x_max"] and
-            b["y_min"] <= y <= b["y_max"] and b["z_min"] <= z <= b["z_max"]
-            for b in boxes) for x,y in points], dtype=bool)
-        points, weights = points[keep], weights[keep]
-        if not len(points):
+    """Return coverage probes and cell areas, with optional indoor exclusion."""
+    points, cell, weights = rectangle_grid(
+        request.rectangle,
+        request.grid.coverage_cells,
+        request.grid.min_resolution_m,
+        max_points=max_points,
+    )
+    buildings = getattr(request, "probe_exclusion_buildings", ())
+    if buildings:
+        height = request.probe.height_m
+        keep = np.fromiter(
+            (
+                not any(_inside_building(x, y, height, bounds) for bounds in buildings)
+                for x, y in points
+            ),
+            dtype=bool,
+            count=len(points),
+        )
+        if not keep.any():
             raise ValueError("coverage domain has no outdoor probes")
+        points, weights = points[keep], weights[keep]
     return points, cell, weights
 
 
@@ -304,7 +317,11 @@ class ScoringContext:
         candidates, candidate_cell_m, _ = rectangle_grid(
             rect, request.grid.candidate_cells, request.grid.min_resolution_m
         )
-        aoi = float(weights.sum()) if getattr(request, "probe_exclusion_buildings", ()) else rectangle_area(rect)
+        aoi = (
+            float(weights.sum())
+            if getattr(request, "probe_exclusion_buildings", ())
+            else rectangle_area(rect)
+        )
         return cls(
             objective=request.objective,
             ids=tuple(str(node.id) for node in nodes),
@@ -346,8 +363,7 @@ class ScoringContext:
         if self.rl_bounds is not None and not inside(x, y, self.rl_bounds):
             return False
         z = self.starts[node, 2]
-        if any(b["x_min"] <= x <= b["x_max"] and b["y_min"] <= y <= b["y_max"]
-               and b["z_min"] <= z <= b["z_max"] for b in self.forbidden_buildings):
+        if any(_inside_building(x, y, z, bounds) for bounds in self.forbidden_buildings):
             return False
         walk = self.walk_bounds[node]
         return walk is None or inside(x, y, walk)
@@ -358,8 +374,8 @@ class ScoringContext:
 
 def prepare_scorer(request, scorer) -> None:
     """Send the coverage grid to the scorer once, before any evaluation."""
-    points, _, _ = coverage_grid(request,
-        max_points=getattr(scorer, "limits", {}).get("max_probes", 10000))
+    max_probes = getattr(scorer, "limits", {}).get("max_probes", 10000)
+    points, _, _ = coverage_grid(request, max_points=max_probes)
     scorer.set_probes(
         points,
         height_m=request.probe.height_m,

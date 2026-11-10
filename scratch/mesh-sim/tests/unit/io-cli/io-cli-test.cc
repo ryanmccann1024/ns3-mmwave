@@ -714,7 +714,16 @@ test_runlog_rl_block()
     check(kv["rl.decision_interval_s"] == "0.75", "runlog rl: decision_interval_s = ticks * tick_s");
     check(kv["rl.decision_interval_ticks"] == "3", "runlog rl: decision_interval_ticks");
 
-
+    c.rl.mission.kind = "recovery";
+    c.rl.mission.dwell_s = 12.0;
+    c.rl.mission.recovery_delivery_target = 0.75;
+    c.rl.mission.recovery_coverage_ratio = 0.6;
+    c.rl.mission.recovery_worst_target = 0.5;
+    kv = block(c, "mission");
+    check(kv["mission.dwell_s"] == "12" && kv["mission.recovery_delivery_target"] == "0.75" &&
+              kv["mission.recovery_coverage_ratio"] == "0.6" &&
+              kv["mission.recovery_worst_target"] == "0.5",
+          "runlog mission: records resolved dwell time and recovery thresholds");
 }
 
 /// Jammer counts, jammer_path_enabled rule, and per-jammer lines.
@@ -795,7 +804,10 @@ vizCfg(const fs::path& dir)
     c.channel.nyu.rain_rate_mm_hr = 2.5;
     c.mesh.traffic.flow_topology = "gateway";
     c.mesh.traffic.model = "on_off";
-    c.nodes = {mkNode("a", "relay"), mkNode("b", "peer"), mkNode("c", "gw")};
+    c.nodes = {mkNode("a"), mkNode("b"), mkNode("c")};
+    c.nodes[0].node_type = "drone";
+    c.nodes[1].node_type = "vehicle";
+    c.nodes[2].node_type = "pedestrian";
     return c;
 }
 
@@ -848,6 +860,7 @@ test_viz_tick_rows()
 {
     fs::path dir = freshDir("viz-rows");
     SimConfig c = vizCfg(dir);
+    c.nodes[1].failure_at_s = 0.1;
     ns3::MobilityModel m0(1.5, 2.25, 3.0), m1(10.0, 0.0, -1.0), m2(100.123456789, 0.0, 50.0);
     std::vector<ns3::Ptr<ns3::MobilityModel>> mobs = {&m0, &m1, &m2};
     LinkTable lt;
@@ -871,10 +884,15 @@ test_viz_tick_rows()
     check(posRows.size() == 6, "viz rows: positions 3 rows per snapshot x 2");
     if (posRows.size() == 6)
     {
-        check(posRows[0] == "0.000000,0,1.500000,2.250000,3.000000,relay,1", "viz rows: positions row 0 (got '" + posRows[0] + "')");
-        check(posRows[1] == "0.000000,1,10.000000,0.000000,-1.000000,peer,1", "viz rows: positions row 1");
-        check(posRows[2] == "0.000000,2,100.123457,0.000000,50.000000,gw,1", "viz rows: positions row 2 (role, 6 dp)");
+        check(posRows[0] == "0.000000,0,1.500000,2.250000,3.000000,drone,1",
+              "viz rows: positions row 0 (got '" + posRows[0] + "')");
+        check(posRows[1] == "0.000000,1,10.000000,0.000000,-1.000000,vehicle,1",
+              "viz rows: positions row 1");
+        check(posRows[2] == "0.000000,2,100.123457,0.000000,50.000000,pedestrian,1",
+              "viz rows: positions row 2 (role, 6 dp)");
         check(posRows[3].rfind("0.100000,0,", 0) == 0, "viz rows: second snapshot time_s 6 dp");
+        check(posRows[4] == "0.100000,1,10.000000,0.000000,-1.000000,vehicle,0",
+              "viz rows: dropout keeps the row and marks it inactive at the failure tick");
     }
 
     auto links = readLines(dir / "links.csv");

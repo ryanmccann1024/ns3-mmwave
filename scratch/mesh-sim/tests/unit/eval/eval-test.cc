@@ -346,23 +346,74 @@ test_connected_coverage()
  * Calls each test_* function in order; failures print "FAIL: <name>" to
  * stderr. A new test function must be added to this list to run.
  */
-static void test_outdoor_mission_coverage()
+static void
+test_outdoor_mission_coverage()
 {
-    RlConfig cfg;cfg.x_min=0;cfg.x_max=20;cfg.y_min=0;cfg.y_max=20;
-    cfg.coverage_grid_cells=4;cfg.coverage_min_resolution_m=5;
-    BuildingSpec building;building.x_min=0;building.x_max=10;building.y_min=0;building.y_max=10;building.z_max=10;
-    auto grid=BuildCoverageGrid(cfg,{building});
-    check(grid.areas.size()==3 && grid.area_m2==300, "outdoor grid excludes occupied probe cells");
+    RlConfig cfg;
+    cfg.x_min = 0;
+    cfg.x_max = 20;
+    cfg.y_min = 0;
+    cfg.y_max = 20;
+    cfg.coverage_grid_cells = 4;
+    cfg.coverage_min_resolution_m = 5;
+    BuildingSpec building;
+    building.x_min = 0;
+    building.x_max = 10;
+    building.y_min = 0;
+    building.y_max = 10;
+    building.z_max = 10;
+    auto grid = BuildCoverageGrid(cfg, {building});
+    check(grid.areas.size() == 3 && grid.area_m2 == 300,
+          "outdoor grid excludes occupied probe cells");
     std::vector<LinkResult> results;
-    for (uint32_t i=0;i<3;++i) for (uint32_t j=i+1;j<3;++j)
-    {LinkResult link;link.tx_id=i;link.rx_id=j;link.sinr_db=10;link.capacity_mbps=1;results.push_back(link);}
-    LinkTable links;links.Update(3,results);
-    auto core=ConnectedCore(links,{false,true,true});
-    check(core==std::vector<uint32_t>({1,2}), "offline peer excluded from coverage core");
-    std::vector<std::vector<bool>> covered{{true,true,true},{true,false,false},{false,true,false}};
-    check(approx(ConnectedCoverage(links,grid,covered,{false,true,true}),2.0/3), "offline peer supplies no area coverage");
-    MissionConfig mission;mission.goal_x=15;mission.goal_y=5;mission.coverage_radius_m=1;
-    check(approx(GoalCoverage(links,grid,covered,mission,{false,true,true}),1), "goal coverage uses local outdoor cells");
+    for (uint32_t i = 0; i < 3; ++i)
+        for (uint32_t j = i + 1; j < 3; ++j)
+        {
+            LinkResult link;
+            link.tx_id = i;
+            link.rx_id = j;
+            link.sinr_db = 10;
+            link.capacity_mbps = 1;
+            results.push_back(link);
+        }
+    LinkTable links;
+    links.Update(3, results);
+    auto core = ConnectedCore(links, {false, true, true});
+    check(core == std::vector<uint32_t>({1, 2}), "offline peer excluded from coverage core");
+    std::vector<std::vector<bool>> covered{{true, true, true},
+                                           {true, false, false},
+                                           {false, true, false}};
+    check(approx(ConnectedCoverage(links, grid, covered, {false, true, true}), 2.0 / 3),
+          "offline peer supplies no area coverage");
+    MissionConfig mission;
+    mission.goal_x = 15;
+    mission.goal_y = 5;
+    mission.coverage_radius_m = 1;
+    check(approx(GoalCoverage(links, grid, covered, mission, {false, true, true}), 1),
+          "goal coverage uses local outdoor cells");
+
+    cfg.mission.kind = "investigation";
+    cfg.mission.goal_x = 5.0;
+    cfg.mission.goal_y = 5.0;
+    cfg.mission.coverage_radius_m = 1.0;
+    bool rejected = false;
+    try
+    {
+        BuildCoverageGrid(cfg, {building});
+    }
+    catch (const std::runtime_error& e)
+    {
+        rejected = std::string(e.what()).find("goal region") != std::string::npos;
+    }
+    check(rejected, "a required investigation region with no outdoor probe fails at setup");
+
+    cfg.mission.goal_coverage_target = 0.0;
+    const auto optionalGrid = BuildCoverageGrid(cfg, {building});
+    check(GoalCoverage(links, optionalGrid, covered, cfg.mission, {}) == 0.0,
+          "an empty goal region reports zero with the gate disabled");
+    cfg.mission.goal_x = 15.0;
+    check(approx(GoalCoverage(links, optionalGrid, covered, cfg.mission, {}), 1.0),
+          "goal coverage remains observable with the gate disabled");
 }
 
 int

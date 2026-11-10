@@ -141,7 +141,8 @@ WriteRunLog(const std::string&       base_output_dir,
     out << "  traffic.model       = " << cfg.mesh.traffic.model            << "\n";
     out << "  traffic.topology    = " << cfg.mesh.traffic.flow_topology    << "\n";
     for (const auto& pair : cfg.mesh.traffic.pairs)
-        out << "  traffic.pair = " << pair.src << "," << pair.dst << "," << pair.demand_mbps << "\n";
+        out << "  traffic.pair = " << pair.src << "," << pair.dst << "," << pair.demand_mbps
+            << "\n";
     out << "  traffic.demand_mbps = " << cfg.mesh.traffic.demand_mbps      << "\n";
     out << "  routing.algorithm   = " << cfg.mesh.routing.algorithm        << "\n";
     out << "  routing.max_hops    = " << cfg.mesh.routing.max_hops         << "\n";
@@ -186,6 +187,13 @@ WriteRunLog(const std::string&       base_output_dir,
         out << "  mission.team_delivery_target = " << m.team_delivery_target << "\n";
         out << "  mission.investigator_id = " << m.investigator_id << "\n";
         out << "  mission.goal_xy = " << m.goal_x << "," << m.goal_y << "\n";
+        out << "  mission.arrival_radius_m = " << m.arrival_radius_m << "\n";
+        out << "  mission.coverage_radius_m = " << m.coverage_radius_m << "\n";
+        out << "  mission.dwell_s = " << m.dwell_s << "\n";
+        out << "  mission.goal_coverage_target = " << m.goal_coverage_target << "\n";
+        out << "  mission.recovery_delivery_target = " << m.recovery_delivery_target << "\n";
+        out << "  mission.recovery_coverage_ratio = " << m.recovery_coverage_ratio << "\n";
+        out << "  mission.recovery_worst_target = " << m.recovery_worst_target << "\n";
         out << "  mission.coverage_domain = outdoor_probe_cells\n";
         for (const auto& node : cfg.nodes)
             if (node.failure_at_s >= 0.0)
