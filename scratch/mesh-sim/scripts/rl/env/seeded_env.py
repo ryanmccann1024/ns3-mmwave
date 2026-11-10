@@ -30,10 +30,13 @@ class SeededEnv:
     current seed. `decision_records` is forwarded to every per-seed `MeshRlEnv`.
     """
 
-    def __init__(self, binary, configs, output, case, *, initial_seed, band=None, decision_records=None):
+    def __init__(
+        self, binary, configs, output, case, *, initial_seed, band=None, decision_records=None
+    ):
         # Resolved at construction, not import, so callers and tests can substitute them.
         from scripts.rl.env.mesh_env import MeshRlEnv
         from scripts.rl.env.selection import resolve_selection
+
         self._type, self._resolve = MeshRlEnv, resolve_selection
         self.binary, self.configs, self.output, self.case = binary, configs, output, case
         self.requested_band, self.decision_records = band, decision_records
@@ -43,11 +46,17 @@ class SeededEnv:
 
     def _create(self, seed):
         config = self.configs[str(seed)]
-        self.gate_s = self.case['seeds'][str(seed)]['gate_s']
+        self.gate_s = self.case["seeds"][str(seed)]["gate_s"]
         self.band, self.band_source = resolve_band(config, self.requested_band)
-        self.inner = self._type(str(self.binary), str(config), seed=seed, output_dir=str(self.output),
-            selection=self._resolve(str(config), telemetry='steps'), band=self.requested_band,
-            decision_records=self.decision_records)
+        self.inner = self._type(
+            str(self.binary),
+            str(config),
+            seed=seed,
+            output_dir=str(self.output),
+            selection=self._resolve(str(config), telemetry="steps"),
+            band=self.requested_band,
+            decision_records=self.decision_records,
+        )
 
     def reset(self, *, seed, options=None):
         self.inner.close()

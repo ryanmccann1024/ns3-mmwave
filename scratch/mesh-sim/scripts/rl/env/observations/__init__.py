@@ -12,6 +12,16 @@ from scripts.artifact_io import canonical_sha256
 from scripts.rl.env.normalization import LINK_FIELDS
 from scripts.rl.env.normalization import Normalization
 from scripts.rl.env.protocol import SLOT_ACTIONS
+from scripts.rl.env.observations.compact import register as register_compact_observations
+from scripts.rl.env.observations.coordination import register as register_coordination_observations
+from scripts.rl.env.observations.radio import register as register_team_radio_observations
+from .mission import (
+    mission_features,
+    mission_feature_names,
+    navigation_features,
+    navigation_feature_names,
+)
+
 
 class SchemaMismatchError(ValueError):
     """A saved observation schema is structurally incompatible with a live one."""
@@ -368,49 +378,64 @@ PRESETS = {
         required_facts=("nodes", "links", "window"), compatibility_fields=("bounds",)),
 }
 
-from scripts.rl.env.state.mission import mission_features
-from scripts.rl.env.state.mission import mission_feature_names
 
 def _build_mission(facts, contract, scales):
     return mission_features(facts, contract, _build_full_facts_v1(facts, contract, scales))
 
+
+def _append_unit_bounds(base, count):
+    return spaces.Box(
+        low=np.concatenate((base.low, np.zeros(count, dtype=np.float32))),
+        high=np.concatenate((base.high, np.ones(count, dtype=np.float32))),
+        dtype=np.float32,
+    )
+
+
 def _mission_space(contract):
-    base = _full_facts_space(contract)
-    extra = len(mission_feature_names(contract))
-    return spaces.Box(low=np.concatenate((base.low, np.zeros(extra,dtype=np.float32))),
-                      high=np.concatenate((base.high, np.ones(extra,dtype=np.float32))),dtype=np.float32)
+    return _append_unit_bounds(_full_facts_space(contract), len(mission_feature_names(contract)))
 
-PRESETS["mission_facts_v1"] = ObservationPreset(
-    "mission_facts_v1","float32",_build_mission,_mission_space,
-    lambda c: _full_facts_features(c)+mission_feature_names(c),_full_normalization,
-    normalization_fields=LINK_FIELDS+("velocity_scale_mps",),
-    required_facts=("nodes","links","window","mission","mission_state","node_available"),
-    compatibility_fields=("bounds","mission"))
 
-from scripts.rl.env.state.mission import navigation_features
-from scripts.rl.env.state.mission import navigation_feature_names
+def _build_mission_v2(facts, contract, scales):
+    base = _build_mission(facts, contract, scales)
+    navigation = np.asarray(navigation_features(facts, contract), dtype=np.float32)
+    return np.concatenate((base, navigation))
 
-def _build_mission_v2(facts,contract,scales):
-    return np.concatenate((_build_mission(facts,contract,scales),np.asarray(navigation_features(facts,contract),dtype=np.float32)))
 
 def _mission_v2_space(contract):
-    base=_mission_space(contract);extra=len(navigation_feature_names(contract))
-    return spaces.Box(low=np.concatenate((base.low,np.zeros(extra,dtype=np.float32))),
-                      high=np.concatenate((base.high,np.ones(extra,dtype=np.float32))),dtype=np.float32)
+    return _append_unit_bounds(_mission_space(contract), len(navigation_feature_names(contract)))
 
-PRESETS['mission_facts_v2']=ObservationPreset(
-    'mission_facts_v2','float32',_build_mission_v2,_mission_v2_space,
-    lambda c:_full_facts_features(c)+mission_feature_names(c)+navigation_feature_names(c),_full_normalization,
-    normalization_fields=LINK_FIELDS+('velocity_scale_mps',),
-    required_facts=('nodes','links','window','mission','mission_state','node_available'),
-    compatibility_fields=('bounds','mission','navigation'))
 
-from scripts.rl.env.observations.compact import register as register_compact_observations
+_MISSION_FACTS = ("nodes", "links", "window", "mission", "mission_state", "node_available")
+_MISSION_SCALES = LINK_FIELDS + ("velocity_scale_mps",)
+
+PRESETS["mission_facts_v1"] = ObservationPreset(
+    "mission_facts_v1",
+    "float32",
+    _build_mission,
+    _mission_space,
+    lambda contract: _full_facts_features(contract) + mission_feature_names(contract),
+    _full_normalization,
+    normalization_fields=_MISSION_SCALES,
+    required_facts=_MISSION_FACTS,
+    compatibility_fields=("bounds", "mission"),
+)
+PRESETS["mission_facts_v2"] = ObservationPreset(
+    "mission_facts_v2",
+    "float32",
+    _build_mission_v2,
+    _mission_v2_space,
+    lambda contract: (
+        _full_facts_features(contract)
+        + mission_feature_names(contract)
+        + navigation_feature_names(contract)
+    ),
+    _full_normalization,
+    normalization_fields=_MISSION_SCALES,
+    required_facts=_MISSION_FACTS,
+    compatibility_fields=("bounds", "mission", "navigation"),
+)
 register_compact_observations(ObservationPreset, PRESETS)
-
-from scripts.rl.env.observations.coordination import register as register_coordination_observations
 register_coordination_observations(ObservationPreset, PRESETS)
-from scripts.rl.env.observations.radio import register as register_team_radio_observations
 register_team_radio_observations(ObservationPreset, PRESETS)
 
 DEFAULT_PRESET = "raw_links_v1"

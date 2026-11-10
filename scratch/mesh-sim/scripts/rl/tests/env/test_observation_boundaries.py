@@ -269,6 +269,42 @@ def test_build_is_pure_and_deterministic(preset_name):
     assert (facts, contract) == before
 
 
+@pytest.mark.parametrize(
+    "preset_name", ["mission_compact_v1", "mission_coordination_v1", "mission_bridge_v1"]
+)
+def test_mission_presets_include_peers_without_control_slots(preset_name):
+    contract = make_contract(slot_nodes=("node-b", "node-c", None))
+    contract["mission"]["investigator_id"] = "node-b"
+    facts = make_facts(contract)
+    preset = get_preset(preset_name)
+    observation = preset.build(facts, contract)
+    names = preset.feature_names(contract)
+
+    assert preset.space(contract).contains(observation)
+    assert observation[names.index("node.node-a.available")] == 1.0
+    assert observation[names.index("node.node-a.obstacle_west")] == 1.0
+    if preset_name != "mission_compact_v1":
+        for feature in ("achieved_move", "peer_blocked", "wall_contact", "last_hold"):
+            assert observation[names.index(f"node.node-a.{feature}")] == 0.0
+
+
+@pytest.mark.parametrize("mission_kind", ["coverage", "recovery"])
+@pytest.mark.parametrize(
+    "preset_name",
+    ["mission_facts_v1", "mission_facts_v2", "mission_compact_v1",
+     "mission_coordination_v1", "mission_bridge_v1"],
+)
+def test_mission_goal_features_stay_in_space_on_small_maps(preset_name, mission_kind):
+    contract = make_contract(
+        slot_nodes=("node-a", "node-b", "node-c"),
+        bounds=dict(BOUNDS, x_min=0.0, x_max=100.0, y_min=0.0, y_max=100.0),
+    )
+    contract["mission"].update(kind=mission_kind, goal_x=345.0, goal_y=300.0)
+    facts = make_facts(contract)
+    preset = get_preset(preset_name)
+    assert preset.space(contract).contains(preset.build(facts, contract))
+
+
 # --- Schema hashing ----------------------------------------------------------------
 
 
