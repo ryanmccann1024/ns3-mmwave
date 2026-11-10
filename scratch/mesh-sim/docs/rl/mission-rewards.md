@@ -99,5 +99,5 @@ Source owners: `scripts/rl/env/rewards/{shaping,coordination,radio}.py` and
 `env/state/{coordination,measurements}.py`. The registry owns resolved parameter
 ranges and schema text. Tests in `scripts/rl/tests/env/` verify boundary cases,
 arrival/departure, potential telescoping, low-tail measurements and state
-transitions; `policy/reward_audit.py` reconstructs complete recorded trajectories.
+transitions using synthetic decision facts and optional recorded trajectories.
 Saved descriptor text and historical context keys stay frozen for compatibility.

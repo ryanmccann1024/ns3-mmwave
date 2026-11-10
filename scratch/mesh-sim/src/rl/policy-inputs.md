@@ -125,18 +125,23 @@ the decision boundary. The reward instead summarizes the preceding ticks in
 | `geometry_v1` | Self xy and relative peer xy, with active/present flags | `float32` | `3 + 3(N-1)` |
 | `service_v1` | Local links plus demand/delivery logs and delivery/connectivity/unroutable ratios | `float32` | `9 + 4(N-1)` |
 | `full_facts_v1` | Service features plus relative peer xyz/velocity, LOS, and service gap | `float32` | `10 + 11(N-1)` |
-| `mission_facts_v1` | Mission inputs ([missions](@ref src_rl_missions)) | `float32` | — |
-| `mission_facts_v2` | `mission_facts_v1` plus four local obstacle ranges, goal offsets, and team arrival/connectivity per slot | `float32` | — |
+| `mission_facts_v1` | Mission inputs ([missions](@ref src_config_mission_controls)) | `float32` | — |
+| `mission_facts_v2` | `mission_facts_v1` plus obstacle ranges and goal offsets per slot, and two global team features | `float32` | — |
 | `mission_compact_v1` | One node block, one unordered-link block, six globals (section 3.5) | `float32` | 57 total at three peers |
 | `mission_coordination_v1` | Coordinated mission inputs (section 3.5) | `float32` | 102 / 216 / 357 total at 3 / 6 / 9 peers |
 | `mission_bridge_v1` | `mission_coordination_v1` with whole-team radio support (section 3.5) | `float32` | Same as `mission_coordination_v1` |
 
-Total length is `M ×` the per-slot width. For example, with three mesh nodes and
+For slot-based layouts, total length is `M ×` the per-slot width. With three mesh nodes and
 `M = 3`, the raw vector has 24 values and the local vector has 36. If only two
 nodes are controlled, the final 8 or 12 values are padding.
 
 Each preset owns its ordered features, Box bounds, required facts, and
-compatibility fields.
+compatibility fields. Structural fields define how the policy interprets the
+vector, including its shape, dtype, feature order, and scaling. A preset may
+also require matching simulator settings. For example, the compact mission
+presets record ordered `node_types` because they encode each peer's type in the
+vector. A legacy artifact can recover this field from its recorded init
+contract. The compatibility check uses those recorded types.
 
 ### 3.1 `local_links_v1` features
 
@@ -209,34 +214,36 @@ warmup so decisions can settle.
 - **`mission_compact_v1`.** One node block, one unordered-link block, and six
   globals: 57 features at three peers, versus 137 uncompacted. It keeps current
   target offsets and local obstacle ranges and has no future jammer
-  information.
+  information. Every roster peer gets position, service, and obstacle
+  features, including peers outside the control roster. Normalized goal
+  coordinates and offsets are clipped to [0, 1] for every mission preset.
 - **`mission_coordination_v1`.** Includes direct per-peer target closeness,
   arrival flags, achieved motion, the previous requested action, and native
   peer-blocking and wall-contact feedback. Future failure timing and future
-  jammer coordinates are never exposed.
+  jammer coordinates are never exposed. A peer without a control slot has
+  zero movement, rejection, wall contact, and previous-action features.
 - **`mission_bridge_v1`.** Replaces only the explicit demanded-path support
   feature of `mission_coordination_v1` with whole-team support, at the same
   vector width.
 
-The coordinated presets and rewards declare a version-1 `coordination_v1`
-derived-fact extension:
+A fact extension is a versioned Python processor that derives additional
+inputs from native simulator facts and decision history. The coordinated
+presets and rewards declare the `coordination_v1` extension.
 
 1. `MeshRlEnv` resets its processors each episode.
 2. It advances them after the existing mission state and before building the
    observation and reward.
 3. Telemetry keeps the derived facts so each record can replay.
 
-The reward-audit tooling reconstructs the full state sequence from native facts and
-completed actions to detect tampering. Reward and observation schemas name the
-extension, and reward parameters pin its mission/coverage goal. Compatibility
+Reward and observation schemas name the extension. Reward parameters pin its
+mission and coverage goal. Compatibility
 checks require both saved reward and observation identities. Jamming uses the
 native mission kind `coverage`, with saved mission code `3` selecting the
 interference-response objective in the derived extension.
 
 Source: `mission_compact_v1` in `scripts/rl/env/observations/compact.py`,
 `mission_coordination_v1` in `scripts/rl/env/observations/coordination.py`
-and `mission_bridge_v1` in `scripts/rl/env/observations/radio.py`
-The source relocation changed no preset ID, layout or schema hash.
+and `mission_bridge_v1` in `scripts/rl/env/observations/radio.py`.
 
 Layouts are specified above; coefficients, physical scales and thresholds
 are in the [mission reward reference](../../docs/rl/mission-rewards.md).
@@ -384,7 +391,7 @@ SINR components own `sinr_min_db`, `sinr_max_db`, and `sinr_invalid_db`
 
 ### 5.4 Mission rewards
 
-These need `[mission]` facts ([missions](@ref src_rl_missions)).
+These need `[mission]` facts ([missions](@ref src_config_mission_controls)).
 
 | Component | Rule |
 | --- | --- |
@@ -419,7 +426,8 @@ descriptors, registration order and schema hashes remain unchanged.
   largest current service/coverage deficit and qualifying dwell.
 - Losing a current phase condition returns scoring to the earlier objective.
 - The approach scale and deployment scale are tunable.
-- Weights, gates, seed roles, and runtime: `inputs/custom/10-16-4/README.md`.
+- The component declarations in `env/rewards/mission_terms.py` specify each
+  formula, its parameters, and when it contributes.
 
 **Guided rewards (`env/rewards/mission_terms.py`).** `team_distance_delta_v2`,
 `service_gated_coverage_v2`, `coverage_target_maintained_v2`, four
@@ -427,26 +435,41 @@ mission-specific `*_settle_cost_v2` descriptors, `post_failure_service_v2`,
 `post_failure_sinr_v2`, and `post_failure_coverage_deficit_v2`. They use
 measured mission state and movement context, with no new actor observation and
 no future-event information. Goal-dependent movement costs and coverage
-thresholds are tunable. Formulas and weights: `inputs/custom/10-16-5/README.md`.
+thresholds are tunable. See the component declarations in
+`env/rewards/mission_terms.py` for the formulas and parameter defaults.
 
-### 5.5 Level 0 objectives
+### 5.5 Binary and continuous mission objectives
 
 `level0_coverage_v1`, `level0_investigation_v1`, `level0_recovery_v1`, and
-`level0_jamming_v1` each return `+1` when their single success condition holds,
-otherwise `-0.001`:
+`level0_jamming_v1` return `+1` for success and `-0.001` for failure
+when their scoring window is eligible.
 
 | Component | Success condition |
 | --- | --- |
 | `level0_coverage_v1` | Connected outdoor coverage ≥ per-case `target` (reward parameter, default 0.5). |
 | `level0_investigation_v1` | Every available peer within the configured team radius of the target. No connectivity, local coverage, or dwell requirement. |
 | `level0_recovery_v1` | Survivor critical-flow delivered/offered ≥ 0.90. |
-| `level0_jamming_v1` | Aggregate delivered/offered ≥ 0.90 during the emitting interval. |
+| `level0_jamming_v1` | Aggregate delivered/offered ≥ 0.90 in an eligible window. |
 
 - Event rewards are zero during deployment waiting and in mixed boundary
   windows ([deployment gate](@ref src_rl_deployment_gate)).
-- Zero offered traffic cannot produce success.
+- Recovery and jamming require offered traffic to produce success.
 - There are no movement, fairness, SINR, or collision-attempt terms. Native
   building and peer collision constraints stay active.
+
+The continuous objectives return scores in [0, 1].
+
+| Component | Measurement |
+| --- | --- |
+| `connected_outdoor_area_fraction_v1` | Current outdoor coverage fraction of the connected mesh. |
+| `team_target_distance_score_v1` | One minus the mean available peer distance beyond the team radius divided by the planar field diagonal, clipped to [0, 1]. |
+| `survivor_critical_delivery_fraction_v1` | Survivor critical traffic delivered divided by offered demand. |
+| `jammed_traffic_delivery_fraction_v1` | Aggregate traffic delivered divided by offered demand. |
+
+The continuous service objectives contribute only in fully eligible scored
+windows with offered demand. The investigation distance score requires an
+available peer. Both objective families are defined in
+`scripts/rl/env/rewards/objectives.py`.
 
 ### 5.6 Facts some components need {#src_rl_policy_inputs_facts}
 
@@ -588,9 +611,7 @@ fingerprints it, and replay rebuilds it from facts.
 | Option | Read by | Default | Effect |
 | --- | --- | --- | --- |
 | `[rl] manifest_every_decisions` | Python episode writer | `1` (positive int) | In-progress manifest write cadence (section 8.1). |
-| `[rl] record_validation_telemetry` | Python output-settings reader | `false` | Keep full checkpoint-validation steps even with `compact_training = true` (section 8.2). |
-| `[rl] validation_after_update` | Python training | `false` | Schedule checkpoint validation after optimization (section 8.3). |
-| `[rl] jammer_motion_profile` | `env/jammer_motion.py` | empty | `sweep_v1` or `arrive_hold_v1` jammer motion (section 8.5). |
+| `[rl] jammer_motion_profile` | `env/jammer_motion.py` | empty | `sweep_v1` or `arrive_hold_v1` jammer motion (section 8.2). |
 
 ### 8.1 Manifest cadence
 
@@ -599,47 +620,7 @@ Reset and finalization still save complete totals. This does not sample
 `steps.jsonl`; evaluation matrices require every decision. An abrupt OS kill
 can leave up to cadence − 1 decisions missing from the disk snapshot.
 
-### 8.2 Validation telemetry
-
-`record_validation_telemetry = true` keeps full checkpoint-validation steps
-when `compact_training = true`. Training steps still follow the normal telemetry
-selection, and validation CSV visualization stays compact. The C++ loader does
-not read this key; the Python reader rejects invalid booleans.
-
-### 8.3 Validation after update
-
-`validation_after_update = true` schedules checkpoint validation after
-optimization, including the first optimized policy and the final update. It
-requires:
-
-- fresh training;
-- matching positive checkpoint and evaluation cadences aligned to complete PPO
-  rollouts;
-- a total budget divisible by that cadence.
-
-The `run.ini` digest records the option. `post_update_validation.json`
-(version 1) records the validated steps and the SB3 update counter. Without the
-option, callbacks keep their default timing.
-
-### 8.4 Frozen-policy online mode
-
-`python -m scripts.rl.online --modes fixed_sampled` runs a frozen-only sampled
-control and never calls PPO `learn`.
-
-- Every episode verifies identical initial and final parameter SHA and zero
-  optimizer update cycles.
-- Independent seeds each reload the verified selected checkpoint.
-- The default runs both `fixed_sampled` and `online` and writes the version-3
-  manifest.
-- An explicit subset writes `online_experiment_version: 4` with a `modes` list.
-  Readers must honor that list and must not invent pending online experiments.
-  Versions 2 and 3 keep their original meaning. Version 4 was also written by
-  the gated campaign writers, so the version alone does not identify the
-  protocol; batch operations write a newer version with an explicit
-  `protocol` (see [Contributing](@ref Contributing)).
-- `mission_focused.py` schedules no online modes.
-
-### 8.5 Jammer arrival profile
+### 8.2 Jammer arrival profile
 
 `jammer_motion_profile = arrive_hold_v1` archives a reproducible road approach
 for each training episode or evaluation seed: an arrival coordinate and a
@@ -653,18 +634,10 @@ for each training episode or evaluation seed: an arrival coordinate and a
 - Emission ends at `duration_s + tick_s`, so the last sampled tick is still
   jammed. The archived interval is used instead of the C++ `--jammer-onset-s`
   override, which ends at `duration_s` and is half-open.
-- `jammer_motion.emission_onset` gives both metric readers the archived timing.
 - An empty profile and `sweep_v1` behave as before; old result files are not
   reinterpreted or overwritten.
-- Details: `inputs/custom/10-23/README.md`.
 
-The optional `parallel` reference-controller flag (`ScriptedMissionPolicy` in
-`scripts/rl/policy/scripted.py`, formerly `pilot_reference.py`) moves
-each controlled peer independently; without it, the reference controller is
-sequential. Reference controllers are scripted feasibility references and do
-not assist learned-policy routing.
-
-### 8.6 Movement metrics in evaluation
+### 8.3 Movement metrics in evaluation
 
 Evaluation v4 streams telemetry through the accumulator each metric declares.
 
@@ -678,10 +651,9 @@ Evaluation v4 streams telemetry through the accumulator each metric declares.
   missing reset, or sparse records, because telemetry cannot supply a per-tick
   path length.
 
-### 8.7 Training curriculum
+### 8.4 Curriculum environment
 
-For coordinated investigation (Phase 7), only training reset positions use a
-recorded 5/5/15 curriculum; reward and observations keep Phase 6 semantics.
-Evaluation starts are unchanged. The training `curriculum.json` sidecar records
-the actual reset identities, and the standard train manifest names the original
-evaluation deployment for compatibility.
+`CurriculumEnv` in `scripts/rl/env/curriculum.py` can load a supplied schedule
+of scenario files that vary peer start positions for coordinated investigation.
+The wrapper records the resets it uses in `curriculum.json`. The standard
+training entry point has no curriculum option in this revision.

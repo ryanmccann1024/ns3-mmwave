@@ -7,17 +7,9 @@
  * No ns-3 headers. Missing keys take the defaults listed below; the loader
  * does not range-check values (see @ref mesh_sim::ValidateConfig).
  *
- * | Section        | Key fields loaded                                                    |
- * |----------------|----------------------------------------------------------------------|
- * | @c scenario  | @c name, @c seed, @c run_id, @c duration_s, @c warmup_s, @c tick_s, @c nodes_file, @c buildings_file |
- * | @c mission | @c kind, @c investigator_id, @c goal_x/goal_y, radii, dwell and recovery targets |
- * | @c output   | @c dir, @c viz_tick_ms                                               |
- * | @c channel   | @c frequency_ghz, @c tx_power_dbm, @c scenario, @c channel_model, @c blockage_enabled, @c beamforming_model, @c amc_model, @c noise_figure_db, @c bandwidth_mhz, @c tx_array_gain_dbi, @c rx_array_gain_dbi |
- * | @c nyu_channel | All @ref mesh_sim::NyuChannelConfig fields; only applied when @c channel_model is @c "nyu" |
- * | @c traffic   | @c model, @c demand_mbps, @c arrival_rate_hz, @c on_time_s, @c off_time_s, @c holding_time_s, @c flow_topology, @c random_pair_count, @c gateway_node_id |
- * | @c routing   | @c algorithm, @c max_hops                                            |
- * | @c rl        | @c enabled, @c controlled_nodes, @c max_controlled_nodes, @c action_profile, @c decision_interval_s, @c reward_type, @c step_size_m, @c x_min/x_max/y_min/y_max/z_min/z_max |
- * | @c rl        | (centralized control) @c controlled_nodes, @c max_controlled_nodes, @c action_profile, @c decision_interval_s. Presence of the @c controlled_nodes key alone selects centralized mode (@c controlled_nodes_set) |
+ * See @ref src_config_run_ini_reference for the complete key and default tables.
+ * The loader reads scenario and output settings, channel models, flow-level
+ * traffic and routing, RL controls, and optional mission settings.
  */
 #pragma once
 
@@ -60,7 +52,9 @@ class ConfigLoader
      *
      * Steps: parse @c run.ini; fill the sections above; load the nodes,
      * jammers, and buildings files in that order; apply the positions
-     * override. Does not validate ranges or enum values (except @c channel_model and strict query option parsing). Building entries require explicit numeric bounds; nested and flat representations may not conflict. When @c [output]
+     * override. Does not validate ranges or enum values (except @c channel_model and strict query
+     * option parsing). Building entries require explicit numeric bounds; nested and flat
+     * representations may not conflict. When @c [output]
      * @c dir is empty the timestamped directory is derived from the local
      * clock and assumes the run.ini lives three levels below the mesh-sim
      * root (for example @c inputs/baselines/foo/run.ini). Reads files only;
