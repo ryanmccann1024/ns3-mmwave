@@ -5,6 +5,7 @@ COMMON   := ../../common
 
 SRCS := rl-bridge-test.cc \
         $(ROOT)/src/rl/rl-bridge.cc \
+        $(ROOT)/src/rl/rl-motion.cc \
         $(ROOT)/src/eval/link-table.cc
 
 OUT := rl-bridge-test

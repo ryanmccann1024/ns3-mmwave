@@ -62,15 +62,27 @@ class RlBridge
      */
     explicit RlBridge(const SimConfig& cfg);
 
+    void SetCoverage(double fraction)
+    {
+        m_coverageFraction = fraction;
+    }
+
+    void SetAvailable(const std::vector<bool>& available)
+    {
+        m_available = available;
+    }
+
+    void SetGoalCoverage(double fraction)
+    {
+        m_goalCoverage = fraction;
+    }
+
     /**
      * @fn RlBridge::WriteInit
      * @brief Write the centralized @c init contract line to stdout.
      *
      * Call once before the tick loop.
      */
-    void SetCoverage(double fraction) { m_coverageFraction = fraction; }
-    void SetAvailable(const std::vector<bool>& available) { m_available = available; }
-    void SetGoalCoverage(double fraction) { m_goalCoverage = fraction; }
     void WriteInit() const;
 
     /**
@@ -130,6 +142,8 @@ class RlBridge
     void ApplyAction(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs);
 
   private:
+    static constexpr int kHold = 4;
+
     RlConfig    m_rl;
     double m_decisionTimeS = 0.0;
     double m_coverageFraction = 0.0;
@@ -160,11 +174,15 @@ class RlBridge
 
     double ComputeRewardTick(const LinkTable& linkTable,
                              const std::vector<FlowResult>& flows) const;
-    void WriteStep(uint32_t tick, double time_s,
+    void WriteStep(uint32_t tick,
+                   double time_s,
                    const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs,
                    const LinkTable& linkTable,
                    const std::vector<int>& mask,
-                   double reward, uint32_t ticksInStep, WindowFacts window, bool done) const;
+                   double reward,
+                   uint32_t ticksInStep,
+                   const WindowFacts& window,
+                   bool done) const;
     std::vector<int> ComputeMask(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs) const;
     void ReadJointAction();
     ns3::Vector ClampVelocityForTick(const ns3::Vector& pos, const ns3::Vector& vel) const;

@@ -6,7 +6,8 @@
 
 | File | Role |
 |------|------|
-| `rl-bridge.h` / `rl-bridge.cc` | `RlBridge`: writes `init` and `step` messages, reads actions, builds masks, clamps velocity each tick. |
+| `rl-bridge.h` / `rl-bridge.cc` | `RlBridge`: exchanges JSON messages and accumulates decision-window facts. |
+| `rl-motion.cc` / `joint-motion.h` | Builds action masks, applies velocities, and checks joint paths before advancing the simulator. |
 | `rl-agent.h` | Unused no-op placeholder; nothing includes it. |
 | `README.md` | This page: the message, mode, and action contract. |
 | @ref src_rl_policy_inputs "policy-inputs.md" | Observation presets, reward components, telemetry. |
@@ -32,7 +33,7 @@ returns through the bridge; the simulator applies it until the next decision.
 
 1. The tick loop in `sim.cc`.
 2. `src/config/rl-control.cc`: selected nodes and timing.
-3. `src/rl/rl-bridge.cc`: messages, actions, and tick reward.
+3. `src/rl/rl-bridge.cc` exchanges messages. `src/rl/rl-motion.cc` applies actions.
 4. `scripts/rl/env/mesh_env.py`: what Gymnasium returns for one `step`.
 
 ## Python Side
@@ -395,9 +396,28 @@ Opt-in `avoid_node_collisions` checks continuous joint movement paths, splits at
 
 ## Optional mission facts and safe movement
 
-Mission configuration adds explicit target/dwell rules, permanent peer failures
-and survivor demand accounting. `control_start_s` can hold control until a
-release time. Movement can enforce building clearance and peer separation;
-actual boundary contacts are reported independently of proximity. Coverage
-can exclude indoor probe cells. These additions are opt-in; the centralized
-wire contract identifier stays unchanged.
+The @ref src_config_mission_controls "mission configuration reference" lists
+defaults and valid combinations. The simulator adds `init.mission` for
+an active mission. Its version is 1, or 2 when team investigation is enabled.
+Each mission step reports `facts.node_available` in `node_ids` order and
+`facts.mission` with the goal coverage fraction and survivor service totals.
+The survivor sums count only flows whose two endpoints were available on the
+scored tick. `survivor_node_service` has one [demand, delivered] row per
+`node_ids` entry. Its columns sum to twice their respective survivor totals.
+
+The goal coverage fraction is measured at the decision endpoint for
+investigation. It is zero for other missions and for an empty investigation
+goal region with the coverage gate disabled. The regular network coverage
+fraction still covers the retained outdoor grid.
+
+With `avoid_buildings` enabled, the bridge checks the full movement segment
+against the building bounds plus clearance. `mask_building_moves` controls
+whether the policy can propose a blocked move. The bridge still holds blocked
+moves when the mask allows the proposal. The `facts.safety` slot lists identify
+building vetoes, peer-motion vetoes and boundary contacts since the preceding
+decision. A dropped peer retains its roster slot and is excluded from
+peer-motion collision checks.
+
+These fields preserve the centralized wire contract identifier, observation
+shape and action meanings. Node facts and mission service rows grow with the
+roster. The existing `facts.links` still has one row per unordered node pair.
