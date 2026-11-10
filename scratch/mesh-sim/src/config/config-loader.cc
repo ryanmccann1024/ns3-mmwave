@@ -169,7 +169,6 @@ parseJammerSpec(const json& j)
     return m;
 }
 
-
 /** @brief Read explicit nested or flat building bounds; never invent obstacle geometry. */
 static BuildingSpec
 parseBuildingSpec(const json& j)
@@ -183,7 +182,8 @@ parseBuildingSpec(const json& j)
         if (!bnd.contains(key) || !bnd.at(key).is_number())
             throw std::runtime_error("building '" + b.id + "' requires numeric " + key);
         if (j.contains("bounds") && j.contains(key) && j.at(key) != bnd.at(key))
-            throw std::runtime_error("building '" + b.id + "' has conflicting flat and nested bounds");
+            throw std::runtime_error("building '" + b.id +
+                                     "' has conflicting flat and nested bounds");
     }
     b.x_min = bnd.at("x_min").get<double>();
     b.x_max = bnd.at("x_max").get<double>();
@@ -331,10 +331,12 @@ ConfigLoader::Load(const std::string& run_config_path,
         std::stoul(iniGet(ini, "traffic", "random_pair_count", "3")));
     cfg.mesh.traffic.gateway_node_id  = iniGet(ini, "traffic", "gateway_node_id",  "");
     const auto trafficPairs = json::parse(iniGet(ini, "traffic", "pairs", "[]"));
-    if (!trafficPairs.is_array()) throw std::runtime_error("traffic.pairs must be a JSON array");
+    if (!trafficPairs.is_array())
+        throw std::runtime_error("traffic.pairs must be a JSON array");
     for (const auto& pair : trafficPairs)
         cfg.mesh.traffic.pairs.push_back({pair.at("src").get<std::string>(),
-            pair.at("dst").get<std::string>(),pair.at("demand_mbps").get<double>()});
+                                          pair.at("dst").get<std::string>(),
+                                          pair.at("demand_mbps").get<double>()});
 
     // [routing] — mesh-specific routing config
     cfg.mesh.routing.algorithm = iniGet(ini, "routing", "algorithm", "shortest_path");
@@ -381,20 +383,29 @@ ConfigLoader::Load(const std::string& run_config_path,
     cfg.rl.avoid_node_collisions = iniGetBool(ini, "rl", "avoid_node_collisions", false);
     cfg.rl.coverage_enabled = iniGetBool(ini, "rl", "coverage_enabled", false);
     auto& mission = cfg.rl.mission;
-    mission.kind = iniGet(ini, "mission", "kind", "none");
-    mission.investigator_id = iniGet(ini, "mission", "investigator_id", "");
-    mission.team_investigation = iniGetBool(ini, "mission", "team_investigation", false);
-    mission.team_radius_m = std::stod(iniGet(ini, "mission", "team_radius_m", "50"));
-    mission.team_delivery_target = std::stod(iniGet(ini, "mission", "team_delivery_target", "0.8"));
-    mission.goal_x = std::stod(iniGet(ini, "mission", "goal_x", "345"));
-    mission.goal_y = std::stod(iniGet(ini, "mission", "goal_y", "300"));
-    mission.arrival_radius_m = std::stod(iniGet(ini, "mission", "arrival_radius_m", "15"));
-    mission.coverage_radius_m = std::stod(iniGet(ini, "mission", "coverage_radius_m", "50"));
-    mission.dwell_s = std::stod(iniGet(ini, "mission", "dwell_s", "30"));
-    mission.goal_coverage_target = std::stod(iniGet(ini, "mission", "goal_coverage_target", "0.8"));
-    mission.recovery_delivery_target = std::stod(iniGet(ini, "mission", "recovery_delivery_target", "0.9"));
-    mission.recovery_coverage_ratio = std::stod(iniGet(ini, "mission", "recovery_coverage_ratio", "0.9"));
-    mission.recovery_worst_target = std::stod(iniGet(ini, "mission", "recovery_worst_target", "0.8"));
+    const auto readMissionNumber = [&](const char* key, double fallback) {
+        return std::stod(iniGet(ini, "mission", key, std::to_string(fallback)));
+    };
+    mission.kind = iniGet(ini, "mission", "kind", mission.kind);
+    mission.investigator_id = iniGet(ini, "mission", "investigator_id", mission.investigator_id);
+    mission.team_investigation =
+        iniGetBool(ini, "mission", "team_investigation", mission.team_investigation);
+    mission.team_radius_m = readMissionNumber("team_radius_m", mission.team_radius_m);
+    mission.team_delivery_target =
+        readMissionNumber("team_delivery_target", mission.team_delivery_target);
+    mission.goal_x = readMissionNumber("goal_x", mission.goal_x);
+    mission.goal_y = readMissionNumber("goal_y", mission.goal_y);
+    mission.arrival_radius_m = readMissionNumber("arrival_radius_m", mission.arrival_radius_m);
+    mission.coverage_radius_m = readMissionNumber("coverage_radius_m", mission.coverage_radius_m);
+    mission.dwell_s = readMissionNumber("dwell_s", mission.dwell_s);
+    mission.goal_coverage_target =
+        readMissionNumber("goal_coverage_target", mission.goal_coverage_target);
+    mission.recovery_delivery_target =
+        readMissionNumber("recovery_delivery_target", mission.recovery_delivery_target);
+    mission.recovery_coverage_ratio =
+        readMissionNumber("recovery_coverage_ratio", mission.recovery_coverage_ratio);
+    mission.recovery_worst_target =
+        readMissionNumber("recovery_worst_target", mission.recovery_worst_target);
     cfg.rl.coverage_grid_cells = std::stoi(iniGet(ini, "baseline", "coverage_grid_cells", "100"));
     cfg.rl.coverage_min_resolution_m = std::stod(iniGet(ini, "baseline", "grid_min_resolution_m", "5.0"));
     cfg.rl.coverage_probe_height_m = std::stod(iniGet(ini, "baseline", "coverage_probe_height_m", "1.5"));

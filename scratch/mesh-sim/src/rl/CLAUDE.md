@@ -12,7 +12,9 @@ component rules with their definitions and artifact bookkeeping out of the
 process lifecycle.
 
 ## Files
-- **rl-bridge.h/cc** -- `RlBridge` class with `Step()` (IPC) and `ApplyAction()` (physics).
+- **rl-bridge.h/cc** -- `RlBridge` state, `Step()` (IPC), and decision-window facts.
+- **rl-motion.cc** -- `RlBridge` masks, velocity clamping, and `ApplyAction()`.
+- **joint-motion.h** -- Pure geometry for building intersection and peer separation.
 - **reward-window.h** -- Counts elapsed/scored ticks and averages post-warmup rewards.
 - **README.md** -- Mode/message/mask/action contract shared with the Python env.
 - **rl-agent.h** -- Legacy placeholder (no-op). Superseded by rl-bridge.
