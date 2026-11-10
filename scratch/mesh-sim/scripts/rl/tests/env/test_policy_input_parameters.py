@@ -11,7 +11,13 @@ import pytest
 
 from scripts.rl.env.mesh_env import MeshRlEnv
 from scripts.rl.env.normalization import Normalization
-from scripts.rl.env.observations import SchemaMismatchError, check_schema, get_preset, observation_schema
+from scripts.rl.env.observations import (
+    SchemaMismatchError,
+    check_schema,
+    get_preset,
+    observation_schema,
+    schema_sha256,
+)
 from scripts.rl.env.rewards import COMPONENTS, RewardComponent, RewardComposer, reward_schema
 from scripts.rl.env.selection import RlSelection, resolve_selection
 from scripts.rl.env.recording.telemetry import TELEMETRY_FILE
@@ -158,6 +164,69 @@ def test_saved_parameters_replay_after_defaults_change(sim_binary, multi_run_con
     (episode / TELEMETRY_FILE).write_text("\n".join(lines) + "\n")
     with pytest.raises(ValueError, match="schema"):
         replay_file(episode / TELEMETRY_FILE)
+
+
+@pytest.mark.parametrize("preset", [
+    "mission_compact_v1", "mission_coordination_v1", "mission_bridge_v1",
+])
+def test_mission_schema_pins_peer_types_for_new_and_legacy_models(preset):
+    from scripts.rl.tests.env.test_registry_identity import SYNTHETIC_CONTRACT
+
+    contract = SYNTHETIC_CONTRACT
+    changed = {**contract, "node_types": ["drone", *contract["node_types"][1:]]}
+    original_schema = observation_schema(preset, contract)
+    changed_schema = observation_schema(preset, changed)
+    assert original_schema["node_types"] == contract["node_types"]
+    assert original_schema["sha256"] != changed_schema["sha256"]
+    with pytest.raises(SchemaMismatchError, match="node_types"):
+        check_schema(original_schema, changed_schema)
+
+    legacy = {key: value for key, value in original_schema.items() if key != "node_types"}
+    legacy["sha256"] = schema_sha256(legacy)
+    reward = reward_schema([], [], contract=contract)
+    manifest = {
+        "contract": contract, "observation_schema": legacy, "reward_schema": reward,
+        "band": "mmwave",
+    }
+    env = SimpleNamespace(contract=contract, observation_schema=original_schema, reward_schema=reward)
+    assert check_compatibility(manifest, env, live_identity={}, live_band="mmwave").warnings == []
+    env.contract, env.observation_schema = changed, changed_schema
+    with pytest.raises(SchemaMismatchError, match="node_types"):
+        check_compatibility(
+            manifest, env, live_identity={}, live_band="mmwave", allow_different_scenario=True
+        )
+
+
+def test_legacy_mission_telemetry_replays_using_recorded_peer_types(
+    sim_binary, multi_run_config, tmp_path
+):
+    ini = Path(multi_run_config)
+    config = ini.read_text().replace("[rl]\n", "[rl]\ncoverage_enabled = true\n")
+    ini.write_text(config + "\n[mission]\nkind = coverage\n")
+    selection = RlSelection("mission_compact_v1", telemetry="steps")
+    env = MeshRlEnv(sim_binary, str(ini), seed=1, output_dir=str(tmp_path), selection=selection)
+    try:
+        env.reset()
+        done = False
+        while not done:
+            _, _, done, _, _ = env.step([4] * env.contract["max_controlled_nodes"])
+    finally:
+        env.close()
+
+    trace = tmp_path / "episode-0000" / TELEMETRY_FILE
+    lines = trace.read_text().splitlines()
+    header = json.loads(lines[0])
+    schema = header["observation_schema"]
+    assert schema.pop("node_types") == header["contract"]["node_types"]
+    schema["sha256"] = schema_sha256(schema)
+    trace.write_text("\n".join([json.dumps(header), *lines[1:]]) + "\n")
+    summary = replay_file(trace)
+    assert summary.obs_mismatches == summary.reward_mismatches == 0
+
+    schema["sha256"] = "0" * 64
+    trace.write_text("\n".join([json.dumps(header), *lines[1:]]) + "\n")
+    with pytest.raises(ValueError, match="schema"):
+        replay_file(trace)
 
 
 def _record(decision, scored_ticks, x):

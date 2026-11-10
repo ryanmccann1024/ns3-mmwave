@@ -278,7 +278,7 @@ Python engine settings use `[placement_objective]`, `[placement_optimizer]` and
 Both baseline CLIs and the placement evaluation policies pass these sections to
 the channel-scored engine.
 
-## 8\. [mission]
+## 8\. [mission] {#src_config_mission_controls}
 
 `kind` defaults to `none`. `coverage`, `investigation` and `recovery` require
 centralized RL with `coverage_enabled = true`. See
@@ -288,7 +288,7 @@ centralized RL with `coverage_enabled = true`. See
 | --- | --- | --- |
 | `kind` | `none` | `none`, `coverage`, `investigation`, `recovery`. |
 | `investigator_id` | blank | `investigation`: an existing, controlled peer with no scheduled dropout. |
-| `goal_x`, `goal_y` | `345`, `300` | Finite and within the RL x/y bounds. |
+| `goal_x`, `goal_y` | `345`, `300` | Finite coordinates. Investigation requires them inside the RL x/y bounds. |
 | `arrival_radius_m` | `15` | Finite and positive. |
 | `coverage_radius_m` | `50` | Finite and positive. |
 | `dwell_s` | `30` | Finite and positive. |
@@ -311,13 +311,18 @@ default -1 disables it. A dropout requires:
 A `recovery` mission requires at least one dropout. Original demand is kept,
 and survivor measurements are reported separately. Recovery can preserve only
 critical survivor flows ([explicit traffic pairs](@ref src_config_traffic_pairs))
-while failed-source demand stays visible in original-demand totals. Set
+while failed-source demand stays visible in original-demand totals. The failed
+node retains its roster index and is excluded from radio service, coverage,
+and peer-collision checks. Set
 `recovery_coverage_ratio = 0` when recovery concerns survivor traffic rather
 than replacing the failed aerial coverage footprint.
 
 **Investigation.** A positive `goal_coverage_target` or `team_delivery_target`
 keeps its usual meaning. The scenario-check all-peer arrival metric is
 separate from native mission success, which also requires connected peers.
+Goal coverage uses outdoor probe centers inside the goal radius. A positive
+target requires at least one such center. A zero target still permits
+measurement when probes exist. An empty region reports zero.
 
 **Buildings.** Each `buildings.json` entry needs six explicit numeric bounds,
 nested under `bounds` or flat. Conflicting representations and missing bounds
