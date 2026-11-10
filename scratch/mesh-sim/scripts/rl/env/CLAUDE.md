@@ -21,6 +21,8 @@ specified in `src/rl/policy-inputs.md`. Read those before changing anything here
   message (contract `mesh_move_2d_v2`, facts `mesh_facts_v2`, window sums,
   tick monotonicity) and the outgoing joint action shape. Raise `ProtocolError`;
   never coerce.
+- `mission_protocol.py` -- validates native mission metadata and decision facts.
+- `state/mission.py` -- reconstructs arrival, dwell, and recovery across decisions.
 - `observations/__init__.py` -- presets `raw_links_v1` (default, float64) and
   `local_links_v1` (float32, normalized to RL bounds); `observation_schema` +
   `schema_sha256`; `check_schema` raises on structural fields, warns on

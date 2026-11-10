@@ -106,5 +106,8 @@ its advisory output; it does not alter propagation or certify all models.
 
 `coverage-grid.h/cc` builds clipped receiver cells and computes the covered area
 of the largest connected mesh component (ties by smallest roster index).
-The grid and threshold match the placement objective. `sim.cc` evaluates live
-node-to-probe links at decision endpoints when RL coverage is enabled.
+`sim.cc` evaluates node-to-probe links at decision endpoints when RL coverage
+is enabled. Mission coverage excludes a cell if its center lies inside a
+building at the configured receiver height. Each retained cell contributes its
+clipped area once if any available peer in the core covers it. Investigation
+goal coverage uses the same calculation over centers within the goal radius.
