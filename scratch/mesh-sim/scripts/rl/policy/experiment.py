@@ -14,7 +14,7 @@ from scripts.rl.agents.config import validate_training_settings, PPO_FIELDS
 from scripts.rl.cli_common import MANIFEST_NAME, sha256_file, write_json
 from scripts.rl.env.config import read_action_profile
 from scripts.rl.env.selection import resolve_selection
-from scripts.rl.experiments.config import (
+from scripts.rl.experiments.matrix_fields import (
     _band,
     _check_keys,
     _int,
