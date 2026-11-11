@@ -10,9 +10,10 @@ never held-out data. Version 1 helpers remain importable from
 
 ## Result production
 
-`reporting.py` derives curves, mission reviews and comparisons from accepted
-artifacts. Scenario index version 4 and online manifest version 5 preserve
+`reporting.py` dispatches reports from accepted artifacts. `report_curves`
+reads training history, `report_comparison` pools comparable results,
+`report_index` writes scenario indexes and asset copies, and
+`report_selection` verifies the evidence used to rank candidates. Scenario index version 4 and online manifest version 5 preserve
 explicit model/mode/seed references, source identities and missing-data states.
 Readers must keep legacy branches. `tests/fixtures/batch_*_example.json` and
 `tests/experiments/test_gui_index.py` define producer compatibility.
-
