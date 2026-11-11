@@ -29,6 +29,7 @@ and comparison, and experiment matrices. The wire contract lives in
 | @ref scripts_rl_agents | MaskablePPO glue; exploratory `q_learning.py` (not on the training path) |
 | @ref scripts_rl_env | Gymnasium env, simulator subprocess, protocol checks, selection, observations, rewards, telemetry |
 | @ref scripts_rl_policy | Bundle loading, compatibility checks, evaluation, comparison |
+| @ref mesh_sim_rl_scenario_check_runner | Seeded scenario evaluation, parallel execution, and feasibility reports |
 | @ref scripts_rl_ops | SLURM, benchmark, tuning, and fetch wrappers around an existing plan |
 | @ref scripts_rl_tests | Test map; `fake_sim.py` exercises the Python exchange without ns-3 |
 

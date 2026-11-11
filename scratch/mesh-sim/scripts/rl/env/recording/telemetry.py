@@ -160,8 +160,7 @@ def replay_record(header: dict, record: dict):
                                  contract, composer.context(record["facts"], contract, record.get("reward_context")))
 
 
-def _load_line(line: str) -> dict:
-    payload = json.loads(line)
+def _validate_payload(payload) -> None:
     def check(value):
         if isinstance(value, float) and not math.isfinite(value):
             raise ValueError("Telemetry values must be finite")
@@ -174,7 +173,6 @@ def _load_line(line: str) -> dict:
     check(payload)
     if not isinstance(payload, dict):
         raise ValueError("Telemetry lines must be JSON objects")
-    return payload
 
 
 def _validate_header(header: dict) -> CentralizedProtocol:
@@ -197,27 +195,33 @@ def _validate_header(header: dict) -> CentralizedProtocol:
 
 def replay_file(path) -> ReplaySummary:
     """Compare saved records using the declared schemas and validated raw facts."""
-    records = obs_bad = reward_bad = 0
     with Path(path).open() as handle:
         lines = (line for line in handle if line.strip())
         try:
-            header = _load_line(next(lines))
+            header = json.loads(next(lines))
         except StopIteration:
             raise ValueError(f"telemetry file {path} is empty") from None
-        protocol = _validate_header(header)
-        dtype = header["observation_schema"]["dtype"]
-        for line in lines:
-            record = _load_line(line)
-            if record.get("type") != "step":
-                raise ValueError("Telemetry record must be a step")
-            protocol.validate_facts({"facts": record["facts"],
-                                     "scored_ticks": record["scored_ticks"],
-                                     "reward": record["legacy_reward"]})
-            records += 1
-            obs, breakdown = replay_record(header, record)
-            if obs_sha256(obs, dtype) != record["obs_sha256"]:
-                obs_bad += 1
-            if breakdown is not None:
-                if abs(breakdown.total - record["reward"]["total"]) > _TOTAL_TOL:
-                    reward_bad += 1
-    return ReplaySummary(records, obs_bad, reward_bad)
+        return replay_records(header, (json.loads(line) for line in lines))
+
+
+def replay_records(header, records) -> ReplaySummary:
+    """Verify already decoded telemetry against its declared schemas."""
+    count = obs_bad = reward_bad = 0
+    _validate_payload(header)
+    protocol = _validate_header(header)
+    dtype = header["observation_schema"]["dtype"]
+    for record in records:
+        _validate_payload(record)
+        if record.get("type") != "step":
+            raise ValueError("Telemetry record must be a step")
+        protocol.validate_facts({"facts": record["facts"],
+                                 "scored_ticks": record["scored_ticks"],
+                                 "reward": record["legacy_reward"]})
+        count += 1
+        obs, breakdown = replay_record(header, record)
+        if obs_sha256(obs, dtype) != record["obs_sha256"]:
+            obs_bad += 1
+        if breakdown is not None:
+            if abs(breakdown.total - record["reward"]["total"]) > _TOTAL_TOL:
+                reward_bad += 1
+    return ReplaySummary(count, obs_bad, reward_bad)

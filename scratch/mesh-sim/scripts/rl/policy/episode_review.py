@@ -79,17 +79,13 @@ def endpoint_metrics(episode_dir, seconds=60):
     }
 
 
-def inspect_episode(directory, expected_buildings=None):
+def inspect_episode(directory, expected_buildings=None, *, trace=None, metrics=None):
     from scripts.rl.env.geometry import physical_audit
-    from scripts.rl.env.recording.telemetry import replay_file
-    from scripts.rl.policy.mission_metrics import mission_episode_metrics
+    from scripts.rl.env.recording.telemetry import replay_records
+    from scripts.rl.policy.mission_metrics import mission_episode_metrics, read_episode
 
-    records = [
-        json.loads(line)
-        for line in (Path(directory) / "steps.jsonl").read_text().splitlines()
-    ]
-    contract = records[0]["contract"]
-    steps = records[1:]
+    header, steps = read_episode(directory) if trace is None else trace
+    contract = header["contract"]
     if expected_buildings is not None:
         expected = [{"id": b["id"], **b["bounds"]} for b in expected_buildings]
         if contract.get("navigation", {}).get("buildings") != expected:
@@ -97,23 +93,23 @@ def inspect_episode(directory, expected_buildings=None):
                 "simulator and input building geometry differ; rebuild mesh-sim"
             )
     audit = physical_audit(steps, contract)
-    replay = replay_file(Path(directory) / "steps.jsonl")
+    replay = replay_records(header, steps)
     if replay.obs_mismatches or replay.reward_mismatches:
         raise ValueError("telemetry reconstruction mismatch")
-    return {**mission_episode_metrics(directory), **audit}
+    if metrics is None:
+        metrics = mission_episode_metrics(directory, trace=(header, steps))
+    return {**metrics, **audit}
 
 
-def write_motion_review(directory):
+def write_motion_review(directory, *, trace=None, metrics=None):
     from scripts.artifact_io import write_json
-    from scripts.rl.policy.mission_metrics import mission_episode_metrics
+    from scripts.rl.policy.mission_metrics import mission_episode_metrics, read_episode
 
     directory = Path(directory)
-    data = [
-        json.loads(line)
-        for line in (directory / "steps.jsonl").read_text().splitlines()
-    ]
-    contract = data[0]["contract"]
-    steps = data[1:]
+    header, steps = read_episode(directory) if trace is None else trace
+    contract = header["contract"]
+    if metrics is None:
+        metrics = mission_episode_metrics(directory, trace=(header, steps))
     ids = contract["node_ids"]
     travel = dict.fromkeys(ids, 0.0)
     fields = [
@@ -177,7 +173,7 @@ def write_motion_review(directory):
             "final_positions": dict(
                 zip(ids, [p[:3] for p in steps[-1]["facts"]["nodes"]])
             ),
-            "metrics": mission_episode_metrics(directory),
+            "metrics": metrics,
         },
     )
 

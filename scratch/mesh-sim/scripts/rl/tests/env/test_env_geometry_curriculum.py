@@ -414,29 +414,31 @@ def test_seeded_env_forwards_decision_records_to_every_seed(monkeypatch, tmp_pat
         env.close()
 
 
-def test_scenario_check_seeded_env_keeps_legacy_initial_seed_and_cancel(
+def test_scenario_check_seeded_env_keeps_initial_seed_and_scopes_cancellation(
     monkeypatch, tmp_path
 ):
     created = _stub_seeded(monkeypatch)
     from scripts.rl.scenario_check import execution
 
-    env = execution.SeededEnv(
-        "bin",
-        {"201": "one.ini", "202": "two.ini"},
-        tmp_path,
-        dict(seeds={"201": dict(gate_s=160), "202": dict(gate_s=180)}),
-    )
+    configs = {"201": "one.ini", "202": "two.ini"}
+    case = dict(seeds={"201": dict(gate_s=160), "202": dict(gate_s=180)})
+    first, second = execution.ActiveEnvironments(), execution.ActiveEnvironments()
+    env = execution.SeededEnv("bin", configs, tmp_path / "first", case, first)
+    other = execution.SeededEnv("bin", configs, tmp_path / "second", case, second)
     try:
-        assert created[0].config == "one.ini" and env in execution._ACTIVE
+        assert created[0].config == "one.ini" and first.active == {env}
+        assert second.active == {other}
         assert created[0].kwargs["band"] == "sub-6" and env.band == "sub-6"
         assert created[0].kwargs["decision_records"] is None
-        execution._CANCEL.set()
+        first.cancelled.set()
         with pytest.raises(RuntimeError, match="interrupted"):
             env.reset(seed=202)
+        other.reset(seed=202)
+        assert other.gate_s == 180
     finally:
-        execution._CANCEL.clear()
         env.close()
-    assert env not in execution._ACTIVE
+        other.close()
+    assert not first.active and not second.active
 
 
 def _facts_env(facts, gate_s=None):

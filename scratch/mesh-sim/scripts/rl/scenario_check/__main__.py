@@ -6,7 +6,8 @@ from pathlib import Path
 
 from scripts.sim_support import find_mesh_root, find_sim_binary
 from scripts.rl.scenario_check.execution import run
-from scripts.rl.scenario_check.execution import validate_inputs
+from scripts.rl.scenario_check.defaults import DEFAULT_WORKERS, MAX_WORKERS
+from scripts.rl.scenario_check.validation import validate_inputs
 
 
 def main():
@@ -21,7 +22,12 @@ def main():
         "--output", type=Path, default=mesh / "outputs/custom/10-23/scenario-check"
     )
     parser.add_argument("--sim-binary", default=find_sim_binary(mesh))
-    parser.add_argument("--workers", type=int, choices=range(1, 5), default=4)
+    parser.add_argument(
+        "--workers",
+        type=int,
+        choices=range(1, MAX_WORKERS + 1),
+        default=DEFAULT_WORKERS,
+    )
     parser.add_argument(
         "--plan-only",
         action="store_true",

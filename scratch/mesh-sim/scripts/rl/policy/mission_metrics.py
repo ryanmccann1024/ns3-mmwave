@@ -252,14 +252,13 @@ def compute_mission_metrics(steps, contract):
     }
 
 
-def mission_episode_metrics(directory):
+def mission_episode_metrics(directory, *, trace=None):
     """Mission metrics from a complete episode; incomplete telemetry is an error."""
-    path = Path(directory) / "steps.jsonl"
-    records = [json.loads(line) for line in path.read_text().splitlines()]
-    contract = records[0]["contract"]
-    if records[-1].get("decision") != contract["num_decisions"]:
+    header, steps = read_episode(directory) if trace is None else trace
+    contract = header["contract"]
+    if not steps or steps[-1].get("decision") != contract["num_decisions"]:
         raise ValueError(f"mission report requires complete telemetry: {directory}")
-    return compute_mission_metrics(records[1:], contract)
+    return compute_mission_metrics(steps, contract)
 
 
 def read_episode(directory):
@@ -326,7 +325,7 @@ def connected(facts, threshold=CONNECTED_SINR_THRESHOLD_DB):
 def physical(directory, case, seed, write=False):
     """Scenario-check reduction plus final-minute native radio unity (600-decision episodes)."""
     from scripts.artifact_io import write_json
-    from scripts.rl.scenario_check.reports import reduce_records
+    from scripts.rl.scenario_check.assessment import reduce_records
 
     header, rows = read_episode(directory)
     metrics, timeline = reduce_records(

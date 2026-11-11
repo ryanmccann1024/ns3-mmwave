@@ -1,4 +1,4 @@
-"""Prepare the approved correction batch using archived inputs and existing evidence."""
+"""Prepare the October 23 follow-up cases from a completed diagnostic run."""
 
 import json
 import math
@@ -6,10 +6,16 @@ from pathlib import Path
 import shutil
 
 from scripts.artifact_io import write_json, sha256_file
-from scripts.rl.scenario_check.inputs import read_ini
-from scripts.rl.scenario_check.inputs import write_ini
+from scripts.rl.scenario_check.archive import input_hashes, rebase_ini, write_ini
+from scripts.rl.scenario_check.defaults import (
+    BUILDING_CLEARANCE_M,
+    CHANNEL_PLANNING_SEED,
+    DEFAULT_WORKERS,
+    EVALUATION_SEEDS,
+    OPTIMIZER_SEED,
+)
 from scripts.rl.scenario_check.inputs import reference_routes
-from scripts.rl.scenario_check.geometry import safe_segment
+from scripts.rl.env.geometry import safe_segment
 from scripts.rl.scenario_check.validation import jammer_timing
 
 
@@ -97,13 +103,7 @@ def prepare(previous_output, destination):
                 ),
             )
         for config in folder.rglob("*.ini"):
-            ini = read_ini(config)
-            for key in ("nodes_file", "buildings_file", "jammers_file"):
-                value = ini["scenario"].get(key, "")
-                if value:
-                    ini["scenario"][key] = str(
-                        destination / Path(value).resolve().relative_to(source)
-                    )
+            ini = rebase_ini(source, destination, config)
             ini["scenario"]["name"] = f'10-23-check-02-{case["name"]}'
             for key in list(ini["rl"]):
                 if key.startswith("jammer_") or key in (
@@ -120,7 +120,7 @@ def prepare(previous_output, destination):
         for node in nodes:
             start = tuple(node["position"][axis] for axis in "xyz")
             points = [start] + reference["routes"][node["id"]]
-            if not safe_segment(start, start, boxes, 2) or not all(
+            if not safe_segment(start, start, boxes, BUILDING_CLEARANCE_M) or not all(
                 safe_segment(a, b, boxes, 3) for a, b in zip(points, points[1:])
             ):
                 raise ValueError(f'illegal start or route: {case["name"]}/{node["id"]}')
@@ -162,10 +162,10 @@ def prepare(previous_output, destination):
         scenario_check_version=2,
         stage="scenario_checks_only",
         training_enabled=False,
-        evaluation_seeds=[201, 202],
-        planning_seed=311,
-        optimizer_seed=7,
-        workers=4,
+        evaluation_seeds=list(EVALUATION_SEEDS),
+        planning_seed=CHANNEL_PLANNING_SEED,
+        optimizer_seed=OPTIMIZER_SEED,
+        workers=DEFAULT_WORKERS,
         episodes_expected=102,
         cases=cases,
         static_validation=checks,
@@ -173,10 +173,6 @@ def prepare(previous_output, destination):
         previous_output=str(previous_output),
         placement_searches_expected=0,
     )
-    campaign["input_hashes"] = {
-        str(p.relative_to(destination)): sha256_file(p)
-        for p in sorted(destination.rglob("*"))
-        if p.is_file()
-    }
+    campaign["input_hashes"] = input_hashes(destination)
     write_json(destination / "scenario-check.json", campaign)
     return campaign

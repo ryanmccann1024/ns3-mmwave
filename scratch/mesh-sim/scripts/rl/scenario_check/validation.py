@@ -3,8 +3,10 @@
 import json
 from pathlib import Path
 
+from scripts.artifact_io import sha256_file
 from scripts.rl.env.config import read_jammer_onsets
-from scripts.rl.scenario_check.inputs import read_ini
+from scripts.rl.scenario_check.defaults import EVALUATION_SEEDS
+from scripts.rl.scenario_check.archive import read_ini
 
 
 def jammer_timing(config, case, seed, command=None):
@@ -59,3 +61,53 @@ def jammer_timing(config, case, seed, command=None):
         stationary_position=[points[2][axis] for axis in "xyz"],
         max_range_m=jammer["max_range_m"],
     )
+
+
+def placement_methods(case):
+    methods = case.get(
+        "placement_benchmarks",
+        ["geometric", "optimization"] if case["mission"] == "coverage" else [],
+    )
+    if len(set(methods)) != len(methods) or any(
+        m not in ("geometric", "optimization") for m in methods
+    ):
+        raise ValueError("unknown or repeated placement benchmark")
+    if methods and case["mission"] != "coverage":
+        raise ValueError("placement benchmarks apply only to coverage")
+    return methods
+
+
+def validate_inputs(source):
+    source = Path(source)
+    campaign = json.loads((source / "scenario-check.json").read_text())
+    if (
+        campaign["scenario_check_version"] not in (1, 2)
+        or campaign["training_enabled"] is not False
+    ):
+        raise ValueError("expected a version 1 or 2 checks-only campaign")
+    for relative, digest in campaign["input_hashes"].items():
+        if sha256_file(source / relative) != digest:
+            raise ValueError(
+                f"input changed after preparation: {relative}; review before replacing its fingerprint"
+            )
+    cases = campaign["cases"]
+    count = sum((3 + len(placement_methods(c))) * len(c["seeds"]) for c in cases)
+    if (
+        not cases
+        or len({c["name"] for c in cases}) != len(cases)
+        or count != campaign["episodes_expected"]
+    ):
+        raise ValueError("case inventory and expected episode count disagree")
+    if campaign["scenario_check_version"] == 1 and (len(cases) != 24 or count != 168):
+        raise ValueError("expected original 24 scenarios / 168 episodes")
+    if campaign["scenario_check_version"] == 2:
+        for case in cases:
+            if set(case["seeds"]) != {str(seed) for seed in EVALUATION_SEEDS}:
+                raise ValueError(
+                    "correction checks require paired diagnostic seeds 201/202"
+                )
+            for seed, settings in case["seeds"].items():
+                config = source / case["name"] / settings["run_config"]
+                if case["mission"] == "jamming":
+                    jammer_timing(config, case, int(seed))
+    return campaign
