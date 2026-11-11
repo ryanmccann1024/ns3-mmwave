@@ -1,27 +1,40 @@
-@page scripts_rl_experiments Batch definitions
-@brief Pure configuration, immutable planning and finite selection.
+@page scripts_rl_experiments scripts/rl/experiments
 
-`scenario_timing` checks the INI cadence before budgeting decisions. Baseline
-and operation gates must match the selected INI's `control_start_s`.
-Replay checks preserve the source case's reference gate for scoring.
-The [coordination smoke example](../../../inputs/experiments/examples/coordination-smoke/README.md)
-shows how to preview a plan.
+@brief Pure batch domain: matrix version 2 validation, the immutable plan v3 task graph, and the named selection rules.
 
-`config.load_matrix_v2` assembles validated v2 batches. `scenario_config` owns
-scenario inputs, `row_config` owns row and training settings, and
-`stage_config` owns selection rules and stage dependencies. `plan.build_batch_plan` builds a dependency graph
-without executing it. `plan_tasks` builds commands, `plan_inputs` fingerprints
-inputs, and `task_graph` owns task identities and destinations. `selection.select` reads declared selection evidence,
-never held-out data. Version 1 helpers remain importable from
-`policy.experiment`. Run the matrix and inventory tests under
-`tests/experiments/` to exercise these library contracts.
+This package turns a batch matrix into a fixed, hashed task graph. It reads
+configuration, assets and saved training manifests, and hashes the simulator
+binary, but it never starts a process, imports a scheduler or imports a
+command-line module. Execution, receipts and recovery belong to `../ops/`;
+operating one model belongs to `../policy/`.
 
-## Result production
+The field catalog, path rules, task states and examples are in the
+[batch experiment reference](@ref mesh_sim_rl_batch_reference); this page does
+not repeat them. The worked workflow is
+[Experiments and operations](@ref mesh_sim_rl_experiments).
 
-`reporting.py` dispatches reports from accepted artifacts. `report_curves`
-reads training history, `report_comparison` pools comparable results,
-`report_index` writes scenario indexes and asset copies, and
-`report_selection` verifies the evidence used to rank candidates. Scenario index version 4 and online manifest version 5 preserve
-explicit model/mode/seed references, source identities and missing-data states.
-Readers must keep legacy branches. `tests/fixtures/batch_*_example.json` and
-`tests/experiments/test_gui_index.py` define producer compatibility.
+## Module layout
+
+| File | Role |
+| --- | --- |
+| `config.py` | `load_matrix_v2` validates a version 2 matrix: keys, names, seed roles, kind requirements, scenario assets and references, parent models, training budgets and schedules. `scenario_config.py`, `row_config.py` and `stage_config.py` own the corresponding validation rules. `matrix_fields.py` supplies shared version 1 and 2 field helpers. `resolve_execution` applies CLI > matrix > defaults. |
+| `plan.py` | `build_batch_plan` expands the validated matrix into plan v3: task IDs, SHA-256 keys over fixed dimensions, destinations, argument lists, dependencies and hashed inputs. `plan_tasks.py` builds commands, `plan_inputs.py` fingerprints inputs, and `task_graph.py` owns task identities and destinations. |
+| `selection.py` | `select` applies a stage's named rule to gathered evidence and returns the selection receipt. |
+| `reporting.py` | Dispatches reports. `report_curves.py` reads training history, `report_comparison.py` pools comparable results, `report_index.py` writes scenario indexes and asset copies, and `report_selection.py` verifies selection evidence. |
+
+`scenario_timing.py` checks native cadence and deployment gates before
+planning. Replay preserves the saved case's reference gate for scoring.
+
+## Callers
+
+- `../experiment.py` parses the commands and calls these owners; `../ops/local.py`
+  and `../ops/recovery.py`
+  consume the written plan.
+- `../policy/experiment.py` re-exports the version 1 helpers under their
+  existing names.
+
+## Tests
+
+`../tests/experiments/test_matrix_v2.py`; behavior map in
+[Policy comparison tests](@ref src_rl_policy_comparison_tests). Saved-file
+versions are listed in [Contributing](@ref Contributing).

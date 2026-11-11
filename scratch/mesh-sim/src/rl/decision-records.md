@@ -52,7 +52,7 @@ memory limit, since each record is flushed to disk as it is written.
 - Join on integers: `input.tick == outcome.tick − outcome.ticks_in_step`.
   Compare `time_s` only with a tolerance. The outcome window is `(input.time_s, outcome.time_s]`.
 - `input.steps_ref` names `steps.jsonl` record n−1 only when that record was saved;
-  otherwise it is null and `input.obs_vector` carries the exact vector. A sampled row is never relabelled.
+  otherwise it is null and `input.obs_vector` carries the exact vector. A sampled row is never relabeled.
 - Decision 0 has no action or outcome; the terminal observation is never an input.
 - Node IDs are strings from `contract_identity.slot_node_ids`; padded slots are `null`.
   `targets` lists every active slot because the action is joint.
@@ -195,9 +195,9 @@ explicitly adopt the pinned v2 schema before reading these new records.
 
 ### Ownership and extension
 
-`env/decision_settings.py` owns recording defaults, allowed settings, provenance,
+`env/recording/settings.py` owns recording defaults, allowed settings, provenance,
 and validation. `cli_common.py` only exposes flags and delegates resolution.
-`env/decisions.py` owns record construction, coverage, and persistence; record
+`env/recording/decisions.py` owns record construction, coverage, and persistence; record
 format strings stay there. Action count and hold index come from `env/protocol.py`.
 `policy/preferences.py` owns the optional model hook, with no simulator or
 record-writer responsibility. Add format changes in a new versioned schema,
@@ -216,7 +216,7 @@ All in `scripts/rl/tests/env/test_decision_records.py` unless noted; 16, 17, and
 | 7 `test_float32_preset_hashes_coincide`, 8 `test_requested_revalidated_applied`, 9 `test_mask_hash_is_over_int_json` | Observation versus model-input hashes; requested/revalidated/applied; integer mask hash. |
 | 10 `test_cap_stops_at_record_boundary`, 11 `test_record_every_two_partition`, 12 `test_zero_cap_means_no_cap`, 12a `test_cap_smaller_than_reset` | Cap boundary, sampling partition, unlimited cap, sub-reset cap failure. |
 | 13 `test_writer_failure_is_isolated`, 14 `test_interrupted_episode_status` | Failure isolation and `interrupted` status. |
-| 15 `test_string_ids_and_null_padding`, 20 `test_training_context_records`, 21 `test_legacy_mode_is_refused` | String IDs with `null` padding; training/callback labelling; legacy refusal. |
+| 15 `test_string_ids_and_null_padding`, 20 `test_training_context_records`, 21 `test_legacy_mode_is_refused` | String IDs with `null` padding; training/callback labeling; legacy refusal. |
 | 16 `test_model_evaluation_records_preferences_and_identity`, 17 `test_capture_on_off_parity` | Model identity, preference capture, on/off action and trace parity. |
 | 18 `test_schema_well_formed_and_documents_validate`, `test_schema_matches_jsonschema_when_installed`, 19 `test_schema_v1_is_frozen` | Produced documents validate; independent Draft 2020-12 checks when installed; historical schema stays pinned. |
 | `test_failed_preference_copy_keeps_actions_and_telemetry`, `test_evaluation_failure_removes_preference_hook` | Copy failure before/after the first capture preserves actions and telemetry, reports unavailable preferences, and removes the hook; cleanup also runs on evaluation failure. |

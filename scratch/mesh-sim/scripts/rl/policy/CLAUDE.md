@@ -12,8 +12,8 @@ codes; this package owns the logic.
 ## Files and flow
 
 - `bundle.py` -- `read_bundle` accepts only a `completed`, centralized
-  `train_manifest.json` at `MANIFEST_VERSION` (must equal
-  `train.MANIFEST_VERSION`) and verifies the model file's SHA-256. `final`,
+  `train_manifest.json` at the current writer version or one of the earlier
+  versions explicitly accepted by `bundle.py`, and verifies the model file's SHA-256. `final`,
   `best`, or a checkpoint step can be selected. No flag bypasses a digest.
   `eval_selection` forces `telemetry=steps` so metrics come from `steps.jsonl`.
 - `compat.py` -- `check_compatibility` runs in a fixed order: structural
@@ -32,15 +32,41 @@ codes; this package owns the logic.
   "delivery_ratio"`, `COMPARISON_VERSION`. `exit_code` returns 2 for health
   counters or seed overlap. CI math comes from `scripts/stats.py`.
 
+- Batch operation owners (one model, one seed; no batch scheduling here):
+  `operation.py` (`run_operation`, `DiagnosticEnv`/`OperationEnv`, frozen and
+  online modes, `online_manifest.json` v5 with explicit `protocol`;
+  `run_online` keeps the standalone v3/v4 envelope), `online_adaptation.py`
+  (`online_gated_v1`: eligible windows, buffered-gap refusal, final partial
+  flush, singleton skip, `target_kl` null), `schedules.py` (frozen sampling,
+  stall and coverage schedules; no defaults; never an optimizer update),
+  `replay_gate.py` (`strict_v1`, `pre_contact_source_v1`; `gate_passed` is the
+  success test), `reward_audit.py` (named methods `position_replay_v1`,
+  `coordinated_v1`, `team_radio_v1`), `scripted.py` (both route formats and
+  their controllers), `mission_metrics.py` / `episode_review.py` (formulas,
+  windows and null rules unchanged; `mission_review.json` has no status field).
+- `bundle.py` also owns `parameter_digest`, `optimizer_digest`,
+  `checkpoint_counters` and model bindings (`bind_model`,
+  `read_bound_checkpoint`, `MODEL_BINDING_VERSION`). Policy code never imports
+  these from the CLI `online.py`.
+- `experiment.py` is the version 1 compatibility facade; keep every public name
+  and signature. Version 2 logic lives in `../experiments/`.
+
 ## Rules
 
 - Bump the relevant version constant and its reader together when a manifest
   field changes; the `CONTRIBUTING.md` "update together" table applies.
 - Comparisons group by scenario digests and training settings, not paths;
   mixing groups is an error, not a warning.
-- Tests: `tests/test_policy_lifecycle.py`, `test_lifecycle_cli.py`,
+- Online protocols never merge: SB3 defaults (`learning_rate =
+  min(parent, 1e-4)`, `ent_coef .001`, `target_kl .02`, untrained tail
+  `budget % n_steps`) and gated accounting are pinned by tests. Every online
+  operation reloads its parent per seed. Frozen modes verify unchanged
+  parameter and optimizer digests.
+- Tests: `tests/policy/test_policy_lifecycle.py`, `test_lifecycle_cli.py`,
   `test_evaluation_pipeline.py`, `test_policy_comparison.py`; their maps are
   `src/rl/policy-lifecycle-tests.md` and `src/rl/policy-comparison-tests.md`.
+  Batch owners: `test_operation.py`, `test_online_protocols.py`,
+  `test_checkpoint_recovery_support.py` (map in `tests/README.md`).
 
 - `metrics.py` owns each metric's units, direction, export behavior, and accumulator.
   Register a metric and its accumulator; do not add parallel metric-name lists to
@@ -54,5 +80,6 @@ codes; this package owns the logic.
   held-out groups.
 - Initial source-to-plan relocation is an exported metric with no paired/group
   reduction. Show it beside scored travel in comparison JSON/CSV; never add
-  it to post-reset episode movement. Evaluation v8 and comparison v2 readers
-  must stay aligned with baseline manifest/plan v3.
+  it to post-reset episode movement. Keep evaluation/comparison readers aligned
+  with their writers and the baseline manifest/plan contract; see the schema
+  ownership in [CONTRIBUTING.md](../../../CONTRIBUTING.md).

@@ -2,32 +2,20 @@
 
 @brief Command-line parsing and pre-simulation setup for mesh-sim.
 
-This module handles the simulator's command-line flags (`ParseCommandLine`),
-decides which random seeds to run (`ResolveSeeds`, `ResolveQuerySeed`), and
-copies the scenario input files into the output directory
-(`ArchiveScenarioInputs`). `sim.cc` calls them at startup. You use it
-indirectly every time you run the simulator; you only edit it to add or
-change a flag.
+This module parses the simulator's command-line flags, decides which seeds to
+run, and copies the scenario files into the output folder. `sim.cc` calls it at
+startup. You use it every time you run the simulator, and only edit it to add
+or change a flag.
 
-## Module Layout
+## 1\. Usage
 
-| File | Role |
-|------|------|
-| @ref cli-parser.h "cli-parser.h" | `CliArgs` struct and declarations of the public functions (including `ResolveQuerySeed` for `--channel-query`), with full Doxygen docs. |
-| @ref cli-parser.cc "cli-parser.cc" | Implementations. The only file in `src/` that includes `ns3/command-line.h`. |
-| `CLAUDE.md` | Scope and dependency notes for AI assistants. |
-| `README.md` | This page. |
-
-## Run
-
-Shortest run (the user builds the binary; do not build from here):
+Run from the ns3-mmwave repository root. Only `--run-config` is required:
 
 ```bash
 ./ns3 run scratch/mesh-sim/sim -- --run-config=scratch/mesh-sim/inputs/baselines/p0-smoke/run.ini
 ```
 
-Run from the ns-3 root. Flags use the form `--name=value`. Only
-`--run-config` is required.
+A fuller example:
 
 ```bash
 ./ns3 run scratch/mesh-sim/sim -- \
@@ -37,71 +25,98 @@ Run from the ns-3 root. Flags use the form `--name=value`. Only
   --output-dir=<dir>
 ```
 
-If a flag is missing or invalid, the parser prints `Error: ...` to `stderr`
-and exits with code 1 before anything else runs.
+Flags take the form `--name=value`. `--debug-links`, `--no-viz`, `--rl-mode`
+and `--channel-query` also work with no value. A missing or invalid flag prints
+`Error: ...` and exits with code 1 before anything runs.
 
-| Flag | Required | Default | Description |
-|------|----------|---------|-------------|
-| `--run-config=<path>` | yes | none | Path to the scenario `run.ini` (the file, not the directory). Must exist. |
-| `--seeds=<list>` | no | seed from `run.ini` | Comma-separated seeds, e.g. `1,2,3`. Each seed runs independently in its own `seed-<N>/` subdirectory. |
-| `--seed=<int>` | no | seed from `run.ini` | Single-seed override. Ignored when `--seeds` is also given. |
-| `--run-id=<int>` | no | `run_id` from `run.ini` | Overrides the `run_id` value. Negative means not set. |
-| `--output-dir=<path>` | no | `[output] dir` from `run.ini` / auto-timestamped | Overrides the batch output root. |
-| `--band=<mmwave\|sub-6>` | no | `[channel] band` in `run.ini`, else `mmwave` | Radio band. Any other value is an error. Jammer interference applies only on `sub-6`. |
-| `--positions-override=<path>` | no | none | JSON file that patches node positions after `nodes.json` is loaded. Must exist if given. Used by the RL controller. |
-| `--debug-links` | no | `false` | Verbose per-link evaluation logging. |
-| `--rl-mode` | no | `false` | Enables the RL bridge (observations and actions as JSON on stdin/stdout). |
-| `--channel-query` | no | `false` | Serves candidate-layout channel queries on stdin/stdout instead of running ([contract](@ref src_query)). Seeds must resolve to exactly one; `--output-dir` is ignored with a note; no output directory, archive, or `run.log` is written. |
+## 2\. Flags
 
-`--debug-links`, `--rl-mode` and `--channel-query` can be given with no value.
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--run-config=<path>` | required | The scenario's `run.ini` (the file, not its folder). Must exist. |
+| `--seeds=<list>` | seed from `run.ini` | Comma-separated seeds, e.g. `1,2,3`. Each runs in its own `seed-<N>/` folder. |
+| `--seed=<int>` | seed from `run.ini` | Single-seed override. Ignored if `--seeds` is given. |
+| `--run-id=<int>` | `run_id` from `run.ini` | Overrides `run_id`. Negative means not set. |
+| `--output-dir=<path>` | `[output] dir`, else timestamped | Where results are written. |
+| `--band=<mmwave\|sub-6>` | `[channel] band`, else `mmwave` | Radio band. Jammers only apply on `sub-6`. |
+| `--positions-override=<path>` | none | JSON file that patches node positions after `nodes.json` loads. Must exist if given. |
+| `--no-viz` | off | Skips the six replay CSVs. `inputs/`, `run.log` and each `summary.json` are still written. |
+| `--jammer-onset-s=<seconds>` | `-1` (off) | Starts every enabled jammer at this time (see below). |
+| `--debug-links` | off | Verbose per-link (and per-jammer) logging. |
+| `--rl-mode` | off | Enables the RL bridge: JSON observations and actions on stdin/stdout. |
+| `--channel-query` | off | Serves channel queries on stdin/stdout instead of running a simulation ([contract](@ref src_query)). |
 
-Seed order of precedence: `--seeds`, then `--seed`, then `run.ini`. Empty
-items in `--seeds` are skipped; a non-numeric item is an error.
+**`--jammer-onset-s`:** the value must be finite and in `[0, duration_s)`, and
+the scenario must define at least one jammer; otherwise the simulator prints
+`Error: ...` and exits 1 before archiving anything. Each enabled jammer's active
+interval becomes `[onset, duration_s]`. Disabled jammers stay disabled, and the
+band does not change.
 
-## Output
+**`--channel-query`:** seeds must resolve to exactly one. `--output-dir` is
+ignored with a note, and no output folder, archive or `run.log` is written.
 
-`ParseCommandLine` and `ResolveSeeds` write nothing. `ArchiveScenarioInputs`
-creates `<output-dir>/inputs/` and copies every regular file from the
-`run.ini` directory into it. The rest of the layout is written by other
-modules (`sim.cc`, `src/io/`):
+## 3\. Precedence
+
+| Setting | Order (first one set wins) |
+|---|---|
+| Seeds | `--seeds`, then `--seed`, then `seed` in `run.ini` |
+| Band | `--band`, then `[channel] band`, then `mmwave` |
+| Output folder | `--output-dir`, then `[output] dir`, then `outputs/YYYY-MM/DD/HH-MM-SS/` |
+
+In `--seeds`, empty items are skipped and a non-numeric item is an error.
+
+## 4\. Output
+
+This module writes only the scenario archive: it creates
+`<output-dir>/inputs/` and copies every regular file from the `run.ini` folder
+into it. Other modules (`sim.cc`, `src/io/`) write the rest:
 
 ```
 <output-dir>/
   run.log          # resolved config summary
-  inputs/          # copy of the scenario directory (run.ini, nodes.json, ...)
+  inputs/          # copy of the scenario folder (run.ini, nodes.json, ...)
   seed-1/
-    positions.csv  links.csv  rx-power.csv  mcs.csv  flows.csv  routes.csv
+    positions.csv  links.csv  rx-power.csv  mcs.csv  flows.csv  routes.csv  summary.json
   seed-2/
 ```
 
-Re-running with the archived `inputs/` reproduces the original scenario.
+The archive holds the files that sat beside `run.ini`. Files referenced from
+elsewhere, and some settings, are not recorded; see
+@ref src_io_run_record "What a run records".
 
-## Conventions
+## 5\. Module layout
 
-- **Hard exits.** `ParseCommandLine` and `ResolveSeeds` print to `stderr` and
-  call `std::exit(1)`; they do not throw. `sim.cc` therefore does not handle
-  these cases.
-- **Files are only checked for existence.** `--run-config` and
-  `--positions-override` are not validated here; `ConfigLoader` does that.
-- **Archiving copies the whole directory.** Every regular file next to
-  `run.ini` is copied (subdirectories are not), and existing files in
-  `inputs/` are overwritten. Large files in the scenario directory get copied
-  too.
-- **Include a directory in `--run-config`.** A bare filename such as
-  `run.ini` has an empty parent path, and `ArchiveScenarioInputs` would throw
-  `std::filesystem::filesystem_error` (caught in `sim.cc`, exit 1).
-- **`--output-dir` is applied in `sim.cc`,** not in this module. It replaces
-  `cfg.output_dir`, and `inputs/` is created under the replaced path.
-- **Band resolution** is `--band` > `[channel] band` > `mmwave`. The
-  resolution itself happens in `sim.cc`; this module only validates the value.
-- **`--channel-query` seed check needs the config.** More than one resolved
-  seed is rejected by `ResolveQuerySeed` (`Error: --channel-query needs exactly
-  one seed`, exit 1), which `src/query/` calls after the config is loaded.
+| File | Role |
+|------|------|
+| @ref cli-parser.h "cli-parser.h" | `CliArgs` struct and the public functions (`ParseCommandLine`, `ResolveSeeds`, `ResolveQuerySeed`, `ArchiveScenarioInputs`). |
+| @ref cli-parser.cc "cli-parser.cc" | Implementations. The only file in `src/` that includes `ns3/command-line.h`. |
+| `CLAUDE.md` | Scope and dependency notes for AI assistants. |
+| `README.md` | This page. |
 
-## Dependencies
+Flags are declared in `cli-parser.h` and parsed in `cli-parser.cc`. `sim.cc`
+applies the overrides (including `--output-dir`, `--band`, `--no-viz` and
+`--jammer-onset-s`) after the configuration loads.
 
-- `ns3/command-line.h` (ns-3 core), used only in `cli-parser.cc`.
-- `src/domain/sim-config.h` (`SimConfig`, read for `cfg.seed`).
+## 6\. Behavior notes
+
+- **Hard exits:** `ParseCommandLine` and `ResolveSeeds` print to stderr and call
+  `std::exit(1)`; they never throw.
+- **Files are only checked for existence:** `ConfigLoader` validates the
+  contents of `--run-config` and `--positions-override`.
+- **The archive copies the whole folder:** every regular file beside `run.ini`
+  (not subfolders) is copied, including large ones, and existing files in
+  `inputs/` are overwritten.
+- **`--run-config` needs a folder in its path:** a bare `run.ini` has an empty
+  parent path, so `ArchiveScenarioInputs` throws
+  `std::filesystem::filesystem_error`; `sim.cc` catches it and exits 1.
+- **`--channel-query` seed check happens later:** `src/query/` calls
+  `ResolveQuerySeed` after the config loads, which rejects more than one seed
+  with `Error: --channel-query needs exactly one seed`.
+
+## 7\. Dependencies
+
+- `ns3/command-line.h` (ns-3 core), in `cli-parser.cc` only.
+- `src/domain/sim-config.h` (`SimConfig`, for `cfg.seed`).
 - `src/util/string-utils.h` (`parseSeedList`).
 - C++17 `<filesystem>`.
-- Depended on by: `sim.cc`, `src/query/` (`ResolveQuerySeed`).
+- Used by `sim.cc` and `src/query/` (`ResolveQuerySeed`).
