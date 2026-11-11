@@ -1,0 +1,48 @@
+{
+  "matrix_version": 2,
+  "name": "coordination-smoke",
+  "description": "Portable plumbing smoke on one 64-decision rural coverage case; not a mission-performance experiment.",
+  "kind": "train",
+  "scenarios": {
+    "rural-coverage-3-peers": {
+      "run_config": "run.ini",
+      "band": "sub-6",
+      "case": {
+        "mission": "coverage", "environment": "rural", "peers": 3, "coverage_target": 0.8,
+        "seeds": {"101": {"gate_s": 0}, "201": {"gate_s": 0}, "202": {"gate_s": 0}}
+      },
+      "reference": {"kind": "scenario_routes_v1", "path": "reference.json"},
+      "baselines": {"policies": ["scripted", "hold", "random_valid"], "seed_role": "diagnostic"}
+    }
+  },
+  "seeds": {"training": [101], "model_selection": [], "diagnostic": [201, 202], "held_out": []},
+  "training": {
+    "total_timesteps": 256, "n_steps": 32, "batch_size": 16, "n_epochs": 2,
+    "eval_every_steps": 0, "checkpoint_every_steps": 128, "keep_checkpoints": 2,
+    "checkpoint_timing": "after_update", "decisions_per_episode": 64, "total_episodes": 4
+  },
+  "evaluation": {
+    "operations": [
+      {"id": "frozen-deterministic", "mode": "frozen_deterministic", "seed_role": "diagnostic",
+       "at_steps": [128, "final"]},
+      {"id": "frozen-sampled", "mode": "frozen_sampled", "seed_role": "diagnostic",
+       "at_steps": [128, "final"]},
+      {"id": "online-gated", "mode": "online_gated_v1", "seed_role": "diagnostic",
+       "at_steps": [128, "final"], "online": {"n_steps": 16, "batch_size": 8}},
+      {"id": "online-sb3", "mode": "online_sb3_v1", "seed_role": "diagnostic",
+       "at_steps": [128, "final"], "online": {"n_steps": 16, "batch_size": 8}}
+    ]
+  },
+  "checks": [
+    {"id": "scripted-replay", "kind": "replay_gate", "scenario": "rural-coverage-3-peers",
+     "seeds": [201], "source": {"baseline": "scripted", "seed": 201}}
+  ],
+  "execution": {"workers": 1, "threads_per_worker": 1, "failure_policy": "continue", "nice": 0,
+                "recovery": "checkpoint"},
+  "rows": [
+    {"name": "raw-delivery", "scenario": "rural-coverage-3-peers", "profile": "smoke",
+     "observation_preset": "raw_links_v1", "action_profile": "move_2d",
+     "reward_components": ["delivery_ratio"], "reward_weights": [1.0],
+     "labels": {"reward_label": "Delivery ratio", "tags": ["smoke"]}}
+  ]
+}

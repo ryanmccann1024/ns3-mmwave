@@ -1,17 +1,18 @@
 /* -*- Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
 /**
  * @file rl-bridge.cc
- * @brief Implements RlBridge: JSON message writing, action parsing, masks, and per-tick velocity control.
+ * @brief Exchanges RL messages and accumulates reward and service facts.
  */
 
 #include "src/rl/rl-bridge.h"
-#include "src/rl/joint-motion.h"
+
 #include "third_party/json.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <string>
+#include <utility>
 
 using json = nlohmann::json;
 using ojson = nlohmann::ordered_json;
@@ -21,8 +22,77 @@ namespace mesh_sim
 
 namespace
 {
-constexpr double kWallEps = 1e-6;
-constexpr int    kHold = 4;
+constexpr double kObstacleSensingRangeM = 20.0;
+constexpr double kProgressDistanceScaleM = 100.0;
+
+ojson
+NavigationConfig(const RlConfig& rl, const std::vector<BuildingSpec>& buildings)
+{
+    ojson bounds = ojson::array();
+    for (const auto& building : buildings)
+    {
+        bounds.push_back(ojson{
+            {"id", building.id},
+            {"x_min", building.x_min},
+            {"x_max", building.x_max},
+            {"y_min", building.y_min},
+            {"y_max", building.y_max},
+            {"z_min", building.z_min},
+            {"z_max", building.z_max},
+        });
+    }
+    return ojson{
+        {"version", 1},
+        {"building_clearance_m", rl.building_clearance_m},
+        {"mask_building_moves", rl.mask_building_moves},
+        {"obstacle_sensing_range_m", kObstacleSensingRangeM},
+        {"buildings", std::move(bounds)},
+    };
+}
+
+ojson
+MissionInit(const MissionConfig& mission)
+{
+    ojson message{
+        {"version", mission.team_investigation ? 2 : 1},
+        {"kind", mission.kind},
+        {"investigator_id", mission.investigator_id},
+        {"goal_x", mission.goal_x},
+        {"goal_y", mission.goal_y},
+        {"arrival_radius_m", mission.arrival_radius_m},
+        {"coverage_radius_m", mission.coverage_radius_m},
+        {"dwell_s", mission.dwell_s},
+        {"goal_coverage_target", mission.goal_coverage_target},
+        {"recovery_delivery_target", mission.recovery_delivery_target},
+        {"recovery_coverage_ratio", mission.recovery_coverage_ratio},
+        {"recovery_worst_target", mission.recovery_worst_target},
+        {"progress_distance_scale_m", kProgressDistanceScaleM},
+        {"coverage_domain", "outdoor_probe_cells"},
+    };
+    if (mission.team_investigation)
+    {
+        message["team_investigation"] = true;
+        message["team_radius_m"] = mission.team_radius_m;
+        message["team_delivery_target"] = mission.team_delivery_target;
+    }
+    return message;
+}
+
+ojson
+NodeServiceRows(uint32_t nodeCount,
+                const std::vector<double>& demand,
+                const std::vector<double>& delivered)
+{
+    ojson rows = ojson::array();
+    for (uint32_t node = 0; node < nodeCount; ++node)
+    {
+        rows.push_back(ojson::array({
+            demand.empty() ? 0.0 : demand[node],
+            delivered.empty() ? 0.0 : delivered[node],
+        }));
+    }
+    return rows;
+}
 
 }  // namespace
 
@@ -33,6 +103,7 @@ RlBridge::RlBridge(const SimConfig& cfg)
       m_rewardWindow(cfg.warmup_s)
 {
     m_buildings = cfg.buildings;
+    m_available.assign(m_numNodes, true);
     m_numSlots = cfg.rl.num_slots;
     m_k        = std::max(1u, cfg.rl.decision_interval_ticks);
     m_numTicks = cfg.rl.num_ticks;
@@ -131,13 +202,31 @@ RlBridge::AccumulateTick(double time_s, const LinkTable& linkTable, const std::v
         return;
     }
     ++m_window.scored_ticks;
+    if (time_s > m_rl.control_start_s)
+        ++m_window.deployment_eligible_ticks;
+    const bool missionActive = m_rl.mission.kind != "none";
     if (m_window.node_demand_mbps_sum.empty())
     {
         m_window.node_demand_mbps_sum.assign(m_numNodes, 0.0);
         m_window.node_delivered_mbps_sum.assign(m_numNodes, 0.0);
+        if (missionActive)
+        {
+            m_window.survivor_node_demand.assign(m_numNodes, 0.0);
+            m_window.survivor_node_delivered.assign(m_numNodes, 0.0);
+        }
     }
     for (const auto& fr : flows)
     {
+        if (missionActive && m_available[fr.src] && m_available[fr.dst])
+        {
+            m_window.survivor_demand_mbps_sum += fr.demand_mbps;
+            m_window.survivor_delivered_mbps_sum += fr.delivered_mbps;
+            for (uint32_t endpoint : {fr.src, fr.dst})
+            {
+                m_window.survivor_node_demand[endpoint] += fr.demand_mbps;
+                m_window.survivor_node_delivered[endpoint] += fr.delivered_mbps;
+            }
+        }
         m_window.demand_mbps_sum += fr.demand_mbps;
         m_window.delivered_mbps_sum += fr.delivered_mbps;
         for (uint32_t endpoint : {fr.src, fr.dst})
@@ -169,9 +258,13 @@ RlBridge::AccumulateTick(double time_s, const LinkTable& linkTable, const std::v
     bool unsafe = false;
     for (uint32_t i = 0; i < m_numNodes; ++i)
     {
+        if (!m_available[i])
+            continue;
         const auto a = mobs[i]->GetPosition();
         for (uint32_t j = i + 1; j < m_numNodes; ++j)
         {
+            if (!m_available[j])
+                continue;
             const auto b = mobs[j]->GetPosition();
             const double distance = std::hypot(std::hypot(a.x - b.x, a.y - b.y), a.z - b.z);
             m_window.min_pair_distance_m = std::min(m_window.min_pair_distance_m, distance);
@@ -218,6 +311,11 @@ RlBridge::WriteInit() const
     const uint32_t numDecisions = (m_numTicks + m_k - 1) / m_k; // Ceiling of ticks / ticks per decision.
 
     ojson msg;
+    if (m_rl.control_start_s > 0)
+    {
+        msg["deployment_gate"] = ojson{{"version", 1}, {"source", "control_start_s"}};
+        msg["control_start_s"] = m_rl.control_start_s;
+    }
     msg["type"]                   = "init";
     msg["contract"]               = "mesh_move_2d_v2";
     msg["dimensions"]             = 2;
@@ -240,6 +338,7 @@ RlBridge::WriteInit() const
     msg["reward_warmup"]          = "exclude";
     msg["unsafe_separation_m"] = m_rl.unsafe_separation_m;
     msg["avoid_buildings"] = m_rl.avoid_buildings;
+    msg["navigation"] = NavigationConfig(m_rl, m_buildings);
     msg["avoid_node_collisions"] = m_rl.avoid_node_collisions;
     msg["node_service_columns"] = {"demand_mbps_sum", "delivered_mbps_sum"};
     if (m_rl.coverage_enabled)
@@ -262,60 +361,24 @@ RlBridge::WriteInit() const
                                           {"z_min", m_rl.z_min}, {"z_max", m_rl.z_max}};
     msg["band"]                   = m_band;
     msg["jammer_path_enabled"]    = m_jammerPathEnabled;
+    if (m_rl.mission.kind != "none")
+    {
+        msg["mission"] = MissionInit(m_rl.mission);
+    }
 
     std::cout << msg.dump() << "\n" << std::flush;
 }
 
-bool
-RlBridge::CrossesBuilding(const ns3::Vector& a, const ns3::Vector& b) const
-{
-    if (!m_rl.avoid_buildings) return false;
-    for (const auto& building : m_buildings)
-    {
-        if (a.z < building.z_min || a.z > building.z_max) continue;
-        const double loX = std::min(a.x, b.x), hiX = std::max(a.x, b.x);
-        const double loY = std::min(a.y, b.y), hiY = std::max(a.y, b.y);
-        if (hiX >= building.x_min && loX <= building.x_max &&
-            hiY >= building.y_min && loY <= building.y_max) return true;
-    }
-    return false;
-}
-
-std::vector<int>
-RlBridge::ComputeMask(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs) const
-{
-    std::vector<int> mask(5 * m_numSlots, 0);
-    for (uint32_t i = 0; i < m_numSlots; ++i)
-    {
-        const auto& slot = m_slots[i];
-        if (!slot.active)
-        {
-            mask[5 * i + 4] = 1;  // padded slot: hold only
-            continue;
-        }
-        auto p = mobs[slot.node_index]->GetPosition();
-        mask[5 * i + 0] = (p.x - m_rl.x_min > kWallEps) ? 1 : 0;
-        mask[5 * i + 1] = (m_rl.x_max - p.x > kWallEps) ? 1 : 0;
-        mask[5 * i + 2] = (p.y - m_rl.y_min > kWallEps) ? 1 : 0;
-        mask[5 * i + 3] = (m_rl.y_max - p.y > kWallEps) ? 1 : 0;
-        mask[5 * i + 4] = 1;
-        const double d = slot.speed_mps * m_k * m_tickS;
-        const ns3::Vector targets[] = {{std::max(m_rl.x_min, p.x-d), p.y, p.z},
-            {std::min(m_rl.x_max, p.x+d), p.y, p.z},
-            {p.x, std::max(m_rl.y_min, p.y-d), p.z},
-            {p.x, std::min(m_rl.y_max, p.y+d), p.z}};
-        for (int a = 0; a < 4; ++a)
-            if (CrossesBuilding(p, targets[a])) mask[5*i+a] = 0;
-    }
-    return mask;
-}
-
 void
-RlBridge::WriteStep(uint32_t tick, double time_s,
+RlBridge::WriteStep(uint32_t tick,
+                    double time_s,
                     const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs,
                     const LinkTable& linkTable,
                     const std::vector<int>& mask,
-                    double reward, uint32_t ticksInStep, WindowFacts window, bool done) const
+                    double reward,
+                    uint32_t ticksInStep,
+                    const WindowFacts& window,
+                    bool done) const
 {
     ojson obs = ojson::array();
     for (const auto& slot : m_slots)
@@ -384,22 +447,40 @@ RlBridge::WriteStep(uint32_t tick, double time_s,
     factWindow["legacy_reward_sum"]      = window.legacy_reward_sum;
 
     ojson facts;
+    if (m_rl.control_start_s > 0)
+        facts["deployment"] = ojson{{"active", time_s >= m_rl.control_start_s},
+                                    {"eligible_ticks", window.deployment_eligible_ticks}};
     facts["nodes"]  = factNodes;
     facts["links"]  = factLinks;
     facts["window"] = factWindow;
-    facts["node_service"] = ojson::array();
-    for (uint32_t n = 0; n < m_numNodes; ++n)
-        facts["node_service"].push_back(ojson::array({
-            window.node_demand_mbps_sum.empty() ? 0.0 : window.node_demand_mbps_sum[n],
-            window.node_delivered_mbps_sum.empty() ? 0.0 : window.node_delivered_mbps_sum[n]}));
+    facts["node_service"] =
+        NodeServiceRows(m_numNodes, window.node_demand_mbps_sum, window.node_delivered_mbps_sum);
     facts["safety"] = ojson{{"threshold_m", m_rl.unsafe_separation_m},
                             {"unsafe_ticks", window.unsafe_ticks},
                             {"min_pair_distance_m",
                              std::isfinite(window.min_pair_distance_m)
                                  ? ojson(window.min_pair_distance_m) : ojson(nullptr)}};
 
+    facts["safety"]["building_rejected_slots"] = m_buildingRejected;
+    facts["safety"]["peer_rejected_slots"] = m_peerRejected;
+    facts["safety"]["boundary_contacted_slots"] = m_boundaryContacted;
+
     if (m_rl.coverage_enabled)
         facts["coverage"] = ojson{{"fraction", m_coverageFraction}};
+
+    if (m_rl.mission.kind != "none")
+    {
+        facts["node_available"] = m_available;
+        facts["mission"] = ojson{
+            {"goal_coverage_fraction", m_goalCoverage},
+            {"survivor_demand_mbps_sum", window.survivor_demand_mbps_sum},
+            {"survivor_delivered_mbps_sum", window.survivor_delivered_mbps_sum},
+            {"survivor_node_service",
+             NodeServiceRows(m_numNodes,
+                             window.survivor_node_demand,
+                             window.survivor_node_delivered)},
+        };
+    }
 
     ojson msg;
     msg["type"]              = "step";
@@ -430,6 +511,9 @@ RlBridge::ReadJointAction()
     static bool warnedRevalidated = false;
 
     m_revalidatedSlots.clear();
+    m_buildingRejected.clear();
+    m_peerRejected.clear();
+    m_boundaryContacted.clear();
 
     if (m_streamClosed)
     {
@@ -515,10 +599,10 @@ RlBridge::Step(uint32_t tick, double time_s,
 {
     const uint32_t ticksInStep = m_rewardWindow.Ticks();
     const double reward = m_rewardWindow.Mean();
-    const WindowFacts window = m_window;
+    const WindowFacts window = std::exchange(m_window, WindowFacts{});
     m_rewardWindow.Reset();
-    m_window = WindowFacts{};
 
+    m_decisionTimeS = time_s;
     m_lastMask = ComputeMask(mobs);
     WriteStep(tick, time_s, mobs, linkTable, m_lastMask,
               reward, ticksInStep, window, done);
@@ -527,115 +611,6 @@ RlBridge::Step(uint32_t tick, double time_s,
     {
         ReadJointAction();
     }
-}
-
-// ---------------------------------------------------------------------------
-// Movement: per-tick clamp and action application
-// ---------------------------------------------------------------------------
-
-void
-RlBridge::RevalidateJointMotion(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs, double horizon_s)
-{
-    if (!m_rl.avoid_node_collisions) return;
-    std::vector<MotionPoint> positions, velocities;
-    std::vector<bool> controlled(m_numNodes, false);
-    for (const auto& mob : mobs)
-    {
-        const auto p = mob->GetPosition(), v = mob->GetVelocity();
-        positions.push_back({p.x, p.y, p.z});
-        velocities.push_back({v.x, v.y, v.z});
-    }
-    for (const auto& slot : m_slots)
-        if (slot.active) controlled[slot.node_index] = true;
-    const auto rejected = RejectUnsafeJointMotion(positions, velocities, controlled,
-        m_rl, horizon_s);
-    for (uint32_t i = 0; i < m_numSlots; ++i)
-    {
-        const auto& slot = m_slots[i];
-        if (!slot.active || !rejected[slot.node_index]) continue;
-        mobs[slot.node_index]->GetObject<ns3::ConstantVelocityMobilityModel>()->SetVelocity(ns3::Vector(0,0,0));
-        m_lastJoint[i] = kHold;
-        if (std::find(m_revalidatedSlots.begin(), m_revalidatedSlots.end(), i) == m_revalidatedSlots.end())
-            m_revalidatedSlots.push_back(i);
-    }
-}
-
-ns3::Vector
-RlBridge::ClampVelocityForTick(const ns3::Vector& pos, const ns3::Vector& vel) const
-{
-    auto clampAxis = [this](double p, double v, double lo, double hi) {
-        const double next = p + v * m_tickS;
-        if (next > hi)
-        {
-            return (hi > p) ? (hi - p) / m_tickS : 0.0;
-        }
-        if (next < lo)
-        {
-            return (lo < p) ? (lo - p) / m_tickS : 0.0;
-        }
-        return v;
-    };
-
-    return ns3::Vector(clampAxis(pos.x, vel.x, m_rl.x_min, m_rl.x_max),
-                       clampAxis(pos.y, vel.y, m_rl.y_min, m_rl.y_max),
-                       vel.z);
-}
-
-void
-RlBridge::BeforeAdvance(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs)
-{
-    for (const auto& slot : m_slots)
-    {
-        if (!slot.active)
-        {
-            continue;
-        }
-        auto cvmm = mobs[slot.node_index]->GetObject<ns3::ConstantVelocityMobilityModel>();
-        if (!cvmm)
-        {
-            continue;
-        }
-        auto velocity = ClampVelocityForTick(cvmm->GetPosition(), cvmm->GetVelocity());
-        auto p = cvmm->GetPosition();
-        if (CrossesBuilding(p, ns3::Vector(p.x + velocity.x*m_tickS,
-                                          p.y + velocity.y*m_tickS, p.z)))
-            velocity = ns3::Vector(0,0,0);
-        cvmm->SetVelocity(velocity);
-    }
-    RevalidateJointMotion(mobs, m_tickS);
-}
-
-// ---------------------------------------------------------------------------
-// ApplyAction: compute desired position, derive velocity, SetVelocity()
-// ---------------------------------------------------------------------------
-
-void
-RlBridge::ApplyAction(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs)
-{
-    for (uint32_t i = 0; i < m_numSlots; ++i)
-    {
-        const auto& slot = m_slots[i];
-        if (!slot.active)
-        {
-            continue;
-        }
-        double vx = 0.0;
-        double vy = 0.0;
-        switch (m_lastJoint[i])
-        {
-        case 0: vx = -slot.speed_mps; break;
-        case 1: vx =  slot.speed_mps; break;
-        case 2: vy = -slot.speed_mps; break;
-        case 3: vy =  slot.speed_mps; break;
-        default: break;
-        }
-        auto cvmm = mobs[slot.node_index]->GetObject<ns3::ConstantVelocityMobilityModel>();
-        if (cvmm)
-        {
-            cvmm->SetVelocity(ns3::Vector(vx, vy, 0.0));
-        }
-    }
-    RevalidateJointMotion(mobs, m_k * m_tickS);
 }
 
 }  // namespace mesh_sim

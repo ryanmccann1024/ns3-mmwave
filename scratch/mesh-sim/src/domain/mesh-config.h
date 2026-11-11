@@ -12,31 +12,35 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace mesh_sim
 {
 
+/// One directed flow in the explicitly configured traffic roster.
+struct TrafficPairSpec
+{
+    std::string src;          ///< Source peer ID.
+    std::string dst;          ///< Destination peer ID.
+    double demand_mbps = 0.0; ///< Offered demand for this direction in Mbps.
+};
+
 /**
  * @brief Flow-level traffic demand configuration.
  *
- * Three traffic models are supported, selected by @c model:
+ * - @c constant starts every flow immediately at @c demand_mbps.
+ * - @c poisson samples arrivals at the network-wide @c arrival_rate_hz.
+ * - @c on_off alternates each flow between sending and silence.
  *
- * | @c model     | Behaviour                                                         |
- * |--------------|-------------------------------------------------------------------|
- * | @c "constant"| All flows are active from the start at @c demand_mbps until @c holding_time_s expires (never, if 0). |
- * | @c "poisson" | New flows arrive at @c arrival_rate_hz (network-wide Poisson process). When @c holding_time_s > 0 each flow lasts an exponentially distributed time with that mean; otherwise it is permanent. |
- * | @c "on_off"  | Each flow alternates between ON (sending at @c demand_mbps) and OFF phases. Phase durations are drawn from exponential distributions with means @c on_time_s and @c off_time_s respectively. |
- *
- * Three flow topologies are supported, selected by @c flow_topology:
- *
- * | @c flow_topology   | Behaviour                                                  |
- * |--------------------|------------------------------------------------------------|
- * | @c "all_pairs"     | One flow per unordered node pair (N*(N-1)/2 flows total). |
- * | @c "random_pairs"  | @c random_pair_count flows with uniformly random src/dst.  |
- * | @c "gateway"       | Every non-gateway node sends to the gateway node.          |
+ * The topology determines how source and destination peers are selected.
+ * - @c all_pairs creates N(N-1)/2 flows, one per unordered pair.
+ * - @c random_pairs samples @c random_pair_count pairs.
+ * - @c gateway sends one flow from every non-gateway peer to the gateway.
+ * - @c explicit_pairs creates one directed flow per configured entry.
  */
 struct TrafficConfig
 {
+    std::vector<TrafficPairSpec> pairs; ///< Explicit peer pairs and per-flow demand.
     std::string model = "constant";  ///< Traffic model: @c "constant", @c "poisson",
                                      ///<   or @c "on_off".
 
@@ -61,9 +65,9 @@ struct TrafficConfig
                                    ///<   flow lasts exactly this long.
 
     // ---- flow topology -----------------------------------------------------
-    std::string flow_topology     = "all_pairs";  ///< How node pairs are assigned flows:
+    std::string flow_topology = "all_pairs";       ///< How node pairs are assigned flows:
                                                    ///<   @c "all_pairs", @c "random_pairs",
-                                                   ///<   or @c "gateway".
+                                                   ///<   @c "gateway", or @c "explicit_pairs".
     uint32_t    random_pair_count = 3;             ///< Number of randomly chosen src/dst
                                                    ///<   pairs. Used only when
                                                    ///<   @c flow_topology is @c "random_pairs".

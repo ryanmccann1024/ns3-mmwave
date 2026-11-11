@@ -12,7 +12,7 @@ and passes `GetActiveFlows()` to the router. There are no packets.
 | File | Role |
 |------|------|
 | @ref traffic-matrix.h "traffic-matrix.h" | `Flow` struct and `TrafficMatrix` class, with full Doxygen docs. |
-| @ref traffic-matrix.cc "traffic-matrix.cc" | Initialisation, per-tick expiry, Poisson arrivals, on-off state machine. |
+| @ref traffic-matrix.cc "traffic-matrix.cc" | Initialization, per-tick expiry, Poisson arrivals, on-off state machine. |
 | `CLAUDE.md` | Scope and dependency notes for AI assistants. |
 
 ## Setup
@@ -55,7 +55,7 @@ make -C tests/unit/traffic test
 - `end_time_s == 0` means a permanent flow. Only flows with `end_time_s > 0` that have expired are removed.
 - Random draws use ns-3 random streams. The seed and run number are set once per seed in `sim.cc`, so the same seed gives the same traffic.
 - Poisson mode also creates the initial flows at `Initialize()`. Without `holding_time_s`, arrived flows never expire.
-- `gateway_node_id` is tried as a numeric index first, then as a node ID.
+- `gateway_node_id` must name an existing node ID in a normal `run.ini`: `ValidateConfig` rejects an unmatched ID before `TrafficMatrix` is constructed. The lower-level `InitGateway` helper matches the node ID first and only then falls back to a bare in-range numeric index, so the index fallback is not reachable through a normal INI.
 - Comments use Doxygen `/** */` blocks.
 
 ## Dependencies

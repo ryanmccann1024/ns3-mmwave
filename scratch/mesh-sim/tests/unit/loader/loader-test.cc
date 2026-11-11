@@ -762,17 +762,18 @@ static void
 test_loader_building_defaults_match_struct()
 {
     TempDir d;
-    d.write("b.json", "[{}]");
+    d.write("b.json",
+            R"([{"bounds":{"x_min":0,"x_max":1,"y_min":0,"y_max":1,"z_min":0,"z_max":1}}])");
     SimConfig c = ConfigLoader::Load(
         writeScenario(d, "[output]\ndir = out\n[scenario]\nbuildings_file = b.json\n"));
-    check(c.buildings.size() == 1, "one building loaded from empty object");
+    check(c.buildings.size() == 1, "one building loaded with explicit bounds");
     const BuildingSpec& l = c.buildings.at(0);
     BuildingSpec        s;
     check(l.id == s.id && l.id.empty(), "building id default ''");
     check(l.x_min == s.x_min && l.x_max == s.x_max && l.y_min == s.y_min && l.y_max == s.y_max &&
               l.z_min == s.z_min && l.z_max == s.z_max && near(l.x_max, 1.0) &&
               near(l.z_min, 0.0),
-          "building bounds default 0..1 and match struct");
+          "explicit building bounds parsed");
     check(l.type == s.type && l.type == "Residential", "building type default Residential");
     check(l.ext_walls == s.ext_walls && l.ext_walls == "ConcreteWithWindows",
           "building ext_walls default ConcreteWithWindows");
@@ -782,13 +783,13 @@ test_loader_building_defaults_match_struct()
 }
 
 static void
-test_loader_building_full_and_partial()
+test_loader_building_nested_and_flat()
 {
     TempDir d;
     d.write("b.json", R"([
       {"id":"B1","bounds":{"x_min":-10,"x_max":10,"y_min":-20,"y_max":20,"z_min":0,"z_max":30},
        "type":"Office","ext_walls":"StoneBlocks","n_floors":10,"n_rooms_x":3,"n_rooms_y":4},
-      {"id":"B2","bounds":{"x_max":50}}
+      {"id":"B2","x_min":0,"x_max":50,"y_min":0,"y_max":1,"z_min":0,"z_max":1}
     ])");
     SimConfig c = ConfigLoader::Load(
         writeScenario(d, "[output]\ndir = out\n[scenario]\nbuildings_file = b.json\n"));
@@ -802,7 +803,16 @@ test_loader_building_full_and_partial()
           "building type/walls/floors/rooms parsed");
     const auto& p = c.buildings[1];
     check(near(p.x_max, 50) && near(p.x_min, 0) && near(p.y_max, 1) && near(p.z_max, 1),
-          "partial building bounds -> per-field defaults");
+          "flat building bounds parsed");
+
+    const auto incomplete = writeScenario(
+        d, "[output]\ndir = out\n[scenario]\nbuildings_file = b.json\n");
+    d.write("b.json", R"([{"id":"B2","bounds":{"x_max":50}}])");
+    std::string incompleteError;
+    check(throwsType<std::runtime_error>([&] { ConfigLoader::Load(incomplete); },
+                                        &incompleteError) &&
+              incompleteError.find("requires numeric x_min") != std::string::npos,
+          "partial building bounds are rejected");
 
     TempDir d2;
     auto p2 = writeScenario(d2, "[output]\ndir = out\n[scenario]\nbuildings_file = no.json\n");
@@ -885,7 +895,7 @@ main()
     test_loader_jammer_defaults();
     test_loader_jammer_full();
     test_loader_building_defaults_match_struct();
-    test_loader_building_full_and_partial();
+    test_loader_building_nested_and_flat();
 
     // ConfigLoader: positions override
     test_loader_positions_override_applied();

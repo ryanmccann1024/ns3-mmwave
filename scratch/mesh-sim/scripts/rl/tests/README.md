@@ -2,44 +2,69 @@
 
 @brief Map of the RL, ops, and placement-baseline Python tests and their helpers.
 
-## RL control test map
+This page lists each RL test with its input and expected output. Tests use
+temporary output directories and never write to scenario inputs.
 
-Run these from `scratch/mesh-sim/`. The tests use temporary output directories;
-they do not write to scenario inputs. `fake_sim.py` supplies protocol messages
-for Python tests and does not model radio propagation. Set `MESH_SIM_BIN` to a
-freshly built simulator for the real-binary tests; without it, that module
-skips. Install the Python requirements first as described in the [main
-README](@ref readme_python_environment).
+## Test organization
+
+Tests follow the owner whose behavior they verify: `env/`, `agents/`, `policy/`,
+`experiments/`, `ops/`, `cluster/` and `tuning/`. `tooling/` checks Python setup;
+`integration/` contains optional native-binary checks. Shared simulator/Slurm
+fakes and protocol helpers live in `support/`; root `conftest.py` exposes common
+fixtures. Run any directory with `python -m pytest scripts/rl/tests/<owner>`.
+
+Research-specific runner inventory tests were retired with those runners.
+Their reusable reward, observation, stage transition, online buffer, sampling,
+physical safety and checkpoint assertions now have behavior names in these
+packages. Matrix expansion, selection, GUI indexes and recovery are checked by
+`experiments/test_matrix_v2.py`, `experiments/test_gui_index.py`,
+`policy/test_operation.py` and `ops/test_ops_recovery.py`.
+
+## 1\. Running the tests
+
+Run from `scratch/mesh-sim/`. Install the Python requirements first as described
+in the [main README](@ref readme_python_environment).
 
 ```bash
-.venv/bin/python -m pytest scripts/rl/tests/test_mesh_env.py -q
-MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary .venv/bin/python -m pytest scripts/rl/tests/test_real_binary.py -q
+.venv/bin/python -m pytest scripts/rl/tests/env/test_mesh_env.py -q
+MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary .venv/bin/python -m pytest scripts/rl/tests/integration/test_real_binary.py -q
+MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary .venv/bin/python -m pytest scripts/baselines/tests/integration/test_real_binary.py -q
 make -C tests/unit/config test
 MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary make -C tests integration
 ```
 
-## Test helpers
+- Set `MESH_SIM_BIN` to a freshly built simulator for the real-binary tests.
+  Without it, `integration/test_real_binary.py` skips.
+- `support/fake_sim.py` supplies protocol messages for the Python tests; it does not
+  model radio propagation.
+
+## 2\. Test helpers
 
 | File | Role |
 | --- | --- |
-| `fake_sim.py` | Stand-in simulator with the real flags and RL protocol; `FAKE_SIM_MODE` selects fault modes, `FAKE_SIM_FAIL_SEEDS` kills chosen seeds. No radio model. |
-| `fake_slurm.py` | `sbatch`/`squeue`/`sacct`/`scancel` shims over one JSON state file (`FAKE_SLURM_STATE`); `fake_slurm.install(tmp_path)` returns a handle to inspect submissions and inject failures. |
+| `support/fake_sim.py` | Stand-in simulator with the real flags and RL protocol; `FAKE_SIM_MODE` selects fault modes, `FAKE_SIM_FAIL_SEEDS` kills chosen seeds. No radio model. |
+| `support/fake_slurm.py` | `sbatch`/`squeue`/`sacct`/`scancel` shims over one JSON state file (`FAKE_SLURM_STATE`); `fake_slurm.install(tmp_path)` returns a handle to inspect submissions and inject failures. |
 | `conftest.py` | Shared `sim_binary` and `multi_run_config` fixtures. |
 
-## Other test maps
+## 3\. Other test maps
 
 | Modules | Map |
 | --- | --- |
-| `test_observations_rewards.py`, `test_policy_input_parameters.py`, and policy-input cases in `test_mesh_env.py` / `test_real_binary.py` | [policy-input-tests.md](../../../src/rl/policy-input-tests.md) |
-| `test_lifecycle_cli.py`, `test_policy_lifecycle.py` | [policy-lifecycle-tests.md](../../../src/rl/policy-lifecycle-tests.md) |
-| `test_evaluation_pipeline.py`, `test_experiment_matrix.py`, `test_policy_comparison.py` | [policy-comparison-tests.md](../../../src/rl/policy-comparison-tests.md) |
-| `test_decision_records.py`, `test_decision_record_contract.py`, and `test_decision_records_join_real_steps` in `test_real_binary.py` | [decision-records.md](../../../src/rl/decision-records.md) |
+| `env/test_observations_rewards.py`, `env/test_policy_input_parameters.py`, and policy-input cases in `env/test_mesh_env.py` / `integration/test_real_binary.py` | [policy-input-tests.md](../../../src/rl/policy-input-tests.md) |
+| `policy/test_lifecycle_cli.py`, `policy/test_policy_lifecycle.py` | [policy-lifecycle-tests.md](../../../src/rl/policy-lifecycle-tests.md) |
+| `policy/test_evaluation_pipeline.py`, `experiments/test_experiment_matrix.py`, `policy/test_policy_comparison.py`, `experiments/test_matrix_v2.py`, `experiments/test_gui_index.py`, `experiments/test_conversion_parity.py` | [policy-comparison-tests.md](../../../src/rl/policy-comparison-tests.md) |
+| `env/test_registry_identity.py` | [policy-input-tests.md](../../../src/rl/policy-input-tests.md) |
+| `agents/test_checkpoint_recovery_support.py` | [policy-lifecycle-tests.md](../../../src/rl/policy-lifecycle-tests.md) |
+| `policy/test_online_protocols.py`, `policy/test_operation.py`, `env/test_geometry.py`, `env/test_curriculum.py`, `env/test_seeded_env.py`, `policy/test_model_compatibility.py` | Section 12 below |
+| Ops and batch-scheduler tests, including `ops/test_ops_local.py` and `ops/test_ops_recovery.py` | [ops-tests.md](ops-tests.md) |
+| `env/test_decision_records.py`, `env/test_decision_record_contract.py`, and `test_decision_records_join_real_steps` in `integration/test_real_binary.py` | [decision-records.md](../../../src/rl/decision-records.md) |
+| Task execution, measurement, persisted tuning, and cluster recovery | [operations tests](ops-tests.md) |
 
-## Python adapter: test_mesh_env.py
+## 4\. Python adapter: test_mesh_env.py
 
-Unless noted, input is an in-process scenario with `fake_sim.py`; expected
+Unless noted, input is an in-process scenario with `support/fake_sim.py`; expected
 output is the stated Gymnasium result or error plus a correctly finalized
-`rl_episode.json`. Earlier single-node tests remain in this file.
+`rl_episode.json`. The file also holds the earlier single-node tests.
 
 | Test | Input → expected output |
 | --- | --- |
@@ -61,7 +86,7 @@ output is the stated Gymnasium result or error plus a correctly finalized
 | `test_training_failure_closes_the_environment` | Fake simulator exits with error → failed manifest and no leaked process; skipped without `sb3_contrib`. |
 | `test_episode_allocation_scans_existing_directories_once` | Existing episode directories → next two names allocated with one directory scan. |
 
-## Real simulator: test_real_binary.py
+## 5\. Real simulator: test_real_binary.py
 
 Input is `inputs/baselines/p1-multi-smoke/` unless the test creates a small
 temporary variant. Outputs are parsed simulator messages, metrics, and episode
@@ -77,20 +102,20 @@ manifests under pytest's temporary directory.
 | `test_semantic_errors_only_affect_invalid_slots` | Masked direction and non-hold padding → only invalid positions hold; reported in `revalidated_slots`. |
 | `test_close_mid_episode_is_interrupted` | Close after one decision → interrupted manifest, no child/reader leak. |
 | `test_partial_windows_clipping_and_reward_mean` | Same scripted path at coarse/fine cadence → clipped trajectory, final short window, coarse reward equals mean of fine tick rewards (excluding reset). |
+| `test_strong_jammer_preserves_negative_sinr_and_outage` | Rebuilt simulator, near-jammer peers → negative SINR, zero-capacity links, reduced coverage; removing the jammer restores service. An old clamped binary fails. |
+| `test_deployment_gate` | User-run native extension check after rebuilding, for deployment-gated control. |
 
-## Placement baselines on the real simulator
+## 6\. Placement baselines on the real simulator
 
-`scripts/baselines/tests/test_real_binary.py` holds the placement-baseline rows
-that reach `scripts.rl.evaluate` or the RL bridge. Every row writes a synthetic
-scenario under pytest's temporary directory and needs `MESH_SIM_BIN`; without
-it each row is skipped with a reason starting `BLOCKED:`, which is missing
-evidence, not a pass. The file's R1-R4 rows cover the direct-binary guard and
-the runner's `none` path; the placement contract is in
-[scripts/baselines/README.md](@ref scripts_baselines).
+`scripts/baselines/tests/integration/test_real_binary.py` holds the placement-baseline rows
+that reach `scripts.rl.evaluate` or the RL bridge (command in section 1).
 
-```bash
-MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary .venv/bin/python -m pytest scripts/baselines/tests/test_real_binary.py -q
-```
+- Every row writes a synthetic scenario under pytest's temporary directory and
+  needs `MESH_SIM_BIN`. Without it, each row is skipped with a reason starting
+  `BLOCKED:`; a `BLOCKED:` row did not run and has not passed.
+- The file's R1-R4 rows cover the direct-binary guard and the runner's `none`
+  path.
+- The placement contract is in [scripts/baselines/README.md](@ref scripts_baselines).
 
 | Row | Test | Input → expected output |
 | --- | --- | --- |
@@ -108,7 +133,7 @@ MESH_SIM_BIN=/absolute/path/to/mesh-sim-binary .venv/bin/python -m pytest script
 | R12 | `test_r12_partial_selection_standalone_keeps_unselected_traces` | Only a fixed node moves; constant-velocity, waypoint and random-walk nodes unselected → their `positions.csv` rows equal a direct run of the same scenario with `algorithm = none`. |
 | R12 | `test_r12_partial_selection_evaluation_keeps_unselected_traces` | Same selection in evaluation (both methods) → unselected rows equal a direct `--rl-mode` run on the source INI. |
 
-## C++ configuration and CLI
+## 7\. C++ configuration and CLI
 
 `tests/unit/config/config-validator-test.cc` uses in-memory configurations
 and checks accepted values or precise errors; it writes no simulation output.
@@ -139,18 +164,23 @@ and checks accepted values or precise errors; it writes no simulation output.
 | `test_controlled_start_position` | Fixed/waypoint/empty waypoint node → correct start or exception. |
 | `test_apply_rl_control` | Resolved settings or invalid resolution → copied fields or exception. |
 
+The C++ configuration suite also loads all 18 local mission inputs and rejects
+invalid dropout/target cases, and loads the archived 72 seed configurations
+and rejects invalid deployment times. The C++ config, traffic, and joint-motion
+suites cover explicit mission geometry/pair rates and roof crossings.
+
 `tests/integration/cli-integration-test.sh` Test 9 runs the legacy smoke
 scenario with closed stdin. It expects five `step` lines, no `init`, and a
 `controlled_pos` observation on the first line; other CLI checks are described
 in the [main verification section](@ref readme_verify).
 
-## Ops and tooling tests
+## 8\. Ops and tooling tests
 
-These use stub executors, `fake_slurm.py`, or a fake `rsync`; no cluster or
+These use stub executors, `support/fake_slurm.py`, or a fake `rsync`; no cluster or
 simulator is needed. Behavior is specified in [scripts/rl/ops](@ref scripts_rl_ops).
 Parametrized tests cover several inputs each; only the pattern is listed.
 
-### test_ops_tasks.py
+### 8.1 test_ops_tasks.py
 
 | Test | Input → expected output |
 | --- | --- |
@@ -166,8 +196,9 @@ Parametrized tests cover several inputs each; only the pattern is listed.
 | `test_an_out_of_range_task_index_is_refused` | Index beyond the task table → error. |
 | `test_compare_*` (five tests) | Unfinished evaluations → refused unless incomplete is allowed; tolerated compare exit is not a failure; exactly one selector required. |
 | `test_comparison_outcome_reads_the_comparison_status` | `comparison.json` status → outcome string. |
+| `test_non_object_artifacts_block_execution` | Non-object JSON artifact (list, `null`, string, number) → exercises the current policy experiment owner (step `blocked`) and the task status and comparison readers. |
 
-### test_ops_benchmark.py
+### 8.2 test_ops_benchmark.py
 
 | Test | Input → expected output |
 | --- | --- |
@@ -187,7 +218,7 @@ Parametrized tests cover several inputs each; only the pattern is listed.
 | `test_estimate_writes_a_file_and_records_the_benchmark_hash` | Estimate run → estimate file with benchmark hash. |
 | `test_a_missing_safety_factor_is_an_argparse_error`, `test_a_non_positive_safety_factor_is_refused` | Missing or non-positive safety factor → error. |
 
-### test_ops_cluster.py
+### 8.3 test_ops_cluster.py
 
 | Test | Input → expected output |
 | --- | --- |
@@ -200,14 +231,14 @@ Parametrized tests cover several inputs each; only the pattern is listed.
 | `test_reconcile_state_table` and the pending, active, and compare-row tests | Filesystem, receipts, and queue snapshot → task state; active elements never resume-eligible; compare row follows `comparison.json`. |
 | `test_plan_*`, `test_the_submit_resume_sequence`, `test_submit_refuses_*`, lock tests | `plan` writes the task table only; `submit`/`resume` submit the right elements; blocked directories, non-unsubmitted tasks, and a held lock → refused. |
 | Intent and assertion tests (`test_sbatch_dying_*`, `test_an_unmatched_intent_*`, `test_abandoning_*`, `test_one_queue_match_*`, `test_a_known_job_*`, `test_an_assertion_*`, `test_no_second_job_*`) | sbatch failure or ambiguity → recoverable intent; no duplicate job for a covered task; human assertions cannot override active or populated tasks. |
-| `test_cancel_*`, `test_a_failed_scancel_*` | Selectors → exact element IDs cancelled, only from receipts; failed `scancel` not recorded. |
+| `test_cancel_*`, `test_a_failed_scancel_*` | Selectors → exact element IDs canceled, only from receipts; failed `scancel` not recorded. |
 | `test_dry_runs_change_nothing`, `test_a_submit_dry_run_previews_the_argv_and_script` | `--dry-run` → preview, no writes. |
 | `test_a_plan_from_another_root_is_refused`, `test_a_non_executable_binary_is_refused` | Foreign plan root or non-executable binary → refused. |
 | `test_status_*`, `test_ops_never_writes_the_plan_or_a_step_directory` | `status` works without a scheduler, lists every task and the comparison, never writes. |
 | `test_manual_compare_*`, `test_evidence_that_a_compare_job_ended_*`, `test_a_compare_job_without_*` | Manual compare reports each outcome and is refused while tasks or compare jobs are active or unresolved. |
-| `test_a_new_compare_job_cancels_and_verifies_the_earlier_one`, `test_a_failed_cancellation_blocks_a_second_compare_job` | Resubmitted compare → earlier job cancelled first; failed cancel blocks it. |
+| `test_a_new_compare_job_cancels_and_verifies_the_earlier_one`, `test_a_failed_cancellation_blocks_a_second_compare_job` | Resubmitted compare → earlier job canceled first; failed cancel blocks it. |
 
-### test_ops_fetch.py
+### 8.4 test_ops_fetch.py
 
 | Test | Input → expected output |
 | --- | --- |
@@ -222,7 +253,7 @@ Parametrized tests cover several inputs each; only the pattern is listed.
 | `test_the_manifest_records_remote_argv_and_file_digests`, `test_update_keeps_the_earlier_manifest` | Fetch → provenance manifest with argv and digests; update keeps the earlier one. |
 | `test_a_failed_rsync_writes_no_manifest`, `test_dry_run_prints_the_argv_and_writes_nothing` | Failed rsync or dry run → no manifest. |
 
-### test_ops_tune.py
+### 8.5 test_ops_tune.py
 
 | Test | Input → expected output |
 | --- | --- |
@@ -238,56 +269,126 @@ Parametrized tests cover several inputs each; only the pattern is listed.
 | `test_the_install_hint_names_the_pin_file`, `test_the_pin_file_holds_one_exact_optuna_pin`, `test_a_version_other_than_the_pin_is_refused` | Optuna missing or wrong version → refusal naming the pin file. |
 | `test_the_seeded_sampler_matches_its_dry_run_preview`, `test_two_runs_with_the_same_sampler_seed_agree` | Same sampler seed → same trials as the preview and across runs. |
 
-### test_bootstrap_venv.py
+### 8.6 test_bootstrap_venv.py
 
 | Test | Input → expected output |
 | --- | --- |
 | `test_direct_pins_match_probe_dependencies` | `requirements.txt` → pinned names equal `DIRECT_DEPS`. |
 | `test_version_probe_rejects_mismatch` | Wrong expected version → probe exits 1 and reports `expected 0.0.invalid`. |
 
-See [operations tests](ops-tests.md) for task execution, measurement, persisted tuning and cluster recovery coverage.
+## 9\. Supporting behavior
 
-## Concurrent local campaign: `test_campaign.py`
+| File | What it checks |
+| --- | --- |
+| `policy/test_baseline_statistics.py` | Node service conservation, zero-demand masking, compact commands, jammer onset schedules, immutable baseline rescoring and delayed-jammer metrics. |
+| `policy/test_adaptation_metrics.py` | Dense fairness feedback, previous-health movement cost/reset, PPO/network wiring, route variation and real online updates versus a frozen sampled control on the fake simulator. |
+| `experiments/test_preflight_challenge.py` | Manifest cadence, final totals, hold/challenge acceptance, criteria fingerprints, policy-library dispatch and read-only completed-check reuse. |
+| `experiments/test_module_boundaries.py` | No numbered research runtime modules or retired imports; environment/agents independent of public CLIs; batch definitions independent of execution owners. |
+| `env/test_config_readers.py` | INI precedence/bounds, progress/output settings, jammer onset schedules and invalid actions. |
+| `experiments/test_experiment_matrix.py` | Generated signed reward weights reach the actual training parser. |
+
+The scheduler/process equivalents of retired campaign tests live in
+`ops/test_ops_local.py`, `ops/test_ops_process.py` and `ops/test_ops_recovery.py`;
+see [the operations test map](ops-tests.md). Historical fixed campaign inventory
+counts are not maintained as public runtime behavior.
+
+## 10\. Mission and coordination behavior
+
+| Tests | Contract exercised |
+| --- | --- |
+| `env/test_binary_objectives.py`, `env/test_continuous_objectives.py` | Sparse/graded goals, demand eligibility, event windows, schema identity and gated online buffer accounting. |
+| `policy/test_movement_and_exploration.py` | Available-peer travel, weakest service, target roles, wall contacts, sampling/stall schedules, reward replay and protocol compatibility. |
+| `env/test_proximity_and_compact_inputs.py`, `env/test_target_arrival.py` | Pairwise closeness, demanded-path margin, potential telescoping, compact feature layout, arrival/departure and saved observation hashes. |
+| `env/test_coordination_state.py` | Dwell/hysteresis/relapse, stage reset, low-tail/isolation, complete reward decomposition, observation extensions, live env hooks, replay and tamper rejection. |
+| `env/test_team_radio_and_curriculum.py` | Global radio partitions, failed relays, one-feature observation changes, saved decomposition and curriculum episode counting. |
+| `policy/test_qualification_and_checkpoints.py`, `agents/test_training_milestones.py` | Coverage qualification/fallback, graph unity, optimized checkpoint timing, complete milestone retention and training-hook wiring. |
+| `env/test_mission_facts.py`, `env/test_physical_audit.py`, `env/test_geometry.py`, `env/test_curriculum.py`, `env/test_seeded_env.py`, `policy/test_model_compatibility.py` | Mission counters/validation, safe segments and routes, peer collisions, legal curriculum starts, seeded reset and actual saved ZIP loading. |
+| `experiments/test_scenario_check.py`, `experiments/test_preflight_challenge.py` | Scenario acceptance gates, normalized traffic, route legality, jammer timing, feature checks and challenge difficulty. |
+| `experiments/test_matrix_v2.py`, `experiments/test_conversion_parity.py` | Explicit job expansion, seed/config lookup separation, existing-parent continuation, shared pools, schedules, checks and selection contracts. |
+| `experiments/test_gui_index.py`, `policy/test_operation.py`, `ops/test_ops_local.py`, `ops/test_ops_recovery.py` | Complete GUI inventories, independent operation seeds/modes, frozen weights, receipts, concurrency, identity refusal and interrupted-work recovery. |
+
+Saved-data checks skip when private 10-23/10-30 evidence is unavailable. They
+read results; they do not recreate historical runners. Native checks belong to
+`integration/test_real_binary.py` and are user-run only. Phase numbers remain
+research labels in immutable data, not maintained test or runtime filenames.
+
+## 12\. Batch operation and env-owner tests
+
+These cover the owners that batch tasks call
+([batch experiment reference](@ref mesh_sim_rl_batch_reference)). They use
+`support/fake_sim.py`, an in-process stub environment or synthetic facts; none runs
+the native simulator. Cases needing `sb3_contrib` skip without it. Run from
+`scratch/mesh-sim/`:
+
+```bash
+.venv/bin/python -m pytest -q -rs scripts/rl/tests/policy/test_online_protocols.py \
+  scripts/rl/tests/policy/test_operation.py scripts/rl/tests/policy/test_operate_cli.py \
+  scripts/rl/tests/env/test_geometry.py scripts/rl/tests/env/test_curriculum.py scripts/rl/tests/env/test_seeded_env.py
+```
+
+### 12.1 test_online_protocols.py
 
 | Test | Input → expected output |
 | --- | --- |
-| `test_bad_scheduling_is_rejected` | Invalid worker/thread counts or stage ordering/types → validation error before processes start. |
-| `test_campaign_lock_prevents_duplicate_writers` | Two launchers sharing an output root → second blocked; root reusable after release. |
-| `test_jobs_overlap_with_worker_limit_and_isolated_logs` | Five jobs, two workers, one failure → exactly two overlapping jobs, separate logs, persisted statuses and failed plan. |
-| `test_process_thread_limits_and_stop_reaps_child` | Real waiting subprocess → thread limit inherited, cancellation reaps process, parent environment unchanged. |
-| `test_interruption_during_preflight_wait_reaps_child` | Interrupt the synchronous process wait → child terminated before runner loses ownership. |
-| `test_preflight_failure_prevents_all_training` | Failed preflight → failed campaign record, no training. |
-| `test_failed_pilot_prevents_main_and_comparison` | Pilot job failure → no main jobs or comparison for failed plan. |
-| `test_actual_campaign_plans_all_33_jobs_without_launching` | October 9 matrices → nine plans, 33 independent train/evaluate pairs, no processes launched. |
-| `test_two_real_worker_processes_train_evaluate_and_compare` | Two real PPO worker processes with a fake simulator → completed train/evaluate manifests, reward matrices and one comparison; repeat skips complete tasks. No radio physics claim. |
+| `test_eligibility_keeps_zero_demand_but_excludes_forced_windows` | Per-mission window facts → zero-demand windows stay eligible; forced deployment-prefix windows are excluded. |
+| `test_partial_batch_never_has_a_singleton_or_pads` | Rollout sizes → minibatch sizes with no singleton and no padding. |
+| `test_gated_update_accounting_and_final_partial_flush`, `test_gated_singleton_tail_is_skipped_and_counted` | Gated episode → update cycles, trained/tail decisions balance; final partial rollout flushed; a singleton tail skipped and counted. |
+| `test_gated_ineligible_gap_refused_only_with_unflushed_buffer` | Ineligible window after eligible ones → error only while the eligible buffer is unflushed. |
+| `test_gated_settings_inherit_and_refuse_target_kl` | Parent hyperparameters → inherited gated settings; non-null `target_kl` or missing keys → error. |
+| `test_sb3_defaults_and_explicit_overrides` | No overrides → `min(parent lr, 1e-4)`, entropy 0.001, target KL 0.02; explicit values kept. |
+| `test_sb3_operation_records_tail_and_v5_fields` | SB3 operation → batch online record with `protocol`, settings, digests, `budget % n_steps` tail and accounting. |
+| `test_gated_operation_reloads_parent_per_seed` | Two seeds → each starts from the parent's parameter and optimizer digests. |
+| `test_legacy_cli_envelope_v3_default_and_v4_other_orders` | Standalone `run_online` with the default tuple, a subset and a reversed order → legacy versions and key order unchanged. |
+| `test_online_cli_reexports_existing_helpers` | `scripts.rl.online` → `parameter_digest`, `UpdateRecorder`, `operation_modes`, `DEFAULT_MODES`, `run_online` still importable. |
+| `test_online_protocols_refuse_schedules_and_unknown_settings` | Schedule or unknown key on an online mode → error. |
 
-## Local quick campaign: `test_local_fast.py`
+### 12.2 test_operation.py
 
 | Test | Input → expected output |
 | --- | --- |
-| `test_manifest_cadence_rejects_invalid_values` | Nonpositive, fractional or boolean cadence → error. |
-| `test_manifest_cadence_keeps_final_totals` | 50-decision cadence, two-decision episode → intermediate disk snapshot lags, completed totals are exact. |
-| `test_manifest_cadence_flushes_interrupted_totals` | Interrupt before next save → final manifest retains completed decision totals. |
-| `test_difficulty_gate_requires_healthy_hold_and_degraded_challenges` | Healthy hold/degraded challenge → pass; unhealthy hold or saturated challenge → fail. Legacy defaults preserved. |
-| `test_preflight_signature_includes_difficulty_criteria` | Change acceptance criteria → old preflight cannot be reused. |
-| `test_quick_campaign_has_one_seed_three_rewards_and_reduced_budget` | Quick inputs → eight plans, 24 jobs, one seed, three formulas, no periodic checkpoints. |
-| `test_reward_summary_uses_common_metrics_and_excludes_failed_episodes` | Mixed completed/failed episodes → common-metric means use completed episodes only. |
-| `test_quick_training_without_telemetry_still_writes_full_evaluation` | Three real PPO worker runs over fake simulator → no training step files/checkpoints; complete validation/evaluation matrices and reward summary. No RF claim. |
-| `test_strong_jammer_preserves_negative_sinr_and_outage` (`test_real_binary.py`) | Rebuilt simulator, near-jammer peers → negative SINR, zero-capacity links, reduced coverage; removing jammer restores service. Old clamped binary fails. |
+| `test_initial_sampling_exactly_n_eligible_decisions` | `initial-sampling` → sampling for exactly N eligible decisions. |
+| `test_stall_trigger_burst_cooldown_and_limit`, `test_stall_progress_trigger_when_slots_move` | Rejection and progress stalls → bursts, cooldown and `max_bursts` limit. |
+| `test_coverage_qualification_relapse_and_severe_loss`, `test_coverage_rules_are_the_documented_versioned_constants` | Coverage schedules → 30 s qualification, 5 s relapse and severe-loss fallback from the versioned constants. |
+| `test_schedule_settings_refused_without_defaults` | Missing or inconsistent schedule settings → error; no defaults supplied. |
+| `test_replay_comparison_stops_on_changed_fact_mask_or_observation`, `test_replay_pre_contact_variant_ignores_only_the_new_contact_field`, `test_replay_policy_refuses_newly_masked_action` | Saved vs replayed rows → stop on any changed fact, mask or observation; the pre-contact variant ignores only `boundary_contacted_slots`; a newly masked action is refused. |
+| `test_replay_gate_passes_identical_physics_and_stops_on_change` | Fake replay → `gate_passed` true for identical physics, false after a change. |
+| `test_reward_audit_methods_are_separately_named`, `test_position_replay_reconstructs_and_detects_tampering`, `test_reward_audit_recomputes_only_for_matching_identities` | Saved telemetry → named methods, exact reconstruction, tamper detection, refusal on mismatched schema or seed identity. |
+| `test_frozen_modes_keep_parameter_and_optimizer_digests`, `test_frozen_operation_refuses_changed_optimizer` | Frozen operation → digests unchanged; a changed optimizer state fails. |
+| `test_scheduled_frozen_operation_logs_switches` | `sample-then-hold` on a frozen operation → schedule metadata in `online_manifest.json`, unchanged digests, per-decision executed states in `coverage_execution.json` with zero optimizer updates. |
+| `test_seeded_adapter_uses_first_declared_seed`, `test_gates_come_from_native_settings`, `test_per_seed_scenario_difference_is_explicit` | Seeded adapter → first declared evaluation seed for construction. Gates resolve from native `control_start_s`; a case gate that differs is refused. A per-seed INI differing only in native timing is an explicit, prevalidated difference; a changed nodes file is refused. |
+| `test_gated_and_sampling_operations_need_the_declared_mission`, `test_band_and_decision_records_reach_the_seeded_env_and_record` | Missing case mission → error; band and decision-record settings reach every seed's env and the record. |
+| `test_operate_help_and_usage_errors_exit_one`, `test_model_command_dispatches_contract_arguments`, `test_baseline_and_check_commands_dispatch`, `test_check_result_passed_truth_table`, `test_operate_end_to_end_frozen_model_and_hold_baseline` | `scripts.rl.operate` → usage errors exit 1; plan argument lists dispatch to the owners; `check_result.json` pass table; a frozen model and a hold baseline end to end on the fake simulator. |
+| `test_placement_baselines_delegate_to_the_evaluate_placement_path`, `test_placement_baseline_end_to_end_with_the_stub_planner` | `operate baseline --policy geometric` or `optimization` → the existing evaluate placement path with its planning seed, unchanged; end to end with a stub planner on the fake simulator. |
+| `test_bound_checkpoint_of_an_interrupted_run_needs_its_binding` | A checkpoint of an interrupted (unfinished) training attempt → refused without `--binding`; accepted through the verified binding. |
+| `test_scene_review_without_models_is_a_valid_empty_v1_payload`, `test_scene_review_reads_explicit_baselines_before_the_legacy_path`, `test_scene_review_resolves_v5_episode_dirs_against_their_manifest` | `episode_review.scene_review` → valid empty version 1 review; explicit baseline references read before legacy paths; version 5 episode directories resolved relative to their manifest. |
 
-Iteration-two regression cases are in `test_iteration_two.py`: per-node service conservation/zero-demand masking, compact commands/onset schedules, immutable cached baseline rescoring, main-only priority scheduling, 40-job configuration and delayed-jammer recovery metrics. Fake-peer tests do not replace real radio validation after the user rebuilds the target.
+### 12.3 Geometry, curriculum, and model compatibility
 
-### Iteration three checks
+| Test | Input → expected output |
+| --- | --- |
+| `test_segment_hits_*`, `test_physical_audit_matches_legacy`, `test_route_and_swept_distance_fixed_values` | Segments, boxes and routes → same results as the legacy reference implementation and fixed values. |
+| `test_validate_positions_matches_legacy_and_rejects_violations`, `test_starts_from_reference_matches_legacy`, `test_pinned_curriculum_frames_match_legacy_validation` | Curriculum starts → legal positions identical to the legacy curriculum. |
+| `test_curriculum_counts_completed_episodes_not_probe_resets`, `test_curriculum_schedule_file_records_stage_hashes`, `test_load_curriculum_schedule_hashes_and_validates` | Curriculum env and schedule file → stage switches by completed episodes; stage INI hashes recorded and validated. |
+| `test_seeded_env_*`, `test_scenario_check_seeded_env_keeps_legacy_initial_seed_and_cancel` | Per-seed INI maps → the right config, band, decision records and `seed_source` per reset; `scenario_check` keeps its initial-seed and cancel behavior. |
+| `test_scripted_mission_policy_*`, `test_reference_policy_*` | Both route formats → legacy-equivalent waypoint following, delivery triggers, gates, swept reservation and mask-valid actions only. |
+| `test_scenario_check_geometry_reexports_owners` | `scenario_check.geometry` → re-exports the env geometry owners. |
+| `test_saved_zip_with_renamed_registry_inputs_deserializes` | Tiny model trained on the fake simulator with renamed registry modules → ZIP holds no `scripts.rl` or `env.phase` reference and loads with legacy modules blocked. |
+| `test_historical_zip_deserializes_without_legacy_modules` | One real saved model → loads without legacy modules. Skips unless `MESH_HISTORICAL_ZIP` is set; a skip is missing evidence, not a pass. |
 
-`test_iteration_three.py` verifies dense partial-recovery feedback, lagged movement cost and reset, optimizer/network setting wiring, invalid parameter refusals, distinct training/evaluation routes, actual online parameter changes versus a fixed sampled control, fresh checkpoint copies between seeds, and the bounded profile plans sharing baseline caches. These tests use the fake simulator; real radio behavior is checked separately against the already-built binary.
+Native execution authority: these tests never build or run the simulator.
+The human builds the binary and runs real-binary checks and the batch native
+smoke; until then those checks are BLOCKED, not passed.
 
 
-The input regressions in `test_config_readers.py` check case-sensitive,
-last-wins INI values, no DEFAULT inheritance, explicit bounds, progress/output
-settings, jammer onset schedules, and invalid joint-action conversion. The
-non-object artifact cases in `test_ops_tasks.py` exercise the current policy
-experiment owner as well as task status and comparison readers.
-`test_policy_comparison.py` rejects duplicate evaluation seeds before pairing.
-Cross-language parser cases reuse the compiled loader fixture in
-`scripts/baselines/tests/test_simulator_defaults.py`; compiler errors fail rather
-than silently skipping when a compiler is available.
+### Reviewer correction regressions
+
+| Owner | Input → expected behavior |
+|---|---|
+| `experiments/test_matrix_v2.py` | Replay variant/parent/case/audit → emitted argv, hashed inputs and distinct task identities; unsupported preflight, undeclared seed and overshooting non-mission budget → early refusal; missing v1 binary → exit 2. |
+| `test_replay_and_audit.py::test_replay_parent_contact_and_jammer_checks` | Fake simulator with real PPO, saved pre-contact trace → strict refusal / pre-contact pass, boundary evidence and verified parent; parent or jammer-timing mismatch → failed gate. |
+| `test_online_protocols.py::test_gated_loaded_settings_match_before_adaptation` | Loaded inherited settings, including callable clip range → equality required before adaptation; altered settings refused. |
+| `test_conversion_parity.py::test_inventory_comparison_detects_changed_replay_contract` | Change gate variant, parent, case or audit flag independently → parity difference reported. |
+| `policy/test_operate_integration.py` binding test | Copy an otherwise valid scheduler binding outside `state/bindings/` → refused. |
+
+Contact evidence is owned by `policy/episode_review.py::contact_audit`; there is no duplicated legacy implementation. Fake checks prove plumbing and failure
+handling, not radio equivalence. Native replay remains human-only.

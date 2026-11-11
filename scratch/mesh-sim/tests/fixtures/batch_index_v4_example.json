@@ -1,0 +1,1005 @@
+{
+  "assets": {
+    "configs": {},
+    "reference": {
+      "kind": "scenario_routes_v1",
+      "path": "main/rural-coverage-3-peers/assets/reference-40bb9eb11316/reference.json",
+      "sha256": "40bb9eb113161a46ffa031914a51895c56f6262639242c155894f0d127441e9f"
+    },
+    "run_config": {
+      "buildings": {
+        "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/buildings.json",
+        "sha256": "240836c0870ab0ee59e58bb611fb29b19a3913fae6d7b217f9dbe12660edb0ca"
+      },
+      "fallback": false,
+      "jammers": null,
+      "nodes": {
+        "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/nodes.json",
+        "sha256": "c80ff6552620ff3c398e97a9034e16ba2eb6791dd95b77713c0146b82ca2e29a"
+      },
+      "run_config": {
+        "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+        "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+      }
+    }
+  },
+  "band": "sub-6",
+  "baseline_dir": null,
+  "baselines": [
+    {
+      "evaluations": [
+        {
+          "attempt": "baselines/rural-coverage-3-peers/scripted-f3933222b3/diagnostic/seed-201/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "baselines/rural-coverage-3-peers/scripted-f3933222b3/diagnostic/seed-201/attempt-1/episode-0001",
+              "inputs": "baselines/rural-coverage-3-peers/scripted-f3933222b3/diagnostic/seed-201/attempt-1/episode-0001/inputs",
+              "seed": 201
+            }
+          ],
+          "eval_manifest": "baselines/rural-coverage-3-peers/scripted-f3933222b3/diagnostic/seed-201/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "c1ea40cba3e88c92fdd10a99572d6c7d9f7278ccc2f6563ddd14e6a670d703dd",
+          "group": "19712186f4755eeff47d65c8b76b3bc4aef8c199d273a41a77f851000206059c",
+          "issues": [],
+          "key": "f3933222b3bd563178bdca88e66bea64b174c54bb861dc339d2feccaa6a7619e",
+          "manifest_status": "completed",
+          "mode": "baseline",
+          "online_manifest": null,
+          "online_manifest_sha256": null,
+          "physical_digest": "d0667ee569ed75a42f85ebe839619700697449aac9b64a37e3b8d871b8a275a3",
+          "policy": "scripted",
+          "protocol": null,
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 201,
+          "status": "complete",
+          "task": "baseline/rural-coverage-3-peers/scripted/diagnostic/seed-201",
+          "weight_audit": null
+        },
+        {
+          "attempt": "baselines/rural-coverage-3-peers/scripted-f25b828b56/diagnostic/seed-202/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "baselines/rural-coverage-3-peers/scripted-f25b828b56/diagnostic/seed-202/attempt-1/episode-0001",
+              "inputs": "baselines/rural-coverage-3-peers/scripted-f25b828b56/diagnostic/seed-202/attempt-1/episode-0001/inputs",
+              "seed": 202
+            }
+          ],
+          "eval_manifest": "baselines/rural-coverage-3-peers/scripted-f25b828b56/diagnostic/seed-202/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "a53563bcd7dd1216b3c531db11e5413eab8bcf9d8463ffd5b53107b276193844",
+          "group": "19712186f4755eeff47d65c8b76b3bc4aef8c199d273a41a77f851000206059c",
+          "issues": [],
+          "key": "f25b828b562cf2a0a856b96e8bb2ea6cf3f6f0bcba2adad51a348dd468999247",
+          "manifest_status": "completed",
+          "mode": "baseline",
+          "online_manifest": null,
+          "online_manifest_sha256": null,
+          "physical_digest": "d0667ee569ed75a42f85ebe839619700697449aac9b64a37e3b8d871b8a275a3",
+          "policy": "scripted",
+          "protocol": null,
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 202,
+          "status": "complete",
+          "task": "baseline/rural-coverage-3-peers/scripted/diagnostic/seed-202",
+          "weight_audit": null
+        }
+      ],
+      "policy": "scripted",
+      "role": "diagnostic"
+    },
+    {
+      "evaluations": [
+        {
+          "attempt": "baselines/rural-coverage-3-peers/hold-63c3471132/diagnostic/seed-201/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "baselines/rural-coverage-3-peers/hold-63c3471132/diagnostic/seed-201/attempt-1/episode-0001",
+              "inputs": "baselines/rural-coverage-3-peers/hold-63c3471132/diagnostic/seed-201/attempt-1/episode-0001/inputs",
+              "seed": 201
+            }
+          ],
+          "eval_manifest": "baselines/rural-coverage-3-peers/hold-63c3471132/diagnostic/seed-201/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "70e8f035277fad5a1768ca9df18a66c90a9b467b14f1db55c8f0cf98bb4897ad",
+          "group": "f85f8925c5c38d15a82256a7b4db555e2dc4713108a8534f87cac2a65743a7eb",
+          "issues": [],
+          "key": "63c3471132a55c6fc8a638a0ada7298299df1cf0702cb2a20d96834f37f30c75",
+          "manifest_status": "completed",
+          "mode": "baseline",
+          "online_manifest": null,
+          "online_manifest_sha256": null,
+          "physical_digest": "04f9dc29e38cc3bb1209db0333da658421efd8ce43610a1aa6a6716d0536803e",
+          "policy": "hold",
+          "protocol": null,
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 201,
+          "status": "complete",
+          "task": "baseline/rural-coverage-3-peers/hold/diagnostic/seed-201",
+          "weight_audit": null
+        },
+        {
+          "attempt": "baselines/rural-coverage-3-peers/hold-c88e9ac2d4/diagnostic/seed-202/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "baselines/rural-coverage-3-peers/hold-c88e9ac2d4/diagnostic/seed-202/attempt-1/episode-0001",
+              "inputs": "baselines/rural-coverage-3-peers/hold-c88e9ac2d4/diagnostic/seed-202/attempt-1/episode-0001/inputs",
+              "seed": 202
+            }
+          ],
+          "eval_manifest": "baselines/rural-coverage-3-peers/hold-c88e9ac2d4/diagnostic/seed-202/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "093233a01ea3d9e47ac0c2d5f3da4f22354e25d5fe7fc9e4330c754ce6d13435",
+          "group": "f85f8925c5c38d15a82256a7b4db555e2dc4713108a8534f87cac2a65743a7eb",
+          "issues": [],
+          "key": "c88e9ac2d407524977b5cd440b122bc466add8dd3d170576fe33d66e8f0a3ef2",
+          "manifest_status": "completed",
+          "mode": "baseline",
+          "online_manifest": null,
+          "online_manifest_sha256": null,
+          "physical_digest": "04f9dc29e38cc3bb1209db0333da658421efd8ce43610a1aa6a6716d0536803e",
+          "policy": "hold",
+          "protocol": null,
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 202,
+          "status": "complete",
+          "task": "baseline/rural-coverage-3-peers/hold/diagnostic/seed-202",
+          "weight_audit": null
+        }
+      ],
+      "policy": "hold",
+      "role": "diagnostic"
+    },
+    {
+      "evaluations": [
+        {
+          "attempt": "baselines/rural-coverage-3-peers/random_valid-d8320106ee/diagnostic/seed-201/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "baselines/rural-coverage-3-peers/random_valid-d8320106ee/diagnostic/seed-201/attempt-1/episode-0001",
+              "inputs": "baselines/rural-coverage-3-peers/random_valid-d8320106ee/diagnostic/seed-201/attempt-1/episode-0001/inputs",
+              "seed": 201
+            }
+          ],
+          "eval_manifest": "baselines/rural-coverage-3-peers/random_valid-d8320106ee/diagnostic/seed-201/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "ce91cfde2983395ed56f50b3a4f3072a4a89cee25a0a58f14f262c7e3330cb9c",
+          "group": "90087450f149ef20959ce480a83ba8a21935cc5fba04927672d5e9bd5ce1cc6a",
+          "issues": [],
+          "key": "d8320106eef65af022fc0f2ee1c7444611456770c2cd2e19ea98fd1bb0a637fa",
+          "manifest_status": "completed",
+          "mode": "baseline",
+          "online_manifest": null,
+          "online_manifest_sha256": null,
+          "physical_digest": "04f9dc29e38cc3bb1209db0333da658421efd8ce43610a1aa6a6716d0536803e",
+          "policy": "random_valid",
+          "protocol": null,
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 201,
+          "status": "complete",
+          "task": "baseline/rural-coverage-3-peers/random_valid/diagnostic/seed-201",
+          "weight_audit": null
+        },
+        {
+          "attempt": "baselines/rural-coverage-3-peers/random_valid-1cce0f24ef/diagnostic/seed-202/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "baselines/rural-coverage-3-peers/random_valid-1cce0f24ef/diagnostic/seed-202/attempt-1/episode-0001",
+              "inputs": "baselines/rural-coverage-3-peers/random_valid-1cce0f24ef/diagnostic/seed-202/attempt-1/episode-0001/inputs",
+              "seed": 202
+            }
+          ],
+          "eval_manifest": "baselines/rural-coverage-3-peers/random_valid-1cce0f24ef/diagnostic/seed-202/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "915538e3490048feb8a769f97452d1cdb180b25815172bec1405c31ff972975d",
+          "group": "90087450f149ef20959ce480a83ba8a21935cc5fba04927672d5e9bd5ce1cc6a",
+          "issues": [],
+          "key": "1cce0f24ef8fd6cbb75d72065faad00d71c75c59510625f8c798de90f8545a98",
+          "manifest_status": "completed",
+          "mode": "baseline",
+          "online_manifest": null,
+          "online_manifest_sha256": null,
+          "physical_digest": "04f9dc29e38cc3bb1209db0333da658421efd8ce43610a1aa6a6716d0536803e",
+          "policy": "random_valid",
+          "protocol": null,
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 202,
+          "status": "complete",
+          "task": "baseline/rural-coverage-3-peers/random_valid/diagnostic/seed-202",
+          "weight_audit": null
+        }
+      ],
+      "policy": "random_valid",
+      "role": "diagnostic"
+    }
+  ],
+  "batch": {
+    "experiment_plan_version": 3,
+    "kind": "train",
+    "matrix_sha256": "47942ef1f0f6c7673abf67b2fb00bc11f8a5384fd8ec2c0d825a37e5c619999b",
+    "name": "example-batch",
+    "plan": "experiment_plan.json"
+  },
+  "case": {
+    "coverage_target": 0.8,
+    "environment": "rural",
+    "exception_reason": null,
+    "mission": "coverage",
+    "peers": 3,
+    "reviewed_exception": false,
+    "seeds": {
+      "101": {
+        "gate_s": 0.0
+      },
+      "201": {
+        "gate_s": 0.0
+      },
+      "202": {
+        "gate_s": 0.0
+      }
+    }
+  },
+  "environment": "rural",
+  "exception_reason": null,
+  "incomplete": true,
+  "issues": [],
+  "missing": [
+    "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-sb3/diagnostic/seed-202"
+  ],
+  "mission_scenario_version": 4,
+  "models": [
+    {
+      "checkpoint": "128",
+      "comparison": null,
+      "continue_from": null,
+      "curriculum_sha256": null,
+      "evaluations": [
+        {
+          "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-deterministic-cc941a372f/diagnostic/seed-201/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-deterministic-cc941a372f/diagnostic/seed-201/attempt-1/episode-0001",
+              "inputs": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-deterministic-cc941a372f/diagnostic/seed-201/attempt-1/episode-0001/inputs",
+              "seed": 201
+            }
+          ],
+          "eval_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-deterministic-cc941a372f/diagnostic/seed-201/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "78e55ea7f2f51bd24222f6eab92ef30e8153b1842c770e797d95a64e1d41f4af",
+          "group": "6a23eb1a974d742373c1dddee53df6c8dcad4e65454a3965919834253b1cd188",
+          "issues": [],
+          "key": "cc941a372fa2b43da9cb8a4232566d522575e5756709401a54f4ff34fc474b49",
+          "manifest_status": "completed",
+          "mode": "frozen",
+          "model_sha256": "0a470458582822da4578ecd7f44ad5dea6b7c853eb4d19c13b12fce65e110627",
+          "online_manifest": null,
+          "online_manifest_sha256": null,
+          "operation": "frozen-deterministic",
+          "operation_digest": "f2804aff0a1d93e3c06e16ea185d422666aa3df5e0dc5e48aa53e93377a71922",
+          "protocol": "frozen_deterministic",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 201,
+          "status": "complete",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-deterministic/diagnostic/seed-201",
+          "weight_audit": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-deterministic-cc941a372f/diagnostic/seed-201/attempt-1/weight_audit.json"
+        },
+        {
+          "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-deterministic-60b2ff12d0/diagnostic/seed-202/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-deterministic-60b2ff12d0/diagnostic/seed-202/attempt-1/episode-0001",
+              "inputs": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-deterministic-60b2ff12d0/diagnostic/seed-202/attempt-1/episode-0001/inputs",
+              "seed": 202
+            }
+          ],
+          "eval_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-deterministic-60b2ff12d0/diagnostic/seed-202/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "c062a9ba4f8529c4e3ae9b5802c42b3295adb37aa6ba5d4c806474f1a50df0c8",
+          "group": "6a23eb1a974d742373c1dddee53df6c8dcad4e65454a3965919834253b1cd188",
+          "issues": [],
+          "key": "60b2ff12d0adb46afae75237be10d718757ce4d3b01c49c256f84993c305fd87",
+          "manifest_status": "completed",
+          "mode": "frozen",
+          "model_sha256": "0a470458582822da4578ecd7f44ad5dea6b7c853eb4d19c13b12fce65e110627",
+          "online_manifest": null,
+          "online_manifest_sha256": null,
+          "operation": "frozen-deterministic",
+          "operation_digest": "f2804aff0a1d93e3c06e16ea185d422666aa3df5e0dc5e48aa53e93377a71922",
+          "protocol": "frozen_deterministic",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 202,
+          "status": "complete",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-deterministic/diagnostic/seed-202",
+          "weight_audit": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-deterministic-60b2ff12d0/diagnostic/seed-202/attempt-1/weight_audit.json"
+        },
+        {
+          "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled-a73794c7c6/diagnostic/seed-201/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled-a73794c7c6/diagnostic/seed-201/attempt-1/episode-0001",
+              "inputs": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled-a73794c7c6/diagnostic/seed-201/attempt-1/episode-0001/inputs",
+              "seed": 201
+            }
+          ],
+          "eval_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled-a73794c7c6/diagnostic/seed-201/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "993fd68519cdb57a6cd83d69fd972ce4b7b69951cbd5233bb19f96fdce8771e1",
+          "group": "532dcead79348cc6a0fa431912091ac43d280119717d3b9d36eb08e76245385a",
+          "issues": [],
+          "key": "a73794c7c6273c958f7eb4b1dc238ac85251c8ba0f8a3d153d1e33d6edd09321",
+          "manifest_status": "completed",
+          "mode": "frozen",
+          "model_sha256": "0a470458582822da4578ecd7f44ad5dea6b7c853eb4d19c13b12fce65e110627",
+          "online_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled-a73794c7c6/diagnostic/seed-201/attempt-1/online_manifest.json",
+          "online_manifest_sha256": "6a80ec463aa0ac79c2fd4a91968e8f1bf9ad3b265bc892fdf72eba5346d0423f",
+          "operation": "frozen-sampled",
+          "operation_digest": "538067348ba007cea4e05ffdf113fa68b79fbff7f419cc760191a2d22b16bca9",
+          "protocol": "frozen_sampled",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 201,
+          "status": "complete",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled/diagnostic/seed-201",
+          "weight_audit": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled-a73794c7c6/diagnostic/seed-201/attempt-1/weight_audit.json"
+        },
+        {
+          "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled-f9509c7895/diagnostic/seed-202/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled-f9509c7895/diagnostic/seed-202/attempt-1/episode-0001",
+              "inputs": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled-f9509c7895/diagnostic/seed-202/attempt-1/episode-0001/inputs",
+              "seed": 202
+            }
+          ],
+          "eval_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled-f9509c7895/diagnostic/seed-202/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "e7030c6bb0aeefa980acdc4b6c8a4c2695fb704d6b0eff61d7f6d5a523ab264f",
+          "group": "532dcead79348cc6a0fa431912091ac43d280119717d3b9d36eb08e76245385a",
+          "issues": [],
+          "key": "f9509c78957a472ace3ade69138ff194868187c75b0ccc587ebc23649003c417",
+          "manifest_status": "completed",
+          "mode": "frozen",
+          "model_sha256": "0a470458582822da4578ecd7f44ad5dea6b7c853eb4d19c13b12fce65e110627",
+          "online_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled-f9509c7895/diagnostic/seed-202/attempt-1/online_manifest.json",
+          "online_manifest_sha256": "4ab82fffe7cab9c526969b0bd386995a5aeae509b517e966f7776447f9fdd524",
+          "operation": "frozen-sampled",
+          "operation_digest": "538067348ba007cea4e05ffdf113fa68b79fbff7f419cc760191a2d22b16bca9",
+          "protocol": "frozen_sampled",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 202,
+          "status": "complete",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled/diagnostic/seed-202",
+          "weight_audit": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled-f9509c7895/diagnostic/seed-202/attempt-1/weight_audit.json"
+        },
+        {
+          "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated-7fb45ced89/diagnostic/seed-201/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated-7fb45ced89/diagnostic/seed-201/attempt-1/episode-0001",
+              "inputs": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated-7fb45ced89/diagnostic/seed-201/attempt-1/episode-0001/inputs",
+              "seed": 201
+            }
+          ],
+          "eval_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated-7fb45ced89/diagnostic/seed-201/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "06c3c3b95356ea083f7dff3726c91a9fb15ff110c7494f8d939c2a56ecb58312",
+          "group": "8777d72f0bbe6b1b0de8c2c2a8218aa7b1cede5d12aac22bc7dea6da08ad2992",
+          "issues": [],
+          "key": "7fb45ced89273742187fc51de08caa7f6462c9b87a2ffbd6a67a1656a31d47ff",
+          "manifest_status": "completed",
+          "mode": "online",
+          "model_sha256": "0a470458582822da4578ecd7f44ad5dea6b7c853eb4d19c13b12fce65e110627",
+          "online_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated-7fb45ced89/diagnostic/seed-201/attempt-1/online_manifest.json",
+          "online_manifest_sha256": "2cc6425ad79113d593a4aace361405365bf5177c25a28fba5fb5f059e833d3bd",
+          "operation": "online-gated",
+          "operation_digest": "2a6a19bc2c0007928e460a0c7b06bc31fc20491372395aac4e900bc79605f3b2",
+          "protocol": "online_gated_v1",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 201,
+          "status": "complete",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated/diagnostic/seed-201",
+          "weight_audit": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated-7fb45ced89/diagnostic/seed-201/attempt-1/weight_audit.json"
+        },
+        {
+          "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated-5881dce1ea/diagnostic/seed-202/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated-5881dce1ea/diagnostic/seed-202/attempt-1/episode-0001",
+              "inputs": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated-5881dce1ea/diagnostic/seed-202/attempt-1/episode-0001/inputs",
+              "seed": 202
+            }
+          ],
+          "eval_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated-5881dce1ea/diagnostic/seed-202/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "609f9a91bfb5f57cc577fd7614b4efe639241d790e5f3553b8190fa2331eda2e",
+          "group": "8777d72f0bbe6b1b0de8c2c2a8218aa7b1cede5d12aac22bc7dea6da08ad2992",
+          "issues": [],
+          "key": "5881dce1ea79048d36b23f092c6f3dc7867035a9a2a84b3f7763f1f5803c67c3",
+          "manifest_status": "completed",
+          "mode": "online",
+          "model_sha256": "0a470458582822da4578ecd7f44ad5dea6b7c853eb4d19c13b12fce65e110627",
+          "online_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated-5881dce1ea/diagnostic/seed-202/attempt-1/online_manifest.json",
+          "online_manifest_sha256": "2fb5f293fc4ad809b6b65a1c68856f0d2a25e5cb75dd39e321898784df31f039",
+          "operation": "online-gated",
+          "operation_digest": "2a6a19bc2c0007928e460a0c7b06bc31fc20491372395aac4e900bc79605f3b2",
+          "protocol": "online_gated_v1",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 202,
+          "status": "complete",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated/diagnostic/seed-202",
+          "weight_audit": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated-5881dce1ea/diagnostic/seed-202/attempt-1/weight_audit.json"
+        },
+        {
+          "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-sb3-f2db03a030/diagnostic/seed-201/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-sb3-f2db03a030/diagnostic/seed-201/attempt-1/episode-0001",
+              "inputs": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-sb3-f2db03a030/diagnostic/seed-201/attempt-1/episode-0001/inputs",
+              "seed": 201
+            }
+          ],
+          "eval_manifest": null,
+          "eval_manifest_sha256": null,
+          "group": "370757c86527ef754e0d5002cb3958f95ff29661a21786477442b48da7a7fcc3",
+          "issues": [],
+          "key": "f2db03a030d7ab3684304bc98d4549d27db49a12370872bdedf80ff429c067e9",
+          "manifest_status": "completed",
+          "mode": "online",
+          "model_sha256": "0a470458582822da4578ecd7f44ad5dea6b7c853eb4d19c13b12fce65e110627",
+          "online_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-sb3-f2db03a030/diagnostic/seed-201/attempt-1/online_manifest.json",
+          "online_manifest_sha256": "8aefd92f74a0a0a44abbc1259f66784287b9a6cb419779588d3a34464ac08346",
+          "operation": "online-sb3",
+          "operation_digest": "617cfc7fca9b780c06e67ea6814469a5c35d81418be30b4b547f35b5401036a4",
+          "protocol": "online_sb3_v1",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 201,
+          "status": "complete",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-sb3/diagnostic/seed-201",
+          "weight_audit": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-sb3-f2db03a030/diagnostic/seed-201/attempt-1/weight_audit.json"
+        },
+        {
+          "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-sb3-0861403a9e/diagnostic/seed-202/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-sb3-0861403a9e/diagnostic/seed-202/attempt-1/episode-0001",
+              "inputs": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-sb3-0861403a9e/diagnostic/seed-202/attempt-1/episode-0001/inputs",
+              "seed": 202
+            }
+          ],
+          "eval_manifest": null,
+          "eval_manifest_sha256": null,
+          "group": "370757c86527ef754e0d5002cb3958f95ff29661a21786477442b48da7a7fcc3",
+          "issues": [],
+          "key": "0861403a9ea45d720e20afc49a55fecca1c91ff0de09b5ed0b6a43d3b0535836",
+          "manifest_status": "completed",
+          "mode": "online",
+          "model_sha256": "0a470458582822da4578ecd7f44ad5dea6b7c853eb4d19c13b12fce65e110627",
+          "online_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-sb3-0861403a9e/diagnostic/seed-202/attempt-1/online_manifest.json",
+          "online_manifest_sha256": "971130c3f1cf4b0ca7891cb05bf519f97d1047ca6cc37f0e4252328ff730f362",
+          "operation": "online-sb3",
+          "operation_digest": "617cfc7fca9b780c06e67ea6814469a5c35d81418be30b4b547f35b5401036a4",
+          "protocol": "online_sb3_v1",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 202,
+          "status": "complete",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-sb3/diagnostic/seed-202",
+          "weight_audit": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-sb3-0861403a9e/diagnostic/seed-202/attempt-1/weight_audit.json"
+        }
+      ],
+      "model": {
+        "binding": "state/bindings/7bfc445cdb289c54f91fdd9ddeb71c57568bf851de1e68da0ad85df8b4ff442a-128.json",
+        "checkpoint": "128",
+        "model_path": "models/rural-coverage-3-peers/raw-delivery/train/train-seed-101/attempt-1/checkpoints/checkpoint_128_steps.zip",
+        "model_selection": "checkpoint",
+        "model_sha256": "0a470458582822da4578ecd7f44ad5dea6b7c853eb4d19c13b12fce65e110627",
+        "n_updates": 8,
+        "num_timesteps": 128,
+        "optimizer_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "run_dir": "models/rural-coverage-3-peers/raw-delivery/train/train-seed-101/attempt-1",
+        "status": "bound",
+        "train_manifest_sha256": "dcea0c112328d8b3815b2fa2b7ce578939a2268a1077806ddebcd35a9caf154e"
+      },
+      "model_source": null,
+      "ppo": {
+        "batch_size": 16,
+        "checkpoint_every_steps": 128,
+        "checkpoint_timing": "after_update",
+        "decisions_per_episode": 64,
+        "eval_every_steps": 0,
+        "keep_checkpoints": 2,
+        "n_epochs": 2,
+        "n_steps": 32,
+        "total_episodes": 4,
+        "total_timesteps": 256
+      },
+      "ppo_label": null,
+      "profile": "smoke",
+      "reward": "raw-delivery",
+      "reward_label": "Delivery ratio",
+      "row": "raw-delivery",
+      "scene": "rural-coverage-3-peers",
+      "schemas": {
+        "observation_schema_sha256": "oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo",
+        "reward_schema_sha256": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+      },
+      "seed_segment": "train-seed-101",
+      "selection": {
+        "action_profile": "move_2d",
+        "observation_parameters": {},
+        "observation_preset": "raw_links_v1",
+        "reward_components": [
+          "delivery_ratio"
+        ],
+        "reward_parameters": {
+          "delivery_ratio": {}
+        },
+        "reward_weights": [
+          1.0
+        ]
+      },
+      "source_phase": null,
+      "stage": null,
+      "tags": [
+        "smoke"
+      ],
+      "training": {
+        "attempt": "models/rural-coverage-3-peers/raw-delivery/train/train-seed-101/attempt-1",
+        "key": "7bfc445cdb289c54f91fdd9ddeb71c57568bf851de1e68da0ad85df8b4ff442a",
+        "status": "complete",
+        "task": "train/rural-coverage-3-peers/raw-delivery/train-seed-101",
+        "train_manifest": "models/rural-coverage-3-peers/raw-delivery/train/train-seed-101/attempt-1/train_manifest.json",
+        "train_manifest_sha256": "dcea0c112328d8b3815b2fa2b7ce578939a2268a1077806ddebcd35a9caf154e"
+      },
+      "training_seed": 101
+    },
+    {
+      "checkpoint": "final",
+      "comparison": null,
+      "continue_from": null,
+      "curriculum_sha256": null,
+      "evaluations": [
+        {
+          "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-deterministic-563cc5b692/diagnostic/seed-201/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-deterministic-563cc5b692/diagnostic/seed-201/attempt-1/episode-0001",
+              "inputs": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-deterministic-563cc5b692/diagnostic/seed-201/attempt-1/episode-0001/inputs",
+              "seed": 201
+            }
+          ],
+          "eval_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-deterministic-563cc5b692/diagnostic/seed-201/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "8c2a3ea276dfc88be6fe52e875c78e38d3e47fa3989623d092ff1462f77c37e6",
+          "group": "fec55199923f0b85e271cd922c7c55610b25f4b50f50406daeb1e76d6c6ca2e7",
+          "issues": [],
+          "key": "563cc5b692303619e2a44d4e345dc01153af464bad4f64306a03cf644d60b99b",
+          "manifest_status": "completed",
+          "mode": "frozen",
+          "model_sha256": "13b02e28d87743e40c5bc427b373dc0d30aa18c6b6fa1aa36ac204bd37e24353",
+          "online_manifest": null,
+          "online_manifest_sha256": null,
+          "operation": "frozen-deterministic",
+          "operation_digest": "f2804aff0a1d93e3c06e16ea185d422666aa3df5e0dc5e48aa53e93377a71922",
+          "protocol": "frozen_deterministic",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 201,
+          "status": "complete",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-deterministic/diagnostic/seed-201",
+          "weight_audit": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-deterministic-563cc5b692/diagnostic/seed-201/attempt-1/weight_audit.json"
+        },
+        {
+          "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-deterministic-f0fe8c86cc/diagnostic/seed-202/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-deterministic-f0fe8c86cc/diagnostic/seed-202/attempt-1/episode-0001",
+              "inputs": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-deterministic-f0fe8c86cc/diagnostic/seed-202/attempt-1/episode-0001/inputs",
+              "seed": 202
+            }
+          ],
+          "eval_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-deterministic-f0fe8c86cc/diagnostic/seed-202/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "85f61aa0ea0d191968d79b74927e851de4df05625c652761f8279015e3df0abd",
+          "group": "fec55199923f0b85e271cd922c7c55610b25f4b50f50406daeb1e76d6c6ca2e7",
+          "issues": [],
+          "key": "f0fe8c86ccb40fe880405f4569f822dbec015118cb2d74de66c924cdcb1700d9",
+          "manifest_status": "completed",
+          "mode": "frozen",
+          "model_sha256": "13b02e28d87743e40c5bc427b373dc0d30aa18c6b6fa1aa36ac204bd37e24353",
+          "online_manifest": null,
+          "online_manifest_sha256": null,
+          "operation": "frozen-deterministic",
+          "operation_digest": "f2804aff0a1d93e3c06e16ea185d422666aa3df5e0dc5e48aa53e93377a71922",
+          "protocol": "frozen_deterministic",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 202,
+          "status": "complete",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-deterministic/diagnostic/seed-202",
+          "weight_audit": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-deterministic-f0fe8c86cc/diagnostic/seed-202/attempt-1/weight_audit.json"
+        },
+        {
+          "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled-f8537ce9ec/diagnostic/seed-201/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled-f8537ce9ec/diagnostic/seed-201/attempt-1/episode-0001",
+              "inputs": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled-f8537ce9ec/diagnostic/seed-201/attempt-1/episode-0001/inputs",
+              "seed": 201
+            }
+          ],
+          "eval_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled-f8537ce9ec/diagnostic/seed-201/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "693b540c67a9f66b1a2b1e99406af2b22089c748a976669d62568fbd038f4ae5",
+          "group": "8e68ecd585976eed7f075574b78630969e94af75553e1d1b07d0b251a6fba21f",
+          "issues": [],
+          "key": "f8537ce9ec6773a01003113daa38fa7ff375246ce6b7993e76418c9c5f6361d8",
+          "manifest_status": "completed",
+          "mode": "frozen",
+          "model_sha256": "13b02e28d87743e40c5bc427b373dc0d30aa18c6b6fa1aa36ac204bd37e24353",
+          "online_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled-f8537ce9ec/diagnostic/seed-201/attempt-1/online_manifest.json",
+          "online_manifest_sha256": "912bf9fb40f9913ad3244f3751dcc96bb6eca0f04add5047b44cb0179145ae3d",
+          "operation": "frozen-sampled",
+          "operation_digest": "538067348ba007cea4e05ffdf113fa68b79fbff7f419cc760191a2d22b16bca9",
+          "protocol": "frozen_sampled",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 201,
+          "status": "complete",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled/diagnostic/seed-201",
+          "weight_audit": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled-f8537ce9ec/diagnostic/seed-201/attempt-1/weight_audit.json"
+        },
+        {
+          "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled-404cfe3c07/diagnostic/seed-202/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled-404cfe3c07/diagnostic/seed-202/attempt-1/episode-0001",
+              "inputs": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled-404cfe3c07/diagnostic/seed-202/attempt-1/episode-0001/inputs",
+              "seed": 202
+            }
+          ],
+          "eval_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled-404cfe3c07/diagnostic/seed-202/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "204704c6ba64186001bf2b8a9751d287d437b7c0ee609495169cc37a841f4f3e",
+          "group": "8e68ecd585976eed7f075574b78630969e94af75553e1d1b07d0b251a6fba21f",
+          "issues": [],
+          "key": "404cfe3c074d84ade74f6b480b903aaadff0f11551f1e203c9f789bfbfbbbc5b",
+          "manifest_status": "completed",
+          "mode": "frozen",
+          "model_sha256": "13b02e28d87743e40c5bc427b373dc0d30aa18c6b6fa1aa36ac204bd37e24353",
+          "online_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled-404cfe3c07/diagnostic/seed-202/attempt-1/online_manifest.json",
+          "online_manifest_sha256": "7119764bf03730ba8982503d27556fcfdee924c6c6a3fe8cbbdd91b05d0ef646",
+          "operation": "frozen-sampled",
+          "operation_digest": "538067348ba007cea4e05ffdf113fa68b79fbff7f419cc760191a2d22b16bca9",
+          "protocol": "frozen_sampled",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 202,
+          "status": "complete",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled/diagnostic/seed-202",
+          "weight_audit": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled-404cfe3c07/diagnostic/seed-202/attempt-1/weight_audit.json"
+        },
+        {
+          "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated-73d35664d4/diagnostic/seed-201/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated-73d35664d4/diagnostic/seed-201/attempt-1/episode-0001",
+              "inputs": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated-73d35664d4/diagnostic/seed-201/attempt-1/episode-0001/inputs",
+              "seed": 201
+            }
+          ],
+          "eval_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated-73d35664d4/diagnostic/seed-201/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "3d564ecd66c2a457b0704baf3ed1ba8c28635dfbfc646c9d31dcc9f8eaa55721",
+          "group": "3e2f86076f3663d8afbb78aae135a251642dc0c68473f6816642cee44d277d14",
+          "issues": [],
+          "key": "73d35664d4db5416e01841ad1bdade2aa2d5c3bb7f3db46a1c1a4bf8ad55e3ca",
+          "manifest_status": "completed",
+          "mode": "online",
+          "model_sha256": "13b02e28d87743e40c5bc427b373dc0d30aa18c6b6fa1aa36ac204bd37e24353",
+          "online_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated-73d35664d4/diagnostic/seed-201/attempt-1/online_manifest.json",
+          "online_manifest_sha256": "09a80d94b18e857e059e8f1984afe2436ae2c7cf12f175ad65a8b4dd40b768c5",
+          "operation": "online-gated",
+          "operation_digest": "2a6a19bc2c0007928e460a0c7b06bc31fc20491372395aac4e900bc79605f3b2",
+          "protocol": "online_gated_v1",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 201,
+          "status": "complete",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated/diagnostic/seed-201",
+          "weight_audit": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated-73d35664d4/diagnostic/seed-201/attempt-1/weight_audit.json"
+        },
+        {
+          "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated-1e893b1ac1/diagnostic/seed-202/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated-1e893b1ac1/diagnostic/seed-202/attempt-1/episode-0001",
+              "inputs": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated-1e893b1ac1/diagnostic/seed-202/attempt-1/episode-0001/inputs",
+              "seed": 202
+            }
+          ],
+          "eval_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated-1e893b1ac1/diagnostic/seed-202/attempt-1/eval_manifest.json",
+          "eval_manifest_sha256": "694456779fc317075af644a5e6e861212173beb382f4e2010eb78a637134531a",
+          "group": "3e2f86076f3663d8afbb78aae135a251642dc0c68473f6816642cee44d277d14",
+          "issues": [],
+          "key": "1e893b1ac162db6c7b3024d2c2e051cfca7b22504f79a21eb7a915b5223e6b8d",
+          "manifest_status": "completed",
+          "mode": "online",
+          "model_sha256": "13b02e28d87743e40c5bc427b373dc0d30aa18c6b6fa1aa36ac204bd37e24353",
+          "online_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated-1e893b1ac1/diagnostic/seed-202/attempt-1/online_manifest.json",
+          "online_manifest_sha256": "9a51f4a93ec07161e2a0ec296d9cf0b402c5ac0bc736e0623090803cdb163bb6",
+          "operation": "online-gated",
+          "operation_digest": "2a6a19bc2c0007928e460a0c7b06bc31fc20491372395aac4e900bc79605f3b2",
+          "protocol": "online_gated_v1",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 202,
+          "status": "complete",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated/diagnostic/seed-202",
+          "weight_audit": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated-1e893b1ac1/diagnostic/seed-202/attempt-1/weight_audit.json"
+        },
+        {
+          "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-sb3-080c286c3c/diagnostic/seed-201/attempt-1",
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [
+            {
+              "episode_dir": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-sb3-080c286c3c/diagnostic/seed-201/attempt-1/episode-0001",
+              "inputs": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-sb3-080c286c3c/diagnostic/seed-201/attempt-1/episode-0001/inputs",
+              "seed": 201
+            }
+          ],
+          "eval_manifest": null,
+          "eval_manifest_sha256": null,
+          "group": "19bad05be6e5e093bbd83421ea5e8e67207b0faea6facda8546648f827d7ddcf",
+          "issues": [],
+          "key": "080c286c3c35187a0581af29f368e24f0e202504e0538f8eeaab1f660d9b03e3",
+          "manifest_status": "completed",
+          "mode": "online",
+          "model_sha256": "13b02e28d87743e40c5bc427b373dc0d30aa18c6b6fa1aa36ac204bd37e24353",
+          "online_manifest": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-sb3-080c286c3c/diagnostic/seed-201/attempt-1/online_manifest.json",
+          "online_manifest_sha256": "52104b053217ee72af4a8d8e71283768129a44d8d51168d97a845954ed42f6d9",
+          "operation": "online-sb3",
+          "operation_digest": "617cfc7fca9b780c06e67ea6814469a5c35d81418be30b4b547f35b5401036a4",
+          "protocol": "online_sb3_v1",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 201,
+          "status": "complete",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-sb3/diagnostic/seed-201",
+          "weight_audit": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-sb3-080c286c3c/diagnostic/seed-201/attempt-1/weight_audit.json"
+        },
+        {
+          "attempt": null,
+          "config": {
+            "config_source": "run_config",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
+            "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
+          },
+          "episodes": [],
+          "eval_manifest": null,
+          "eval_manifest_sha256": null,
+          "group": "19bad05be6e5e093bbd83421ea5e8e67207b0faea6facda8546648f827d7ddcf",
+          "issues": [],
+          "key": "fcdee8957601652c3d69111de86fe2ff4a688128a65f53b6671730050dcaa72e",
+          "manifest_status": null,
+          "mode": "online",
+          "model_sha256": "13b02e28d87743e40c5bc427b373dc0d30aa18c6b6fa1aa36ac204bd37e24353",
+          "online_manifest": null,
+          "online_manifest_sha256": null,
+          "operation": "online-sb3",
+          "operation_digest": "617cfc7fca9b780c06e67ea6814469a5c35d81418be30b4b547f35b5401036a4",
+          "protocol": "online_sb3_v1",
+          "role": "diagnostic",
+          "schedule": null,
+          "seed": 202,
+          "status": "missing",
+          "task": "operate/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-sb3/diagnostic/seed-202",
+          "weight_audit": null
+        }
+      ],
+      "model": {
+        "binding": "state/bindings/7bfc445cdb289c54f91fdd9ddeb71c57568bf851de1e68da0ad85df8b4ff442a-final.json",
+        "checkpoint": "final",
+        "model_path": "models/rural-coverage-3-peers/raw-delivery/train/train-seed-101/attempt-1/maskable_ppo_mesh.zip",
+        "model_selection": "final",
+        "model_sha256": "13b02e28d87743e40c5bc427b373dc0d30aa18c6b6fa1aa36ac204bd37e24353",
+        "n_updates": 16,
+        "num_timesteps": 256,
+        "optimizer_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "run_dir": "models/rural-coverage-3-peers/raw-delivery/train/train-seed-101/attempt-1",
+        "status": "bound",
+        "train_manifest_sha256": "dcea0c112328d8b3815b2fa2b7ce578939a2268a1077806ddebcd35a9caf154e"
+      },
+      "model_source": null,
+      "ppo": {
+        "batch_size": 16,
+        "checkpoint_every_steps": 128,
+        "checkpoint_timing": "after_update",
+        "decisions_per_episode": 64,
+        "eval_every_steps": 0,
+        "keep_checkpoints": 2,
+        "n_epochs": 2,
+        "n_steps": 32,
+        "total_episodes": 4,
+        "total_timesteps": 256
+      },
+      "ppo_label": null,
+      "profile": "smoke",
+      "reward": "raw-delivery",
+      "reward_label": "Delivery ratio",
+      "row": "raw-delivery",
+      "scene": "rural-coverage-3-peers",
+      "schemas": {
+        "observation_schema_sha256": "oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo",
+        "reward_schema_sha256": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+      },
+      "seed_segment": "train-seed-101",
+      "selection": {
+        "action_profile": "move_2d",
+        "observation_parameters": {},
+        "observation_preset": "raw_links_v1",
+        "reward_components": [
+          "delivery_ratio"
+        ],
+        "reward_parameters": {
+          "delivery_ratio": {}
+        },
+        "reward_weights": [
+          1.0
+        ]
+      },
+      "source_phase": null,
+      "stage": null,
+      "tags": [
+        "smoke"
+      ],
+      "training": {
+        "attempt": "models/rural-coverage-3-peers/raw-delivery/train/train-seed-101/attempt-1",
+        "key": "7bfc445cdb289c54f91fdd9ddeb71c57568bf851de1e68da0ad85df8b4ff442a",
+        "status": "complete",
+        "task": "train/rural-coverage-3-peers/raw-delivery/train-seed-101",
+        "train_manifest": "models/rural-coverage-3-peers/raw-delivery/train/train-seed-101/attempt-1/train_manifest.json",
+        "train_manifest_sha256": "dcea0c112328d8b3815b2fa2b7ce578939a2268a1077806ddebcd35a9caf154e"
+      },
+      "training_seed": 101
+    }
+  ],
+  "objective": "coverage",
+  "peers": 3,
+  "reports": {
+    "batch_reward_summary": "main/reward_comparison.json",
+    "comparisons": [],
+    "curves": [
+      {
+        "curves": "analysis/rural-coverage-3-peers/curves/552517358fce7ac60ff751bc10e42774cabe75b1f8f3613483cab7b61702628e/attempt-1/raw-delivery/train-seed-101/training_curves.csv",
+        "sources": "analysis/rural-coverage-3-peers/curves/552517358fce7ac60ff751bc10e42774cabe75b1f8f3613483cab7b61702628e/attempt-1/raw-delivery/train-seed-101/training_curve_sources.json",
+        "task": "curves/rural-coverage-3-peers",
+        "train_task": "train/rural-coverage-3-peers/raw-delivery/train-seed-101"
+      }
+    ],
+    "mission_review": {
+      "path": "main/rural-coverage-3-peers/mission_review.json",
+      "sha256": "5e52a4f11cbfc18450edd2d50b59b2624bdf8408f80c2c28899ce430dfc390df",
+      "source": "analysis/rural-coverage-3-peers/reviews/8484e672f7f1847b9131f5059d3a73847382960819f671b3739cab11d2b05c07/attempt-1/mission_review.json",
+      "task": "review/rural-coverage-3-peers"
+    },
+    "phase_comparison": null,
+    "reward_summary": "main/rural-coverage-3-peers/reward_comparison.json"
+  },
+  "reviewed_exception": false,
+  "scene": "rural-coverage-3-peers",
+  "seeds": {
+    "diagnostic": [
+      201,
+      202
+    ],
+    "held_out": [],
+    "model_selection": [],
+    "training": [
+      101
+    ]
+  },
+  "validation_seeds": [
+    201,
+    202
+  ]
+}

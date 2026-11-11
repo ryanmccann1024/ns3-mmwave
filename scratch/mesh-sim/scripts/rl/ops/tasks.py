@@ -10,9 +10,22 @@ TASKS_VERSION = 1
 _TOLERATED = {"train": (0,), "evaluate": (0, 2), "compare": (0, 2)}
 _OUTCOMES = ("complete", "incomplete")
 
+# Plan v3 child modules a worker may launch; nothing else named in plan JSON runs.
+STEP_MODULES = ("scripts.rl.train", "scripts.rl.operate", "scripts.rl.compare")
+_ATTEMPT_DIR = "{attempt_dir}"
+_BINDING_RUN_DIR = "{binding_run_dir}"
+_BINDING_MODEL = "{binding_model}"
+_BINDING_PATH = "{binding_path}"
+_ACCEPTED_DIRS = "{accepted_dirs}"
+_ACCEPTED_PREFIX = "{accepted_dir:"
+_SELECTION_FLAGS = ("--observation-preset", "--reward-components", "--reward-weights",
+                    "--observation-parameters", "--reward-parameters")
+_CONTINUE_FLAGS = ("--continue-from-run-dir", "--continue-model")
+
 __all__ = ["TASKS_VERSION", "PLAN_NAME", "load_plan", "step_state", "plan_root",
            "build_tasks", "compare_step", "tolerated", "task_fs_state",
-           "compare_prerequisites", "comparison_outcome"]
+           "compare_prerequisites", "comparison_outcome", "STEP_MODULES", "step_module",
+           "binding_model_selector", "substitute_args", "resume_train_args", "arg_value"]
 
 
 def _steps(plan: dict, kind: str) -> list[dict]:
@@ -116,3 +129,95 @@ def comparison_outcome(plan: dict) -> dict:
     status = data.get("status") if isinstance(data, dict) else None
     state = status if status in _OUTCOMES else "unreadable"
     return {"state": state, "path": str(path)}
+
+
+def step_module(task: dict) -> str:
+    """The allowlisted module a plan v3 task launches; handlers and others are refused."""
+    module = task.get("module")
+    if task.get("handler") is not None or module not in STEP_MODULES:
+        raise ValueError(f"task {task.get('id')} does not launch an allowlisted module "
+                         f"(module {module!r}, handler {task.get('handler')!r})")
+    return module
+
+
+def binding_model_selector(binding: dict) -> str:
+    """--model value for a binding record: final, best or checkpoints/NAME.zip of its run."""
+    selection = binding["model_selection"]
+    if selection in ("final", "best"):
+        return selection
+    model, run_dir = Path(binding["model_path"]), Path(binding["run_dir"])
+    if model.parent != run_dir / "checkpoints":
+        raise ValueError(f"bound checkpoint {model} is not in {run_dir}/checkpoints")
+    return f"checkpoints/{model.name}"
+
+
+def substitute_args(task: dict, attempt_dir, binding: dict | None = None,
+                    accepted: dict | None = None, accepted_dirs: list | None = None,
+                    binding_path=None) -> list[str]:
+    """Replace whole-argument placeholders; any placeholder left unresolved is an error.
+
+    `binding` is a write-once model binding record stored at `binding_path`,
+    `accepted` maps task ids to their accepted attempt directories and
+    `accepted_dirs` expands in place.
+    """
+    accepted = accepted or {}
+    out = []
+    for arg in task.get("args") or []:
+        if arg == _ATTEMPT_DIR:
+            out.append(str(attempt_dir))
+        elif arg in (_BINDING_RUN_DIR, _BINDING_MODEL):
+            if binding is None:
+                raise ValueError(f"task {task['id']} needs a model binding for {arg}")
+            out.append(binding["run_dir"] if arg == _BINDING_RUN_DIR else binding_model_selector(binding))
+        elif arg == _BINDING_PATH:
+            if binding_path is None:
+                raise ValueError(f"task {task['id']} needs a model binding file for {arg}")
+            out.append(str(binding_path))
+        elif arg == _ACCEPTED_DIRS:
+            if not accepted_dirs:
+                raise ValueError(f"task {task['id']} has no accepted directories for {arg}")
+            out.extend(str(d) for d in accepted_dirs)
+        elif arg.startswith(_ACCEPTED_PREFIX) and arg.endswith("}"):
+            source = arg[len(_ACCEPTED_PREFIX):-1]
+            if not accepted.get(source):
+                raise ValueError(f"task {task['id']} needs the accepted attempt of {source}")
+            out.append(str(accepted[source]))
+        else:
+            out.append(arg)
+    left = [a for a in out if a in (_ATTEMPT_DIR, _BINDING_RUN_DIR, _BINDING_MODEL, _BINDING_PATH,
+                                    _ACCEPTED_DIRS)
+            or a.startswith(_ACCEPTED_PREFIX)]
+    if left:
+        raise ValueError(f"task {task['id']} has unresolved placeholders {left}")
+    return out
+
+
+def arg_value(args: list, flag: str):
+    """Value following `flag` (or of `flag=value`) in an argument list, else None."""
+    for index, arg in enumerate(args):
+        if arg == flag and index + 1 < len(args):
+            return args[index + 1]
+        if arg.startswith(flag + "="):
+            return arg.split("=", 1)[1]
+    return None
+
+
+def resume_train_args(args: list, parent_run_dir, checkpoint: str) -> list[str]:
+    """A train task's arguments rewritten to continue from a verified retained checkpoint.
+
+    Selection and continuation flags are dropped (train.py takes them from the
+    parent manifest when resuming); every PPO setting and budget is unchanged.
+    """
+    if "--curriculum-schedule" in args:
+        raise ValueError("curriculum training cannot resume from a checkpoint")
+    out, skip = [], False
+    for arg in args:
+        if skip:
+            skip = False
+            continue
+        name = arg.split("=", 1)[0]
+        if name in _SELECTION_FLAGS + _CONTINUE_FLAGS:
+            skip = "=" not in arg
+            continue
+        out.append(arg)
+    return out + ["--resume-run-dir", str(parent_run_dir), "--resume-checkpoint", checkpoint]

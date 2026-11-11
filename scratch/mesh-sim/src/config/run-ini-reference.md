@@ -2,14 +2,19 @@
 
 @brief Every run.ini key the simulator reads, with defaults and units.
 
-These are the keys read by the simulator, plus the five `[rl]` selection keys
-read by Python. Omitted keys use the defaults below; unknown keys are silently
-ignored. Input-file paths are relative to `run.ini`. For action and reward
-behavior, see the [RL bridge](../rl/README.md); for `jammers.json`, see the
-[jammer model](../jammer/README.md). Command-line overrides are listed in the
-[CLI guide](../cli/README.md).
+This page lists every `run.ini` key the simulator reads, plus the `[rl]` and
+`[baseline]` keys that Python reads.
 
-## [scenario] and [output]
+- Omitted keys use the defaults below.
+- The simulator silently ignores unknown keys, except in `[channel_query]`,
+  where they are errors. Python rejects unknown `[baseline]` keys.
+- Input-file paths are relative to `run.ini`.
+
+Related pages: the [RL bridge](../rl/README.md) for action and reward behavior,
+the [jammer model](../jammer/README.md) for `jammers.json`, and the
+[CLI guide](../cli/README.md) for command-line overrides.
+
+## 1\. [scenario] and [output]
 
 | Key | Default | Controls |
 | --- | --- | --- |
@@ -17,7 +22,7 @@ behavior, see the [RL bridge](../rl/README.md); for `jammers.json`, see the
 | `seed` | `42` | Simulation random seed; CLI `--seed`/`--seeds` can override it. |
 | `run_id` | `1` | Run identifier; CLI `--run-id` can override it. |
 | `duration_s` | `10` | Simulated duration in seconds. |
-| `warmup_s` | `0` | Initial seconds excluded from output metrics, not from RL rewards. |
+| `warmup_s` | `0` | Initial seconds excluded from output metrics. RL rewards still count them. |
 | `tick_s` | `0.1` | Simulation time advanced per tick, in seconds. |
 | `nodes_file` | `nodes.json` | Mesh-node input file. |
 | `buildings_file` | blank | Optional building input file. |
@@ -25,15 +30,7 @@ behavior, see the [RL bridge](../rl/README.md); for `jammers.json`, see the
 | `[output] dir` | timestamped `outputs/` path | Output root; a relative value resolves from `run.ini`. CLI `--output-dir` overrides it. |
 | `[output] viz_tick_ms` | `100` | Milliseconds between visualization CSV snapshots. |
 
-## [channel]
-
-`band` chooses a simulator mode; it is not inferred from `frequency_ghz`.
-Jammers contribute interference only in `sub-6` mode. The jammer's
-`target_freq` then filters the carrier frequency.
-
-The band resolves as `--band` on the command line, then `[channel] band`, then
-the default `mmwave`. `run.log` records the result as `band` and `band_source`
-(`cli`, `run.ini`, or `default`).
+## 2\. [channel]
 
 | Key | Default | Controls |
 | --- | --- | --- |
@@ -43,22 +40,31 @@ the default `mmwave`. `run.log` records the result as `band` and `band_source`
 | `scenario` | `UMi` | Propagation setting: `UMi`, `UMa`, `RMa`, `InH`, or `InF`. |
 | `channel_model` | `3gpp` | Propagation model: `3gpp` or `nyu`. |
 | `condition_model` | `auto` | `auto` or `static_los` channel-condition selection. |
-| `blockage_enabled` | `true` | Enable channel-model blockage. |
-| `beamforming_model` | `svd` | Parsed and stored, but not used by the current link evaluator. |
+| `blockage_enabled` | `true` | Parsed and stored; the link evaluator does not read it. |
+| `beamforming_model` | `svd` | Parsed and stored; the link evaluator does not read it. |
 | `amc_model` | `shannon` | SINR-to-capacity method: `shannon`, `table`, or `silvus`. |
 | `bandwidth_mhz` | `400` | Link bandwidth used for noise floor and capacity, in MHz. |
 | `noise_figure_db` | `5` | Receiver noise figure in dB. |
 | `tx_array_gain_dbi` | `12` | Default mesh-node transmit antenna gain in dBi. |
 | `rx_array_gain_dbi` | `12` | Default mesh-node receive antenna gain in dBi. |
 
-## [nyu_channel]
+**Band:**
 
-These settings matter only when `[channel] channel_model = nyu`, except
-`rf_bandwidth_mhz`, which is currently parsed but not applied.
+- `band` chooses a simulator mode. It is never inferred from `frequency_ghz`.
+- Resolution order: `--band` on the command line, then `[channel] band`, then
+  the default `mmwave`. `run.log` records the result as `band` and
+  `band_source` (`cli`, `run.ini`, or `default`).
+- Jammers contribute interference only in `sub-6` mode. The jammer's
+  `target_freq` then filters the carrier frequency.
+
+## 3\. [nyu_channel]
+
+These keys apply only when `[channel] channel_model = nyu`.
+`rf_bandwidth_mhz` is parsed but not applied.
 
 | Key | Default | Controls |
 | --- | --- | --- |
-| `rf_bandwidth_mhz` | `800` | Stored NYU RF bandwidth; currently not applied. |
+| `rf_bandwidth_mhz` | `800` | Stored NYU RF bandwidth; not applied. |
 | `shadowing_enabled` | `true` | NYU shadow fading. |
 | `pressure_mbar` | `1013.25` | Atmospheric pressure. |
 | `humidity_pct` | `50` | Relative humidity. |
@@ -66,35 +72,55 @@ These settings matter only when `[channel] channel_model = nyu`, except
 | `rain_rate_mm_hr` | `0` | Rain rate. |
 | `atmospheric_loss_enabled` | `false` | Molecular absorption loss. |
 | `foliage_loss_enabled` | `false` | Foliage excess loss. |
-| `foliage_loss_db_m` | `0.4` | Foliage loss per metre. |
+| `foliage_loss_db_m` | `0.4` | Foliage loss per meter. |
 | `o2i_loss_type` | `Low Loss` | Outdoor-to-indoor loss class (`Low Loss` or `High Loss`). |
 
-## [traffic] and [routing]
+## 4\. [traffic] and [routing]
 
-Traffic is flow-level demand, not packets. `constant` keeps flows active,
-`poisson` starts flows randomly, and `on_off` alternates sending and silence.
-`all_pairs` connects every pair, `random_pairs` samples pairs, and `gateway`
-connects each other node to one gateway. See the [traffic](@ref src_traffic)
-and [routing](@ref src_routing) modules for the code that owns them.
+Traffic is flow-level demand; there are no packets. The
+[traffic](@ref src_traffic) and [routing](@ref src_routing) modules own the
+code.
 
 | Key | Default | Controls |
 | --- | --- | --- |
-| `[traffic] model` | `constant` | `constant`, `poisson`, or `on_off` demand. |
+| `[traffic] model` | `constant` | `constant` (flows stay active), `poisson` (flows start randomly), or `on_off` (flows alternate sending and silence). |
 | `demand_mbps` | `10` | Requested rate per active flow. |
 | `arrival_rate_hz` | `1` | New flows per second in `poisson` mode. |
 | `on_time_s`, `off_time_s` | `1`, `1` | Mean on/off phase lengths in `on_off` mode; finite, nonnegative, and not both zero. |
 | `holding_time_s` | `0` | Flow lifetime in seconds; `0` means no expiry. |
-| `flow_topology` | `all_pairs` | `all_pairs`, `random_pairs`, or `gateway`. |
+| `flow_topology` | `all_pairs` | `all_pairs` (every pair), `random_pairs` (sampled pairs), `gateway` (each other node to one gateway), or `explicit_pairs` (the listed pairs). |
 | `random_pair_count` | `3` | Number of flows with `random_pairs` topology. |
 | `gateway_node_id` | blank | Gateway node ID, required with `gateway` topology. |
-| `[routing] algorithm` | `shortest_path` | Inverse-capacity shortest path, widest-capacity path (`max_throughput`), or fewest hops (`min_hop`). |
+| `pairs` | `[]` | JSON array of explicit source-to-destination traffic pairs with per-pair demand; only valid with `flow_topology=explicit_pairs`. See [Explicit traffic pairs](@ref src_config_traffic_pairs). |
+| `[routing] algorithm` | `shortest_path` | `shortest_path` (inverse-capacity shortest path), `max_throughput` (widest-capacity path), or `min_hop` (fewest hops). |
 | `max_hops` | `5` | Maximum hops per route; `0` means unlimited. |
 
-## [rl]
+### Explicit traffic pairs {#src_config_traffic_pairs}
 
-With `enabled = false`, the remaining C++ RL keys do not control the run. The
-jammer-only smoke scenario uses this setting: its `[rl]` block is inert in the
-regression run. CLI `--rl-mode` turns RL on even if the file says `false`.
+`[traffic] flow_topology=explicit_pairs` requires `model=constant` and a
+nonempty `pairs` JSON array, for example:
+
+```ini
+pairs = [{"src":"ground-1","dst":"vehicle-1","demand_mbps":6}]
+```
+
+- Each pair's `src` and `dst` must name existing nodes and must differ.
+- Each pair's `demand_mbps` must be finite and positive and sets that flow's
+  rate. The global `demand_mbps` scalar is still validated.
+- Duplicate directed pairs are rejected. Reverse-direction pairs are distinct
+  flows.
+- A nonempty `pairs` value requires `flow_topology=explicit_pairs`.
+- For equal per-source load q across N nodes (N > 1), include every ordered
+  pair among those nodes with `demand_mbps` set to q/(N-1).
+
+## 5\. [rl]
+
+With `enabled = false`, the other C++ RL keys do not control the run. CLI
+`--rl-mode` turns RL on even if the file says `false`. The jammer-only smoke
+scenario uses `enabled = false`, so its `[rl]` block is inert in the regression
+run.
+
+### Simulator keys
 
 | Key | Default | Controls |
 | --- | --- | --- |
@@ -105,19 +131,21 @@ regression run. CLI `--rl-mode` turns RL on even if the file says `false`.
 | `action_type` | `discrete` | Legacy: `discrete` or `continuous`; centralized requires `discrete`. |
 | `action_profile` | `move_2d` | Centralized movement profile; only `move_2d` is implemented. |
 | `decision_interval_s` | `0` | Seconds between centralized decisions; `0` means `tick_s`, otherwise an integer multiple of it. |
-| `reward_type` | `throughput` | C++ reward: `throughput` or `all_links_los`; `mean_sinr` is a deprecated alias for the latter: it still runs, prints a warning on stderr, and `run.log` records it as `rl.reward_alias`. |
+| `reward_type` | `throughput` | C++ reward: `throughput` or `all_links_los`. `mean_sinr` is a deprecated alias for `all_links_los`: it still runs, prints a warning on stderr, and `run.log` records it as `rl.reward_alias`. |
 | `step_size_m` | `50` | Nominal discrete move per simulation tick, capped by node speed in centralized mode. |
-| `arrival_threshold_m` | `1` | Legacy continuous-target arrival distance, in metres. |
-| `x_min`, `x_max` | `-1000`, `2000` | Allowed east/west movement bounds, in metres. Each min must be below its max (same for y and z). |
-| `y_min`, `y_max` | `-1000`, `1000` | Allowed north/south movement bounds, in metres. |
-| `z_min`, `z_max` | `0`, `100` | Allowed height bounds, in metres; centralized `move_2d` does not change height. |
+| `arrival_threshold_m` | `1` | Legacy continuous-target arrival distance, in meters. |
+| `x_min`, `x_max` | `-1000`, `2000` | Allowed east/west movement bounds, in meters. Each min must be below its max (same for y and z). |
+| `y_min`, `y_max` | `-1000`, `1000` | Allowed north/south movement bounds, in meters. |
+| `z_min`, `z_max` | `0`, `100` | Allowed height bounds, in meters; centralized `move_2d` does not change height. |
 
-In centralized mode `all_links_los` is true only when every controlled node
-has at least one peer link and all of them are line-of-sight. `action_set` and
-`dimensions` are not keys; the loader ignores unknown keys silently.
+- In centralized mode, `all_links_los` is true only when every controlled node
+  has at least one peer link and all of them are line-of-sight.
+- `action_set` and `dimensions` are not keys; the loader ignores them.
 
-The next five keys are read by Python's centralized RL environment, **not** by
-the C++ simulator. Each also has a training CLI override; see
+### Python keys
+
+These five keys are read by Python's centralized RL environment; the C++
+simulator does not read them. Each also has a training CLI override; see
 [Selecting observations, rewards, and telemetry](@ref src_rl_policy_inputs_selection).
 
 | Key | Default | Controls |
@@ -128,15 +156,85 @@ the C++ simulator. Each also has a training CLI override; see
 | `telemetry` | `none` | `none` or `steps` decision-level records. |
 | `telemetry_every` | `1` | Record every Nth decision when `telemetry = steps`. |
 
-## [baseline]
+### Safety and live coverage
 
-Selects a placement baseline. The C++ simulator reads only `algorithm`, and
-never plans placements: a direct run with `geometric` or `optimization` exits
-with an error unless the CLI passes `--rl-mode`, in which case it prints a
-notice and uses the scenario layout. `[rl] enabled = true` alone does not
-bypass this guard. Python (`scripts/baselines/config.py`) owns every key below
-and rejects unknown keys and values; the binary ignores keys other than
-`algorithm`.
+| Key | Default | Controls |
+| --- | --- | --- |
+| `unsafe_separation_m` | `1` | Finite positive distance, in meters. |
+| `avoid_buildings` | `false` | When true, centralized swept movement may not enter a building. Nodes must not start inside a building's clearance. |
+| `building_clearance_m` | `0` | Clearance around walls and roofs, in meters; finite and nonnegative. |
+| `mask_building_moves` | `true` | `false` permits proposals that the movement physics then rejects. |
+| `avoid_node_collisions` | `false` | Rejects joint paths closer than `unsafe_separation_m`. Requires centralized control. |
+| `coverage_enabled` | `false` | Live coverage measurement. Requires centralized control. |
+
+**`avoid_node_collisions = true`:** all initial mesh-node pairs must meet
+`unsafe_separation_m`. Unsafe joint horizontal paths are held and revalidated,
+using 3D distance and clipped bounds. Scenarios that do not set the key keep
+their configured behavior.
+
+**`coverage_enabled = true`** reads its coverage settings from `[baseline]`.
+They apply even when `[baseline] algorithm=none`:
+
+| `[baseline]` key | RL default |
+| --- | --- |
+| `coverage_grid_cells` | `100` (integer 1–10000) |
+| `grid_min_resolution_m` | `5` m |
+| `coverage_probe_height_m` | `1.5` m |
+| `coverage_probe_rx_gain_dbi` | resolved channel RX gain |
+| `coverage_sinr_db` | `-6.7` dB |
+
+The actual clipped grid is capped at 10000 probes. Example:
+
+```ini
+[rl]
+controlled_nodes = all
+unsafe_separation_m = 1.0
+avoid_buildings = true
+coverage_enabled = true
+reward_components = delivery_ratio, coverage_fraction, span_travel_fraction
+reward_weights = 1.0, 0.5, -2.5
+```
+
+### Deployment gate (`control_start_s`)
+
+`[rl] control_start_s` defaults to `0`, which leaves behavior unchanged. A
+positive value:
+
+- must be finite and below `duration_s`
+  (`rl.control_start_s must be finite in [0,duration_s)`);
+- must align to a decision boundary;
+- requires enabled centralized control.
+
+Native masks and velocity application hold controlled peers until that time.
+The gate is experimental. It constrains movement only; the actor does not
+receive it as an input.
+
+### Moving jammer (Python)
+
+`[rl] jammer_motion_profile = sweep_v1` is read by the Python episode launcher;
+the C++ loader does not read it.
+
+- It resolves one jammer into archived waypoint inputs per episode on the
+  600-second 400×400 m scenarios.
+- The actual motion and its seed-dependent variant appear in `rl_episode.json`
+  version 6.
+- A raw simulator invocation uses the configured `jammers.json` directly. Use
+  the RL launchers for varied routes.
+
+## 6\. [baseline]
+
+Selects a placement baseline.
+
+- The C++ simulator reads only `algorithm` and never plans placements. A direct
+  run with `geometric` or `optimization` exits with an error unless the CLI
+  passes `--rl-mode`, in which case it prints a notice and uses the scenario
+  layout. `[rl] enabled = true` alone does not bypass this guard.
+- Python (`scripts/baselines/config.py`) owns every key below and rejects
+  unknown keys and values. The binary ignores keys other than `algorithm`.
+- `gateway_node_id` and `rf_config` are removed keys; Python rejects them with
+  a message to delete the key.
+- The active traffic gateway must stay outside placement selection and RL
+  control.
 
 | Key | Default | Controls |
 | --- | --- | --- |
@@ -157,51 +255,75 @@ and rejects unknown keys and values; the binary ignores keys other than
 | `coverage_sinr_db` | `-6.7` | Finite SINR threshold used to count probe coverage. |
 | `coverage_probe_height_m`, `coverage_probe_rx_gain_dbi` | `1.5`, resolved node receive gain | Probe receiver height and optional gain; both must be non-negative. |
 
+See the [baseline guide](../../scripts/baselines/README.md) for ownership and
+seed rules and [Placement baselines](@ref mesh_sim_placement_start) for
+running and reading a plan.
 
-## `[channel_query]` and placement-engine settings
+## 7\. [channel_query] and placement-engine settings
 
-`query-config.cc` owns the worker settings: `child_deadline_s` = 60 seconds
-(finite in (0,86400]), `terminate_grace_s` = 1 second (finite in (0,60]),
-`max_child_response_bytes` = 16777216 (integer in [1024,16777216]), and
-`max_response_bytes` = 67108864 (integer ≤268435456, at least child limit +
-69632 bytes). Unknown worker keys are errors. Resolved values appear in the
+`[channel_query]` sets the `--channel-query` worker limits
+(`query-config.cc`). Unknown keys are errors. The resolved values appear in the
 `mesh_channel_query_v1` init handshake.
 
-Python engine configuration uses `[placement_objective]`,
-`[placement_optimizer]` and `[channel_query_client]`; see the complete
+| Key | Default | Valid range |
+| --- | --- | --- |
+| `child_deadline_s` | `60` s | Finite, in (0,86400]. |
+| `terminate_grace_s` | `1` s | Finite, in (0,60]. |
+| `max_child_response_bytes` | `16777216` | Integer in [1024,16777216]. |
+| `max_response_bytes` | `67108864` | Integer ≤ 268435456, and at least the child limit + 69632 bytes. |
+
+Python engine settings use `[placement_objective]`, `[placement_optimizer]` and
+`[channel_query_client]`; see the complete
 [planner parameter example](../../scripts/baselines/planners/README.md#configuration-and-extension).
-Both baseline CLIs and placement evaluation policies pass these sections to the
-channel-scored engine. `gateway_node_id` and `rf_config` are removed. The active
-traffic gateway must remain outside placement selection and RL control. See the
-[baseline guide](../../scripts/baselines/README.md) for ownership/seed rules and the
-[walkthrough](../../scripts/baselines/walkthrough.md) for comparable runs.
+Both baseline CLIs and the placement evaluation policies pass these sections to
+the channel-scored engine.
 
-## Centralized safety and live coverage
+## 8\. [mission] {#src_config_mission_controls}
 
-`[rl] unsafe_separation_m` is a finite positive distance (default 1 m).
-`avoid_buildings` defaults false; when true, centralized swept movement may
-not enter a building. `coverage_enabled` defaults false and requires
-centralized control. It reads coverage settings from `[baseline]`:
-`coverage_grid_cells` (RL default 100, integer 1–10000),
-`grid_min_resolution_m` (5 m), `coverage_probe_height_m` (1.5 m),
-`coverage_probe_rx_gain_dbi` (resolved channel RX gain), and
-`coverage_sinr_db` (-6.7 dB). The actual clipped grid is capped at 10000 probes.
-These settings apply even when `[baseline] algorithm=none`.
+`kind` defaults to `none`. `coverage`, `investigation` and `recovery` require
+centralized RL with `coverage_enabled = true`. See
+`inputs/custom/10-16/README.md` for examples and outcome rules.
 
-```ini
-[rl]
-controlled_nodes = all
-unsafe_separation_m = 1.0
-avoid_buildings = true
-coverage_enabled = true
-reward_components = delivery_ratio, coverage_fraction, span_travel_fraction
-reward_weights = 1.0, 0.5, -2.5
-```
+| Key | Default | Valid values |
+| --- | --- | --- |
+| `kind` | `none` | `none`, `coverage`, `investigation`, `recovery`. |
+| `investigator_id` | blank | `investigation`: an existing, controlled peer with no scheduled dropout. |
+| `goal_x`, `goal_y` | `345`, `300` | Finite coordinates. Investigation requires them inside the RL x/y bounds. |
+| `arrival_radius_m` | `15` | Finite and positive. |
+| `coverage_radius_m` | `50` | Finite and positive. |
+| `dwell_s` | `30` | Finite and positive. |
+| `goal_coverage_target` | `0.8` | (0,1]; [0,1] for `investigation`, where 0 disables the gate. |
+| `recovery_delivery_target` | `0.9` | (0,1]. |
+| `recovery_coverage_ratio` | `0.9` | [0,1]. |
+| `recovery_worst_target` | `0.8` | (0,1]. |
+| `team_investigation` | `false` | Requires `kind = investigation`. Requires the available team near the goal. |
+| `team_radius_m` | `50` | Finite and positive. |
+| `team_delivery_target` | `0.8` | (0,1]; [0,1] for `investigation`, where 0 disables the gate. |
 
-### Joint collision constraint
+**Node dropout.** `failure_at_s` in `nodes.json` schedules a node failure; the
+default -1 disables it. A dropout requires:
 
-`[rl] avoid_node_collisions=false` is opt-in and requires centralized control. With it enabled, all initial mesh-node pairs must meet `unsafe_separation_m`; unsafe joint horizontal paths are held/revalidated, using 3D distance and clipped bounds. Older scenarios retain their configured behavior.
+- `kind = recovery`;
+- a finite time strictly inside the episode, in (0,`duration_s`), aligned with
+  a simulator tick;
+- at least two surviving peers.
 
-### Python controlled moving jammer
+A `recovery` mission requires at least one dropout. Original demand is kept,
+and survivor measurements are reported separately. Recovery can preserve only
+critical survivor flows ([explicit traffic pairs](@ref src_config_traffic_pairs))
+while failed-source demand stays visible in original-demand totals. The failed
+node retains its roster index and is excluded from radio service, coverage,
+and peer-collision checks. Set
+`recovery_coverage_ratio = 0` when recovery concerns survivor traffic rather
+than replacing the failed aerial coverage footprint.
 
-`[rl] jammer_motion_profile = sweep_v1` is interpreted by the Python episode launcher, not by the C++ loader. It resolves one jammer into archived waypoint inputs per episode on the 600-second 400×400 m scenarios. Actual motion and its seed-dependent variant appear in `rl_episode.json` version 6. Raw simulator invocation uses the configured jammers.json directly; use the RL launchers for varied routes.
+**Investigation.** A positive `goal_coverage_target` or `team_delivery_target`
+keeps its usual meaning. The scenario-check all-peer arrival metric is
+separate from native mission success, which also requires connected peers.
+Goal coverage uses outdoor probe centers inside the goal radius. A positive
+target requires at least one such center. A zero target still permits
+measurement when probes exist. An empty region reports zero.
+
+**Buildings.** Each `buildings.json` entry needs six explicit numeric bounds,
+nested under `bounds` or flat. Conflicting representations and missing bounds
+are errors.

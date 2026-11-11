@@ -43,8 +43,28 @@ struct TimingInfo
                                                    ///<   (@c end - @c start as a double).
 };
 
+/// Native mission inputs and thresholds exported in the RL init message.
+struct MissionConfig
+{
+    std::string kind = "none";             ///< none, coverage, investigation, or recovery.
+    std::string investigator_id;           ///< Controlled peer for an investigation.
+    bool team_investigation = false;       ///< Require the available team near the goal.
+    double team_radius_m = 50.0;           ///< Maximum distance from the goal for the team gate.
+    double team_delivery_target = 0.8;     ///< Required team delivery fraction.
+    double goal_x = 345.0;                 ///< Investigation goal x coordinate in meters.
+    double goal_y = 300.0;                 ///< Investigation goal y coordinate in meters.
+    double arrival_radius_m = 15.0;        ///< Investigator arrival radius.
+    double coverage_radius_m = 50.0;       ///< Radius of the goal coverage region.
+    double dwell_s = 30.0;                 ///< Required time satisfying the mission gates.
+    double goal_coverage_target = 0.8;     ///< Goal coverage fraction. Zero disables the gate.
+    double recovery_delivery_target = 0.9; ///< Required aggregate survivor delivery fraction.
+    double recovery_coverage_ratio = 0.9;  ///< Required ratio to pre-failure coverage.
+    double recovery_worst_target = 0.8;    ///< Required worst survivor delivery fraction.
+};
+
 struct RlConfig
 {
+    MissionConfig mission;
     bool        enabled             = false;         ///< Enable RL mode when @c true.
     std::string reward_type         = "throughput";  ///< Reward signal:
                                                      ///<   @c "throughput" or @c "all_links_los".
@@ -69,11 +89,14 @@ struct RlConfig
     int         max_controlled_nodes = 0;     ///< Slot count @c M; @c 0 means the resolved
                                               ///<   controlled-node count.
     std::string action_profile = "move_2d";   ///< Centralized action profile; @c "move_2d" only.
+    double control_start_s = 0.0;             ///< Hold controlled peers until this deployment time.
     double      decision_interval_s = 0.0;    ///< Seconds between RL decisions; @c 0 means
                                               ///<   @ref SimConfig::tick_s (one decision per tick).
 
     double unsafe_separation_m = 1.0;
     bool avoid_buildings = false;
+    double building_clearance_m = 0.0;  ///< Clearance around walls and roofs.
+    bool mask_building_moves = true;    ///< False permits proposals which physics rejects.
     bool avoid_node_collisions = false; ///< Reject joint paths closer than unsafe_separation_m.
     bool coverage_enabled = false;
     int coverage_grid_cells = 100;

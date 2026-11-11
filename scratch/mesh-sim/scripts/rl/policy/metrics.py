@@ -5,6 +5,9 @@ import math
 from dataclasses import dataclass, field
 from typing import Callable
 
+from scripts.rl.policy.mission_metrics import DEFINITIONS as MISSION_METRICS
+from scripts.rl.policy.mission_metrics import MissionTotals
+
 METRIC_SOURCE = {
     "kind": "telemetry_window",
     "warmup_excluded": True,
@@ -253,6 +256,16 @@ REGISTRY.update({
     "post_jammer_delivery_ratio": Metric("ratio", True, True, lambda t: _ratio(t.after_delivered, t.after_demand, _DEMAND_EPS), ServiceTotals, optional=True),
     "recovery_time_s": Metric("s", False, True, lambda t: t.recovery, ServiceTotals, optional=True),
 })
+
+for name, (unit, direction) in MISSION_METRICS.items():
+    REGISTRY[name] = Metric(
+        unit,
+        direction,
+        True,
+        lambda totals, key=name: totals.value(key),
+        MissionTotals,
+        optional=True,
+    )
 
 METRICS = {name: (metric.higher_is_better, metric.comparable_across_reward_definitions)
            for name, metric in sorted(REGISTRY.items()) if metric.higher_is_better is not None}

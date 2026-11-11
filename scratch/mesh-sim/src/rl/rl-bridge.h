@@ -30,11 +30,14 @@ struct WindowFacts
 {
     std::vector<double> node_demand_mbps_sum;
     std::vector<double> node_delivered_mbps_sum;
+    double survivor_demand_mbps_sum = 0.0, survivor_delivered_mbps_sum = 0.0;
+    std::vector<double> survivor_node_demand, survivor_node_delivered;
     uint32_t unsafe_ticks = 0;
     double min_pair_distance_m = std::numeric_limits<double>::infinity();
     uint32_t scored_ticks = 0;           ///< Ticks at or after warmup.
     double   demand_mbps_sum = 0.0;       ///< Sum of flow demand samples, Mbps*tick.
     double   delivered_mbps_sum = 0.0;    ///< Sum of delivery samples, Mbps*tick.
+    uint32_t deployment_eligible_ticks = 0; ///< Scored samples strictly after deployment.
     uint64_t flow_ticks_with_demand = 0;  ///< Positive-demand (flow, tick) samples.
     uint64_t unroutable_flow_ticks = 0;   ///< Unroutable positive-demand samples.
     uint64_t connected_pairs_sum = 0;    ///< Connected undirected pair samples.
@@ -59,13 +62,27 @@ class RlBridge
      */
     explicit RlBridge(const SimConfig& cfg);
 
+    void SetCoverage(double fraction)
+    {
+        m_coverageFraction = fraction;
+    }
+
+    void SetAvailable(const std::vector<bool>& available)
+    {
+        m_available = available;
+    }
+
+    void SetGoalCoverage(double fraction)
+    {
+        m_goalCoverage = fraction;
+    }
+
     /**
      * @fn RlBridge::WriteInit
      * @brief Write the centralized @c init contract line to stdout.
      *
      * Call once before the tick loop.
      */
-    void SetCoverage(double fraction) { m_coverageFraction = fraction; }
     void WriteInit() const;
 
     /**
@@ -125,9 +142,15 @@ class RlBridge
     void ApplyAction(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs);
 
   private:
+    static constexpr int kHold = 4;
+
     RlConfig    m_rl;
+    double m_decisionTimeS = 0.0;
     double m_coverageFraction = 0.0;
+    double m_goalCoverage = 0.0;
+    std::vector<bool> m_available;
     std::vector<BuildingSpec> m_buildings;
+    std::vector<uint32_t> m_buildingRejected, m_peerRejected, m_boundaryContacted;
     bool CrossesBuilding(const ns3::Vector& a, const ns3::Vector& b) const;
     void RevalidateJointMotion(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs, double horizon_s);
     double      m_tickS;
@@ -151,11 +174,15 @@ class RlBridge
 
     double ComputeRewardTick(const LinkTable& linkTable,
                              const std::vector<FlowResult>& flows) const;
-    void WriteStep(uint32_t tick, double time_s,
+    void WriteStep(uint32_t tick,
+                   double time_s,
                    const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs,
                    const LinkTable& linkTable,
                    const std::vector<int>& mask,
-                   double reward, uint32_t ticksInStep, WindowFacts window, bool done) const;
+                   double reward,
+                   uint32_t ticksInStep,
+                   const WindowFacts& window,
+                   bool done) const;
     std::vector<int> ComputeMask(const std::vector<ns3::Ptr<ns3::MobilityModel>>& mobs) const;
     void ReadJointAction();
     ns3::Vector ClampVelocityForTick(const ns3::Vector& pos, const ns3::Vector& vel) const;

@@ -1,0 +1,4627 @@
+{
+  "contract": {
+    "action_meanings": [
+      "west",
+      "east",
+      "south",
+      "north",
+      "hold"
+    ],
+    "avoid_buildings": false,
+    "avoid_node_collisions": false,
+    "band": "mmwave",
+    "bounds": {
+      "x_max": 100.0,
+      "x_min": 0.0,
+      "y_max": 100.0,
+      "y_min": -50.0,
+      "z_max": 50.0,
+      "z_min": 0.0
+    },
+    "contract": "mesh_move_2d_v2",
+    "control_start_s": 0.0,
+    "coverage": {
+      "grid_cells": 100,
+      "measurement": "decision_endpoint_connected_core",
+      "min_resolution_m": 5.0,
+      "probe_height_m": 1.5,
+      "probe_rx_gain_dbi": 0.0,
+      "sinr_db": -6.7
+    },
+    "decision_interval_s": 0.5,
+    "decision_interval_ticks": 5,
+    "deployment_gate": {
+      "source": "control_start_s",
+      "version": 1
+    },
+    "dimensions": 2,
+    "facts_columns": {
+      "links": [
+        "sinr_db",
+        "capacity_mbps",
+        "is_los"
+      ],
+      "nodes": [
+        "x",
+        "y",
+        "z",
+        "vx",
+        "vy",
+        "vz",
+        "slot"
+      ]
+    },
+    "facts_schema": "mesh_facts_v2",
+    "jammer_path_enabled": false,
+    "mask_dim": 15,
+    "max_controlled_nodes": 3,
+    "mission": {
+      "arrival_radius_m": 15.0,
+      "coverage_domain": "outdoor_probe_cells",
+      "coverage_radius_m": 50.0,
+      "dwell_s": 30.0,
+      "goal_coverage_target": 0.8,
+      "goal_x": 80.0,
+      "goal_y": 60.0,
+      "investigator_id": "node-b",
+      "kind": "investigation",
+      "progress_distance_scale_m": 100.0,
+      "recovery_coverage_ratio": 0.9,
+      "recovery_delivery_target": 0.9,
+      "recovery_worst_target": 0.8,
+      "team_delivery_target": 0.8,
+      "team_investigation": true,
+      "team_radius_m": 50.0,
+      "version": 2
+    },
+    "navigation": {
+      "building_clearance_m": 0.0,
+      "buildings": [],
+      "mask_building_moves": true,
+      "obstacle_sensing_range_m": 20.0,
+      "version": 1
+    },
+    "node_ids": [
+      "node-a",
+      "node-b",
+      "node-c"
+    ],
+    "node_service_columns": [
+      "demand_mbps_sum",
+      "delivered_mbps_sum"
+    ],
+    "node_types": [
+      "vehicle",
+      "drone",
+      "pedestrian"
+    ],
+    "num_controlled": 2,
+    "num_decisions": 2,
+    "num_links": 3,
+    "num_mesh_nodes": 3,
+    "num_ticks": 10,
+    "obs_dim": 24,
+    "reward_type": "all_links_los",
+    "reward_warmup": "exclude",
+    "reward_window": "mean",
+    "slot_node_ids": [
+      "node-b",
+      "node-c",
+      null
+    ],
+    "slot_speed_mps": [
+      10.0,
+      10.0,
+      null
+    ],
+    "tick_s": 0.1,
+    "type": "init",
+    "unsafe_separation_m": 1.0,
+    "wall_policy": "clip",
+    "warmup_s": 0.0
+  },
+  "created_utc": "2026-10-29T15:05:19.569213+00:00",
+  "generator": "python -m scripts.rl.tests.test_registry_identity --write",
+  "git_head": "b54bfbe76a94901d449cb8e18360ac53df6e416f",
+  "observation_presets": {
+    "default_preset": "raw_links_v1",
+    "items": [
+      {
+        "context_fields": [],
+        "descriptor": {
+          "compatibility_fields": [],
+          "default_parameters": {},
+          "dtype": "float64",
+          "fact_extensions": [],
+          "feature_names": [
+            "slot0.active",
+            "slot0.x",
+            "slot0.y",
+            "slot0.z",
+            "slot0.peer_index0.sinr_db",
+            "slot0.peer_index0.capacity_mbps",
+            "slot0.peer_index1.sinr_db",
+            "slot0.peer_index1.capacity_mbps",
+            "slot1.active",
+            "slot1.x",
+            "slot1.y",
+            "slot1.z",
+            "slot1.peer_index0.sinr_db",
+            "slot1.peer_index0.capacity_mbps",
+            "slot1.peer_index1.sinr_db",
+            "slot1.peer_index1.capacity_mbps",
+            "slot2.active",
+            "slot2.x",
+            "slot2.y",
+            "slot2.z",
+            "slot2.peer_index0.sinr_db",
+            "slot2.peer_index0.capacity_mbps",
+            "slot2.peer_index1.sinr_db",
+            "slot2.peer_index1.capacity_mbps"
+          ],
+          "normalization": {
+            "capacity": "raw",
+            "position": "raw",
+            "sinr_clip_db": null
+          },
+          "normalization_fields": [],
+          "obs_dim": 24,
+          "required_facts": [
+            "nodes",
+            "links"
+          ]
+        },
+        "id": "raw_links_v1",
+        "index": 0,
+        "module": "scripts.rl.env.observations",
+        "schema_sha256": "249effcef0cc0f85952b4eb0669efc12f9fb49d1e5d78dd51a341477184f827c"
+      },
+      {
+        "context_fields": [],
+        "descriptor": {
+          "compatibility_fields": [
+            "bounds"
+          ],
+          "default_parameters": {
+            "capacity_log10_denominator": 4.0,
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0
+          },
+          "dtype": "float32",
+          "fact_extensions": [],
+          "feature_names": [
+            "slot0.active",
+            "slot0.x_n",
+            "slot0.y_n",
+            "slot0.z_n",
+            "slot0.peer_index0.present",
+            "slot0.peer_index0.sinr_valid",
+            "slot0.peer_index0.sinr_n",
+            "slot0.peer_index0.cap_n",
+            "slot0.peer_index1.present",
+            "slot0.peer_index1.sinr_valid",
+            "slot0.peer_index1.sinr_n",
+            "slot0.peer_index1.cap_n",
+            "slot1.active",
+            "slot1.x_n",
+            "slot1.y_n",
+            "slot1.z_n",
+            "slot1.peer_index0.present",
+            "slot1.peer_index0.sinr_valid",
+            "slot1.peer_index0.sinr_n",
+            "slot1.peer_index0.cap_n",
+            "slot1.peer_index1.present",
+            "slot1.peer_index1.sinr_valid",
+            "slot1.peer_index1.sinr_n",
+            "slot1.peer_index1.cap_n",
+            "slot2.active",
+            "slot2.x_n",
+            "slot2.y_n",
+            "slot2.z_n",
+            "slot2.peer_index0.present",
+            "slot2.peer_index0.sinr_valid",
+            "slot2.peer_index0.sinr_n",
+            "slot2.peer_index0.cap_n",
+            "slot2.peer_index1.present",
+            "slot2.peer_index1.sinr_valid",
+            "slot2.peer_index1.sinr_n",
+            "slot2.peer_index1.cap_n"
+          ],
+          "normalization": {
+            "capacity": "log10(1+x)/4",
+            "capacity_log10_denominator": 4.0,
+            "position": "rl_bounds",
+            "sinr_clip_db": [
+              -20.0,
+              40.0
+            ],
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0
+          },
+          "normalization_fields": [
+            "sinr_min_db",
+            "sinr_max_db",
+            "sinr_invalid_db",
+            "capacity_log10_denominator"
+          ],
+          "obs_dim": 36,
+          "required_facts": [
+            "nodes",
+            "links"
+          ]
+        },
+        "id": "local_links_v1",
+        "index": 1,
+        "module": "scripts.rl.env.observations",
+        "schema_sha256": "f201d5d8eb1d009e2caf1189fb523da7187434a335a4380bc1d071799fc4fb2c"
+      },
+      {
+        "context_fields": [],
+        "descriptor": {
+          "compatibility_fields": [
+            "bounds"
+          ],
+          "default_parameters": {},
+          "dtype": "float32",
+          "fact_extensions": [],
+          "feature_names": [
+            "slot0.active",
+            "slot0.x_n",
+            "slot0.y_n",
+            "slot0.peer_index0.present",
+            "slot0.peer_index0.relative_x_n",
+            "slot0.peer_index0.relative_y_n",
+            "slot0.peer_index1.present",
+            "slot0.peer_index1.relative_x_n",
+            "slot0.peer_index1.relative_y_n",
+            "slot1.active",
+            "slot1.x_n",
+            "slot1.y_n",
+            "slot1.peer_index0.present",
+            "slot1.peer_index0.relative_x_n",
+            "slot1.peer_index0.relative_y_n",
+            "slot1.peer_index1.present",
+            "slot1.peer_index1.relative_x_n",
+            "slot1.peer_index1.relative_y_n",
+            "slot2.active",
+            "slot2.x_n",
+            "slot2.y_n",
+            "slot2.peer_index0.present",
+            "slot2.peer_index0.relative_x_n",
+            "slot2.peer_index0.relative_y_n",
+            "slot2.peer_index1.present",
+            "slot2.peer_index1.relative_x_n",
+            "slot2.peer_index1.relative_y_n"
+          ],
+          "normalization": {
+            "peer_relative_xy": "(peer-self)/(max-min), clipped [-1,1]",
+            "self_xy": "2*(value-min)/(max-min)-1"
+          },
+          "normalization_fields": [],
+          "obs_dim": 27,
+          "required_facts": [
+            "nodes"
+          ]
+        },
+        "id": "geometry_v1",
+        "index": 2,
+        "module": "scripts.rl.env.observations",
+        "schema_sha256": "af5737e9e96346adbca843515cb5838c1bc9241d22f36220bcfcb13ac4428e34"
+      },
+      {
+        "context_fields": [],
+        "descriptor": {
+          "compatibility_fields": [
+            "bounds"
+          ],
+          "default_parameters": {
+            "capacity_log10_denominator": 4.0,
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0
+          },
+          "dtype": "float32",
+          "fact_extensions": [],
+          "feature_names": [
+            "slot0.active",
+            "slot0.x_n",
+            "slot0.y_n",
+            "slot0.z_n",
+            "slot0.peer_index0.present",
+            "slot0.peer_index0.sinr_valid",
+            "slot0.peer_index0.sinr_n",
+            "slot0.peer_index0.cap_n",
+            "slot0.peer_index1.present",
+            "slot0.peer_index1.sinr_valid",
+            "slot0.peer_index1.sinr_n",
+            "slot0.peer_index1.cap_n",
+            "slot0.demand_log_n",
+            "slot0.delivered_log_n",
+            "slot0.delivery_ratio",
+            "slot0.connected_fraction",
+            "slot0.unroutable_fraction",
+            "slot1.active",
+            "slot1.x_n",
+            "slot1.y_n",
+            "slot1.z_n",
+            "slot1.peer_index0.present",
+            "slot1.peer_index0.sinr_valid",
+            "slot1.peer_index0.sinr_n",
+            "slot1.peer_index0.cap_n",
+            "slot1.peer_index1.present",
+            "slot1.peer_index1.sinr_valid",
+            "slot1.peer_index1.sinr_n",
+            "slot1.peer_index1.cap_n",
+            "slot1.demand_log_n",
+            "slot1.delivered_log_n",
+            "slot1.delivery_ratio",
+            "slot1.connected_fraction",
+            "slot1.unroutable_fraction",
+            "slot2.active",
+            "slot2.x_n",
+            "slot2.y_n",
+            "slot2.z_n",
+            "slot2.peer_index0.present",
+            "slot2.peer_index0.sinr_valid",
+            "slot2.peer_index0.sinr_n",
+            "slot2.peer_index0.cap_n",
+            "slot2.peer_index1.present",
+            "slot2.peer_index1.sinr_valid",
+            "slot2.peer_index1.sinr_n",
+            "slot2.peer_index1.cap_n",
+            "slot2.demand_log_n",
+            "slot2.delivered_log_n",
+            "slot2.delivery_ratio",
+            "slot2.connected_fraction",
+            "slot2.unroutable_fraction"
+          ],
+          "normalization": {
+            "capacity": "log10(1+x)/4",
+            "capacity_log10_denominator": 4.0,
+            "demand": "log10(1+Mbps)/4",
+            "position": "rl_bounds",
+            "service_ratios": "unit ratios",
+            "sinr_clip_db": [
+              -20.0,
+              40.0
+            ],
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0,
+            "window": "sums_over_scored_ticks"
+          },
+          "normalization_fields": [
+            "sinr_min_db",
+            "sinr_max_db",
+            "sinr_invalid_db",
+            "capacity_log10_denominator"
+          ],
+          "obs_dim": 51,
+          "required_facts": [
+            "nodes",
+            "links",
+            "window"
+          ]
+        },
+        "id": "service_v1",
+        "index": 3,
+        "module": "scripts.rl.env.observations",
+        "schema_sha256": "4b91fffbe0b2f45dfa50819fb6201b0bd73550cd6366ebb2223dcff5764a5dfc"
+      },
+      {
+        "context_fields": [],
+        "descriptor": {
+          "compatibility_fields": [
+            "bounds"
+          ],
+          "default_parameters": {
+            "capacity_log10_denominator": 4.0,
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0,
+            "velocity_scale_mps": 40.0
+          },
+          "dtype": "float32",
+          "fact_extensions": [],
+          "feature_names": [
+            "slot0.active",
+            "slot0.x_n",
+            "slot0.y_n",
+            "slot0.z_n",
+            "slot0.peer_index0.present",
+            "slot0.peer_index0.sinr_valid",
+            "slot0.peer_index0.sinr_n",
+            "slot0.peer_index0.cap_n",
+            "slot0.peer_index1.present",
+            "slot0.peer_index1.sinr_valid",
+            "slot0.peer_index1.sinr_n",
+            "slot0.peer_index1.cap_n",
+            "slot0.demand_log_n",
+            "slot0.delivered_log_n",
+            "slot0.delivery_ratio",
+            "slot0.connected_fraction",
+            "slot0.unroutable_fraction",
+            "slot0.peer_index0.relative_x_n",
+            "slot0.peer_index0.relative_y_n",
+            "slot0.peer_index0.relative_z_n",
+            "slot0.peer_index0.relative_vx_n",
+            "slot0.peer_index0.relative_vy_n",
+            "slot0.peer_index0.relative_vz_n",
+            "slot0.peer_index0.is_los",
+            "slot0.peer_index1.relative_x_n",
+            "slot0.peer_index1.relative_y_n",
+            "slot0.peer_index1.relative_z_n",
+            "slot0.peer_index1.relative_vx_n",
+            "slot0.peer_index1.relative_vy_n",
+            "slot0.peer_index1.relative_vz_n",
+            "slot0.peer_index1.is_los",
+            "slot0.service_gap_log_n",
+            "slot1.active",
+            "slot1.x_n",
+            "slot1.y_n",
+            "slot1.z_n",
+            "slot1.peer_index0.present",
+            "slot1.peer_index0.sinr_valid",
+            "slot1.peer_index0.sinr_n",
+            "slot1.peer_index0.cap_n",
+            "slot1.peer_index1.present",
+            "slot1.peer_index1.sinr_valid",
+            "slot1.peer_index1.sinr_n",
+            "slot1.peer_index1.cap_n",
+            "slot1.demand_log_n",
+            "slot1.delivered_log_n",
+            "slot1.delivery_ratio",
+            "slot1.connected_fraction",
+            "slot1.unroutable_fraction",
+            "slot1.peer_index0.relative_x_n",
+            "slot1.peer_index0.relative_y_n",
+            "slot1.peer_index0.relative_z_n",
+            "slot1.peer_index0.relative_vx_n",
+            "slot1.peer_index0.relative_vy_n",
+            "slot1.peer_index0.relative_vz_n",
+            "slot1.peer_index0.is_los",
+            "slot1.peer_index1.relative_x_n",
+            "slot1.peer_index1.relative_y_n",
+            "slot1.peer_index1.relative_z_n",
+            "slot1.peer_index1.relative_vx_n",
+            "slot1.peer_index1.relative_vy_n",
+            "slot1.peer_index1.relative_vz_n",
+            "slot1.peer_index1.is_los",
+            "slot1.service_gap_log_n",
+            "slot2.active",
+            "slot2.x_n",
+            "slot2.y_n",
+            "slot2.z_n",
+            "slot2.peer_index0.present",
+            "slot2.peer_index0.sinr_valid",
+            "slot2.peer_index0.sinr_n",
+            "slot2.peer_index0.cap_n",
+            "slot2.peer_index1.present",
+            "slot2.peer_index1.sinr_valid",
+            "slot2.peer_index1.sinr_n",
+            "slot2.peer_index1.cap_n",
+            "slot2.demand_log_n",
+            "slot2.delivered_log_n",
+            "slot2.delivery_ratio",
+            "slot2.connected_fraction",
+            "slot2.unroutable_fraction",
+            "slot2.peer_index0.relative_x_n",
+            "slot2.peer_index0.relative_y_n",
+            "slot2.peer_index0.relative_z_n",
+            "slot2.peer_index0.relative_vx_n",
+            "slot2.peer_index0.relative_vy_n",
+            "slot2.peer_index0.relative_vz_n",
+            "slot2.peer_index0.is_los",
+            "slot2.peer_index1.relative_x_n",
+            "slot2.peer_index1.relative_y_n",
+            "slot2.peer_index1.relative_z_n",
+            "slot2.peer_index1.relative_vx_n",
+            "slot2.peer_index1.relative_vy_n",
+            "slot2.peer_index1.relative_vz_n",
+            "slot2.peer_index1.is_los",
+            "slot2.service_gap_log_n"
+          ],
+          "normalization": {
+            "capacity": "log10(1+x)/4",
+            "capacity_log10_denominator": 4.0,
+            "demand": "log10(1+Mbps)/4",
+            "peer_relative_velocity": "(peer-self)/40 mps, clipped [-1,1]",
+            "peer_relative_xyz": "(peer-self)/(max-min), clipped [-1,1]",
+            "position": "rl_bounds",
+            "service_ratios": "unit ratios",
+            "sinr_clip_db": [
+              -20.0,
+              40.0
+            ],
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0,
+            "velocity_scale_mps": 40.0,
+            "window": "sums_over_scored_ticks"
+          },
+          "normalization_fields": [
+            "sinr_min_db",
+            "sinr_max_db",
+            "sinr_invalid_db",
+            "capacity_log10_denominator",
+            "velocity_scale_mps"
+          ],
+          "obs_dim": 96,
+          "required_facts": [
+            "nodes",
+            "links",
+            "window"
+          ]
+        },
+        "id": "full_facts_v1",
+        "index": 4,
+        "module": "scripts.rl.env.observations",
+        "schema_sha256": "52eab00e247725a9fbbde1b95414d452dad0f4233d688bbca7fcda559d7d3e32"
+      },
+      {
+        "context_fields": [],
+        "descriptor": {
+          "compatibility_fields": [
+            "bounds",
+            "mission"
+          ],
+          "default_parameters": {
+            "capacity_log10_denominator": 4.0,
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0,
+            "velocity_scale_mps": 40.0
+          },
+          "dtype": "float32",
+          "fact_extensions": [],
+          "feature_names": [
+            "slot0.active",
+            "slot0.x_n",
+            "slot0.y_n",
+            "slot0.z_n",
+            "slot0.peer_index0.present",
+            "slot0.peer_index0.sinr_valid",
+            "slot0.peer_index0.sinr_n",
+            "slot0.peer_index0.cap_n",
+            "slot0.peer_index1.present",
+            "slot0.peer_index1.sinr_valid",
+            "slot0.peer_index1.sinr_n",
+            "slot0.peer_index1.cap_n",
+            "slot0.demand_log_n",
+            "slot0.delivered_log_n",
+            "slot0.delivery_ratio",
+            "slot0.connected_fraction",
+            "slot0.unroutable_fraction",
+            "slot0.peer_index0.relative_x_n",
+            "slot0.peer_index0.relative_y_n",
+            "slot0.peer_index0.relative_z_n",
+            "slot0.peer_index0.relative_vx_n",
+            "slot0.peer_index0.relative_vy_n",
+            "slot0.peer_index0.relative_vz_n",
+            "slot0.peer_index0.is_los",
+            "slot0.peer_index1.relative_x_n",
+            "slot0.peer_index1.relative_y_n",
+            "slot0.peer_index1.relative_z_n",
+            "slot0.peer_index1.relative_vx_n",
+            "slot0.peer_index1.relative_vy_n",
+            "slot0.peer_index1.relative_vz_n",
+            "slot0.peer_index1.is_los",
+            "slot0.service_gap_log_n",
+            "slot1.active",
+            "slot1.x_n",
+            "slot1.y_n",
+            "slot1.z_n",
+            "slot1.peer_index0.present",
+            "slot1.peer_index0.sinr_valid",
+            "slot1.peer_index0.sinr_n",
+            "slot1.peer_index0.cap_n",
+            "slot1.peer_index1.present",
+            "slot1.peer_index1.sinr_valid",
+            "slot1.peer_index1.sinr_n",
+            "slot1.peer_index1.cap_n",
+            "slot1.demand_log_n",
+            "slot1.delivered_log_n",
+            "slot1.delivery_ratio",
+            "slot1.connected_fraction",
+            "slot1.unroutable_fraction",
+            "slot1.peer_index0.relative_x_n",
+            "slot1.peer_index0.relative_y_n",
+            "slot1.peer_index0.relative_z_n",
+            "slot1.peer_index0.relative_vx_n",
+            "slot1.peer_index0.relative_vy_n",
+            "slot1.peer_index0.relative_vz_n",
+            "slot1.peer_index0.is_los",
+            "slot1.peer_index1.relative_x_n",
+            "slot1.peer_index1.relative_y_n",
+            "slot1.peer_index1.relative_z_n",
+            "slot1.peer_index1.relative_vx_n",
+            "slot1.peer_index1.relative_vy_n",
+            "slot1.peer_index1.relative_vz_n",
+            "slot1.peer_index1.is_los",
+            "slot1.service_gap_log_n",
+            "slot2.active",
+            "slot2.x_n",
+            "slot2.y_n",
+            "slot2.z_n",
+            "slot2.peer_index0.present",
+            "slot2.peer_index0.sinr_valid",
+            "slot2.peer_index0.sinr_n",
+            "slot2.peer_index0.cap_n",
+            "slot2.peer_index1.present",
+            "slot2.peer_index1.sinr_valid",
+            "slot2.peer_index1.sinr_n",
+            "slot2.peer_index1.cap_n",
+            "slot2.demand_log_n",
+            "slot2.delivered_log_n",
+            "slot2.delivery_ratio",
+            "slot2.connected_fraction",
+            "slot2.unroutable_fraction",
+            "slot2.peer_index0.relative_x_n",
+            "slot2.peer_index0.relative_y_n",
+            "slot2.peer_index0.relative_z_n",
+            "slot2.peer_index0.relative_vx_n",
+            "slot2.peer_index0.relative_vy_n",
+            "slot2.peer_index0.relative_vz_n",
+            "slot2.peer_index0.is_los",
+            "slot2.peer_index1.relative_x_n",
+            "slot2.peer_index1.relative_y_n",
+            "slot2.peer_index1.relative_z_n",
+            "slot2.peer_index1.relative_vx_n",
+            "slot2.peer_index1.relative_vy_n",
+            "slot2.peer_index1.relative_vz_n",
+            "slot2.peer_index1.is_los",
+            "slot2.service_gap_log_n",
+            "node.node-a.available",
+            "node.node-b.available",
+            "node.node-c.available",
+            "mission.coverage",
+            "mission.investigation",
+            "mission.recovery",
+            "mission.goal_x",
+            "mission.goal_y",
+            "mission.distance",
+            "mission.connected",
+            "mission.arrived",
+            "mission.goal_coverage",
+            "mission.dwell",
+            "mission.completed",
+            "mission.failure",
+            "mission.survivor_delivery",
+            "mission.survivor_fair",
+            "mission.survivor_worst",
+            "mission.coverage_target",
+            "mission.recovery_dwell",
+            "mission.recovered"
+          ],
+          "normalization": {
+            "capacity": "log10(1+x)/4",
+            "capacity_log10_denominator": 4.0,
+            "demand": "log10(1+Mbps)/4",
+            "peer_relative_velocity": "(peer-self)/40 mps, clipped [-1,1]",
+            "peer_relative_xyz": "(peer-self)/(max-min), clipped [-1,1]",
+            "position": "rl_bounds",
+            "service_ratios": "unit ratios",
+            "sinr_clip_db": [
+              -20.0,
+              40.0
+            ],
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0,
+            "velocity_scale_mps": 40.0,
+            "window": "sums_over_scored_ticks"
+          },
+          "normalization_fields": [
+            "sinr_min_db",
+            "sinr_max_db",
+            "sinr_invalid_db",
+            "capacity_log10_denominator",
+            "velocity_scale_mps"
+          ],
+          "obs_dim": 117,
+          "required_facts": [
+            "nodes",
+            "links",
+            "window",
+            "mission",
+            "mission_state",
+            "node_available"
+          ]
+        },
+        "id": "mission_facts_v1",
+        "index": 5,
+        "module": "scripts.rl.env.observations",
+        "schema_sha256": "a375531d154c70027c3e1eb76f14592b786725542066b38769802dad8d80ee3a"
+      },
+      {
+        "context_fields": [],
+        "descriptor": {
+          "compatibility_fields": [
+            "bounds",
+            "mission",
+            "navigation"
+          ],
+          "default_parameters": {
+            "capacity_log10_denominator": 4.0,
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0,
+            "velocity_scale_mps": 40.0
+          },
+          "dtype": "float32",
+          "fact_extensions": [],
+          "feature_names": [
+            "slot0.active",
+            "slot0.x_n",
+            "slot0.y_n",
+            "slot0.z_n",
+            "slot0.peer_index0.present",
+            "slot0.peer_index0.sinr_valid",
+            "slot0.peer_index0.sinr_n",
+            "slot0.peer_index0.cap_n",
+            "slot0.peer_index1.present",
+            "slot0.peer_index1.sinr_valid",
+            "slot0.peer_index1.sinr_n",
+            "slot0.peer_index1.cap_n",
+            "slot0.demand_log_n",
+            "slot0.delivered_log_n",
+            "slot0.delivery_ratio",
+            "slot0.connected_fraction",
+            "slot0.unroutable_fraction",
+            "slot0.peer_index0.relative_x_n",
+            "slot0.peer_index0.relative_y_n",
+            "slot0.peer_index0.relative_z_n",
+            "slot0.peer_index0.relative_vx_n",
+            "slot0.peer_index0.relative_vy_n",
+            "slot0.peer_index0.relative_vz_n",
+            "slot0.peer_index0.is_los",
+            "slot0.peer_index1.relative_x_n",
+            "slot0.peer_index1.relative_y_n",
+            "slot0.peer_index1.relative_z_n",
+            "slot0.peer_index1.relative_vx_n",
+            "slot0.peer_index1.relative_vy_n",
+            "slot0.peer_index1.relative_vz_n",
+            "slot0.peer_index1.is_los",
+            "slot0.service_gap_log_n",
+            "slot1.active",
+            "slot1.x_n",
+            "slot1.y_n",
+            "slot1.z_n",
+            "slot1.peer_index0.present",
+            "slot1.peer_index0.sinr_valid",
+            "slot1.peer_index0.sinr_n",
+            "slot1.peer_index0.cap_n",
+            "slot1.peer_index1.present",
+            "slot1.peer_index1.sinr_valid",
+            "slot1.peer_index1.sinr_n",
+            "slot1.peer_index1.cap_n",
+            "slot1.demand_log_n",
+            "slot1.delivered_log_n",
+            "slot1.delivery_ratio",
+            "slot1.connected_fraction",
+            "slot1.unroutable_fraction",
+            "slot1.peer_index0.relative_x_n",
+            "slot1.peer_index0.relative_y_n",
+            "slot1.peer_index0.relative_z_n",
+            "slot1.peer_index0.relative_vx_n",
+            "slot1.peer_index0.relative_vy_n",
+            "slot1.peer_index0.relative_vz_n",
+            "slot1.peer_index0.is_los",
+            "slot1.peer_index1.relative_x_n",
+            "slot1.peer_index1.relative_y_n",
+            "slot1.peer_index1.relative_z_n",
+            "slot1.peer_index1.relative_vx_n",
+            "slot1.peer_index1.relative_vy_n",
+            "slot1.peer_index1.relative_vz_n",
+            "slot1.peer_index1.is_los",
+            "slot1.service_gap_log_n",
+            "slot2.active",
+            "slot2.x_n",
+            "slot2.y_n",
+            "slot2.z_n",
+            "slot2.peer_index0.present",
+            "slot2.peer_index0.sinr_valid",
+            "slot2.peer_index0.sinr_n",
+            "slot2.peer_index0.cap_n",
+            "slot2.peer_index1.present",
+            "slot2.peer_index1.sinr_valid",
+            "slot2.peer_index1.sinr_n",
+            "slot2.peer_index1.cap_n",
+            "slot2.demand_log_n",
+            "slot2.delivered_log_n",
+            "slot2.delivery_ratio",
+            "slot2.connected_fraction",
+            "slot2.unroutable_fraction",
+            "slot2.peer_index0.relative_x_n",
+            "slot2.peer_index0.relative_y_n",
+            "slot2.peer_index0.relative_z_n",
+            "slot2.peer_index0.relative_vx_n",
+            "slot2.peer_index0.relative_vy_n",
+            "slot2.peer_index0.relative_vz_n",
+            "slot2.peer_index0.is_los",
+            "slot2.peer_index1.relative_x_n",
+            "slot2.peer_index1.relative_y_n",
+            "slot2.peer_index1.relative_z_n",
+            "slot2.peer_index1.relative_vx_n",
+            "slot2.peer_index1.relative_vy_n",
+            "slot2.peer_index1.relative_vz_n",
+            "slot2.peer_index1.is_los",
+            "slot2.service_gap_log_n",
+            "node.node-a.available",
+            "node.node-b.available",
+            "node.node-c.available",
+            "mission.coverage",
+            "mission.investigation",
+            "mission.recovery",
+            "mission.goal_x",
+            "mission.goal_y",
+            "mission.distance",
+            "mission.connected",
+            "mission.arrived",
+            "mission.goal_coverage",
+            "mission.dwell",
+            "mission.completed",
+            "mission.failure",
+            "mission.survivor_delivery",
+            "mission.survivor_fair",
+            "mission.survivor_worst",
+            "mission.coverage_target",
+            "mission.recovery_dwell",
+            "mission.recovered",
+            "node.node-b.obstacle_west",
+            "node.node-b.obstacle_east",
+            "node.node-b.obstacle_south",
+            "node.node-b.obstacle_north",
+            "node.node-b.goal_dx",
+            "node.node-b.goal_dy",
+            "node.node-c.obstacle_west",
+            "node.node-c.obstacle_east",
+            "node.node-c.obstacle_south",
+            "node.node-c.obstacle_north",
+            "node.node-c.goal_dx",
+            "node.node-c.goal_dy",
+            "node.None.obstacle_west",
+            "node.None.obstacle_east",
+            "node.None.obstacle_south",
+            "node.None.obstacle_north",
+            "node.None.goal_dx",
+            "node.None.goal_dy",
+            "mission.team_arrivals",
+            "mission.team_connected"
+          ],
+          "normalization": {
+            "capacity": "log10(1+x)/4",
+            "capacity_log10_denominator": 4.0,
+            "demand": "log10(1+Mbps)/4",
+            "peer_relative_velocity": "(peer-self)/40 mps, clipped [-1,1]",
+            "peer_relative_xyz": "(peer-self)/(max-min), clipped [-1,1]",
+            "position": "rl_bounds",
+            "service_ratios": "unit ratios",
+            "sinr_clip_db": [
+              -20.0,
+              40.0
+            ],
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0,
+            "velocity_scale_mps": 40.0,
+            "window": "sums_over_scored_ticks"
+          },
+          "normalization_fields": [
+            "sinr_min_db",
+            "sinr_max_db",
+            "sinr_invalid_db",
+            "capacity_log10_denominator",
+            "velocity_scale_mps"
+          ],
+          "obs_dim": 137,
+          "required_facts": [
+            "nodes",
+            "links",
+            "window",
+            "mission",
+            "mission_state",
+            "node_available"
+          ]
+        },
+        "id": "mission_facts_v2",
+        "index": 6,
+        "module": "scripts.rl.env.observations",
+        "schema_sha256": "e1edc82cfa9126b69319670c5fe2735562d97f5a67b5caaabf2232ad23e6477d"
+      },
+      {
+        "context_fields": [],
+        "descriptor": {
+          "compatibility_fields": [
+            "bounds",
+            "mission",
+            "navigation",
+            "node_types"
+          ],
+          "default_parameters": {
+            "capacity_log10_denominator": 4.0,
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0
+          },
+          "dtype": "float32",
+          "fact_extensions": [],
+          "feature_names": [
+            "node.node-a.available",
+            "node.node-a.x_n",
+            "node.node-a.y_n",
+            "node.node-a.z_n",
+            "node.node-a.pedestrian",
+            "node.node-a.drone",
+            "node.node-a.vehicle",
+            "node.node-a.goal_dx",
+            "node.node-a.goal_dy",
+            "node.node-a.obstacle_west",
+            "node.node-a.obstacle_east",
+            "node.node-a.obstacle_south",
+            "node.node-a.obstacle_north",
+            "node.node-a.delivery",
+            "node.node-b.available",
+            "node.node-b.x_n",
+            "node.node-b.y_n",
+            "node.node-b.z_n",
+            "node.node-b.pedestrian",
+            "node.node-b.drone",
+            "node.node-b.vehicle",
+            "node.node-b.goal_dx",
+            "node.node-b.goal_dy",
+            "node.node-b.obstacle_west",
+            "node.node-b.obstacle_east",
+            "node.node-b.obstacle_south",
+            "node.node-b.obstacle_north",
+            "node.node-b.delivery",
+            "node.node-c.available",
+            "node.node-c.x_n",
+            "node.node-c.y_n",
+            "node.node-c.z_n",
+            "node.node-c.pedestrian",
+            "node.node-c.drone",
+            "node.node-c.vehicle",
+            "node.node-c.goal_dx",
+            "node.node-c.goal_dy",
+            "node.node-c.obstacle_west",
+            "node.node-c.obstacle_east",
+            "node.node-c.obstacle_south",
+            "node.node-c.obstacle_north",
+            "node.node-c.delivery",
+            "link.node-a.node-b.sinr_n",
+            "link.node-a.node-b.capacity_n",
+            "link.node-a.node-b.los",
+            "link.node-a.node-c.sinr_n",
+            "link.node-a.node-c.capacity_n",
+            "link.node-a.node-c.los",
+            "link.node-b.node-c.sinr_n",
+            "link.node-b.node-c.capacity_n",
+            "link.node-b.node-c.los",
+            "team.arrivals",
+            "team.connected",
+            "team.delivery",
+            "team.coverage",
+            "team.dwell",
+            "control.active"
+          ],
+          "normalization": {
+            "capacity_log10_denominator": 4.0,
+            "layout": "one node block, one unordered link block, six global measurements; no repeated pair geometry",
+            "positions": "2*(value-min)/(max-min)-1",
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0,
+            "target_offsets": "0.5+0.5*(target-self)/field span"
+          },
+          "normalization_fields": [
+            "sinr_min_db",
+            "sinr_max_db",
+            "sinr_invalid_db",
+            "capacity_log10_denominator"
+          ],
+          "obs_dim": 57,
+          "required_facts": [
+            "nodes",
+            "links",
+            "node_service",
+            "node_available",
+            "mission_state",
+            "window",
+            "coverage"
+          ]
+        },
+        "id": "mission_compact_v1",
+        "index": 7,
+        "module": "scripts.rl.env.phase4_observations",
+        "schema_sha256": "71efe8bddcb68b3a727fff0e157dc983be60ea0fc43b94fd7a26be560ba7de31"
+      },
+      {
+        "context_fields": [],
+        "descriptor": {
+          "compatibility_fields": [
+            "bounds",
+            "mission",
+            "navigation",
+            "node_types"
+          ],
+          "default_parameters": {
+            "capacity_log10_denominator": 4.0,
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0
+          },
+          "dtype": "float32",
+          "fact_extensions": [
+            "coordination_v1"
+          ],
+          "feature_names": [
+            "node.node-a.available",
+            "node.node-a.x_n",
+            "node.node-a.y_n",
+            "node.node-a.z_n",
+            "node.node-a.pedestrian",
+            "node.node-a.drone",
+            "node.node-a.vehicle",
+            "node.node-a.goal_dx",
+            "node.node-a.goal_dy",
+            "node.node-a.obstacle_west",
+            "node.node-a.obstacle_east",
+            "node.node-a.obstacle_south",
+            "node.node-a.obstacle_north",
+            "node.node-a.delivery",
+            "node.node-b.available",
+            "node.node-b.x_n",
+            "node.node-b.y_n",
+            "node.node-b.z_n",
+            "node.node-b.pedestrian",
+            "node.node-b.drone",
+            "node.node-b.vehicle",
+            "node.node-b.goal_dx",
+            "node.node-b.goal_dy",
+            "node.node-b.obstacle_west",
+            "node.node-b.obstacle_east",
+            "node.node-b.obstacle_south",
+            "node.node-b.obstacle_north",
+            "node.node-b.delivery",
+            "node.node-c.available",
+            "node.node-c.x_n",
+            "node.node-c.y_n",
+            "node.node-c.z_n",
+            "node.node-c.pedestrian",
+            "node.node-c.drone",
+            "node.node-c.vehicle",
+            "node.node-c.goal_dx",
+            "node.node-c.goal_dy",
+            "node.node-c.obstacle_west",
+            "node.node-c.obstacle_east",
+            "node.node-c.obstacle_south",
+            "node.node-c.obstacle_north",
+            "node.node-c.delivery",
+            "link.node-a.node-b.sinr_n",
+            "link.node-a.node-b.capacity_n",
+            "link.node-a.node-b.los",
+            "link.node-a.node-c.sinr_n",
+            "link.node-a.node-c.capacity_n",
+            "link.node-a.node-c.los",
+            "link.node-b.node-c.sinr_n",
+            "link.node-b.node-c.capacity_n",
+            "link.node-b.node-c.los",
+            "team.arrivals",
+            "team.connected",
+            "team.delivery",
+            "team.coverage",
+            "team.dwell",
+            "control.active",
+            "node.node-a.target_distance",
+            "node.node-a.target_excess",
+            "node.node-a.target_closeness",
+            "node.node-a.inside_target",
+            "node.node-a.achieved_move",
+            "node.node-a.peer_blocked",
+            "node.node-a.wall_contact",
+            "node.node-a.last_west",
+            "node.node-a.last_east",
+            "node.node-a.last_south",
+            "node.node-a.last_north",
+            "node.node-a.last_hold",
+            "node.node-b.target_distance",
+            "node.node-b.target_excess",
+            "node.node-b.target_closeness",
+            "node.node-b.inside_target",
+            "node.node-b.achieved_move",
+            "node.node-b.peer_blocked",
+            "node.node-b.wall_contact",
+            "node.node-b.last_west",
+            "node.node-b.last_east",
+            "node.node-b.last_south",
+            "node.node-b.last_north",
+            "node.node-b.last_hold",
+            "node.node-c.target_distance",
+            "node.node-c.target_excess",
+            "node.node-c.target_closeness",
+            "node.node-c.inside_target",
+            "node.node-c.achieved_move",
+            "node.node-c.peer_blocked",
+            "node.node-c.wall_contact",
+            "node.node-c.last_west",
+            "node.node-c.last_east",
+            "node.node-c.last_south",
+            "node.node-c.last_north",
+            "node.node-c.last_hold",
+            "phase.approach_restore_expand",
+            "phase.assemble_dwell",
+            "phase.settle",
+            "phase.good_dwell",
+            "mission.relevant_delivery",
+            "team.lower_tail_service",
+            "team.path_support",
+            "coverage.target",
+            "target.team_closeness"
+          ],
+          "normalization": {
+            "base": "mission_compact_v1",
+            "capacity_log10_denominator": 4.0,
+            "completed_action": "one-hot last requested cardinal action; actual/permitted movement; native rejection/contact flags",
+            "phase": "measured 30 s success dwell; 5 s relapse hysteresis, immediate severe fallback; no future events",
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0,
+            "target_closeness": "exp(-max(d-target_radius,0)/100 m)",
+            "target_distance": "d/(100+d)"
+          },
+          "normalization_fields": [
+            "sinr_min_db",
+            "sinr_max_db",
+            "sinr_invalid_db",
+            "capacity_log10_denominator"
+          ],
+          "obs_dim": 102,
+          "required_facts": [
+            "nodes",
+            "links",
+            "window",
+            "node_service",
+            "mission",
+            "mission_state",
+            "coordination_v1"
+          ]
+        },
+        "id": "mission_coordination_v1",
+        "index": 8,
+        "module": "scripts.rl.env.phase6_observations",
+        "schema_sha256": "8403d7613dc52a4d3200a7d0aa44c028f7ebe351ffb9edcefff80ed5d0699308"
+      },
+      {
+        "context_fields": [],
+        "descriptor": {
+          "compatibility_fields": [
+            "bounds",
+            "mission",
+            "navigation",
+            "node_types"
+          ],
+          "default_parameters": {
+            "capacity_log10_denominator": 4.0,
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0
+          },
+          "dtype": "float32",
+          "fact_extensions": [
+            "coordination_v1"
+          ],
+          "feature_names": [
+            "node.node-a.available",
+            "node.node-a.x_n",
+            "node.node-a.y_n",
+            "node.node-a.z_n",
+            "node.node-a.pedestrian",
+            "node.node-a.drone",
+            "node.node-a.vehicle",
+            "node.node-a.goal_dx",
+            "node.node-a.goal_dy",
+            "node.node-a.obstacle_west",
+            "node.node-a.obstacle_east",
+            "node.node-a.obstacle_south",
+            "node.node-a.obstacle_north",
+            "node.node-a.delivery",
+            "node.node-b.available",
+            "node.node-b.x_n",
+            "node.node-b.y_n",
+            "node.node-b.z_n",
+            "node.node-b.pedestrian",
+            "node.node-b.drone",
+            "node.node-b.vehicle",
+            "node.node-b.goal_dx",
+            "node.node-b.goal_dy",
+            "node.node-b.obstacle_west",
+            "node.node-b.obstacle_east",
+            "node.node-b.obstacle_south",
+            "node.node-b.obstacle_north",
+            "node.node-b.delivery",
+            "node.node-c.available",
+            "node.node-c.x_n",
+            "node.node-c.y_n",
+            "node.node-c.z_n",
+            "node.node-c.pedestrian",
+            "node.node-c.drone",
+            "node.node-c.vehicle",
+            "node.node-c.goal_dx",
+            "node.node-c.goal_dy",
+            "node.node-c.obstacle_west",
+            "node.node-c.obstacle_east",
+            "node.node-c.obstacle_south",
+            "node.node-c.obstacle_north",
+            "node.node-c.delivery",
+            "link.node-a.node-b.sinr_n",
+            "link.node-a.node-b.capacity_n",
+            "link.node-a.node-b.los",
+            "link.node-a.node-c.sinr_n",
+            "link.node-a.node-c.capacity_n",
+            "link.node-a.node-c.los",
+            "link.node-b.node-c.sinr_n",
+            "link.node-b.node-c.capacity_n",
+            "link.node-b.node-c.los",
+            "team.arrivals",
+            "team.connected",
+            "team.delivery",
+            "team.coverage",
+            "team.dwell",
+            "control.active",
+            "node.node-a.target_distance",
+            "node.node-a.target_excess",
+            "node.node-a.target_closeness",
+            "node.node-a.inside_target",
+            "node.node-a.achieved_move",
+            "node.node-a.peer_blocked",
+            "node.node-a.wall_contact",
+            "node.node-a.last_west",
+            "node.node-a.last_east",
+            "node.node-a.last_south",
+            "node.node-a.last_north",
+            "node.node-a.last_hold",
+            "node.node-b.target_distance",
+            "node.node-b.target_excess",
+            "node.node-b.target_closeness",
+            "node.node-b.inside_target",
+            "node.node-b.achieved_move",
+            "node.node-b.peer_blocked",
+            "node.node-b.wall_contact",
+            "node.node-b.last_west",
+            "node.node-b.last_east",
+            "node.node-b.last_south",
+            "node.node-b.last_north",
+            "node.node-b.last_hold",
+            "node.node-c.target_distance",
+            "node.node-c.target_excess",
+            "node.node-c.target_closeness",
+            "node.node-c.inside_target",
+            "node.node-c.achieved_move",
+            "node.node-c.peer_blocked",
+            "node.node-c.wall_contact",
+            "node.node-c.last_west",
+            "node.node-c.last_east",
+            "node.node-c.last_south",
+            "node.node-c.last_north",
+            "node.node-c.last_hold",
+            "phase.approach_restore_expand",
+            "phase.assemble_dwell",
+            "phase.settle",
+            "phase.good_dwell",
+            "mission.relevant_delivery",
+            "team.lower_tail_service",
+            "team.global_bridge_support",
+            "coverage.target",
+            "target.team_closeness"
+          ],
+          "normalization": {
+            "base": "mission_coordination_v1",
+            "capacity_log10_denominator": 4.0,
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0,
+            "substitution": "team.path_support replaced by weakest all-active-pair widest-path sigmoid SINR; same vector width; other features unchanged"
+          },
+          "normalization_fields": [
+            "sinr_min_db",
+            "sinr_max_db",
+            "sinr_invalid_db",
+            "capacity_log10_denominator"
+          ],
+          "obs_dim": 102,
+          "required_facts": [
+            "nodes",
+            "links",
+            "node_available",
+            "window",
+            "node_service",
+            "mission",
+            "mission_state",
+            "coordination_v1"
+          ]
+        },
+        "id": "mission_bridge_v1",
+        "index": 9,
+        "module": "scripts.rl.env.phase7_observations",
+        "schema_sha256": "cef7c8384bd62753f43bf9319be96064f45cfd0edd98259f44d216a3ecec0c0a"
+      }
+    ],
+    "registration_order": [
+      "raw_links_v1",
+      "local_links_v1",
+      "geometry_v1",
+      "service_v1",
+      "full_facts_v1",
+      "mission_facts_v1",
+      "mission_facts_v2",
+      "mission_compact_v1",
+      "mission_coordination_v1",
+      "mission_bridge_v1"
+    ]
+  },
+  "registry_identity_version": 1,
+  "reward_components": {
+    "items": [
+      {
+        "component_schema_sha256": "4ca1fd4345c3ddf202368f492be3e597bc04e3448c398609816700fd3d820fc4",
+        "context_fields": [],
+        "descriptor": {
+          "contract_fields": [],
+          "default_parameters": {
+            "demand_epsilon_mbps_sum": 1e-09
+          },
+          "fact_extensions": [],
+          "formula": "delivered/demand",
+          "formula_template": "delivered/demand",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "demand_mbps_sum",
+            "delivered_mbps_sum"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "masked"
+        },
+        "id": "delivery_ratio",
+        "index": 0,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "42f1e5917aeacb2d4d77a03098a22f60862f743f36bc6dff2c009fb2e7fef844"
+      },
+      {
+        "component_schema_sha256": "29a237ce88440272aba0b2fd0987cddc2ffbb19c821fb17f845830eb7eec30df",
+        "context_fields": [],
+        "descriptor": {
+          "contract_fields": [],
+          "default_parameters": {
+            "demand_epsilon_mbps_sum": 1e-09
+          },
+          "fact_extensions": [],
+          "formula": "+1 for any delivery, else -1",
+          "formula_template": "+1 for any delivery, else -1",
+          "has_context_builder": false,
+          "range": [
+            -1.0,
+            1.0
+          ],
+          "required_facts": [
+            "demand_mbps_sum",
+            "delivered_mbps_sum"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "masked"
+        },
+        "id": "delivery_binary",
+        "index": 1,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "6e59ca44f94eff244da6fa5a7cf8bfbf5cb6c278a4e8a25fa1c3caa1b473deb3"
+      },
+      {
+        "component_schema_sha256": "9d95481925e48492e2de9c050bc47bac15bd6ad9de4b7db35f676fd181f77d4e",
+        "context_fields": [],
+        "descriptor": {
+          "contract_fields": [],
+          "default_parameters": {
+            "demand_epsilon_mbps_sum": 1e-09
+          },
+          "fact_extensions": [],
+          "formula": "2*clip(delivered/demand,0,1)-1",
+          "formula_template": "2*clip(delivered/demand,0,1)-1",
+          "has_context_builder": false,
+          "range": [
+            -1.0,
+            1.0
+          ],
+          "required_facts": [
+            "demand_mbps_sum",
+            "delivered_mbps_sum"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "masked"
+        },
+        "id": "signed_delivery_ratio",
+        "index": 2,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "4ddc10a2f3e47c687ad792c40973ddf824f41d729c560b5572141ec9f2a36524"
+      },
+      {
+        "component_schema_sha256": "62e1b8e71c2d019f10217638c7ae55b54f5c11b333b982a6b5320c497666f1ed",
+        "context_fields": [],
+        "descriptor": {
+          "contract_fields": [
+            "num_links"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "connected_pairs_sum/(scored_ticks*num_links)",
+          "formula_template": "connected_pairs_sum/(scored_ticks*num_links)",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "connected_pairs_sum"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "connectivity",
+        "index": 3,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "2b2d76e44f1409c9b86cb461e65cecf78355fba024dd0be107d24e95e2209ff1"
+      },
+      {
+        "component_schema_sha256": "28538e2c225dd384bcd6ecba9b8685478668ccab4400b1cfae9573a8f1623900",
+        "context_fields": [],
+        "descriptor": {
+          "contract_fields": [],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "delivered_mbps_sum/scored_ticks",
+          "formula_template": "delivered_mbps_sum/scored_ticks",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            null
+          ],
+          "required_facts": [
+            "delivered_mbps_sum"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "throughput_mbps",
+        "index": 4,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "81506749c79dd4bd4a79b478fbff727779bbd7e2eb88628aec84c7c63de739a1"
+      },
+      {
+        "component_schema_sha256": "3f5ba19ed73ac19dd1fc66e7c03c91f6d46c4ee6e1b0a35f9bafead4a6be21ca",
+        "context_fields": [],
+        "descriptor": {
+          "contract_fields": [
+            "reward_type",
+            "reward_window"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "legacy_reward_sum/scored_ticks",
+          "formula_template": "legacy_reward_sum/scored_ticks",
+          "has_context_builder": false,
+          "range": [
+            null,
+            null
+          ],
+          "required_facts": [
+            "legacy_reward_sum"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "legacy",
+        "index": 5,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "ac45230c017327392d1fc7272554d52d18b1718c7c6f3f33aa769e1ec597ec52"
+      },
+      {
+        "component_schema_sha256": "83510e460f28d88ca027fe0d318303bc22a5a80e3407c96af8b0511fd8401399",
+        "context_fields": [],
+        "descriptor": {
+          "contract_fields": [],
+          "default_parameters": {
+            "delivery_threshold": 0.95,
+            "routable_threshold": 0.95
+          },
+          "fact_extensions": [],
+          "formula": "+1 if delivery >= 0.95 and routable >= 0.95, else -1",
+          "formula_template": "+1 if delivery >= {delivery_threshold:g} and routable >= {routable_threshold:g}, else -1",
+          "has_context_builder": false,
+          "range": [
+            -1.0,
+            1.0
+          ],
+          "required_facts": [
+            "demand_mbps_sum",
+            "delivered_mbps_sum",
+            "flow_ticks_with_demand",
+            "unroutable_flow_ticks"
+          ],
+          "tunable": {
+            "delivery_threshold": [
+              0.95,
+              0.0,
+              1.0
+            ],
+            "routable_threshold": [
+              0.95,
+              0.0,
+              1.0
+            ]
+          },
+          "zero_demand_rule": "failure"
+        },
+        "id": "service_success",
+        "index": 6,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "777916d5d315a4abac44321b380cf57f535f924c61d1b89215f67c51d24cd30d"
+      },
+      {
+        "component_schema_sha256": "dc82992b60219616a251d30ddf406b3413f600660d1e9244132103e5b46dea2e",
+        "context_fields": [],
+        "descriptor": {
+          "contract_fields": [],
+          "default_parameters": {
+            "delivery_threshold": 0.95,
+            "routable_threshold": 0.95
+          },
+          "fact_extensions": [],
+          "formula": "1 if delivery < 0.95 or routable < 0.95, else 0",
+          "formula_template": "1 if delivery < {delivery_threshold:g} or routable < {routable_threshold:g}, else 0",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "demand_mbps_sum",
+            "delivered_mbps_sum",
+            "flow_ticks_with_demand",
+            "unroutable_flow_ticks"
+          ],
+          "tunable": {
+            "delivery_threshold": [
+              0.95,
+              0.0,
+              1.0
+            ],
+            "routable_threshold": [
+              0.95,
+              0.0,
+              1.0
+            ]
+          },
+          "zero_demand_rule": "failure"
+        },
+        "id": "service_failure",
+        "index": 7,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "610a35decfb8124d741a20a61c680747db0fe21fed1ad30018eb7d0354455690"
+      },
+      {
+        "component_schema_sha256": "0c95a4326557eb8a4abb525a17aeba0a16a76fa5a568511f39c07093908f75f8",
+        "context_fields": [
+          "travel_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "slot_speed_mps",
+            "tick_s",
+            "slot_node_ids"
+          ],
+          "default_parameters": {
+            "measurement": "xy_endpoint_distance",
+            "partial_warmup_rule": "masked"
+          },
+          "fact_extensions": [],
+          "formula": "mean controlled-slot endpoint distance/(speed*elapsed_ticks*tick_s), clipped [0,1]",
+          "formula_template": "mean controlled-slot endpoint distance/(speed*elapsed_ticks*tick_s), clipped [0,1]",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "nodes"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "travel_fraction",
+        "index": 8,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "552b63918bf08c215c29e2d577d24e5982b1b298fa21b55394bd34d757a3b774"
+      },
+      {
+        "component_schema_sha256": "b8cc10c5cfafa2cb65463ac34920ee399cbf6e8c38531e2e08680020a4ca9a19",
+        "context_fields": [
+          "origin_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "bounds",
+            "slot_node_ids"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "mean controlled-slot xy distance from reset/bounds diagonal, clipped [0,1]",
+          "formula_template": "mean controlled-slot xy distance from reset/bounds diagonal, clipped [0,1]",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "nodes"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "origin_fraction",
+        "index": 9,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "a0cca3a9135e26c1d0208943baad226f297bf2b20cc48ea3d98075423794941f"
+      },
+      {
+        "component_schema_sha256": "5b1b481069f0aede2405fcc9e91ef065ce064f2175d623f72aedc36d16295614",
+        "context_fields": [
+          "links"
+        ],
+        "descriptor": {
+          "contract_fields": [],
+          "default_parameters": {
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0
+          },
+          "fact_extensions": [],
+          "formula": "mean SINR clipped [-20,40] and mapped to [0,1]; <= -900 scores 0",
+          "formula_template": "mean SINR clipped [{sinr_min_db:g},{sinr_max_db:g}] and mapped to [0,1]; <= {sinr_invalid_db:g} scores 0",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "links"
+          ],
+          "tunable": {
+            "sinr_invalid_db": [
+              -900.0,
+              null,
+              null
+            ],
+            "sinr_max_db": [
+              40.0,
+              null,
+              null
+            ],
+            "sinr_min_db": [
+              -20.0,
+              null,
+              null
+            ]
+          },
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "sinr_quality",
+        "index": 10,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "4d0dd3d0bc1924e77980192be7835de6c8e066af7e06ede94e7ebe38e09804ae"
+      },
+      {
+        "component_schema_sha256": "0e711cdd9a669fa0aa5d0695437dda15233b015281b57fb5ea760ec0d35bcab0",
+        "context_fields": [
+          "links"
+        ],
+        "descriptor": {
+          "contract_fields": [],
+          "default_parameters": {
+            "delivery_threshold": 0.95,
+            "sinr_invalid_db": -900.0,
+            "sinr_max_db": 40.0,
+            "sinr_min_db": -20.0
+          },
+          "fact_extensions": [],
+          "formula": "SINR quality [-20,40] above -900 * clip((0.95-delivery_ratio)/0.95,0,1)",
+          "formula_template": "SINR quality [{sinr_min_db:g},{sinr_max_db:g}] above {sinr_invalid_db:g} * clip(({delivery_threshold:g}-delivery_ratio)/{delivery_threshold:g},0,1)",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "links",
+            "demand_mbps_sum",
+            "delivered_mbps_sum"
+          ],
+          "tunable": {
+            "delivery_threshold": [
+              0.95,
+              0.0,
+              1.0
+            ],
+            "sinr_invalid_db": [
+              -900.0,
+              null,
+              null
+            ],
+            "sinr_max_db": [
+              40.0,
+              null,
+              null
+            ],
+            "sinr_min_db": [
+              -20.0,
+              null,
+              null
+            ]
+          },
+          "zero_demand_rule": "delivery_ratio_zero"
+        },
+        "id": "unmet_sinr_quality",
+        "index": 11,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "5db2b9dcda86e0f4d86fc73da8885f2fff565483c450e3cc8b4a94a9badc39f5"
+      },
+      {
+        "component_schema_sha256": "cebf1add73346fb96fe3a7c42b604fc153a0a2897c6b32770bdc501423d6dbdd",
+        "context_fields": [],
+        "descriptor": {
+          "contract_fields": [],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "ln(1 + delivered_mbps_sum/scored_ticks)",
+          "formula_template": "ln(1 + delivered_mbps_sum/scored_ticks)",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            null
+          ],
+          "required_facts": [
+            "delivered_mbps_sum"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "throughput_log_mbps",
+        "index": 12,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "64fd1f11f08c3ee111ae78cf59f8b648cdb87683557e6305eb9b4fb1c04a1aa3"
+      },
+      {
+        "component_schema_sha256": "bf68f98fc27af0c3577ddfd4540d8b060f94cced713ff42f7aa286555059c838",
+        "context_fields": [
+          "fair_node_service"
+        ],
+        "descriptor": {
+          "contract_fields": [],
+          "default_parameters": {
+            "formula": "mean sqrt(clipped node delivered/offered)",
+            "zero_demand_rule": "masked"
+          },
+          "fact_extensions": [],
+          "formula": "mean sqrt(clipped node delivered/offered)",
+          "formula_template": "mean sqrt(clipped node delivered/offered)",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "node_service"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "masked"
+        },
+        "id": "fair_node_service",
+        "index": 13,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "c42b7284feb77fd7a68b7b872652462c2614ab4247a08f04c2516d9dc1111007"
+      },
+      {
+        "component_schema_sha256": "e8c527f83478b7005b88738f75d51077a3d673b4f85b6d81e7b388558062f2dd",
+        "context_fields": [
+          "worst_node_delivery_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [],
+          "default_parameters": {
+            "formula": "min node delivered/offered; exclude zero-demand nodes",
+            "zero_demand_rule": "masked"
+          },
+          "fact_extensions": [],
+          "formula": "min node delivered/offered; exclude zero-demand nodes",
+          "formula_template": "min node delivered/offered; exclude zero-demand nodes",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "node_service"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "masked"
+        },
+        "id": "worst_node_delivery_fraction",
+        "index": 14,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "188d1ffe7a8fd1c261ffb7c4e0069f283186b9148d9bd1afdc02cd6b168383d4"
+      },
+      {
+        "component_schema_sha256": "120de5328199de92c5b2d13b44dcc7bd5d0c129b5c99d31889bf37a1dddd01e6",
+        "context_fields": [
+          "coverage_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "coverage"
+          ],
+          "default_parameters": {
+            "measurement": "decision_endpoint_connected_core"
+          },
+          "fact_extensions": [],
+          "formula": "coverage_fraction",
+          "formula_template": "coverage_fraction",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "coverage"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "coverage_fraction",
+        "index": 15,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "8dba4cbdbbd1865a9c93c4a31cef2643c6cb943fdd66e128f4893da9ac0a0e18"
+      },
+      {
+        "component_schema_sha256": "3ff2ac7166592b18e96212d3644f4963e7ddd4212f6d3b866bede0f430ce3cdb",
+        "context_fields": [
+          "unsafe_proximity_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "unsafe_separation_m"
+          ],
+          "default_parameters": {
+            "denominator": "scored_ticks"
+          },
+          "fact_extensions": [],
+          "formula": "unsafe_proximity_fraction",
+          "formula_template": "unsafe_proximity_fraction",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "safety"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "unsafe_proximity_fraction",
+        "index": 16,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "ff7ed9e01ca7f85ad027233c832bfc7ad7a74bcc6cecbf80104c1ac1eac33c65"
+      },
+      {
+        "component_schema_sha256": "a07937423529d2d081c26b1d5cfccc709a4a0a5fb12a5daa6650c638a489e7a9",
+        "context_fields": [
+          "span_travel_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "node_types"
+          ],
+          "default_parameters": {
+            "hard_limit": false,
+            "partial_warmup_rule": "masked",
+            "reference_span_m": {
+              "drone": 500.0,
+              "pedestrian": 300.0,
+              "vehicle": 300.0
+            }
+          },
+          "fact_extensions": [],
+          "formula": "span_travel_fraction",
+          "formula_template": "span_travel_fraction",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            null
+          ],
+          "required_facts": [
+            "nodes"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "span_travel_fraction",
+        "index": 17,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "fd3be45d9915e1eabc3b53c745d68f645188fe77f3c94dbb1a476b860af5ff51"
+      },
+      {
+        "component_schema_sha256": "61cdfa9341be7cb9d03d9658c857ff6d34fe55f5383c1d532e70959cc7f4a2fe",
+        "context_fields": [
+          "peer_cohesion"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "node_types"
+          ],
+          "default_parameters": {
+            "floor_m": 20.0,
+            "peer": "nearest peer at reset",
+            "reference_span_m": {
+              "drone": 500.0,
+              "pedestrian": 300.0,
+              "vehicle": 300.0
+            }
+          },
+          "fact_extensions": [],
+          "formula": "peer_cohesion",
+          "formula_template": "peer_cohesion",
+          "has_context_builder": true,
+          "range": [
+            -1.0,
+            1.0
+          ],
+          "required_facts": [
+            "nodes"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "peer_cohesion",
+        "index": 18,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "29c1bedc15065b823b61abebd83e787eeae23cfa6d5784c5c644c24fb8eff782"
+      },
+      {
+        "component_schema_sha256": "4dfc331a5fb0fe64066e9dde01b06a851c0f82ba2f673226f8a451b2fbe90724",
+        "context_fields": [
+          "drone_travel_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "node_types"
+          ],
+          "default_parameters": {
+            "partial_warmup_rule": "masked"
+          },
+          "fact_extensions": [],
+          "formula": "drone_travel_fraction",
+          "formula_template": "drone_travel_fraction",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "nodes"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "drone_travel_fraction",
+        "index": 19,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "05b1184463d2e6720acbf425084fac564be4352aecaff85b2f12b7efd12601d7"
+      },
+      {
+        "component_schema_sha256": "3c2e584e7c88fa3d719cd59b575c9eaa7762e9442cefd877270417b1ea0ad784",
+        "context_fields": [
+          "pedestrian_travel_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "node_types"
+          ],
+          "default_parameters": {
+            "partial_warmup_rule": "masked"
+          },
+          "fact_extensions": [],
+          "formula": "pedestrian_travel_fraction",
+          "formula_template": "pedestrian_travel_fraction",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "nodes"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "pedestrian_travel_fraction",
+        "index": 20,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "20a3ed60488173b2cb8659ed0b6b506dc5a172f780fb1074a74c13d49ec5778a"
+      },
+      {
+        "component_schema_sha256": "3d1b4815763a9440850603e6da952588527aeeeea290178551124f74e31d8abb",
+        "context_fields": [
+          "vehicle_travel_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "node_types"
+          ],
+          "default_parameters": {
+            "partial_warmup_rule": "masked"
+          },
+          "fact_extensions": [],
+          "formula": "vehicle_travel_fraction",
+          "formula_template": "vehicle_travel_fraction",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "nodes"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "vehicle_travel_fraction",
+        "index": 21,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "a0f4e064f1b0339130fa1565dd08ba764dd03caeecb53a5f57133e6ab086c508"
+      },
+      {
+        "component_schema_sha256": "03851ceee53bf128cce6e61239e5300134490d71bfcbcc64fd25e8e5ef6b2206",
+        "context_fields": [
+          "travel_fraction",
+          "fair_node_service",
+          "coverage_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "coverage"
+          ],
+          "default_parameters": {
+            "lag_decisions": 1,
+            "partial_warmup_rule": "masked",
+            "reset_health": 0.0
+          },
+          "fact_extensions": [],
+          "formula": "(0.02 + 0.08 * previous_network_health) * travel_fraction",
+          "formula_template": "(0.02 + 0.08 * previous_network_health) * travel_fraction",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            0.1
+          ],
+          "required_facts": [
+            "nodes",
+            "node_service",
+            "coverage"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "adaptive_movement_cost",
+        "index": 22,
+        "module": "scripts.rl.env.rewards",
+        "schema_sha256": "646ea2463efc98abf485f4bb606f3eab71253419cd98cf2bcd77a4e95927c557"
+      },
+      {
+        "component_schema_sha256": "c74eda2ddc15e0f0e956d8c6c7473bff6b4f8d7cee5b59b24df59df7d23b704b",
+        "context_fields": [
+          "worst_node_delivery_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [],
+          "default_parameters": {
+            "floor": 0.8
+          },
+          "fact_extensions": [],
+          "formula": "max(0,0.8-worst_service)/0.8",
+          "formula_template": "max(0,{floor:g}-worst_service)/{floor:g}",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "node_service"
+          ],
+          "tunable": {
+            "floor": [
+              0.8,
+              0.0,
+              1.0
+            ]
+          },
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "weak_service_deficit",
+        "index": 23,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "d3b6b36b78428897fb9bf6c138291ddae18a7c5f344f3bbe720e9a06a1812677"
+      },
+      {
+        "component_schema_sha256": "ca07a9faa2ac22895ecc688e7d3912952734bbea7ed678304e6438abc3f6c8f3",
+        "context_fields": [
+          "mission_state",
+          "mission"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {
+            "gamma": 0.995
+          },
+          "fact_extensions": [],
+          "formula": "gamma*Phi(current)-Phi(previous); Phi=-distance/100m; terminal Phi=0",
+          "formula_template": "gamma*Phi(current)-Phi(previous); Phi=-distance/100m; terminal Phi=0",
+          "has_context_builder": false,
+          "range": [
+            null,
+            null
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {
+            "gamma": [
+              0.995,
+              0.0,
+              1.0
+            ]
+          },
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "goal_progress",
+        "index": 24,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "43ebe0266bc1cc316dd11b3cac45aec1d205e9a956b5ca75e5aa6329d191e273"
+      },
+      {
+        "component_schema_sha256": "c8a577781c2124dbf077c4a914c7ab8301bb555d9d3e3fbf4f00b75600f80797",
+        "context_fields": [
+          "mission_state",
+          "mission"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "outdoor connected-core coverage inside goal region",
+          "formula_template": "outdoor connected-core coverage inside goal region",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "goal_coverage",
+        "index": 25,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "18f1aba615d1c6ed6007568ca6cff5d1950d75225da22237c06e24027c0cf72e"
+      },
+      {
+        "component_schema_sha256": "d0e3f281d4a572cc6f9479713ea5683fe3ed4ba287baadf821e4576106277505",
+        "context_fields": [
+          "mission_state",
+          "mission"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "1 while investigator is inside arrival radius and in a core of at least two peers",
+          "formula_template": "1 while investigator is inside arrival radius and in a core of at least two peers",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "connected_arrival",
+        "index": 26,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "5d9a57f9afe68750539d0a41b2c1f4504a3473a0bada227fdf93a572243cba58"
+      },
+      {
+        "component_schema_sha256": "8b3b5e096a46d64173f6257a61b4916094be90b3ad24eaa73e66ae959174a568",
+        "context_fields": [
+          "mission_state",
+          "mission"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "1 while investigator is disconnected",
+          "formula_template": "1 while investigator is disconnected",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "investigator_disconnected",
+        "index": 27,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "219553757c842178907a5bd238c6af53665f5a6b437f9b0ba7c263c7c9afe250"
+      },
+      {
+        "component_schema_sha256": "879abe6f3e382dc3339c83e3ca37ec0be6a2a3897201574eb7f062eb1b15161e",
+        "context_fields": [
+          "mission_state",
+          "mission"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "one-time bonus after connected arrival and local coverage persist for dwell_s",
+          "formula_template": "one-time bonus after connected arrival and local coverage persist for dwell_s",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "investigation_complete",
+        "index": 28,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "a90076cef043b154f1ac65a08b64af0334ba2de3feccaa65268f93d1159e429a"
+      },
+      {
+        "component_schema_sha256": "002aad8492ec13513778d0b800cd83a46f8988eefa79868769de2044f02a93fa",
+        "context_fields": [
+          "mission_state",
+          "mission"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "service over flows whose endpoints are available; failed demand remains separately measured",
+          "formula_template": "service over flows whose endpoints are available; failed demand remains separately measured",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "survivor_delivery_ratio",
+        "index": 29,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "66620dfcb2f8a94b5e2653b8453e78caa3297b522a1d750a05530069b52e19b2"
+      },
+      {
+        "component_schema_sha256": "002aad8492ec13513778d0b800cd83a46f8988eefa79868769de2044f02a93fa",
+        "context_fields": [
+          "mission_state",
+          "mission"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "service over flows whose endpoints are available; failed demand remains separately measured",
+          "formula_template": "service over flows whose endpoints are available; failed demand remains separately measured",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "survivor_fair_service",
+        "index": 30,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "e0c47a4fef4ded436622256194f96a15fd7b397bdd6a431ef7ec067002f779dd"
+      },
+      {
+        "component_schema_sha256": "002aad8492ec13513778d0b800cd83a46f8988eefa79868769de2044f02a93fa",
+        "context_fields": [
+          "mission_state",
+          "mission"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "service over flows whose endpoints are available; failed demand remains separately measured",
+          "formula_template": "service over flows whose endpoints are available; failed demand remains separately measured",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "survivor_worst_service",
+        "index": 31,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "86bcf33011ff714f115e2d6b9520f9564844d4bd1c90bc3b46c938737389ccf2"
+      },
+      {
+        "component_schema_sha256": "5ebcce4b40c13ef307140dacab6ad12e30ecd486b89a1c40de9dd34e1e21aa19",
+        "context_fields": [
+          "mission_state",
+          "mission"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "post-failure max(0,target-survivor_delivery)/target",
+          "formula_template": "post-failure max(0,target-survivor_delivery)/target",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "recovery_delivery_deficit",
+        "index": 32,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "705fc31615b8934014d0e02fd2eaa4c17bb5aeb5673b4df15800d3a02c17123c"
+      },
+      {
+        "component_schema_sha256": "6326dc9bc487e41d1716deba3f38b81bb12ed01d8b776cb7041406888dc8aed4",
+        "context_fields": [
+          "mission_state",
+          "coverage_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "post-failure coverage deficit relative to 0.9 times pre-failure 60s mean",
+          "formula_template": "post-failure coverage deficit relative to 0.9 times pre-failure 60s mean",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state",
+            "coverage"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "recovery_coverage_deficit",
+        "index": 33,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "0c9ca9734ba7382f56c203fbed4500667b6d8a94baf2484af82cc2fc8dbbdc63"
+      },
+      {
+        "component_schema_sha256": "7d8ff37eca44760b3e6a55692df48d7164546fb0234651c8dd9c869bbec0f201",
+        "context_fields": [
+          "mission_state",
+          "mission"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "worst surviving-peer service after failure; zero before",
+          "formula_template": "worst surviving-peer service after failure; zero before",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "recovery_worst_service",
+        "index": 34,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "d9be1fbfc00527e3501f45e72e2cc1b139797105fd9814b238721ea7a442147e"
+      },
+      {
+        "component_schema_sha256": "b2ef568885154b227f77b05c1061eb8ca607ef62ed53559dcc93195b8cbf9ad1",
+        "context_fields": [
+          "mission_state",
+          "mission"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "one-time bonus after survivor delivery, coverage and worst service meet targets for dwell_s",
+          "formula_template": "one-time bonus after survivor delivery, coverage and worst service meet targets for dwell_s",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "recovery_complete",
+        "index": 35,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "abfbce224d39efaba17becc6708b94682d6f0f0656c6b83b3278f1f20f2d01eb"
+      },
+      {
+        "component_schema_sha256": "9f54c709e5fb214ff1c0baf7f5b7c9760f62b2e48e42367aed4946d564157956",
+        "context_fields": [
+          "mission_state",
+          "mission",
+          "travel_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "(0.02+0.08*previous survivor health)*travel_fraction",
+          "formula_template": "(0.02+0.08*previous survivor health)*travel_fraction",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            0.1
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "recovery_movement_cost",
+        "index": 36,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "6ab538b94a3acec1994090857746ae03bf1362ff29e1bf6d976f70e855ebca4d"
+      },
+      {
+        "component_schema_sha256": "803a7efcd80086f79208e899f06494d70976fb93b8397026967d7093c30c81c5",
+        "context_fields": [
+          "safety"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "navigation",
+            "unsafe_separation_m",
+            "avoid_node_collisions"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "unique slots with physically blocked wall or peer collision proposals / controlled peers",
+          "formula_template": "unique slots with physically blocked wall or peer collision proposals / controlled peers",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "safety"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "collision_attempt_fraction",
+        "index": 37,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "4d0c0e0b4f4e2773d182306fe63298d45b8cd9c47dbccade186842b276f2f608"
+      },
+      {
+        "component_schema_sha256": "eb53c472983a73240a793fb9fb45613204464531f9abe96d740c527021cae81b",
+        "context_fields": [
+          "mission_state",
+          "mission"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "fraction of available peers inside team radius",
+          "formula_template": "fraction of available peers inside team radius",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "team_arrival_fraction",
+        "index": 38,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "0998a0614b32eb4477dd57dbf5c57c4e325f260f4a78d5ccfcc674c544425caf"
+      },
+      {
+        "component_schema_sha256": "c3a0f57edf1ef57e3ca0813f3880d550a6659b5d5e436542bc08908ba8ca0711",
+        "context_fields": [
+          "mission_state",
+          "mission"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "1 while available team is split across connected components",
+          "formula_template": "1 while available team is split across connected components",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "team_disconnected",
+        "index": 39,
+        "module": "scripts.rl.env.mission_components",
+        "schema_sha256": "90dc58bf04e19c7e5d5e403d13224bf2613d5aa47dcc83087c796caaa6f09f94"
+      },
+      {
+        "component_schema_sha256": "7b6c63b24ed8277fcb85ec28969368047dcacbb43f6e7bc4deb707481a92675c",
+        "context_fields": [
+          "links",
+          "node_available"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "node_ids"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "mean clip((SINR + 20)/60,0,1) over available peer pairs; invalid links score 0",
+          "formula_template": "mean clip((SINR + 20)/60,0,1) over available peer pairs; invalid links score 0",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "links",
+            "node_available"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "active_sinr_quality_v1",
+        "index": 40,
+        "module": "scripts.rl.env.focused_components",
+        "schema_sha256": "997a10a1ad766a555209ccb7010db5ac061b524e71c3ad73cb92fa348fd5c781"
+      },
+      {
+        "component_schema_sha256": "7d8c8f790819ffb876a430b657f828764242a2d2e2d92c981025e87945ebe292",
+        "context_fields": [
+          "mission_state"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {
+            "scale_m": 400.0
+          },
+          "fact_extensions": [],
+          "formula": "clip(1 - current team distance outside arrival zones / 400,0,1)",
+          "formula_template": "clip(1 - current team distance outside arrival zones / {scale_m:g},0,1)",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {
+            "scale_m": [
+              400.0,
+              1.0,
+              2000.0
+            ]
+          },
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "team_goal_proximity_v1",
+        "index": 41,
+        "module": "scripts.rl.env.focused_components",
+        "schema_sha256": "59aafa1200fbb27c7ec269ebd457a926bfb803e162a3686095b5e6083a3bdfd2"
+      },
+      {
+        "component_schema_sha256": "7fe91a3c13d5f1124649fdafce4225d7b6cef3f608afb4726ea618b9b4b76837",
+        "context_fields": [
+          "mission_state"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "1 at each post-failure decision meeting current survivor delivery and worst-peer targets; never latched",
+          "formula_template": "1 at each post-failure decision meeting current survivor delivery and worst-peer targets; never latched",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "survivor_service_maintained_v1",
+        "index": 42,
+        "module": "scripts.rl.env.focused_components",
+        "schema_sha256": "2de0aa6fac64d460b51c7253ccd703b55c0bf1484911ad808170362dbf7c2b72"
+      },
+      {
+        "component_schema_sha256": "faa40be863f4165531a263909dadd4c2aa404f27b35dcc3a399fd4f97108890d",
+        "context_fields": [
+          "travel_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "slot_speed_mps",
+            "decision_interval_s"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "mean physical movement / slot speed / decision interval; repeated blocked motion costs collision attempts instead",
+          "formula_template": "mean physical movement / slot speed / decision interval; repeated blocked motion costs collision attempts instead",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "travel_fraction"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "decision_travel_v1",
+        "index": 43,
+        "module": "scripts.rl.env.focused_components",
+        "schema_sha256": "8447a291b917950677e849cb5815cdd777210b312d8327a52d76c75207ef3851"
+      },
+      {
+        "component_schema_sha256": "f06ec5460657db2209b42c80a9416e2d58a323c95721529fb485c25d8c732773",
+        "context_fields": [
+          "nodes",
+          "node_available"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {
+            "scale_m": 400.0
+          },
+          "fact_extensions": [],
+          "formula": "clip((0.5*max outside team radius + 0.5*mean outside team radius + nearest outside inner radius)/400,0,1)",
+          "formula_template": "clip((0.5*max outside team radius + 0.5*mean outside team radius + nearest outside inner radius)/{scale_m:g},0,1)",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "nodes",
+            "node_available"
+          ],
+          "tunable": {
+            "scale_m": [
+              400.0,
+              1.0,
+              2000.0
+            ]
+          },
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "team_approach_cost_v1",
+        "index": 44,
+        "module": "scripts.rl.env.phased_components",
+        "schema_sha256": "53d688d7e0cc2cb4f7116d603bccf2ccc487d1e9d206ba6fb3c6dcbb03993b98"
+      },
+      {
+        "component_schema_sha256": "386ce38def273fd2d02b053ac45eb487738fc1e583fbdb6ff008583858c9284e",
+        "context_fields": [
+          "mission_state",
+          "mission"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "zero before current connected team arrival; then 0.5 + 0.25*local coverage + 0.25*qualifying dwell fraction; falls back when arrival is lost",
+          "formula_template": "zero before current connected team arrival; then 0.5 + 0.25*local coverage + 0.25*qualifying dwell fraction; falls back when arrival is lost",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state",
+            "mission"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "investigation_setup_v1",
+        "index": 45,
+        "module": "scripts.rl.env.phased_components",
+        "schema_sha256": "fdda353311615596e088c77b6d7746ec6fd43f57b9c75f3df458ba183211f2b5"
+      },
+      {
+        "component_schema_sha256": "c8c1233d280c6381c7943d7f9e289adfdfb2c322a7a5218bdc05272381881cfc",
+        "context_fields": [
+          "mission_state"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {
+            "floor": 0.2
+          },
+          "fact_extensions": [],
+          "formula": "max(0,0.2-current service)/0.2; small viability penalty during approach",
+          "formula_template": "max(0,{floor:g}-current service)/{floor:g}; small viability penalty during approach",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {
+            "floor": [
+              0.2,
+              0.01,
+              1.0
+            ]
+          },
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "investigation_service_deficit_v1",
+        "index": 46,
+        "module": "scripts.rl.env.phased_components",
+        "schema_sha256": "78e0a8e48b64203ad4c75a80653628d798a87d8e8f58b9db602123232d93d448"
+      },
+      {
+        "component_schema_sha256": "0ed0e69c3e7b6e1e8925f5e67915dc95ed311d2ade5489bd6e62adfc9cbcaa4b",
+        "context_fields": [
+          "mission_state",
+          "origin_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission",
+            "bounds",
+            "slot_node_ids"
+          ],
+          "default_parameters": {
+            "scale_m": 100.0
+          },
+          "fact_extensions": [],
+          "formula": "before measured failure: clip(mean displacement from original deployment/100,0,1); after failure: zero",
+          "formula_template": "before measured failure: clip(mean displacement from original deployment/{scale_m:g},0,1); after failure: zero",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state",
+            "origin_fraction"
+          ],
+          "tunable": {
+            "scale_m": [
+              100.0,
+              1.0,
+              2000.0
+            ]
+          },
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "recovery_deployment_cost_v1",
+        "index": 47,
+        "module": "scripts.rl.env.phased_components",
+        "schema_sha256": "d1c77cf312cb76ef809b583c57f8fc20eec1b6169f0d15561294aa1516e58427"
+      },
+      {
+        "component_schema_sha256": "eedc9e8fa2c871125f62f68d659d95064be3ab65bfd8853e1192a99658d8462b",
+        "context_fields": [
+          "mission_state",
+          "coverage_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "after measured failure: maximum normalized deficit in survivor delivery, worst-peer service and retained geographic coverage; zero before failure",
+          "formula_template": "after measured failure: maximum normalized deficit in survivor delivery, worst-peer service and retained geographic coverage; zero before failure",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state",
+            "coverage_fraction"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "recovery_response_deficit_v1",
+        "index": 48,
+        "module": "scripts.rl.env.phased_components",
+        "schema_sha256": "955dec8106db23a1d4e99eab3dd4aad7a7274cd94a3d7710a58b6d82235dcb54"
+      },
+      {
+        "component_schema_sha256": "c31be19ed60e81690281dc1ec004700addc21cf067fee5b22a8bc2b5a7bbbcfa",
+        "context_fields": [
+          "mission_state",
+          "coverage_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "only while current delivery, worst-peer service and geographic coverage meet recovery targets: 0.5 + 0.5*qualifying dwell fraction; falls back on service loss",
+          "formula_template": "only while current delivery, worst-peer service and geographic coverage meet recovery targets: 0.5 + 0.5*qualifying dwell fraction; falls back on service loss",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state",
+            "coverage_fraction"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "recovery_settle_v1",
+        "index": 49,
+        "module": "scripts.rl.env.phased_components",
+        "schema_sha256": "20b81f7458bfe2b4ab11a374fc40f661bea772f7d1d76f13f18f4eda1406d285"
+      },
+      {
+        "component_schema_sha256": "9f88cbf64b27174156658461462c897b1fb40fb1fe3743ffde287a6abd011e33",
+        "context_fields": [
+          "mission_state"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {
+            "scale_m": 5.0
+          },
+          "fact_extensions": [],
+          "formula": "clip((previous measured team distance - current measured team distance)/5,-1,1); no terminal distance reset",
+          "formula_template": "clip((previous measured team distance - current measured team distance)/{scale_m:g},-1,1); no terminal distance reset",
+          "has_context_builder": false,
+          "range": [
+            -1.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {
+            "scale_m": [
+              5.0,
+              0.0,
+              100.0
+            ]
+          },
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "team_distance_delta_v2",
+        "index": 50,
+        "module": "scripts.rl.env.guided_components",
+        "schema_sha256": "a4bd426be788f3cc4bf20aed0fcb28aa6e178f860b0e7a65f512ced6dc28c88d"
+      },
+      {
+        "component_schema_sha256": "8bc25f63fc5f51008a066de3c408c370d3d7ed05d34d5c0fab2c851b1a2ac397",
+        "context_fields": [
+          "coverage_fraction",
+          "mission_state"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "outdoor connected coverage * min(1, survivor delivery/0.9, worst survivor service/0.8)",
+          "formula_template": "outdoor connected coverage * min(1, survivor delivery/0.9, worst survivor service/0.8)",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "coverage_fraction",
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "service_gated_coverage_v2",
+        "index": 51,
+        "module": "scripts.rl.env.guided_components",
+        "schema_sha256": "ab92e3ffc1a1471e56f31fd1306ccbbe606a48d844c3f20bfa130f95666ea332"
+      },
+      {
+        "component_schema_sha256": "df634199880fa661ab02301b9f85531f884891e4f7e4f56c1e3665468b1ecad7",
+        "context_fields": [
+          "coverage_fraction",
+          "mission_state"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {
+            "coverage_target": 0.85
+          },
+          "fact_extensions": [],
+          "formula": "1 while coverage >= 0.85, delivery >= 0.9 and worst service >= 0.8; otherwise 0",
+          "formula_template": "1 while coverage >= {coverage_target:g}, delivery >= 0.9 and worst service >= 0.8; otherwise 0",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "coverage_fraction",
+            "mission_state"
+          ],
+          "tunable": {
+            "coverage_target": [
+              0.85,
+              0.0,
+              1.0
+            ]
+          },
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "coverage_target_maintained_v2",
+        "index": 52,
+        "module": "scripts.rl.env.guided_components",
+        "schema_sha256": "2b158bd012f2dd1081e7e67e030fb8f827095453956bba02539dd442988f26b9"
+      },
+      {
+        "component_schema_sha256": "974972e7e749437e3186743b6a544aaeed1aa6cd309fded6b5dbff37b260c15c",
+        "context_fields": [
+          "coverage_fraction",
+          "mission_state",
+          "travel_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {
+            "approach_cost": 0.01,
+            "coverage_target": 0.85,
+            "moving_cost": 0.2
+          },
+          "fact_extensions": [],
+          "formula": "actual movement fraction * (0.2 when coverage and service targets hold; 0.01 otherwise)",
+          "formula_template": "actual movement fraction * ({moving_cost:g} when coverage and service targets hold; {approach_cost:g} otherwise)",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "coverage_fraction",
+            "mission_state",
+            "travel_fraction"
+          ],
+          "tunable": {
+            "approach_cost": [
+              0.01,
+              0.0,
+              1.0
+            ],
+            "coverage_target": [
+              0.85,
+              0.0,
+              1.0
+            ],
+            "moving_cost": [
+              0.2,
+              0.0,
+              1.0
+            ]
+          },
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "coverage_settle_cost_v2",
+        "index": 53,
+        "module": "scripts.rl.env.guided_components",
+        "schema_sha256": "4506c82d392598032b1797b0c42863826b3356de9b92c4c444d72222a9ed8d1b"
+      },
+      {
+        "component_schema_sha256": "e341d01fba965b03f46446c0fb8a306dee4c519c49cc186ef0f56187b7a1b2da",
+        "context_fields": [
+          "mission_state",
+          "travel_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {
+            "approach_cost": 0.01,
+            "moving_cost": 0.2
+          },
+          "fact_extensions": [],
+          "formula": "actual movement fraction * (0.2 when current connected team arrival holds; 0.01 otherwise)",
+          "formula_template": "actual movement fraction * ({moving_cost:g} when current connected team arrival holds; {approach_cost:g} otherwise)",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state",
+            "travel_fraction"
+          ],
+          "tunable": {
+            "approach_cost": [
+              0.01,
+              0.0,
+              1.0
+            ],
+            "moving_cost": [
+              0.2,
+              0.0,
+              1.0
+            ]
+          },
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "investigation_settle_cost_v2",
+        "index": 54,
+        "module": "scripts.rl.env.guided_components",
+        "schema_sha256": "97749fbc88616943510a5b54652fb35618d8678cf0aa228077b5ef0ec823632c"
+      },
+      {
+        "component_schema_sha256": "80c1e8d7dcfa6ff5decc4a14035a0549496242c171872bafe9f376621fd29cc7",
+        "context_fields": [
+          "coverage_fraction",
+          "mission_state",
+          "travel_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {
+            "approach_cost": 0.01,
+            "moving_cost": 0.2
+          },
+          "fact_extensions": [],
+          "formula": "actual movement fraction * (0.2 when current recovery service and coverage targets hold; 0.01 otherwise)",
+          "formula_template": "actual movement fraction * ({moving_cost:g} when current recovery service and coverage targets hold; {approach_cost:g} otherwise)",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "coverage_fraction",
+            "mission_state",
+            "travel_fraction"
+          ],
+          "tunable": {
+            "approach_cost": [
+              0.01,
+              0.0,
+              1.0
+            ],
+            "moving_cost": [
+              0.2,
+              0.0,
+              1.0
+            ]
+          },
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "recovery_settle_cost_v2",
+        "index": 55,
+        "module": "scripts.rl.env.guided_components",
+        "schema_sha256": "3fce47ea9e036107bbb9298084626b7cb729f682182d3a6601257c3b02318573"
+      },
+      {
+        "component_schema_sha256": "d605e3b02e210b98b3665a0f653c3de7568fab23aed750c6b2c6bd02f20c9200",
+        "context_fields": [
+          "mission_state",
+          "travel_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {
+            "approach_cost": 0.01,
+            "moving_cost": 0.2
+          },
+          "fact_extensions": [],
+          "formula": "actual movement fraction * (0.2 when current delivery and worst-service targets hold; 0.01 otherwise)",
+          "formula_template": "actual movement fraction * ({moving_cost:g} when current delivery and worst-service targets hold; {approach_cost:g} otherwise)",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state",
+            "travel_fraction"
+          ],
+          "tunable": {
+            "approach_cost": [
+              0.01,
+              0.0,
+              1.0
+            ],
+            "moving_cost": [
+              0.2,
+              0.0,
+              1.0
+            ]
+          },
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "service_settle_cost_v2",
+        "index": 56,
+        "module": "scripts.rl.env.guided_components",
+        "schema_sha256": "2be262394dba93fa240ce209d3ab2e64f850accc86cd53903509d1db1a07b3b6"
+      },
+      {
+        "component_schema_sha256": "ee6d0ef0acb6e8e4505a1da4e30616ee9411c53e47b03676a7a2df0f188ae5ad",
+        "context_fields": [
+          "mission_state"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "after measured failure: 0.5*current survivor delivery + 0.5*current worst survivor service; zero before",
+          "formula_template": "after measured failure: 0.5*current survivor delivery + 0.5*current worst survivor service; zero before",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "post_failure_service_v2",
+        "index": 57,
+        "module": "scripts.rl.env.guided_components",
+        "schema_sha256": "0bc1920bfdb54feba26906d2db7360c98a91feaaa8c657110640388678d9db77"
+      },
+      {
+        "component_schema_sha256": "006bf47489b2caa4e09a3d40c1985d6181e2546c3e3faeae36927a1fba5dc5a7",
+        "context_fields": [
+          "mission_state",
+          "links",
+          "node_available"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "after measured failure: mean available-pair SINR quality clipped from -20 to 40 dB; zero before",
+          "formula_template": "after measured failure: mean available-pair SINR quality clipped from -20 to 40 dB; zero before",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state",
+            "links",
+            "node_available"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "post_failure_sinr_v2",
+        "index": 58,
+        "module": "scripts.rl.env.guided_components",
+        "schema_sha256": "50a69779bbc14165723dbb6588a6bf00425e8745d9fffda4f9e86459b0d9b1b4"
+      },
+      {
+        "component_schema_sha256": "3842f630ce9b00893509e94a0dd736da07aa69713154f9e85911b22d89a8dd0d",
+        "context_fields": [
+          "mission_state",
+          "coverage_fraction"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "after measured failure: max(0,1-current outdoor coverage/measured recovery coverage target); zero for no target",
+          "formula_template": "after measured failure: max(0,1-current outdoor coverage/measured recovery coverage target); zero for no target",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission_state",
+            "coverage_fraction"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not_applicable"
+        },
+        "id": "post_failure_coverage_deficit_v2",
+        "index": 59,
+        "module": "scripts.rl.env.guided_components",
+        "schema_sha256": "219a25308b0096895407b323bb935bc2bc6b21901180e9adcc14d78fb55f940f"
+      },
+      {
+        "component_schema_sha256": "487563d4095739e5d14e8adb09e6b1f5eb05869e725cc57d864e9dd29326aad1",
+        "context_fields": [
+          "coverage"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "coverage"
+          ],
+          "default_parameters": {
+            "failure_reward": -0.001,
+            "target": 0.5
+          },
+          "fact_extensions": [],
+          "formula": "+1 if connected outdoor coverage >= 0.5; otherwise -0.001",
+          "formula_template": "+1 if connected outdoor coverage >= {target:g}; otherwise -0.001",
+          "has_context_builder": false,
+          "range": [
+            -0.001,
+            1.0
+          ],
+          "required_facts": [
+            "coverage"
+          ],
+          "tunable": {
+            "target": [
+              0.5,
+              0,
+              1
+            ]
+          },
+          "zero_demand_rule": "no free success; zero reward during forced waiting or mixed event window"
+        },
+        "id": "level0_coverage_v1",
+        "index": 60,
+        "module": "scripts.rl.env.level0_components",
+        "schema_sha256": "02873e6ff525218b48f3279d997f598e6a758ad3e3ef3ae80ff9c409378cca79"
+      },
+      {
+        "component_schema_sha256": "00fba0d3bd519924edb5ffcdd0ebba9783b71b4cb2d2d473239783a05f25aa41",
+        "context_fields": [
+          "nodes",
+          "node_available"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {
+            "failure_reward": -0.001
+          },
+          "fact_extensions": [],
+          "formula": "+1 if every available peer is within team_radius_m of goal; otherwise -0.001",
+          "formula_template": "+1 if every available peer is within team_radius_m of goal; otherwise -0.001",
+          "has_context_builder": false,
+          "range": [
+            -0.001,
+            1.0
+          ],
+          "required_facts": [
+            "nodes",
+            "node_available"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "no free success; zero reward during forced waiting or mixed event window"
+        },
+        "id": "level0_investigation_v1",
+        "index": 61,
+        "module": "scripts.rl.env.level0_components",
+        "schema_sha256": "68578f32032c78dba8929eafedc29f6893a95fe8b814fb97b9381ebfbc51cb8d"
+      },
+      {
+        "component_schema_sha256": "cbbef38a7de6e27e79f36ecd779e620c4013c00170e768b869c521b0755e873e",
+        "context_fields": [
+          "mission",
+          "deployment"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "deployment_gate"
+          ],
+          "default_parameters": {
+            "failure_reward": -0.001
+          },
+          "fact_extensions": [],
+          "formula": "zero until fully eligible; then +1 if survivor delivered/offered >= 0.9; otherwise -0.001",
+          "formula_template": "zero until fully eligible; then +1 if survivor delivered/offered >= 0.9; otherwise -0.001",
+          "has_context_builder": false,
+          "range": [
+            -0.001,
+            1.0
+          ],
+          "required_facts": [
+            "mission",
+            "deployment"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "no free success; zero reward during forced waiting or mixed event window"
+        },
+        "id": "level0_recovery_v1",
+        "index": 62,
+        "module": "scripts.rl.env.level0_components",
+        "schema_sha256": "ed0a819ebe6c0ab31ee3a001cbd2b81db32793e016cf388af3c0758c9d4b531f"
+      },
+      {
+        "component_schema_sha256": "2d02f07c8ba32ed5737394b660c26cc8e692b7f5455c599b5d5023e358208547",
+        "context_fields": [
+          "deployment"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "deployment_gate"
+          ],
+          "default_parameters": {
+            "failure_reward": -0.001
+          },
+          "fact_extensions": [],
+          "formula": "zero until fully eligible; then +1 if aggregate delivered/offered >= 0.9; otherwise -0.001",
+          "formula_template": "zero until fully eligible; then +1 if aggregate delivered/offered >= 0.9; otherwise -0.001",
+          "has_context_builder": false,
+          "range": [
+            -0.001,
+            1.0
+          ],
+          "required_facts": [
+            "deployment"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "no free success; zero reward during forced waiting or mixed event window"
+        },
+        "id": "level0_jamming_v1",
+        "index": 63,
+        "module": "scripts.rl.env.level0_components",
+        "schema_sha256": "4a4659bf77451fdb0861461193bf0944af6a11e4f02d5519c61b2bd37bd71e4f"
+      },
+      {
+        "component_schema_sha256": "849e2d3741b5ae059250b32dc8de89dc41504651af35a83650a3b03fa3ae9a80",
+        "context_fields": [
+          "coverage"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "coverage"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "current connected outdoor coverage fraction",
+          "formula_template": "current connected outdoor coverage fraction",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "coverage"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "not applicable; fraction over outdoor coverage probes"
+        },
+        "id": "connected_outdoor_area_fraction_v1",
+        "index": 64,
+        "module": "scripts.rl.env.graded_components",
+        "schema_sha256": "90d28f9d1b64570f62915b0ab1421158777438aa37415e03e5debfd620acac7e"
+      },
+      {
+        "component_schema_sha256": "160e13c0f5bf317dffdfd6dadc2f232c2366fe2eb02a7f526e8c8ddf9f688127",
+        "context_fields": [
+          "nodes",
+          "node_available"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission",
+            "bounds"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "clamp(1 - mean(max(planar target distance - team_radius_m, 0))/planar field diagonal, 0, 1)",
+          "formula_template": "clamp(1 - mean(max(planar target distance - team_radius_m, 0))/planar field diagonal, 0, 1)",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "nodes",
+            "node_available"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "zero and invalid with no available peers"
+        },
+        "id": "team_target_distance_score_v1",
+        "index": 65,
+        "module": "scripts.rl.env.graded_components",
+        "schema_sha256": "5af112aa5578b7cb9ca9d89bb81e3054ebeb623aaf3e45ef2aaca71fff9508f2"
+      },
+      {
+        "component_schema_sha256": "16e95a19a5474671d5b3135c5b0b84bf280cace8b6fef95d213753c18644d1c6",
+        "context_fields": [
+          "mission",
+          "deployment"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "deployment_gate"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "zero until fully eligible; then survivor delivered/offered fraction",
+          "formula_template": "zero until fully eligible; then survivor delivered/offered fraction",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission",
+            "deployment"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "zero and invalid with no offered demand, forced waiting or a mixed event window"
+        },
+        "id": "survivor_critical_delivery_fraction_v1",
+        "index": 66,
+        "module": "scripts.rl.env.graded_components",
+        "schema_sha256": "c8333301f41bfa3d27bb7ccf18acd5989f02b80974cac85f072feddabc94fbeb"
+      },
+      {
+        "component_schema_sha256": "ed8add6343e95737826154e33f1b4eb3db1e2fe46c4d8e96605e3a4c39ed3f54",
+        "context_fields": [
+          "deployment"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "deployment_gate"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "zero until fully eligible; then aggregate delivered/offered fraction",
+          "formula_template": "zero until fully eligible; then aggregate delivered/offered fraction",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "deployment"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "zero and invalid with no offered demand, forced waiting or a mixed event window"
+        },
+        "id": "jammed_traffic_delivery_fraction_v1",
+        "index": 67,
+        "module": "scripts.rl.env.graded_components",
+        "schema_sha256": "edca61c514df09a41e1adf7c4cd3e579ed775c32e540c214899371e26298106b"
+      },
+      {
+        "component_schema_sha256": "3e326a796d7c7412f7b57daf4bb8d4fa0ab6da55a065b53a3bc98603d7588224",
+        "context_fields": [
+          "phase3_travel"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "slot_speed_mps",
+            "slot_node_ids",
+            "tick_s"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "mean available controlled peer actual XY travel / permitted travel; zero before event",
+          "formula_template": "mean available controlled peer actual XY travel / permitted travel; zero before event",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [],
+          "tunable": {},
+          "zero_demand_rule": "no available demand-bearing peer gives zero/invalid; event costs exclude forced/mixed windows"
+        },
+        "id": "available_peer_travel_fraction_v1",
+        "index": 68,
+        "module": "scripts.rl.env.phase3_components",
+        "schema_sha256": "02998bd16df09b50a7649d97244a482de4f085fde84fd3bdea4446dc6a3a60a4"
+      },
+      {
+        "component_schema_sha256": "5a5c77b8fc1137f2d2ddde5a25fbe7a3fa09550b1067c21e769787ad994df123",
+        "context_fields": [
+          "nodes",
+          "node_available"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission",
+            "bounds"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "1 - largest available peer excess distance beyond team radius / field diagonal",
+          "formula_template": "1 - largest available peer excess distance beyond team radius / field diagonal",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "nodes",
+            "node_available"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "no available demand-bearing peer gives zero/invalid; event costs exclude forced/mixed windows"
+        },
+        "id": "worst_peer_target_proximity_v1",
+        "index": 69,
+        "module": "scripts.rl.env.phase3_components",
+        "schema_sha256": "1bc4eb1e6b6244ca9af5ad3fa4d601b27c29e65d15fbb131d7b281cad5a4b8cd"
+      },
+      {
+        "component_schema_sha256": "e464d13a16c9f7434c1a8cd5fbb4257fd0d1f598425a54b155ff926b6ee53f8c",
+        "context_fields": [
+          "mission",
+          "node_available",
+          "phase3_eligible"
+        ],
+        "descriptor": {
+          "contract_fields": [],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "minimum survivor endpoint delivered/offered; exclude failed/zero-demand peers",
+          "formula_template": "minimum survivor endpoint delivered/offered; exclude failed/zero-demand peers",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "mission",
+            "node_available"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "no available demand-bearing peer gives zero/invalid; event costs exclude forced/mixed windows"
+        },
+        "id": "weakest_survivor_delivery_fraction_v1",
+        "index": 70,
+        "module": "scripts.rl.env.phase3_components",
+        "schema_sha256": "af0e423b72822e5c860bf33a1e75b4b8c97a76b8c8233e1dac0377ada4cc345c"
+      },
+      {
+        "component_schema_sha256": "7b1b909b60e9851170d0830370cc4c4acb52f4306afc0929e864358a4dc4dd09",
+        "context_fields": [
+          "node_service",
+          "node_available",
+          "phase3_eligible"
+        ],
+        "descriptor": {
+          "contract_fields": [],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "minimum available demand-bearing endpoint delivered/offered during emission",
+          "formula_template": "minimum available demand-bearing endpoint delivered/offered during emission",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "node_service",
+            "node_available"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "no available demand-bearing peer gives zero/invalid; event costs exclude forced/mixed windows"
+        },
+        "id": "weakest_active_delivery_fraction_v1",
+        "index": 71,
+        "module": "scripts.rl.env.phase3_components",
+        "schema_sha256": "b2cb174d2fabf0cee7646e3d90b7982406875bd2fa9b5002ce98e4a767cf48bd"
+      },
+      {
+        "component_schema_sha256": "5442e453a880e6c8c7ff1d4801177f59d3caa4ff4b21517b5b761c89eb4d6d97",
+        "context_fields": [
+          "safety",
+          "node_available",
+          "phase3_eligible"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "slot_node_ids",
+            "node_ids"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "fraction available controlled slots moving into a field wall; once per decision, no proximity or HOLD cost",
+          "formula_template": "fraction available controlled slots moving into a field wall; once per decision, no proximity or HOLD cost",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "safety",
+            "node_available"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "no available demand-bearing peer gives zero/invalid; event costs exclude forced/mixed windows"
+        },
+        "id": "boundary_contact_fraction_v1",
+        "index": 72,
+        "module": "scripts.rl.env.phase3_components",
+        "schema_sha256": "f036429d04e3e8cf80b288cb902f223fc6f7e08e38a2a1f16ff19ded34357e40"
+      },
+      {
+        "component_schema_sha256": "db5be268986f3738aad4cad7d16d7f97c4eb28f68e73804bb41cf56a6ebc75d4",
+        "context_fields": [
+          "nodes",
+          "node_available"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission",
+            "bounds",
+            "node_ids"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "fixed investigator target proximity",
+          "formula_template": "fixed investigator target proximity",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "nodes",
+            "node_available"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "no available demand-bearing peer gives zero/invalid; event costs exclude forced/mixed windows"
+        },
+        "id": "investigator_target_proximity_v1",
+        "index": 73,
+        "module": "scripts.rl.env.phase3_components",
+        "schema_sha256": "40756902852e5452f6961ffc8aca87918f6f893d6bf0d059517b3d64a6b25934"
+      },
+      {
+        "component_schema_sha256": "ad8eb7b53356c4b3507cfd003ce6b7a49777092db0398f5392de5fcf2eaabc1a",
+        "context_fields": [
+          "nodes",
+          "node_available"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission",
+            "bounds",
+            "node_ids"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "mean follower target proximity; neutral-role control",
+          "formula_template": "mean follower target proximity; neutral-role control",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "nodes",
+            "node_available"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "no available demand-bearing peer gives zero/invalid; event costs exclude forced/mixed windows"
+        },
+        "id": "followers_target_proximity_v1",
+        "index": 74,
+        "module": "scripts.rl.env.phase3_components",
+        "schema_sha256": "3c6b838a076a194f46716864eae059665f4e5728a9c4f4bf934bf0ef38ff3baf"
+      },
+      {
+        "component_schema_sha256": "f0a4f1e64ccf5c4b65c2df2aa9d9f425da9c8c5f413972bb5b171b0ede891692",
+        "context_fields": [
+          "nodes",
+          "node_available"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission",
+            "bounds",
+            "node_ids"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "mean follower proximity to investigator until investigator enters target; then follower target proximity; falls back if investigator leaves",
+          "formula_template": "mean follower proximity to investigator until investigator enters target; then follower target proximity; falls back if investigator leaves",
+          "has_context_builder": false,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "nodes",
+            "node_available"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "no available demand-bearing peer gives zero/invalid; event costs exclude forced/mixed windows"
+        },
+        "id": "followers_investigator_then_target_proximity_v1",
+        "index": 75,
+        "module": "scripts.rl.env.phase3_components",
+        "schema_sha256": "5997778ac0bc9721ed83a8c16f0857e9d5f08e3de673410308e15c24c1f69177"
+      },
+      {
+        "component_schema_sha256": "96414b80f415cfa1dbadd5eb79fbb522ed94de85dcd7ce53de97250c6ae86ef6",
+        "context_fields": [
+          "nodes",
+          "node_available",
+          "phase3_eligible"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "bounds"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "1 - mean available-peer horizontal pair distance / field diagonal; zero before event",
+          "formula_template": "1 - mean available-peer horizontal pair distance / field diagonal; zero before event",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "nodes",
+            "node_available"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "invalid with fewer than two available peers"
+        },
+        "id": "available_team_closeness_v1",
+        "index": 76,
+        "module": "scripts.rl.env.phase4_components",
+        "schema_sha256": "e033d70711c7b6b875f821318bc164486557358f2d1b0de3e0eb2b39a9f88bb9"
+      },
+      {
+        "component_schema_sha256": "af3dc063d5c1c7deba65fa0ae2405684a67d7faffba019aa19fdbde3770b4f69",
+        "context_fields": [
+          "links",
+          "node_service",
+          "node_available",
+          "mission",
+          "phase3_eligible"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "node_ids",
+            "mission"
+          ],
+          "default_parameters": {
+            "healthy_delivery": 0.95,
+            "healthy_sinr_db": 10.0,
+            "routing_threshold_db": -6.7,
+            "scale_db": 4.0
+          },
+          "fact_extensions": [],
+          "formula": "mean sigmoid((widest demanded-path SINR - (-6.7 dB))/4.0 dB); cap at 10.0 dB or delivery >= 0.95; no future measurements",
+          "formula_template": "mean sigmoid((widest demanded-path SINR - ({routing_threshold_db} dB))/{scale_db} dB); cap at {healthy_sinr_db} dB or delivery >= {healthy_delivery}; no future measurements",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "links",
+            "node_service",
+            "node_available",
+            "mission"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "invalid with no active demanded pair; exclude failed peers and forced/mixed windows"
+        },
+        "id": "demanded_path_sinr_margin_v1",
+        "index": 77,
+        "module": "scripts.rl.env.phase4_components",
+        "schema_sha256": "b51fa85701ed23c590ae88ca7b99d70295542f6b06aa3813580b432d1a255ebe"
+      },
+      {
+        "component_schema_sha256": "19c7afe70dd074ba1b2f0652c5693f1a39dff066371003759b4ed79015a7b346",
+        "context_fields": [
+          "nodes",
+          "node_available",
+          "mission_state",
+          "phase4_previous_nodes"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission",
+            "bounds"
+          ],
+          "default_parameters": {
+            "gamma": 0.99,
+            "potential_scale": 50.0
+          },
+          "fact_extensions": [],
+          "formula": "Q(t) + 50.0 * (0.99 * Phi(t) - Q(t-1)); Q is mean target proximity; Phi(t)=Q(t) except terminal Phi=0",
+          "formula_template": "Q(t) + {potential_scale} * ({gamma} * Phi(t) - Q(t-1)); Q is mean target proximity; Phi(t)=Q(t) except terminal Phi=0",
+          "has_context_builder": true,
+          "range": [
+            -50.0,
+            51.0
+          ],
+          "required_facts": [
+            "nodes",
+            "node_available",
+            "mission_state"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "invalid with no available peers; terminal correction retained without clipping"
+        },
+        "id": "target_proximity_potential_v1",
+        "index": 78,
+        "module": "scripts.rl.env.phase4_components",
+        "schema_sha256": "828cd3683409df5e98490f3fd357ea5a33b41e2689722867cee0fe3dad7dbf26"
+      },
+      {
+        "component_schema_sha256": "5e1c6099a5eaa8c3c2361bc924820f435226283ee18ea08b2b04e2d42a4af462",
+        "context_fields": [
+          "nodes",
+          "node_available",
+          "phase3_eligible"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission"
+          ],
+          "default_parameters": {},
+          "fact_extensions": [],
+          "formula": "fraction of currently available peers within the horizontal team target radius; earned each decision while present; departures lose their share",
+          "formula_template": "fraction of currently available peers within the horizontal team target radius; earned each decision while present; departures lose their share",
+          "has_context_builder": true,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "required_facts": [
+            "nodes",
+            "node_available"
+          ],
+          "tunable": {},
+          "zero_demand_rule": "target geometry does not depend on offered traffic; invalid with no available peers or forced/mixed event window"
+        },
+        "id": "available_target_arrival_fraction_v1",
+        "index": 79,
+        "module": "scripts.rl.env.phase5_components",
+        "schema_sha256": "4262087c11e50d38f011cc6a391ef61bffe33f9ff049c2a1482016d7df7c1283"
+      },
+      {
+        "component_schema_sha256": "0ce4c10faf4eaa2972c12adce9d2f6f72b899777c0a586cf938bb8542163a7dc",
+        "context_fields": [
+          "coordination_v1",
+          "mission_state"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission",
+            "bounds",
+            "node_ids"
+          ],
+          "default_parameters": {
+            "coverage_goal": 0.9,
+            "gamma": 0.99,
+            "mission_code": 2.0,
+            "potential_scale": 10.0
+          },
+          "fact_extensions": [
+            "coordination_v1"
+          ],
+          "formula": "0.50 D + 0.40 F + 0.10 L - 0.05 I - 0.02 T - 0.02 B - 0.02 J D=relevant delivered/offered; F=mean lowest ceil(active demanded peers/3) endpoint service; L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores, threshold -6.7 dB and scale 4 dB; I=clip(largest XY minimum-spanning-tree edge/150 m,0,1); T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction; Q=0.5 mean + 0.5 minimum of exp(-excess target distance/100 m); A=available peers inside the target / available peers; K=current full-team radio connectivity; P=10.0*(0.99*Phi_now-Q_previous), terminal Phi=0, otherwise Phi=Q. No compact-clustering term in coverage. Settling requires 30 s current success; relapse fallback after 5 s, severe loss immediately; coverage threshold 0.9.",
+          "formula_template": "0.50 D + 0.40 F + 0.10 L - 0.05 I - 0.02 T - 0.02 B - 0.02 J D=relevant delivered/offered; F=mean lowest ceil(active demanded peers/3) endpoint service; L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores, threshold -6.7 dB and scale 4 dB; I=clip(largest XY minimum-spanning-tree edge/150 m,0,1); T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction; Q=0.5 mean + 0.5 minimum of exp(-excess target distance/100 m); A=available peers inside the target / available peers; K=current full-team radio connectivity; P={potential_scale}*({gamma}*Phi_now-Q_previous), terminal Phi=0, otherwise Phi=Q. No compact-clustering term in coverage. Settling requires 30 s current success; relapse fallback after 5 s, severe loss immediately; coverage threshold {coverage_goal}.",
+          "has_context_builder": false,
+          "range": [
+            -20.0,
+            21.0
+          ],
+          "required_facts": [
+            "coordination_v1"
+          ],
+          "tunable": {
+            "coverage_goal": [
+              0.9,
+              0.01,
+              1.0
+            ],
+            "gamma": [
+              0.99,
+              0.0,
+              1.0
+            ],
+            "mission_code": [
+              2,
+              -1.0,
+              3.0
+            ],
+            "potential_scale": [
+              10.0,
+              0.0,
+              20.0
+            ]
+          },
+          "zero_demand_rule": "invalid during forced/mixed windows or with no active peers; service requires offered demand; failed peers excluded; geometric arrival does not require traffic"
+        },
+        "id": "coordinated_service_fixed_v1",
+        "index": 80,
+        "module": "scripts.rl.env.phase6_components",
+        "schema_sha256": "9af54d68322d66697adb5c3c8aca71bde295e092ac2adc7ab661ac968da2a4e6"
+      },
+      {
+        "component_schema_sha256": "ab5942ec6225560661f2fc41ea70e83b9b55261fd685e4dd1d916c25b89cc05d",
+        "context_fields": [
+          "coordination_v1",
+          "mission_state"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission",
+            "bounds",
+            "node_ids"
+          ],
+          "default_parameters": {
+            "coverage_goal": 0.9,
+            "gamma": 0.99,
+            "mission_code": 2.0,
+            "potential_scale": 10.0
+          },
+          "fact_extensions": [
+            "coordination_v1"
+          ],
+          "formula": "restore: (0.60-l) D + 0.40 F + l L - 0.05 I - 0.002 T - 0.02 B - 0.02 J, l=0.10+0.20*(1-current active-pair LOS fraction); settle: 0.65 D + 0.35 F - 0.05 I - 0.05 T - 0.02 B - 0.02 J D=relevant delivered/offered; F=mean lowest ceil(active demanded peers/3) endpoint service; L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores, threshold -6.7 dB and scale 4 dB; I=clip(largest XY minimum-spanning-tree edge/150 m,0,1); T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction; Q=0.5 mean + 0.5 minimum of exp(-excess target distance/100 m); A=available peers inside the target / available peers; K=current full-team radio connectivity; P=10.0*(0.99*Phi_now-Q_previous), terminal Phi=0, otherwise Phi=Q. No compact-clustering term in coverage. Settling requires 30 s current success; relapse fallback after 5 s, severe loss immediately; coverage threshold 0.9.",
+          "formula_template": "restore: (0.60-l) D + 0.40 F + l L - 0.05 I - 0.002 T - 0.02 B - 0.02 J, l=0.10+0.20*(1-current active-pair LOS fraction); settle: 0.65 D + 0.35 F - 0.05 I - 0.05 T - 0.02 B - 0.02 J D=relevant delivered/offered; F=mean lowest ceil(active demanded peers/3) endpoint service; L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores, threshold -6.7 dB and scale 4 dB; I=clip(largest XY minimum-spanning-tree edge/150 m,0,1); T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction; Q=0.5 mean + 0.5 minimum of exp(-excess target distance/100 m); A=available peers inside the target / available peers; K=current full-team radio connectivity; P={potential_scale}*({gamma}*Phi_now-Q_previous), terminal Phi=0, otherwise Phi=Q. No compact-clustering term in coverage. Settling requires 30 s current success; relapse fallback after 5 s, severe loss immediately; coverage threshold {coverage_goal}.",
+          "has_context_builder": false,
+          "range": [
+            -20.0,
+            21.0
+          ],
+          "required_facts": [
+            "coordination_v1"
+          ],
+          "tunable": {
+            "coverage_goal": [
+              0.9,
+              0.01,
+              1.0
+            ],
+            "gamma": [
+              0.99,
+              0.0,
+              1.0
+            ],
+            "mission_code": [
+              2,
+              -1.0,
+              3.0
+            ],
+            "potential_scale": [
+              10.0,
+              0.0,
+              20.0
+            ]
+          },
+          "zero_demand_rule": "invalid during forced/mixed windows or with no active peers; service requires offered demand; failed peers excluded; geometric arrival does not require traffic"
+        },
+        "id": "coordinated_service_adaptive_v1",
+        "index": 81,
+        "module": "scripts.rl.env.phase6_components",
+        "schema_sha256": "c9059b8577a010c112868c9cfdfff16c539e929c859cbb29a38fbb55668674ba"
+      },
+      {
+        "component_schema_sha256": "5b67e114180250586807cde6feb288bbfe298fc9826f0006e14c0227fe24691e",
+        "context_fields": [
+          "coordination_v1",
+          "mission_state"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission",
+            "bounds",
+            "node_ids"
+          ],
+          "default_parameters": {
+            "coverage_goal": 0.9,
+            "gamma": 0.99,
+            "mission_code": 1.0,
+            "potential_scale": 10.0
+          },
+          "fact_extensions": [
+            "coordination_v1"
+          ],
+          "formula": "0.45 Q + 0.45 A + 0.10 K + P - 0.02 T - 0.02 B - 0.02 J D=relevant delivered/offered; F=mean lowest ceil(active demanded peers/3) endpoint service; L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores, threshold -6.7 dB and scale 4 dB; I=clip(largest XY minimum-spanning-tree edge/150 m,0,1); T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction; Q=0.5 mean + 0.5 minimum of exp(-excess target distance/100 m); A=available peers inside the target / available peers; K=current full-team radio connectivity; P=10.0*(0.99*Phi_now-Q_previous), terminal Phi=0, otherwise Phi=Q. No compact-clustering term in coverage. Settling requires 30 s current success; relapse fallback after 5 s, severe loss immediately; coverage threshold 0.9.",
+          "formula_template": "0.45 Q + 0.45 A + 0.10 K + P - 0.02 T - 0.02 B - 0.02 J D=relevant delivered/offered; F=mean lowest ceil(active demanded peers/3) endpoint service; L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores, threshold -6.7 dB and scale 4 dB; I=clip(largest XY minimum-spanning-tree edge/150 m,0,1); T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction; Q=0.5 mean + 0.5 minimum of exp(-excess target distance/100 m); A=available peers inside the target / available peers; K=current full-team radio connectivity; P={potential_scale}*({gamma}*Phi_now-Q_previous), terminal Phi=0, otherwise Phi=Q. No compact-clustering term in coverage. Settling requires 30 s current success; relapse fallback after 5 s, severe loss immediately; coverage threshold {coverage_goal}.",
+          "has_context_builder": false,
+          "range": [
+            -20.0,
+            21.0
+          ],
+          "required_facts": [
+            "coordination_v1"
+          ],
+          "tunable": {
+            "coverage_goal": [
+              0.9,
+              0.01,
+              1.0
+            ],
+            "gamma": [
+              0.99,
+              0.0,
+              1.0
+            ],
+            "mission_code": [
+              1,
+              -1.0,
+              3.0
+            ],
+            "potential_scale": [
+              10.0,
+              0.0,
+              20.0
+            ]
+          },
+          "zero_demand_rule": "invalid during forced/mixed windows or with no active peers; service requires offered demand; failed peers excluded; geometric arrival does not require traffic"
+        },
+        "id": "coordinated_investigation_fixed_v1",
+        "index": 82,
+        "module": "scripts.rl.env.phase6_components",
+        "schema_sha256": "2331410898f1e7ac2cac8ff524afdf4190164aebbf47ebbb6c1e4f6aa2d0e4fa"
+      },
+      {
+        "component_schema_sha256": "42b380d3d7516f1f505db7b8111fb30409a80443793c195a58e48256a4d0837b",
+        "context_fields": [
+          "coordination_v1",
+          "mission_state"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission",
+            "bounds",
+            "node_ids"
+          ],
+          "default_parameters": {
+            "coverage_goal": 0.9,
+            "gamma": 0.99,
+            "mission_code": 1.0,
+            "potential_scale": 10.0
+          },
+          "fact_extensions": [
+            "coordination_v1"
+          ],
+          "formula": "approach: 0.70 Q + 0.30 A + P - 0.002 T; assemble/dwell: 0.10 Q + 0.70 A + 0.20 K + P - 0.01 T; settle: 0.10 Q + 0.60 A + 0.20 K + 0.10 D + P - 0.05 T; all stages subtract 0.02 B + 0.02 J D=relevant delivered/offered; F=mean lowest ceil(active demanded peers/3) endpoint service; L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores, threshold -6.7 dB and scale 4 dB; I=clip(largest XY minimum-spanning-tree edge/150 m,0,1); T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction; Q=0.5 mean + 0.5 minimum of exp(-excess target distance/100 m); A=available peers inside the target / available peers; K=current full-team radio connectivity; P=10.0*(0.99*Phi_now-Q_previous), terminal Phi=0, otherwise Phi=Q. No compact-clustering term in coverage. Settling requires 30 s current success; relapse fallback after 5 s, severe loss immediately; coverage threshold 0.9.",
+          "formula_template": "approach: 0.70 Q + 0.30 A + P - 0.002 T; assemble/dwell: 0.10 Q + 0.70 A + 0.20 K + P - 0.01 T; settle: 0.10 Q + 0.60 A + 0.20 K + 0.10 D + P - 0.05 T; all stages subtract 0.02 B + 0.02 J D=relevant delivered/offered; F=mean lowest ceil(active demanded peers/3) endpoint service; L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores, threshold -6.7 dB and scale 4 dB; I=clip(largest XY minimum-spanning-tree edge/150 m,0,1); T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction; Q=0.5 mean + 0.5 minimum of exp(-excess target distance/100 m); A=available peers inside the target / available peers; K=current full-team radio connectivity; P={potential_scale}*({gamma}*Phi_now-Q_previous), terminal Phi=0, otherwise Phi=Q. No compact-clustering term in coverage. Settling requires 30 s current success; relapse fallback after 5 s, severe loss immediately; coverage threshold {coverage_goal}.",
+          "has_context_builder": false,
+          "range": [
+            -20.0,
+            21.0
+          ],
+          "required_facts": [
+            "coordination_v1"
+          ],
+          "tunable": {
+            "coverage_goal": [
+              0.9,
+              0.01,
+              1.0
+            ],
+            "gamma": [
+              0.99,
+              0.0,
+              1.0
+            ],
+            "mission_code": [
+              1,
+              -1.0,
+              3.0
+            ],
+            "potential_scale": [
+              10.0,
+              0.0,
+              20.0
+            ]
+          },
+          "zero_demand_rule": "invalid during forced/mixed windows or with no active peers; service requires offered demand; failed peers excluded; geometric arrival does not require traffic"
+        },
+        "id": "coordinated_investigation_adaptive_v1",
+        "index": 83,
+        "module": "scripts.rl.env.phase6_components",
+        "schema_sha256": "271e0067d7a25672bf501f5534102251f4b1a94e3174b6baeec511035c2a6001"
+      },
+      {
+        "component_schema_sha256": "7bc8b6fcc14d118ab6027528bfe16fdb021b4396311c7f83a991c796c91b70bc",
+        "context_fields": [
+          "coordination_v1",
+          "mission_state"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission",
+            "bounds",
+            "node_ids"
+          ],
+          "default_parameters": {
+            "coverage_goal": 0.9,
+            "gamma": 0.99,
+            "mission_code": 0.0,
+            "potential_scale": 10.0
+          },
+          "fact_extensions": [
+            "coordination_v1"
+          ],
+          "formula": "0.85 area + 0.15 F - 0.02 T - 0.02 B - 0.02 J D=relevant delivered/offered; F=mean lowest ceil(active demanded peers/3) endpoint service; L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores, threshold -6.7 dB and scale 4 dB; I=clip(largest XY minimum-spanning-tree edge/150 m,0,1); T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction; Q=0.5 mean + 0.5 minimum of exp(-excess target distance/100 m); A=available peers inside the target / available peers; K=current full-team radio connectivity; P=10.0*(0.99*Phi_now-Q_previous), terminal Phi=0, otherwise Phi=Q. No compact-clustering term in coverage. Settling requires 30 s current success; relapse fallback after 5 s, severe loss immediately; coverage threshold 0.9.",
+          "formula_template": "0.85 area + 0.15 F - 0.02 T - 0.02 B - 0.02 J D=relevant delivered/offered; F=mean lowest ceil(active demanded peers/3) endpoint service; L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores, threshold -6.7 dB and scale 4 dB; I=clip(largest XY minimum-spanning-tree edge/150 m,0,1); T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction; Q=0.5 mean + 0.5 minimum of exp(-excess target distance/100 m); A=available peers inside the target / available peers; K=current full-team radio connectivity; P={potential_scale}*({gamma}*Phi_now-Q_previous), terminal Phi=0, otherwise Phi=Q. No compact-clustering term in coverage. Settling requires 30 s current success; relapse fallback after 5 s, severe loss immediately; coverage threshold {coverage_goal}.",
+          "has_context_builder": false,
+          "range": [
+            -20.0,
+            21.0
+          ],
+          "required_facts": [
+            "coordination_v1"
+          ],
+          "tunable": {
+            "coverage_goal": [
+              0.9,
+              0.01,
+              1.0
+            ],
+            "gamma": [
+              0.99,
+              0.0,
+              1.0
+            ],
+            "mission_code": [
+              0,
+              -1.0,
+              3.0
+            ],
+            "potential_scale": [
+              10.0,
+              0.0,
+              20.0
+            ]
+          },
+          "zero_demand_rule": "invalid during forced/mixed windows or with no active peers; service requires offered demand; failed peers excluded; geometric arrival does not require traffic"
+        },
+        "id": "coordinated_coverage_fixed_v1",
+        "index": 84,
+        "module": "scripts.rl.env.phase6_components",
+        "schema_sha256": "e82de5b98c379bd2e12cb39ef0e9b07a87169d346163ee1657566545b1d1da85"
+      },
+      {
+        "component_schema_sha256": "95d3d3a7431e8a459ff74d70442ba2ffbfe49338b77242dac8e4d3c75f4d02f7",
+        "context_fields": [
+          "coordination_v1",
+          "mission_state"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission",
+            "bounds",
+            "node_ids"
+          ],
+          "default_parameters": {
+            "coverage_goal": 0.9,
+            "gamma": 0.99,
+            "mission_code": 0.0,
+            "potential_scale": 10.0
+          },
+          "fact_extensions": [
+            "coordination_v1"
+          ],
+          "formula": "expand: 0.95 area + 0.05 F - 0.002 T - 0.02 B - 0.02 J; settle: 0.75 area + 0.25 F - 0.05 T - 0.02 B - 0.02 J D=relevant delivered/offered; F=mean lowest ceil(active demanded peers/3) endpoint service; L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores, threshold -6.7 dB and scale 4 dB; I=clip(largest XY minimum-spanning-tree edge/150 m,0,1); T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction; Q=0.5 mean + 0.5 minimum of exp(-excess target distance/100 m); A=available peers inside the target / available peers; K=current full-team radio connectivity; P=10.0*(0.99*Phi_now-Q_previous), terminal Phi=0, otherwise Phi=Q. No compact-clustering term in coverage. Settling requires 30 s current success; relapse fallback after 5 s, severe loss immediately; coverage threshold 0.9.",
+          "formula_template": "expand: 0.95 area + 0.05 F - 0.002 T - 0.02 B - 0.02 J; settle: 0.75 area + 0.25 F - 0.05 T - 0.02 B - 0.02 J D=relevant delivered/offered; F=mean lowest ceil(active demanded peers/3) endpoint service; L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores, threshold -6.7 dB and scale 4 dB; I=clip(largest XY minimum-spanning-tree edge/150 m,0,1); T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction; Q=0.5 mean + 0.5 minimum of exp(-excess target distance/100 m); A=available peers inside the target / available peers; K=current full-team radio connectivity; P={potential_scale}*({gamma}*Phi_now-Q_previous), terminal Phi=0, otherwise Phi=Q. No compact-clustering term in coverage. Settling requires 30 s current success; relapse fallback after 5 s, severe loss immediately; coverage threshold {coverage_goal}.",
+          "has_context_builder": false,
+          "range": [
+            -20.0,
+            21.0
+          ],
+          "required_facts": [
+            "coordination_v1"
+          ],
+          "tunable": {
+            "coverage_goal": [
+              0.9,
+              0.01,
+              1.0
+            ],
+            "gamma": [
+              0.99,
+              0.0,
+              1.0
+            ],
+            "mission_code": [
+              0,
+              -1.0,
+              3.0
+            ],
+            "potential_scale": [
+              10.0,
+              0.0,
+              20.0
+            ]
+          },
+          "zero_demand_rule": "invalid during forced/mixed windows or with no active peers; service requires offered demand; failed peers excluded; geometric arrival does not require traffic"
+        },
+        "id": "coordinated_coverage_adaptive_v1",
+        "index": 85,
+        "module": "scripts.rl.env.phase6_components",
+        "schema_sha256": "e7fe5142653a47eaf8105633e4719ae524998d9463e25605f99308207bbbb9e2"
+      },
+      {
+        "component_schema_sha256": "5981b2b4993e3ef853c8292446c6d8c7d6a42ad1f530055f239b111fecc69cc8",
+        "context_fields": [
+          "coordination_v1",
+          "mission_state",
+          "links",
+          "node_available"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission",
+            "bounds",
+            "node_ids"
+          ],
+          "default_parameters": {
+            "coverage_goal": 0.9,
+            "gamma": 0.99,
+            "mission_code": 2.0,
+            "potential_scale": 10.0,
+            "team_penalty": 0.05
+          },
+          "fact_extensions": [
+            "coordination_v1"
+          ],
+          "formula": "restore: (0.60-s) D + 0.40 F + s L - 0.05(1-G) - 0.002 T - 0.02 B - 0.02 J; s=0.10+0.20*(1-current active-pair LOS fraction); settle: 0.65 D + 0.35 F - 0.05(1-G) - 0.05 T - 0.02 B - 0.02 J. G=sigmoid((weakest active-pair widest-path SINR_dB+6.7)/4); all current available pairs, not just demanded pairs; fewer than two peers G=0. G is radio support, not a capacity guarantee. The old XY isolation penalty is replaced, not added.  D=relevant delivered/offered, survivor critical demand in recovery; F=mean lowest ceil(active demanded endpoints/3) service ratios; T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction. No charge for being near a wall or HOLD. Settling requires 30 s with D>=0.90 and worst-peer service>=0.80; relapse after 5 s with D<0.85 or worst-peer<0.70, immediately below D=0.50 or worst-peer=0.20. L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores using the same -6.7 dB threshold and 4 dB scale. ",
+          "formula_template": "restore: (0.60-s) D + 0.40 F + s L - {team_penalty}(1-G) - 0.002 T - 0.02 B - 0.02 J; s=0.10+0.20*(1-current active-pair LOS fraction); settle: 0.65 D + 0.35 F - {team_penalty}(1-G) - 0.05 T - 0.02 B - 0.02 J. G=sigmoid((weakest active-pair widest-path SINR_dB+6.7)/4); all current available pairs, not just demanded pairs; fewer than two peers G=0. G is radio support, not a capacity guarantee. The old XY isolation penalty is replaced, not added.  D=relevant delivered/offered, survivor critical demand in recovery; F=mean lowest ceil(active demanded endpoints/3) service ratios; T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction. No charge for being near a wall or HOLD. Settling requires 30 s with D>=0.90 and worst-peer service>=0.80; relapse after 5 s with D<0.85 or worst-peer<0.70, immediately below D=0.50 or worst-peer=0.20. L=mean lowest ceil(demanded pairs/3) widest-path sigmoid SINR scores using the same -6.7 dB threshold and 4 dB scale. ",
+          "has_context_builder": false,
+          "range": [
+            -20.0,
+            21.0
+          ],
+          "required_facts": [
+            "coordination_v1"
+          ],
+          "tunable": {
+            "coverage_goal": [
+              0.9,
+              0.01,
+              1.0
+            ],
+            "gamma": [
+              0.99,
+              0.0,
+              1.0
+            ],
+            "mission_code": [
+              2,
+              -1.0,
+              3.0
+            ],
+            "potential_scale": [
+              10.0,
+              0.0,
+              20.0
+            ],
+            "team_penalty": [
+              0.05,
+              0.0,
+              1.0
+            ]
+          },
+          "zero_demand_rule": "invalid forced/mixed windows; no active peers invalid; service requires offered demand; failed peers excluded"
+        },
+        "id": "coordinated_service_bridge_v1",
+        "index": 86,
+        "module": "scripts.rl.env.phase7_components",
+        "schema_sha256": "b5974b58963fc8c2ca2999a1b818f1d6412773c74772fed3a30f4407e22f8c4c"
+      },
+      {
+        "component_schema_sha256": "e011784cd966ea45c6eeb53d63032bd97ec0177fd4ae5b68fd9d478a9d3a3845",
+        "context_fields": [
+          "coordination_v1",
+          "mission_state",
+          "links",
+          "node_available"
+        ],
+        "descriptor": {
+          "contract_fields": [
+            "mission",
+            "bounds",
+            "node_ids"
+          ],
+          "default_parameters": {
+            "coverage_goal": 0.9,
+            "gamma": 0.99,
+            "mission_code": 0.0,
+            "potential_scale": 10.0,
+            "team_penalty": 0.05
+          },
+          "fact_extensions": [
+            "coordination_v1"
+          ],
+          "formula": "expand: 0.95 C_useful + 0.05 F - 0.002 T - 0.02 B - 0.02 J; settle: 0.75 C_useful + 0.25 F - 0.05 T - 0.02 B - 0.02 J; C_useful=min(actual connected outdoor area fraction,0.9); sufficient-area objective, not maximization of raw area.  D=relevant delivered/offered, survivor critical demand in recovery; F=mean lowest ceil(active demanded endpoints/3) service ratios; T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction. No charge for being near a wall or HOLD. Settling requires 30 s with D>=0.90 and worst-peer service>=0.80; relapse after 5 s with D<0.85 or worst-peer<0.70, immediately below D=0.50 or worst-peer=0.20. Coverage also requires actual area>=0.9 to settle and relapses below target-0.02. No compact-clustering term. ",
+          "formula_template": "expand: 0.95 C_useful + 0.05 F - 0.002 T - 0.02 B - 0.02 J; settle: 0.75 C_useful + 0.25 F - 0.05 T - 0.02 B - 0.02 J; C_useful=min(actual connected outdoor area fraction,{coverage_goal}); sufficient-area objective, not maximization of raw area.  D=relevant delivered/offered, survivor critical demand in recovery; F=mean lowest ceil(active demanded endpoints/3) service ratios; T=mean available actual/permitted XY travel; B=actual wall-contact fraction; J=peer-rejected movement fraction. No charge for being near a wall or HOLD. Settling requires 30 s with D>=0.90 and worst-peer service>=0.80; relapse after 5 s with D<0.85 or worst-peer<0.70, immediately below D=0.50 or worst-peer=0.20. Coverage also requires actual area>={coverage_goal} to settle and relapses below target-0.02. No compact-clustering term. ",
+          "has_context_builder": false,
+          "range": [
+            -20.0,
+            21.0
+          ],
+          "required_facts": [
+            "coordination_v1"
+          ],
+          "tunable": {
+            "coverage_goal": [
+              0.9,
+              0.01,
+              1.0
+            ],
+            "gamma": [
+              0.99,
+              0.0,
+              1.0
+            ],
+            "mission_code": [
+              0,
+              -1.0,
+              3.0
+            ],
+            "potential_scale": [
+              10.0,
+              0.0,
+              20.0
+            ],
+            "team_penalty": [
+              0.05,
+              0.0,
+              1.0
+            ]
+          },
+          "zero_demand_rule": "invalid forced/mixed windows; no active peers invalid; service requires offered demand; failed peers excluded"
+        },
+        "id": "coordinated_coverage_sufficient_v1",
+        "index": 87,
+        "module": "scripts.rl.env.phase7_components",
+        "schema_sha256": "1602c0d3ffdf8531659dd22098e53c8defdd2321049c29b0593ed9501dfb8c70"
+      }
+    ],
+    "registration_order": [
+      "delivery_ratio",
+      "delivery_binary",
+      "signed_delivery_ratio",
+      "connectivity",
+      "throughput_mbps",
+      "legacy",
+      "service_success",
+      "service_failure",
+      "travel_fraction",
+      "origin_fraction",
+      "sinr_quality",
+      "unmet_sinr_quality",
+      "throughput_log_mbps",
+      "fair_node_service",
+      "worst_node_delivery_fraction",
+      "coverage_fraction",
+      "unsafe_proximity_fraction",
+      "span_travel_fraction",
+      "peer_cohesion",
+      "drone_travel_fraction",
+      "pedestrian_travel_fraction",
+      "vehicle_travel_fraction",
+      "adaptive_movement_cost",
+      "weak_service_deficit",
+      "goal_progress",
+      "goal_coverage",
+      "connected_arrival",
+      "investigator_disconnected",
+      "investigation_complete",
+      "survivor_delivery_ratio",
+      "survivor_fair_service",
+      "survivor_worst_service",
+      "recovery_delivery_deficit",
+      "recovery_coverage_deficit",
+      "recovery_worst_service",
+      "recovery_complete",
+      "recovery_movement_cost",
+      "collision_attempt_fraction",
+      "team_arrival_fraction",
+      "team_disconnected",
+      "active_sinr_quality_v1",
+      "team_goal_proximity_v1",
+      "survivor_service_maintained_v1",
+      "decision_travel_v1",
+      "team_approach_cost_v1",
+      "investigation_setup_v1",
+      "investigation_service_deficit_v1",
+      "recovery_deployment_cost_v1",
+      "recovery_response_deficit_v1",
+      "recovery_settle_v1",
+      "team_distance_delta_v2",
+      "service_gated_coverage_v2",
+      "coverage_target_maintained_v2",
+      "coverage_settle_cost_v2",
+      "investigation_settle_cost_v2",
+      "recovery_settle_cost_v2",
+      "service_settle_cost_v2",
+      "post_failure_service_v2",
+      "post_failure_sinr_v2",
+      "post_failure_coverage_deficit_v2",
+      "level0_coverage_v1",
+      "level0_investigation_v1",
+      "level0_recovery_v1",
+      "level0_jamming_v1",
+      "connected_outdoor_area_fraction_v1",
+      "team_target_distance_score_v1",
+      "survivor_critical_delivery_fraction_v1",
+      "jammed_traffic_delivery_fraction_v1",
+      "available_peer_travel_fraction_v1",
+      "worst_peer_target_proximity_v1",
+      "weakest_survivor_delivery_fraction_v1",
+      "weakest_active_delivery_fraction_v1",
+      "boundary_contact_fraction_v1",
+      "investigator_target_proximity_v1",
+      "followers_target_proximity_v1",
+      "followers_investigator_then_target_proximity_v1",
+      "available_team_closeness_v1",
+      "demanded_path_sinr_margin_v1",
+      "target_proximity_potential_v1",
+      "available_target_arrival_fraction_v1",
+      "coordinated_service_fixed_v1",
+      "coordinated_service_adaptive_v1",
+      "coordinated_investigation_fixed_v1",
+      "coordinated_investigation_adaptive_v1",
+      "coordinated_coverage_fixed_v1",
+      "coordinated_coverage_adaptive_v1",
+      "coordinated_service_bridge_v1",
+      "coordinated_coverage_sufficient_v1"
+    ]
+  }
+}

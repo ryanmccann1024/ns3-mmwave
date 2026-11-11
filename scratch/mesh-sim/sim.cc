@@ -13,9 +13,9 @@
 #include "src/config/config-loader.h"
 #include "src/config/config-validator.h"
 #include "src/config/rl-control.h"
+#include "src/eval/coverage-grid.h"
 #include "src/eval/link-evaluator.h"
 #include "src/eval/link-table.h"
-#include "src/eval/coverage-grid.h"
 #include "src/io/metrics-writer.h"
 #include "src/io/progress-logger.h"
 #include "src/io/run-logger.h"
@@ -35,6 +35,7 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
 
 namespace fs = std::filesystem;
 
@@ -169,6 +170,25 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
                      " Placement methods are selected by the evaluation policy list.\n";
     }
 
+    const bool measureCoverage = cfg.rl.enabled && cfg.rl.coverage_enabled;
+    const bool missionActive = cfg.rl.mission.kind != "none";
+    const bool investigation = cfg.rl.mission.kind == "investigation";
+    const bool recovery = cfg.rl.mission.kind == "recovery";
+    mesh_sim::CoverageGrid coverageGrid;
+    if (measureCoverage)
+    {
+        try
+        {
+            coverageGrid = missionActive ? mesh_sim::BuildCoverageGrid(cfg.rl, cfg.buildings)
+                                         : mesh_sim::BuildCoverageGrid(cfg.rl);
+        }
+        catch (const std::runtime_error& e)
+        {
+            std::cerr << "Config error: " << e.what() << "\n";
+            return 1;
+        }
+    }
+
     auto seeds = mesh_sim::ResolveSeeds(args, cfg); //< From cli-parser, manages seeds
     NS_LOG_INFO("Scenario '" << cfg.scenario_name << "'"
                              << " seeds=" << seeds.size()
@@ -222,10 +242,8 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
         /// @brief Build ns-3 nodes, mobility models, buildings, and the
         ///        propagation/condition models for this seed's topology.
         mesh_sim::TopologyBuilder topo(cfg);
-        mesh_sim::CoverageGrid coverageGrid;
-        if (cfg.rl.enabled && cfg.rl.coverage_enabled)
+        if (measureCoverage)
         {
-            coverageGrid = mesh_sim::BuildCoverageGrid(cfg.rl);
             topo.SetProbes(coverageGrid.probes);
         }
         topo.Build();
@@ -233,6 +251,7 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
         auto mobs = topo.GetMobilityModels();
         auto jammerMobs = topo.GetJammerMobilityModels();
         uint32_t N = static_cast<uint32_t>(mobs.size());
+        std::vector<bool> available(N, true);
 
         /// @brief Bind the propagation/condition models to a LinkEvaluator
         ///        that will compute per-tick SINR/capacity/MCS.
@@ -288,8 +307,45 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
                 ns3::Simulator::Run();
             }
 
-            /// @brief Evaluate all N*(N-1)/2 links at the current positions.
-            linkTable.Update(N, linkEval.EvaluateAll(mobs, t));
+            // Apply a dropout once. Keep the roster and link indices stable for consumers.
+            if (recovery)
+            {
+                for (uint32_t i = 0; i < N; ++i)
+                {
+                    const double failure = cfg.nodes[i].failure_at_s;
+                    if (!available[i] || failure < 0.0 || t < failure)
+                    {
+                        continue;
+                    }
+                    available[i] = false;
+                    if (auto mobility = mobs[i]->GetObject<ns3::ConstantVelocityMobilityModel>())
+                    {
+                        mobility->SetVelocity(ns3::Vector(0, 0, 0));
+                    }
+                }
+                if (rlBridge)
+                {
+                    rlBridge->SetAvailable(available);
+                }
+            }
+
+            // Preserve the evaluator's pair order and RNG draws even after a dropout.
+            auto evaluated = linkEval.EvaluateAll(mobs, t);
+            if (recovery)
+            {
+                for (auto& link : evaluated)
+                {
+                    if (!available[link.tx_id] || !available[link.rx_id])
+                    {
+                        mesh_sim::LinkResult unavailable;
+                        unavailable.tx_id = link.tx_id;
+                        unavailable.rx_id = link.rx_id;
+                        unavailable.distance_m = link.distance_m;
+                        link = unavailable;
+                    }
+                }
+            }
+            linkTable.Update(N, evaluated);
 
             /// @brief Advance traffic state and route active flows over
             ///        the freshly-evaluated link table.
@@ -330,14 +386,38 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
                 rlBridge->AccumulateTick(t, linkTable, flowResults, mobs);
                 if (done || rlBridge->IsDecisionTick(ti))
                 {
-                    if (cfg.rl.coverage_enabled)
+                    if (measureCoverage)
                     {
                         std::vector<std::vector<bool>> covered(N, std::vector<bool>(probeMobs.size()));
                         for (uint32_t i = 0; i < N; ++i)
+                        {
+                            if (!available[i])
+                            {
+                                continue;
+                            }
                             for (size_t p = 0; p < probeMobs.size(); ++p)
-                                covered[i][p] = linkEval.EvaluateProbe(mobs[i], probeMobs[p], i,
-                                    coverageGrid.probes.rx_gain_dbi, t).sinr_db >= coverageGrid.probes.sinr_db;
-                        rlBridge->SetCoverage(mesh_sim::ConnectedCoverage(linkTable, coverageGrid, covered));
+                            {
+                                const auto probe =
+                                    linkEval.EvaluateProbe(mobs[i],
+                                                           probeMobs[p],
+                                                           i,
+                                                           coverageGrid.probes.rx_gain_dbi,
+                                                           t);
+                                covered[i][p] = probe.sinr_db >= coverageGrid.probes.sinr_db;
+                            }
+                        }
+                        rlBridge->SetCoverage(mesh_sim::ConnectedCoverage(linkTable,
+                                                                          coverageGrid,
+                                                                          covered,
+                                                                          available));
+                        if (investigation)
+                        {
+                            rlBridge->SetGoalCoverage(mesh_sim::GoalCoverage(linkTable,
+                                                                             coverageGrid,
+                                                                             covered,
+                                                                             cfg.rl.mission,
+                                                                             available));
+                        }
                     }
                     rlBridge->Step(ti, t, mobs, linkTable, done);
                     if (!done)

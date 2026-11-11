@@ -334,6 +334,18 @@ main()
 {
     test_numeric_gateway_id_precedes_index();
     test_zero_phases_return_without_hanging();
+
+    {
+        auto cfg = makeCfg("constant", "explicit_pairs");
+        cfg.mesh.traffic.pairs = {{"node-0", "node-2", 6}, {"node-0", "node-1", .5}};
+        TrafficMatrix tm(cfg);
+        tm.Initialize(5, 0);
+        auto flows = tm.GetActiveFlows();
+        check(flows.size() == 2 && flows[0].src == 0 && flows[0].dst == 2,
+              "explicit pair endpoints resolved");
+        check(flows[0].demand_mbps == 6 && flows[1].demand_mbps == .5,
+              "explicit pair rates preserved");
+    }
     // all_pairs
     test_all_pairs_flow_count();
     test_all_pairs_no_self_flows();

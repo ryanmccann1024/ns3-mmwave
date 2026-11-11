@@ -1,4 +1,8 @@
-"""Validate explicit experiment matrices and own their plans and execution."""
+"""Matrix version 1 and experiment plan version 2: validation, plans and sequential runs.
+
+Compatibility owner for existing importers (ops, tuning, cluster callers). The
+version 2 batch schema and plan version 3 live in `scripts/rl/experiments/`.
+"""
 
 import json
 import re
@@ -10,13 +14,22 @@ from scripts.rl.agents.config import validate_training_settings, PPO_FIELDS
 from scripts.rl.cli_common import MANIFEST_NAME, sha256_file, write_json
 from scripts.rl.env.config import read_action_profile
 from scripts.rl.env.selection import resolve_selection
+from scripts.rl.experiments.matrix_fields import (
+    _band,
+    _check_keys,
+    _int,
+    _name,
+    _scalar,
+    _seed_list,
+    _string_array,
+    _weight_array,
+)
+from scripts.rl.experiments.plan import COMPARISON_NAME, PLAN_NAME
 from scripts.rl.policy.evaluate import EVAL_MANIFEST_NAME, POLICY_NAMES
-from scripts.sim_support import find_mesh_root, parse_seed_spec
+from scripts.sim_support import find_mesh_root
 
 MATRIX_VERSION = 1
 PLAN_VERSION = 2
-PLAN_NAME = "experiment_plan.json"
-COMPARISON_NAME = "comparison.json"
 
 _TOP_KEYS = ("matrix_version", "name", "description", "run_config", "band",
              "seeds", "training", "evaluation", "rows")
@@ -25,37 +38,7 @@ _TRAINING_KEYS = (*PPO_FIELDS, "eval_every_steps", "checkpoint_every_steps", "ke
 _EVALUATION_KEYS = ("model", "policies", "decision_records", "decision_record_seeds", "reuse_baselines", "baseline_cache_dir")
 _ROW_KEYS = ("name", "observation_preset", "action_profile", "reward_components",
              "reward_weights", "run_config", "band", "observation_parameters", "reward_parameters")
-_BANDS = ("mmwave", "sub-6")
-_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-_EXPLICIT = "rows are explicit; no product expansion"
 _PLAN_DIFFERS = "matrix, binary, or --rows changed; use a new --output-root"
-
-
-def _check_keys(mapping, allowed: tuple[str, ...], where: str) -> None:
-    if not isinstance(mapping, dict):
-        raise ValueError(f"{where} must be a JSON object")
-    unknown = sorted(key for key in mapping if key not in allowed)
-    if unknown:
-        raise ValueError(f"{where} has unknown keys {unknown}; "
-                         f"valid keys: {list(allowed)}")
-
-
-def _scalar(value, where: str):
-    if isinstance(value, list):
-        raise ValueError(f"{where} must be a single value: {_EXPLICIT}")
-    return value
-
-
-def _name(value, where: str) -> str:
-    if not isinstance(value, str) or not _NAME_RE.match(value):
-        raise ValueError(f"{where} must match [a-z0-9][a-z0-9-]*, got {value!r}")
-    return value
-
-
-def _int(value, where: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{where} must be an integer, got {value!r}")
-    return value
 
 
 def _training(raw) -> dict:
@@ -110,17 +93,6 @@ def _evaluation(raw, training: dict) -> dict:
     return evaluation
 
 
-def _seed_list(value, where: str) -> list[int]:
-    if isinstance(value, str):
-        return parse_seed_spec(value)
-    if not isinstance(value, list):
-        raise ValueError(f"{where} must be a seed spec string or an array of integers")
-    seeds = [_int(seed, where) for seed in value]
-    if len(set(seeds)) != len(seeds):
-        raise ValueError(f"{where} must be distinct, got {seeds}")
-    return seeds
-
-
 def _seeds(raw, training: dict) -> dict:
     _check_keys(raw, _SEED_KEYS, "seeds")
     train_seeds = _seed_list(raw.get("training"), "seeds.training")
@@ -156,31 +128,6 @@ def _seeds(raw, training: dict) -> dict:
                              "seed roles must be disjoint")
     return {"training": train_seeds, "model_selection": selection,
             "held_out": held_out}
-
-
-def _string_array(value, where: str) -> list[str]:
-    if not isinstance(value, list) or not value:
-        raise ValueError(f"{where} must be a non-empty JSON array")
-    if not all(isinstance(entry, str) for entry in value):
-        raise ValueError(f"{where} must contain strings")
-    return list(value)
-
-
-def _weight_array(value, where: str) -> list[float]:
-    if not isinstance(value, list) or not value:
-        raise ValueError(f"{where} must be a non-empty JSON array")
-    if any(isinstance(w, bool) or not isinstance(w, (int, float)) for w in value):
-        raise ValueError(f"{where} must contain numbers")
-    return [float(w) for w in value]
-
-
-def _band(value, where: str) -> str | None:
-    value = _scalar(value, where)
-    if value is None:
-        return None
-    if value not in _BANDS:
-        raise ValueError(f"{where} must be one of {list(_BANDS)}, got {value!r}")
-    return value
 
 
 def _run_config(value, where: str) -> str:
@@ -270,10 +217,18 @@ def _train_args(matrix: dict, row: dict, sim_binary: str, out_dir: str,
     args = ["--sim-binary", sim_binary, "--run-config", row["run_config"]]
     if row["band"] is not None:
         args += ["--band", row["band"]]
+    weights = ",".join(str(w) for w in row["reward_weights"])
+    # argparse treats a comma-separated value beginning with '-' as another
+    # option unless it is attached to the flag. Keep existing positive argv stable.
+    weight_args = (
+        ["--reward-weights=" + weights]
+        if weights.startswith("-")
+        else ["--reward-weights", weights]
+    )
     args += ["--output-dir", out_dir, "--verbose", "0",
              "--observation-preset", row["observation_preset"],
              "--reward-components", ",".join(row["reward_components"]),
-             "--reward-weights", ",".join(str(w) for w in row["reward_weights"]),
+             *weight_args,
              "--observation-parameters", json.dumps(row.get("observation_parameters", {}), sort_keys=True),
              "--reward-parameters", json.dumps(row.get("reward_parameters", {}), sort_keys=True),
              "m-ppo"]

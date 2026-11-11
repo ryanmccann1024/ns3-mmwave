@@ -65,18 +65,55 @@ inline double JointPathDistance(const MotionPoint& a, const MotionPoint& av,
     return minimum;
 }
 
-inline std::vector<bool> RejectUnsafeJointMotion(const std::vector<MotionPoint>& positions,
-    std::vector<MotionPoint>& velocities, const std::vector<bool>& controlled,
-    const RlConfig& bounds, double horizon)
+/// Test the entire movement segment against a building expanded on every axis.
+inline bool
+SegmentIntersectsBuilding(const MotionPoint& a,
+                          const MotionPoint& b,
+                          const BuildingSpec& box,
+                          double clearance)
+{
+    const double lower[] = {box.x_min - clearance, box.y_min - clearance, box.z_min - clearance};
+    const double upper[] = {box.x_max + clearance, box.y_max + clearance, box.z_max + clearance};
+    double entry = 0.0, exit = 1.0;
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        const double delta = b[axis] - a[axis];
+        if (std::abs(delta) < 1e-12)
+        {
+            if (a[axis] < lower[axis] || a[axis] > upper[axis])
+                return false;
+            continue;
+        }
+        double t0 = (lower[axis] - a[axis]) / delta, t1 = (upper[axis] - a[axis]) / delta;
+        if (t0 > t1)
+            std::swap(t0, t1);
+        entry = std::max(entry, t0);
+        exit = std::min(exit, t1);
+        if (entry > exit)
+            return false;
+    }
+    return true;
+}
+
+inline std::vector<bool>
+RejectUnsafeJointMotion(const std::vector<MotionPoint>& positions,
+                        std::vector<MotionPoint>& velocities,
+                        const std::vector<bool>& controlled,
+                        const RlConfig& bounds,
+                        double horizon,
+                        const std::vector<bool>& available = {})
 {
     std::vector<bool> rejected(positions.size(), false);
-    // Recheck after stopping a node: its stationary path can obstruct another move.
+    // Recheck after stopping a node because its stationary path can obstruct another move.
+    // Dropped peers are removed from the collision model while retaining their roster index.
     for (size_t pass = 0; pass <= positions.size(); ++pass)
     {
         bool changed = false;
         for (size_t i = 0; i < positions.size(); ++i)
             for (size_t j = i+1; j < positions.size(); ++j)
             {
+                if (!available.empty() && (!available[i] || !available[j]))
+                    continue;
                 if (JointPathDistance(positions[i], velocities[i], positions[j], velocities[j],
                     bounds, horizon, controlled[i], controlled[j]) >= bounds.unsafe_separation_m) continue;
                 for (const auto node : {i, j})

@@ -64,6 +64,7 @@ class PlanRequest:
     cache_bytes: int = 32 * 1024 * 1024
     forbidden_buildings: tuple = ()
     minimum_separation_m: float = 0.0
+    probe_exclusion_buildings: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -180,6 +181,22 @@ def solve(request: PlanRequest, log: TextIO) -> PlanResult:
             for name in objective.objective_preset(request.objective).components
         },
     }
+    if (
+        request.probe_exclusion_buildings
+        or request.forbidden_buildings
+        or request.minimum_separation_m
+    ):
+        settings.update(
+            engine_settings_version=2,
+            physical_constraints={
+                "forbidden_buildings": list(request.forbidden_buildings),
+                "minimum_separation_m": request.minimum_separation_m,
+            },
+            coverage_domain={
+                "kind": "outdoor" if request.probe_exclusion_buildings else "rectangle",
+                "probe_exclusion_buildings": list(request.probe_exclusion_buildings),
+            },
+        )
     settings["sha256"] = canonical_sha256(settings)
     return PlanResult(
         positions=_positions(request, raw),

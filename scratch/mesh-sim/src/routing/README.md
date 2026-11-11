@@ -40,7 +40,7 @@ make -C tests/unit/routing test
 | Algorithm | Strategy |
 |-----------|----------|
 | `shortest_path` (default) | Dijkstra, edge weight `1/capacity_mbps`. |
-| `max_throughput` | Widest path: maximise the bottleneck link capacity. |
+| `max_throughput` | Widest path: maximize the bottleneck link capacity. |
 | `min_hop` | Breadth-first search; fewest hops, ignores link quality. |
 
 ## Output

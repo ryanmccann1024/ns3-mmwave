@@ -17,5 +17,22 @@ int main()
     p={{2,5,0},{4,5,0}};v={{0,2,0},{0,2,0}};
     r=RejectUnsafeJointMotion(p,v,{true,true},b,1);
     assert(!r[0] && !r[1]);
+    p = {{2, 5, 0}, {4, 5, 0}};
+    v = {{4, 0, 0}, {0, 0, 0}};
+    r = RejectUnsafeJointMotion(p, v, {true, false}, b, 1, {true, false});
+    assert(!r[0] && !r[1] && v[0] == MotionPoint({4, 0, 0}));
+    BuildingSpec box;
+    box.x_min = 10;
+    box.x_max = 30;
+    box.y_min = 10;
+    box.y_max = 30;
+    box.z_min = 0;
+    box.z_max = 8;
+    assert(SegmentIntersectsBuilding({5, 20, 1.5}, {35, 20, 1.5}, box, 2));
+    assert(!SegmentIntersectsBuilding({5, 20, 20}, {35, 20, 20}, box, 2));
+    assert(SegmentIntersectsBuilding({5, 20, 9}, {35, 20, 9}, box, 2));
+    box.z_max = 38;
+    assert(SegmentIntersectsBuilding({5, 20, 20}, {35, 20, 20}, box, 2));
+    assert(!SegmentIntersectsBuilding({5, 5, 1.5}, {10, 35, 1.5}, box, 0));
     std::cout << "joint motion: crossing, altitude, wall clipping, cascade and safe motion passed\n";
 }

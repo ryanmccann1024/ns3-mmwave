@@ -12,20 +12,15 @@ not repeat them.
 
 ## Module Layout
 
-| File | Role |
+| Owner | Responsibility |
 | --- | --- |
-| [`mesh_env.py`](mesh_env.py) | `MeshRlEnv`, the Gymnasium environment; owns reset/step flow, spaces, and action masks. |
-| [`episode.py`](episode.py) | `EpisodeSession`: simulator subprocess, stderr tail, and process cleanup. |
-| [`protocol.py`](protocol.py) | `CentralizedProtocol`: message validation and joint-action checks; raises `ProtocolError`. |
-| [`episode_artifacts.py`](episode_artifacts.py) | Episode allocation, manifests, telemetry, and optional decision sidecars. |
-| [`normalization.py`](normalization.py) | Shared physical scales and normalization calculations. |
-| [`observations.py`](observations.py) | Observation preset descriptors, layouts, and resolved scales, observation schema, and schema hashing/compatibility check. |
-| [`rewards.py`](rewards.py) | Reward components (`delivery_ratio`, `connectivity`, `throughput_mbps`, `legacy`), `RewardComposer`, and reward schema. |
-| [`selection.py`](selection.py) | `RlSelection`: preset, reward, and telemetry choices and component/preset parameters resolved as CLI > `run.ini [rl]` > default. |
-| [`telemetry.py`](telemetry.py) | Optional `steps.jsonl` writer and offline replay. |
-| [`decisions.py`](decisions.py) | Opt-in per-decision record writer (`policy_decisions.jsonl` + manifest); see [`src/rl/decision-records.md`](../../../src/rl/decision-records.md). |
-| [`config.py`](config.py) | `run.ini` readers: seed, movement bounds, action profile, control mode, scenario file hashes. |
-| [`__init__.py`](__init__.py) | Re-exports `MeshRlEnv`. |
+| `mesh_env.py`, `episode.py`, `protocol.py` | Gymnasium lifecycle, simulator process and wire validation. |
+| `selection.py`, `config.py`, `normalization.py` | Resolve configuration and immutable identities; shared physical scales. |
+| `rewards/` | Composer/registry plus `objectives.py` (binary and continuous), `shaping.py` (travel, boundary, signal, proximity, arrival), `mission_terms.py` (mission stages), `coordination.py` and `radio.py`. |
+| `observations/` | Registry/schema plus `compact.py`, `coordination.py` and `radio.py` feature layouts. |
+| `state/` | `mission.py` and `coordination.py` track observable history; `measurements.py` supplies shared metrics; `extensions.py` attaches requested facts. |
+| `recording/` | `artifacts.py` owns episode manifests; `telemetry.py` records/replays steps; `settings.py` and `decisions.py` own optional decision sidecars. |
+| `geometry.py`, `curriculum.py`, `seeded_env.py`, `jammer_motion.py` | Legal paths, training-only staged starts, fresh environments per seed and reproducible jammer motion. |
 
 ## How One Episode Flows
 
@@ -63,6 +58,19 @@ and raises `RuntimeError` with the command, exit code, and stderr tail.
 `close()` marks it `interrupted`. Every path stops the child process and the
 stdout drain thread.
 
+## Seeded scenario checks
+
+Scenario checks use `SeededEnv` to run each policy on the prepared
+configuration for a given diagnostic seed. For example, `reset(seed=202)`
+selects `seed-202/run.ini` and reads seed 202's controller gate from the
+case manifest. The wrapper closes the previous environment, creates a fresh
+`MeshRlEnv`, and keeps the same output root so episode directories stay in
+one sequence.
+
+The scenario checker supplies `sub-6` as an explicit band override. Other
+callers can supply a band or let the wrapper use the seed's `[channel] band`
+setting, with `mmwave` as the simulator default.
+
 ## Control Modes
 
 | Mode | Selected by | Action space | Observation | Masks |
@@ -83,9 +91,9 @@ Written under `<output_dir>/episode-NNNN/`, one directory per reset.
 | --- | --- |
 | `rl_episode.json` | `EpisodeSession`; status `running`, `completed`, `interrupted`, or `failed`, plus totals and (centralized) contract, selection, and schema hashes. |
 | `sim_stderr.log` | Simulator stderr; its tail is shown in error messages. |
-| `steps.jsonl` | `telemetry.StepRecorder`, only when `telemetry = steps`; replay with `telemetry.replay_file`. |
-| `policy_decisions_manifest.json` | `decisions.DecisionRecorder`, only with `--decision-records`; identity, coverage, and status of the decision records. |
-| `policy_decisions.jsonl` | `decisions.DecisionRecorder`, only with `--decision-records`; one reset record, then one record per saved decision. |
+| `steps.jsonl` | `recording.telemetry.StepRecorder`, only when `telemetry = steps`; replay with `recording.telemetry.replay_file`. |
+| `policy_decisions_manifest.json` | `recording.decisions.DecisionRecorder`, only with `--decision-records`; identity, coverage, and status of the decision records. |
+| `policy_decisions.jsonl` | `recording.decisions.DecisionRecorder`, only with `--decision-records`; one reset record, then one record per saved decision. |
 | Simulator outputs | Everything the simulator itself writes into `--output-dir`. |
 
 ## Conventions

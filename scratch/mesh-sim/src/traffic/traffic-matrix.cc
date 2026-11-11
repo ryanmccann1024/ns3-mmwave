@@ -42,7 +42,26 @@ TrafficMatrix::Initialize(uint32_t numNodes, double currentTime)
 
     const auto& topo = m_trafficCfg.flow_topology;
 
-    if (topo == "all_pairs")
+    if (topo == "explicit_pairs")
+    {
+        const auto nodeIndex = [&](const std::string& id) {
+            const auto node = std::find_if(m_nodeSpecs.begin(),
+                                           m_nodeSpecs.end(),
+                                           [&](const NodeSpec& spec) { return spec.id == id; });
+            if (node == m_nodeSpecs.end())
+            {
+                throw std::runtime_error("unknown explicit traffic peer: " + id);
+            }
+            return static_cast<uint32_t>(std::distance(m_nodeSpecs.begin(), node));
+        };
+        for (const auto& pair : m_trafficCfg.pairs)
+        {
+            auto flow = MakeFlow(nodeIndex(pair.src), nodeIndex(pair.dst), currentTime);
+            flow.demand_mbps = pair.demand_mbps;
+            m_flows.push_back(flow);
+        }
+    }
+    else if (topo == "all_pairs")
     {
         InitAllPairs(numNodes, currentTime);
     }

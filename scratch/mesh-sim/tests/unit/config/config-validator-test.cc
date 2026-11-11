@@ -8,8 +8,7 @@
  * Build and run: `make -C tests/unit/config test`.
  */
 
-#include "src/config/config-loader.h"
-#include "src/config/config-validator.h"
+#include "config-test-support.h"
 #include "src/config/layout-override.h"
 #include "src/config/rl-control.h"
 #include "src/util/string-utils.h"
@@ -27,72 +26,11 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+using namespace config_test;
 using namespace mesh_sim;
 
-// ---- helpers ----
-
-static int g_pass = 0;
-static int g_fail = 0;
-
-static void
-check(bool cond, const std::string& name)
-{
-    if (cond)
-    {
-        ++g_pass;
-    }
-    else
-    {
-        ++g_fail;
-        std::cerr << "FAIL: " << name << "\n";
-    }
-}
-
-static SimConfig
-makeValid()
-{
-    SimConfig cfg;
-    cfg.scenario_name = "test";
-    cfg.seed       = 42;
-    cfg.run_id     = 1;
-    cfg.duration_s = 10.0;
-    cfg.warmup_s   = 0.0;
-    cfg.tick_s     = 0.1;
-
-    cfg.channel.frequency_ghz = 28.0;
-    cfg.channel.bandwidth_mhz = 400.0;
-    cfg.channel.channel_model  = "3gpp";
-    cfg.channel.scenario       = "UMi";
-
-    cfg.mesh.traffic.model         = "constant";
-    cfg.mesh.traffic.demand_mbps   = 10.0;
-    cfg.mesh.traffic.flow_topology = "all_pairs";
-    cfg.mesh.routing.algorithm     = "shortest_path";
-
-    NodeSpec n1;
-    n1.id       = "node0";
-    n1.mobility = "fixed";
-    n1.node_type = "drone";
-    NodeSpec n2;
-    n2.id       = "node1";
-    n2.mobility = "fixed";
-    n2.node_type = "drone";
-    cfg.nodes.push_back(n1);
-    cfg.nodes.push_back(n2);
-
-    return cfg;
-}
-
-static bool
-hasError(const ValidationResult& r, const std::string& substr)
-{
-    for (const auto& e : r.errors)
-    {
-        if (e.find(substr) != std::string::npos)
-            return true;
-    }
-    return false;
-}
+int config_test::g_pass = 0;
+int config_test::g_fail = 0;
 
 // ---- config validation tests ----
 
@@ -340,54 +278,6 @@ test_multiple_errors()
     check(r.errors.size() >= 3, "multiple errors reported at once");
 }
 
-// ---- loader-backed scenario helper ----
-
-namespace
-{
-
-// Writes a throwaway scenario dir and loads it; extraChannel/extraRl are raw INI lines.
-class TempScenario
-{
-  public:
-    TempScenario(const std::string& extraChannel, const std::string& extraRl)
-    {
-        static int          counter = 0;
-        static std::random_device rd;
-        static const auto   salt = rd();
-        m_dir = std::filesystem::temp_directory_path() /
-                ("mesh-sim-cfg-test-" + std::to_string(salt) + "-" +
-                 std::to_string(++counter));
-        std::filesystem::remove_all(m_dir);
-        std::filesystem::create_directories(m_dir / "out");
-
-        std::ofstream ini(m_dir / "run.ini");
-        ini << "[scenario]\nname = temp\nnodes_file = nodes.json\n"
-            << "duration_s = 10.0\ntick_s = 0.1\n"
-            << "[output]\ndir = out\n"
-            << "[channel]\n" << extraChannel
-            << "[rl]\nenabled = true\n" << extraRl;
-        ini.close();
-
-        std::ofstream nodes(m_dir / "nodes.json");
-        nodes << R"([{"id":"node0","mobility":"fixed"},)"
-              << R"({"id":"node1","mobility":"fixed"}])";
-        nodes.close();
-    }
-
-    ~TempScenario()
-    {
-        std::error_code ec;
-        std::filesystem::remove_all(m_dir, ec);
-    }
-
-    SimConfig Load() const { return ConfigLoader::Load((m_dir / "run.ini").string()); }
-
-  private:
-    std::filesystem::path m_dir;
-};
-
-}  // namespace
-
 // ---- band tests ----
 
 static void
@@ -566,26 +456,6 @@ test_seed_skip_empty_tokens()
 }
 
 // ---- rl centralized control resolution tests ----
-
-static SimConfig
-makeRlCfg(size_t n = 3)
-{
-    SimConfig cfg = makeValid();
-    cfg.nodes.clear();
-    for (size_t i = 0; i < n; ++i)
-    {
-        NodeSpec s;
-        s.id        = std::string("node-") + static_cast<char>('a' + static_cast<int>(i));
-        s.mobility  = "fixed";
-        s.node_type = "drone";
-        s.position  = Position{10.0 * static_cast<double>(i), 20.0, 10.0};
-        cfg.nodes.push_back(s);
-    }
-    cfg.rl.enabled             = true;
-    cfg.rl.controlled_nodes_set = true;
-    cfg.rl.controlled_nodes    = "all";
-    return cfg;
-}
 
 static bool
 hasResErr(const RlControlResolution& r, const std::string& substr)
@@ -1220,6 +1090,8 @@ main()
 {
     test_invalid_numeric_inputs();
     test_seed_rejections();
+
+    testMissionConfig();
     // Config validation
     test_valid_config();
     test_zero_duration();
@@ -1287,35 +1159,23 @@ main()
     test_rl_validator_reports_resolver_errors();
 
     {
-        auto cfg=makeValid(); cfg.rl.enabled=true;
-        cfg.rl.unsafe_separation_m=0;
-        check(!ValidateConfig(cfg).errors.empty(), "reject zero unsafe separation");
-        cfg.rl.unsafe_separation_m=1;
-        cfg.rl.controlled_nodes_set=true; cfg.rl.controlled_nodes="all";
-        cfg.rl.coverage_enabled=true; cfg.rl.coverage_grid_cells=0;
-        check(!ValidateConfig(cfg).errors.empty(), "reject zero RL coverage cells");
-        cfg.rl.coverage_grid_cells=64;
-        check(ValidateConfig(cfg).errors.empty(), "accept 1m separation and live coverage");
+        TempScenario explicitPairs("[traffic]\nflow_topology = explicit_pairs\npairs = "
+                                   "[{\"src\":\"node0\",\"dst\":\"node1\",\"demand_mbps\":6}]\n",
+                                   "controlled_nodes = all\n");
+        auto cfg = explicitPairs.Load();
+        check(ValidateConfig(cfg).ok() && cfg.mesh.traffic.pairs[0].demand_mbps == 6,
+              "explicit peer demand loaded and validated");
+        cfg.mesh.traffic.pairs.push_back({"node1", "node0", 6});
+        check(ValidateConfig(cfg).ok(), "reverse-direction demand is a distinct flow");
+        cfg.mesh.traffic.pairs.push_back({"node0", "node1", 6});
+        check(!ValidateConfig(cfg).ok(), "duplicate directed demand rejected");
+        cfg.mesh.traffic.pairs.pop_back();
+        cfg.mesh.traffic.pairs.pop_back();
+        cfg.mesh.traffic.pairs[0].dst = "missing";
+        check(!ValidateConfig(cfg).ok(), "unknown demand peer rejected");
+        cfg.mesh.traffic.pairs[0].dst = "node0";
+        check(!ValidateConfig(cfg).ok(), "self demand rejected");
     }
-
-    {
-        auto cfg = makeRlCfg();
-        cfg.rl.avoid_node_collisions = true;
-        cfg.rl.unsafe_separation_m = 1;
-        check(ValidateConfig(cfg).ok(), "joint collision guard accepts separated starts");
-        cfg.nodes[1].position = cfg.nodes[0].position;
-        check(!ValidateConfig(cfg).ok(), "joint collision guard rejects overlapping starts");
-        cfg.nodes[1].position.z += 20;
-        check(ValidateConfig(cfg).ok(), "joint collision guard uses 3D separation");
-    }
-
-    {
-        TempScenario scenario("", "controlled_nodes = all\navoid_node_collisions = true\n");
-        check(scenario.Load().rl.avoid_node_collisions, "loader reads joint collision flag");
-        TempScenario defaults("", "controlled_nodes = all\n");
-        check(!defaults.Load().rl.avoid_node_collisions, "joint collision flag defaults false");
-    }
-
     // RL resolver safety
     test_rl_safety_cases();
     test_controlled_start_position();

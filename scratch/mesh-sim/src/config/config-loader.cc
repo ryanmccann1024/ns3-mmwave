@@ -36,6 +36,7 @@ parseNodeSpec(const json& j)
     n.role     = j.value("role", "peer");
     n.mobility  = j.value("mobility", "fixed");
     n.node_type = j.value("node_type", "drone");
+    n.failure_at_s = j.value("failure_at_s", -1.0);
 
     if (j.contains("position"))
     {
@@ -168,24 +169,28 @@ parseJammerSpec(const json& j)
     return m;
 }
 
-
-/** @brief Build a BuildingSpec from one buildings-file entry; every field is optional. */
+/** @brief Read explicit nested or flat building bounds; never invent obstacle geometry. */
 static BuildingSpec
 parseBuildingSpec(const json& j)
 {
     BuildingSpec b;
     b.id = j.value("id", "");
 
-    if (j.contains("bounds"))
+    const auto& bnd = j.contains("bounds") ? j.at("bounds") : j;
+    for (const auto* key : {"x_min", "x_max", "y_min", "y_max", "z_min", "z_max"})
     {
-        const auto& bnd = j["bounds"];
-        b.x_min = bnd.value("x_min", 0.0);
-        b.x_max = bnd.value("x_max", 1.0);
-        b.y_min = bnd.value("y_min", 0.0);
-        b.y_max = bnd.value("y_max", 1.0);
-        b.z_min = bnd.value("z_min", 0.0);
-        b.z_max = bnd.value("z_max", 1.0);
+        if (!bnd.contains(key) || !bnd.at(key).is_number())
+            throw std::runtime_error("building '" + b.id + "' requires numeric " + key);
+        if (j.contains("bounds") && j.contains(key) && j.at(key) != bnd.at(key))
+            throw std::runtime_error("building '" + b.id +
+                                     "' has conflicting flat and nested bounds");
     }
+    b.x_min = bnd.at("x_min").get<double>();
+    b.x_max = bnd.at("x_max").get<double>();
+    b.y_min = bnd.at("y_min").get<double>();
+    b.y_max = bnd.at("y_max").get<double>();
+    b.z_min = bnd.at("z_min").get<double>();
+    b.z_max = bnd.at("z_max").get<double>();
 
     b.type      = j.value("type",      "Residential");
     b.ext_walls = j.value("ext_walls", "ConcreteWithWindows");
@@ -325,6 +330,13 @@ ConfigLoader::Load(const std::string& run_config_path,
     cfg.mesh.traffic.random_pair_count = static_cast<uint32_t>(
         std::stoul(iniGet(ini, "traffic", "random_pair_count", "3")));
     cfg.mesh.traffic.gateway_node_id  = iniGet(ini, "traffic", "gateway_node_id",  "");
+    const auto trafficPairs = json::parse(iniGet(ini, "traffic", "pairs", "[]"));
+    if (!trafficPairs.is_array())
+        throw std::runtime_error("traffic.pairs must be a JSON array");
+    for (const auto& pair : trafficPairs)
+        cfg.mesh.traffic.pairs.push_back({pair.at("src").get<std::string>(),
+                                          pair.at("dst").get<std::string>(),
+                                          pair.at("demand_mbps").get<double>()});
 
     // [routing] — mesh-specific routing config
     cfg.mesh.routing.algorithm = iniGet(ini, "routing", "algorithm", "shortest_path");
@@ -361,12 +373,39 @@ ConfigLoader::Load(const std::string& run_config_path,
         ini.count("rl") != 0 && ini.at("rl").count("controlled_nodes") != 0;
     cfg.rl.max_controlled_nodes = std::stoi(iniGet(ini, "rl", "max_controlled_nodes", "0"));
     cfg.rl.action_profile       = iniGet(ini, "rl", "action_profile", "move_2d");
+    cfg.rl.control_start_s = std::stod(iniGet(ini, "rl", "control_start_s", "0"));
     cfg.rl.decision_interval_s  = std::stod(iniGet(ini, "rl", "decision_interval_s", "0.0"));
 
     cfg.rl.unsafe_separation_m = std::stod(iniGet(ini, "rl", "unsafe_separation_m", "1.0"));
     cfg.rl.avoid_buildings = iniGetBool(ini, "rl", "avoid_buildings", false);
+    cfg.rl.building_clearance_m = std::stod(iniGet(ini, "rl", "building_clearance_m", "0"));
+    cfg.rl.mask_building_moves = iniGetBool(ini, "rl", "mask_building_moves", true);
     cfg.rl.avoid_node_collisions = iniGetBool(ini, "rl", "avoid_node_collisions", false);
     cfg.rl.coverage_enabled = iniGetBool(ini, "rl", "coverage_enabled", false);
+    auto& mission = cfg.rl.mission;
+    const auto readMissionNumber = [&](const char* key, double fallback) {
+        return std::stod(iniGet(ini, "mission", key, std::to_string(fallback)));
+    };
+    mission.kind = iniGet(ini, "mission", "kind", mission.kind);
+    mission.investigator_id = iniGet(ini, "mission", "investigator_id", mission.investigator_id);
+    mission.team_investigation =
+        iniGetBool(ini, "mission", "team_investigation", mission.team_investigation);
+    mission.team_radius_m = readMissionNumber("team_radius_m", mission.team_radius_m);
+    mission.team_delivery_target =
+        readMissionNumber("team_delivery_target", mission.team_delivery_target);
+    mission.goal_x = readMissionNumber("goal_x", mission.goal_x);
+    mission.goal_y = readMissionNumber("goal_y", mission.goal_y);
+    mission.arrival_radius_m = readMissionNumber("arrival_radius_m", mission.arrival_radius_m);
+    mission.coverage_radius_m = readMissionNumber("coverage_radius_m", mission.coverage_radius_m);
+    mission.dwell_s = readMissionNumber("dwell_s", mission.dwell_s);
+    mission.goal_coverage_target =
+        readMissionNumber("goal_coverage_target", mission.goal_coverage_target);
+    mission.recovery_delivery_target =
+        readMissionNumber("recovery_delivery_target", mission.recovery_delivery_target);
+    mission.recovery_coverage_ratio =
+        readMissionNumber("recovery_coverage_ratio", mission.recovery_coverage_ratio);
+    mission.recovery_worst_target =
+        readMissionNumber("recovery_worst_target", mission.recovery_worst_target);
     cfg.rl.coverage_grid_cells = std::stoi(iniGet(ini, "baseline", "coverage_grid_cells", "100"));
     cfg.rl.coverage_min_resolution_m = std::stod(iniGet(ini, "baseline", "grid_min_resolution_m", "5.0"));
     cfg.rl.coverage_probe_height_m = std::stod(iniGet(ini, "baseline", "coverage_probe_height_m", "1.5"));
