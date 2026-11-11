@@ -8,17 +8,17 @@
     },
     "run_config": {
       "buildings": {
-        "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/buildings.json",
+        "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/buildings.json",
         "sha256": "240836c0870ab0ee59e58bb611fb29b19a3913fae6d7b217f9dbe12660edb0ca"
       },
       "fallback": false,
       "jammers": null,
       "nodes": {
-        "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/nodes.json",
+        "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/nodes.json",
         "sha256": "c80ff6552620ff3c398e97a9034e16ba2eb6791dd95b77713c0146b82ca2e29a"
       },
       "run_config": {
-        "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+        "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
         "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
       }
     }
@@ -32,7 +32,7 @@
           "attempt": "baselines/rural-coverage-3-peers/scripted-f3933222b3/diagnostic/seed-201/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -65,7 +65,7 @@
           "attempt": "baselines/rural-coverage-3-peers/scripted-f25b828b56/diagnostic/seed-202/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -104,7 +104,7 @@
           "attempt": "baselines/rural-coverage-3-peers/hold-63c3471132/diagnostic/seed-201/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -137,7 +137,7 @@
           "attempt": "baselines/rural-coverage-3-peers/hold-c88e9ac2d4/diagnostic/seed-202/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -176,7 +176,7 @@
           "attempt": "baselines/rural-coverage-3-peers/random_valid-d8320106ee/diagnostic/seed-201/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -209,7 +209,7 @@
           "attempt": "baselines/rural-coverage-3-peers/random_valid-1cce0f24ef/diagnostic/seed-202/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -288,7 +288,7 @@
           "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-deterministic-cc941a372f/diagnostic/seed-201/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -322,7 +322,7 @@
           "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-deterministic-60b2ff12d0/diagnostic/seed-202/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -356,7 +356,7 @@
           "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled-a73794c7c6/diagnostic/seed-201/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -390,7 +390,7 @@
           "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/frozen-sampled-f9509c7895/diagnostic/seed-202/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -424,7 +424,7 @@
           "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated-7fb45ced89/diagnostic/seed-201/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -458,7 +458,7 @@
           "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-gated-5881dce1ea/diagnostic/seed-202/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -492,7 +492,7 @@
           "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-sb3-f2db03a030/diagnostic/seed-201/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -526,7 +526,7 @@
           "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-128/online-sb3-0861403a9e/diagnostic/seed-202/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -633,7 +633,7 @@
           "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-deterministic-563cc5b692/diagnostic/seed-201/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -667,7 +667,7 @@
           "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-deterministic-f0fe8c86cc/diagnostic/seed-202/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -701,7 +701,7 @@
           "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled-f8537ce9ec/diagnostic/seed-201/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -735,7 +735,7 @@
           "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/frozen-sampled-404cfe3c07/diagnostic/seed-202/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -769,7 +769,7 @@
           "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated-73d35664d4/diagnostic/seed-201/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -803,7 +803,7 @@
           "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-gated-1e893b1ac1/diagnostic/seed-202/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -837,7 +837,7 @@
           "attempt": "operations/rural-coverage-3-peers/raw-delivery/train-seed-101/checkpoint-final/online-sb3-080c286c3c/diagnostic/seed-201/attempt-1",
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [
@@ -871,7 +871,7 @@
           "attempt": null,
           "config": {
             "config_source": "run_config",
-            "path": "main/rural-coverage-3-peers/assets/e63180bbdaec/run.ini",
+            "path": "main/rural-coverage-3-peers/assets/scenario-325f27ffd6465d24a48d45d50b70845f85541e519186fa2d2345639382933dda/run.ini",
             "sha256": "e63180bbdaec7b143d9ec4c1665eed0cdecceae308672c30a20c53b1791389ec"
           },
           "episodes": [],

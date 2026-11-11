@@ -425,7 +425,7 @@ Exit 0 means every episode completed with no revalidated slots and no
 masked actions, exit 2 means the episodes completed but one of those counters is
 non-zero, and exit 1 means an error or an episode that did not complete.
 
-`eval_manifest.json` is version 2. Beyond the version-1 fields it records
+`eval_manifest.json` is version 8. It records mission metrics alongside
 `label`; `seed_roles` (training seed, model-selection seed, held-out seeds, any
 overlap, whether the overlap was allowed, and whether the result is held out);
 `training`, copied from the training manifest (algorithm, seeds, scenario
@@ -504,7 +504,7 @@ experiment_plan.json`, plus a required `--output-dir` that must not already
 contain a training or evaluation manifest. `--baselines a,b` restricts the
 baselines (the default is every non-`model` policy present) and `--json` prints
 `comparison.json` instead of the summary lines. It reads only
-`eval_manifest.json` files, refuses version-1 manifests, and writes
+`eval_manifest.json` version 8 files and writes
 `episodes.csv` (one row per evaluation directory, policy, and seed — the raw
 record every aggregate traces back to) and `comparison.json`. Neither file
 carries a timestamp, so repeating the same command reproduces byte-identical

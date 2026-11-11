@@ -8,6 +8,7 @@ manifests, a stub executor, or `fake_sim.py`; they do not need an ns-3 build:
 ```bash
 .venv/bin/python -m pytest -q scripts/rl/tests/policy/test_policy_comparison.py \
   scripts/rl/tests/experiments/test_experiment_matrix.py \
+  scripts/rl/tests/experiments/test_batch_timing.py \
   scripts/rl/tests/policy/test_evaluation_pipeline.py \
   scripts/rl/tests/policy/test_metrics.py
 ```
@@ -16,6 +17,7 @@ manifests, a stub executor, or `fake_sim.py`; they do not need an ns-3 build:
 | --- | --- | --- | --- |
 | `test_policy_comparison.py` | Hand-built `eval_manifest.json` files with controlled per-seed metrics | Shared t statistics; paired model-minus-baseline differences; missing, failed, and null episodes; held-out seed and compatibility refusals; grouping across trained models; deterministic CSV/JSON and CLI flags | A valid comparison writes `episodes.csv` and `comparison.json` under the chosen output directory. Incomplete inputs are reported without turning missing values into zero; incompatible inputs write nothing. |
 | `test_experiment_matrix.py` | Temporary matrices and the tracked `inputs/experiments/bypass-smoke-matrix.json` | Matrix validation, explicit row filtering, seed roles, generated CLI arguments, reproducible plan, manifest-based step status, failure/blocked handling, and resume | `experiment_plan.json` contains the expected train/evaluate/compare steps. Invalid matrices fail before execution; a second run executes only pending steps. |
+| `test_batch_timing.py` | Copies of the coordination smoke batch and its INIs | Native cadence, scenario and row gate assertions, and historical replay gates | Invalid timing fails during matrix validation. Deployment tasks use the gate from the selected INI, and replay retains the declared reference gate. |
 | `test_evaluation_pipeline.py` | Tiny training jobs against `fake_sim.py`, then evaluation and comparison | A failed evaluation seed is retained and excluded from paired statistics; two trained models form an across-run group | Temporary train/evaluation manifests and comparison files agree on completed seeds, excluded seeds, and interval type. Training cases require `sb3_contrib`. |
 | `test_metrics.py` | Scored telemetry windows with elapsed ticks spanning warmup | Shared metric reductions use scored denominators and retain null values for empty windows | Warmup time never dilutes scored fractions or produces a first-LOS result. |
 
@@ -48,6 +50,12 @@ held-out overlap detection, matrix CLI seed expansion, exclusion of reset and
 incomplete telemetry, column means, cumulative means, and two checkpoint
 matrices from a short real MaskablePPO run against the fake simulator.
 
-`test_iteration_two.py` checks that shared baseline rescoring changes returns while preserving action hashes and physical metrics, and does not mutate cached files. New evaluation manifests are version 3; readers accept existing version 2.
+`test_iteration_two.py` checks that shared baseline rescoring changes returns
+while preserving action hashes, physical metrics, and cached files.
+
+`test_objective_diagnostics.py` checks that zero-demand mission scores remain
+undefined and that reward audits replay a weighted coordinated component in a
+composed reward. `test_scenario_check.py` covers rebasing scenario inputs from
+their original INI directory when writing the input archive.
 
 Iteration-three tests verify constructor/manifest/CLI parameter wiring and six bounded plans with one shared baseline cache per scenario. The online test proves parameter updates occur in continuing operation, are absent from the sampled control, and do not carry between seeds.

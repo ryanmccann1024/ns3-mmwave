@@ -639,7 +639,7 @@ for each training episode or evaluation seed: an arrival coordinate and a
 
 ### 8.3 Movement metrics in evaluation
 
-Evaluation v4 streams telemetry through the accumulator each metric declares.
+Evaluation streams telemetry through the accumulator each metric declares.
 
 - Travel and displacement cover controlled nodes only.
 - Travel is the sum of xy endpoint distances. Displacement is measured from the
@@ -653,7 +653,27 @@ Evaluation v4 streams telemetry through the accumulator each metric declares.
 
 ### 8.4 Curriculum environment
 
-`CurriculumEnv` in `scripts/rl/env/curriculum.py` can load a supplied schedule
-of scenario files that vary peer start positions for coordinated investigation.
-The wrapper records the resets it uses in `curriculum.json`. The standard
-training entry point has no curriculum option in this revision.
+The investigation curriculum lets the policy practice from easier starting
+positions before training on the original layout. The `near` and
+`intermediate` layouts come from legal snapshots of the team's positions on
+a recorded reference run. Prepare one `run.ini` per layout, varying only the
+peers' starting positions.
+
+A schedule JSON file maps the three stage names to their INI files. Relative
+paths are resolved from the schedule file's directory.
+
+```json
+{
+  "near": "near/run.ini",
+  "intermediate": "intermediate/run.ini",
+  "original": "original/run.ini"
+}
+```
+
+Pass the `schedule` returned by `load_curriculum_schedule` to `CurriculumEnv`
+through the Python `env_factory` hook. The wrapper runs five completed
+episodes on `near`, five on `intermediate`, and uses `original` for the
+remaining training episodes. The stage advances on episode completion.
+`curriculum.json` records the config fingerprints and, for each reset, the
+stage, scenario identity, starting positions, and whether the episode
+completed.
