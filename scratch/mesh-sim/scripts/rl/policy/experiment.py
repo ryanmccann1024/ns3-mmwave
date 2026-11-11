@@ -14,8 +14,16 @@ from scripts.rl.agents.config import validate_training_settings, PPO_FIELDS
 from scripts.rl.cli_common import MANIFEST_NAME, sha256_file, write_json
 from scripts.rl.env.config import read_action_profile
 from scripts.rl.env.selection import resolve_selection
-from scripts.rl.experiments.config import (_band, _check_keys, _int, _name, _scalar, _seed_list,
-                                           _string_array, _weight_array)
+from scripts.rl.experiments.config import (
+    _band,
+    _check_keys,
+    _int,
+    _name,
+    _scalar,
+    _seed_list,
+    _string_array,
+    _weight_array,
+)
 from scripts.rl.experiments.plan import COMPARISON_NAME, PLAN_NAME
 from scripts.rl.policy.evaluate import EVAL_MANIFEST_NAME, POLICY_NAMES
 from scripts.sim_support import find_mesh_root
@@ -212,8 +220,11 @@ def _train_args(matrix: dict, row: dict, sim_binary: str, out_dir: str,
     weights = ",".join(str(w) for w in row["reward_weights"])
     # argparse treats a comma-separated value beginning with '-' as another
     # option unless it is attached to the flag. Keep existing positive argv stable.
-    weight_args = (["--reward-weights=" + weights] if weights.startswith("-")
-                   else ["--reward-weights", weights])
+    weight_args = (
+        ["--reward-weights=" + weights]
+        if weights.startswith("-")
+        else ["--reward-weights", weights]
+    )
     args += ["--output-dir", out_dir, "--verbose", "0",
              "--observation-preset", row["observation_preset"],
              "--reward-components", ",".join(row["reward_components"]),

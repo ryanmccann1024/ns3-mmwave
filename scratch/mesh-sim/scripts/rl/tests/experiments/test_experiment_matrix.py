@@ -444,23 +444,32 @@ def test_existing_matrices_keep_their_policies(tmp_path):
     assert stub["evaluation"]["policies"] == ["model", "hold"]
 
 
-@pytest.mark.parametrize('weights', [[-4.0,2.0],[-1.0],[1.0,-.5]])
-def test_generated_reward_weights_reach_real_training_parser_without_launch(tmp_path,monkeypatch,weights):
+@pytest.mark.parametrize("weights", [[-4.0, 2.0], [-1.0], [1.0, -0.5]])
+def test_generated_reward_weights_reach_real_training_parser_without_launch(
+    tmp_path, monkeypatch, weights
+):
     """Exercise actual train.main parsing with training replaced by a recorder."""
     import sys
     from scripts.rl import train
-    data=_matrix_data(_run_ini(tmp_path))
-    data['rows']=[{**data['rows'][0],
-                  'reward_components':['delivery_ratio','connectivity'][:len(weights)],
-                  'reward_weights':weights}]
-    matrix=experiment.load_matrix(_write_matrix(tmp_path,data))
-    step=experiment.build_plan(matrix,tmp_path/'out',SIM_BINARY)['steps'][0]
-    captured=[]
-    def record(*args,**kwargs):
+
+    data = _matrix_data(_run_ini(tmp_path))
+    data["rows"] = [
+        {
+            **data["rows"][0],
+            "reward_components": ["delivery_ratio", "connectivity"][: len(weights)],
+            "reward_weights": weights,
+        }
+    ]
+    matrix = experiment.load_matrix(_write_matrix(tmp_path, data))
+    step = experiment.build_plan(matrix, tmp_path / "out", SIM_BINARY)["steps"][0]
+    captured = []
+
+    def record(*args, **kwargs):
         captured.append(args[6].reward_weights)
-        return 'not-a-model'
-    monkeypatch.setattr(train,'train_mppo',record)
-    monkeypatch.setattr(sys,'argv',['train',*step['args']])
-    assert train.main()==0
-    assert list(captured[0])==weights
-    assert not list((tmp_path/'out').rglob('train_manifest.json'))
+        return "not-a-model"
+
+    monkeypatch.setattr(train, "train_mppo", record)
+    monkeypatch.setattr(sys, "argv", ["train", *step["args"]])
+    assert train.main() == 0
+    assert list(captured[0]) == weights
+    assert not list((tmp_path / "out").rglob("train_manifest.json"))

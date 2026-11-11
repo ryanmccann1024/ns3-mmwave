@@ -419,8 +419,8 @@ def checkpoint_optimizer_digest(zip_path) -> str:
     return _optimizer_state_digest(state)
 
 
-def checkpoint_counters(zip_path) -> dict:
-    """Read the saved SB3 counters and state presence from a model ZIP (read-only)."""
+def checkpoint_counters(zip_path, *, require_updates: bool = True) -> dict:
+    """Read SB3 counters and state presence, allowing older models to omit updates."""
     try:
         with zipfile.ZipFile(zip_path) as archive:
             names = set(archive.namelist())
@@ -433,6 +433,9 @@ def checkpoint_counters(zip_path) -> dict:
     for key in ("num_timesteps", "_n_updates"):
         value = data.get(key)
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            if key == "_n_updates" and not require_updates:
+                counters[key] = None
+                continue
             raise BundleError(
                 f"{zip_path} data.{key} is not a non-negative integer: {value!r}"
             )
