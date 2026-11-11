@@ -42,6 +42,23 @@ fails with pytest output; its files are confined to pytest's temporary paths.
 | `test_real_binary.py`: `test_building_bypass_fixture_geometry` | Built binary and building fixture → scripted hold/movement produces expected LOS and positions. |
 | `test_real_binary.py`: `test_lifecycle_train_inspect_evaluate_in_fresh_processes` | Built binary and fixture → train, inspect, and evaluate in separate processes with verified artifacts and completed episodes. |
 
+`test_checkpoint_recovery_support.py` covers after-update checkpoints,
+continuation options and model digests/bindings. Real-PPO cases drive `train`
+against `fake_sim.py` ("fake simulator") or optimize a tiny in-process masked
+stub env ("stub env"); ZIPs are generated under `tmp_path`. Cases needing
+`sb3_contrib` skip without it.
+
+| Test | Input → expected output |
+| --- | --- |
+| `test_post_update_callback_milestones_counters_and_file_fields` | Stub model → saves only after updates at cumulative milestones; `post_update_checkpoints.json` fields and counters. |
+| `test_after_update_schedule_rejects_misaligned_budgets` | Cadence/rollout/episode/budget/restored-step combinations → misaligned schedules refused, never extended. |
+| `test_existing_argv_parses_with_unchanged_defaults`, `test_cli_refuses_invalid_options_before_any_output` | Existing `train` argv → unchanged defaults; continuation combined with resume flags, `--continue-model` without `--continue-from-run-dir`, misaligned after-update options, zero decisions per episode → refused before any output. |
+| `test_decisions_per_episode_mismatch_fails_before_training` | Fake simulator with 2 decisions per episode, assertion 4 → refused before any update. |
+| `test_after_update_training_and_continuation` | Fake simulator → fresh after-update run, then a `final`-model continuation to a larger cumulative budget. |
+| `test_optimizer_digest_survives_save_load_and_changes_after_a_step`, `test_checkpoint_counters_reads_without_loading` | Stub env → optimizer digest stable across save/load and changed by a step; parameter digest equals the online algorithm's; ZIP counters read without loading. |
+| `test_bound_checkpoint_accepts_original_bytes_and_refuses_changes` | Checkpoint of an interrupted attempt read through its binding → accepted with original bytes; changed manifest, ZIP, counters or optimizer → refused. |
+| `test_curriculum_schedule_trains_and_records_hashes` | Fake simulator → curriculum env trains; the manifest pins the schedule and stage INIs. |
+
 Recovery checks in `test_policy_lifecycle.py` interrupt real SB3 training driven
 by the fake simulator, verify checkpoint records before failure, then restore
 optimizer state and continue from step 16 to cumulative step 24. They also

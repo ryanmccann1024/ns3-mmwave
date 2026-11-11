@@ -15,7 +15,7 @@ specified in `src/rl/policy-inputs.md`. Read those before changing anything here
   contract signature differs is a protocol error, and the original spaces stay.
 - `episode.py` -- `EpisodeSession`: one simulator subprocess per `reset`
   (`--rl-mode --seed --output-dir=<root>/episode-NNN`), a stderr tail, a stdout
-  drain thread on close. `episode_artifacts.py` owns manifests and sidecars. Every exit path must leave no child
+  drain thread on close. `recording/artifacts.py` owns manifests and sidecars. Every exit path must leave no child
   process or reader thread; tests assert this.
 - `protocol.py` -- `CentralizedProtocol` validate every
   message (contract `mesh_move_2d_v2`, facts `mesh_facts_v2`, window sums,
@@ -23,19 +23,28 @@ specified in `src/rl/policy-inputs.md`. Read those before changing anything here
   never coerce.
 - `mission_protocol.py` -- validates native mission metadata and decision facts.
 - `state/mission.py` -- reconstructs arrival, dwell, and recovery across decisions.
-- `observations/` -- presets `raw_links_v1` (default, float64) and
+- `observations/__init__.py` -- presets `raw_links_v1` (default, float64) and
   `local_links_v1` (float32, normalized to RL bounds); `observation_schema` +
   `schema_sha256`; `check_schema` raises on structural fields, warns on
   `node_ids` / `slot_node_ids`.
-- `rewards/` -- components `delivery_ratio`, `connectivity`,
+- `rewards/__init__.py` -- components `delivery_ratio`, `connectivity`,
   `throughput_mbps`, `legacy`; `RewardComposer` sums only components whose
   window is valid.
 - `selection.py` -- `RlSelection`, resolved CLI > `run.ini [rl]` > default, with
   a per-key `source`. Presets and components validate their own parameters.
-- `telemetry.py` -- optional `steps.jsonl` writer and replay (`TELEMETRY_VERSION`).
+- `recording/telemetry.py` -- optional `steps.jsonl` writer and replay (`TELEMETRY_VERSION`).
 - `config.py` -- `run.ini` readers (seed, bounds, action profile, control mode,
   scenario identity SHA-256s). Must follow the C++ INI conventions, including
   inline comments and `nodes_file` resolved relative to `run.ini`.
+- `rewards/`, `observations/`, `state/` and `recording/` group calculations,
+  feature layouts, observable history and artifact writing. See `README.md` for
+  the file map. No phase-named aliases remain. Public IDs and descriptor hashes
+  remain unchanged; internal filenames are not saved-policy identifiers.
+- `geometry.py` (route/swept-segment/physical audit), `curriculum.py`
+  (training-only start curriculum, `CurriculumEnv` env_factory hook) and
+  `seeded_env.py` (`SeededEnv`, a fresh `MeshRlEnv` per reset seed with a
+  required `initial_seed`) are pure env support: no bundle loading, no
+  `policy.compat` import, no batch code.
 
 ## Invariants
 
@@ -47,8 +56,13 @@ specified in `src/rl/policy-inputs.md`. Read those before changing anything here
 - Changing a preset's features, dtype, or normalization changes the schema hash
   and breaks saved-model compatibility (`policy/compat.py`). Add a new `_vN`
   preset instead of editing an existing one.
-- `mesh_env` / `episode` / `protocol` changes need `tests/test_mesh_env.py` and,
-  against a fresh build, `tests/test_real_binary.py` (see `../tests/CLAUDE.md`).
+- Registration order, component/preset IDs, descriptor text and context field
+  lists are saved identities (`tests/env/test_registry_identity.py` and
+  `tests/fixtures/registry_identity.json`). A source rename must not change
+  them; never regenerate the fixture to hide a change. Historical context keys
+  such as `phase3_eligible` stay.
+- `mesh_env` / `episode` / `protocol` changes need `tests/env/test_mesh_env.py` and,
+  against a fresh build, `tests/integration/test_real_binary.py` (see `../tests/CLAUDE.md`).
 
 - Observation descriptors own layout, bounds, compatibility dependencies, and allowed
   normalization fields. Reward descriptors own calculation, parameters, required
@@ -58,8 +72,8 @@ specified in `src/rl/policy-inputs.md`. Read those before changing anything here
   Resolved parameters must reach schemas/hashes, manifests, model checks, and
   replay. Replay uses saved inputs and parameters, never current defaults or
   precomputed reward scores.
-- `episode_artifacts.py` coordinates optional decision sidecars; settings belong
-  to `decision_settings.py`, record construction/persistence to `decisions.py`.
+- `recording/artifacts.py` coordinates optional decision sidecars; settings belong
+  to `recording/settings.py`, record construction/persistence to `recording/decisions.py`.
   Preserve the frozen v1/v2 schemas and pins. Capture failures cannot stop inference.
 - Keep simulator `legacy_reward` and the `legacy` reward component; neither is
   obsolete control compatibility. Decisions continue during warmup; zero scored

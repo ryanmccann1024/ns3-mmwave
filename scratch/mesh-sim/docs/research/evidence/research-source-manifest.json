@@ -1,0 +1,2578 @@
+{
+  "indexed_on": "2026-10-20",
+  "slide_numbering": "1-based presentation order, including hidden slides",
+  "method": "Read-only ZIP/XML extraction of native text, speaker notes, and slide relationships; selected embedded figures inspected; not a full slide render review.",
+  "sources": [
+    {
+      "id": "R01",
+      "relative_path": "Spring 2026/03-20 Simulator Overview.pptx",
+      "sha256": "2cfc47158b5b69fe377133e17fc70c05fd184a00fa649971e3eb5c494b466b34",
+      "slide_count": 29,
+      "slides_with_notes": 7,
+      "hidden_slides": [
+        29
+      ],
+      "slides_without_native_text": [
+        15,
+        19,
+        21,
+        23,
+        24,
+        25
+      ],
+      "slides": [
+        {
+          "slide": 1,
+          "title": "Simulator Overview",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 2,
+          "title": "Contents – ns3",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 3,
+          "title": "What is ns3?",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 4,
+          "title": "Abstractions of ns3",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 5,
+          "title": "Node",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 6,
+          "title": "Application",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 7,
+          "title": "Channel",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 8,
+          "title": "Network Device",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 9,
+          "title": "Topology Helpers",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 10,
+          "title": "First Demo (myfirst.cc)",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 11,
+          "title": "Track With pcap",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 12,
+          "title": "Resources",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 13,
+          "title": "What About a Wireless Network?",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 14,
+          "title": "Second Demo (mythird.cc)",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 15,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 16,
+          "title": "What About mmWave?",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 17,
+          "title": "ns3 vs. ns3-mmWave vs. NYUSim",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 18,
+          "title": "ns3-mmWave",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 19,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 20,
+          "title": "ns3-mmWave Cont.",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 21,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 22,
+          "title": "Simulation Example",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 23,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 3,
+          "chart_count": 0
+        },
+        {
+          "slide": 24,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 25,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 26,
+          "title": "Next Steps",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 27,
+          "title": "ns3-Gym",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 28,
+          "title": "Notes",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 29,
+          "title": "Tutorial",
+          "hidden": true,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        }
+      ]
+    },
+    {
+      "id": "R02",
+      "relative_path": "Spring 2026/03-26 ns3 Continued.pptx",
+      "sha256": "738649eba061ab3c6cf874a8ce5d8b0a8761e8ecdcb7adaad688ae8842317a94",
+      "slide_count": 73,
+      "slides_with_notes": 30,
+      "hidden_slides": [],
+      "slides_without_native_text": [
+        11,
+        16,
+        17,
+        23,
+        31,
+        34,
+        39,
+        40,
+        41,
+        42,
+        45,
+        46,
+        48,
+        60,
+        62,
+        64,
+        66,
+        67,
+        68,
+        69
+      ],
+      "slides": [
+        {
+          "slide": 1,
+          "title": "Ns3-mmWave Continued",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 2,
+          "title": "Contents",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 3,
+          "title": "1. Vanilla ns3",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 4,
+          "title": "1. Vanilla ns3",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 5,
+          "title": "1.1 What is ns3?",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 6,
+          "title": "1.2 How does a packet move through ns3?",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 7,
+          "title": "1.2 How does a packet move through ns3?",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 8,
+          "title": "1.2 How does a packet move through ns3?",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 9,
+          "title": "1.2 How does a packet move through ns3?",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 10,
+          "title": "1.2 How does a packet move through ns3?",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 11,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 12,
+          "title": "Not Coveredhttps://www.nsnam.org/docs/models/html/index.html",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 13,
+          "title": "2. ns3-mmWave",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 14,
+          "title": "2. ns3-mmWave",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 15,
+          "title": "2.1 LENA",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 16,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 17,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 18,
+          "title": "2.2 Channel Models",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 19,
+          "title": "Quick Refresher",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 20,
+          "title": "2.2.1 3GPP Statistical Channel Model – 3GPPCM",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 21,
+          "title": "2.2.1 3GPPCM – Path Losssrc/propagation/model/three-gpp-propagation-loss-model",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 22,
+          "title": "Terrains & Probabilities of LOS/NLOS",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 23,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 24,
+          "title": "RMa",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 25,
+          "title": "RMa Cont.",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 26,
+          "title": "UMi “Street Canyon” and UMa",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 27,
+          "title": "UMi/UMa Cont.",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 28,
+          "title": "InH – Mixed & Open Office",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 29,
+          "title": "InH – Mixed & Open Office Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 30,
+          "title": "O2I Loss",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 31,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 32,
+          "title": "Small-scale Fading",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 33,
+          "title": "Small-scale Fading Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 34,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 35,
+          "title": "Blockage",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 36,
+          "title": "2.2.2 Ray-Tracing Channel Model",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 37,
+          "title": "2.2.3 NYU Statistical Channel & Differences",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 38,
+          "title": "2.2.3 Differences Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 39,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 4,
+          "chart_count": 0
+        },
+        {
+          "slide": 40,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 41,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 42,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 43,
+          "title": "2.3 Physical Layer",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 44,
+          "title": "2.3 Physical Layer Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 45,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 46,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 47,
+          "title": "2.4 Mac Layer",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 48,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 49,
+          "title": "2.4 Mac Layer Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 50,
+          "title": "3. Scenarios & Demo",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 51,
+          "title": "3. Scenarios & Demo",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 52,
+          "title": "3.1 New Functionality",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 53,
+          "title": "3.1 New Functionality Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 54,
+          "title": "3.2 Scenarios & Assumptions",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 55,
+          "title": "3.2 Scenarios & Assumptions Cont.",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 56,
+          "title": "3.2 Scenarios & Assumptions Cont.What would we lose from each?",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 57,
+          "title": "3.2 Scenarios & Assumptions – Scenario 1",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 58,
+          "title": "3.2 Scenarios & Assumptions – Scenario 2",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 59,
+          "title": "3.2 Scenarios – Output",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 60,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 61,
+          "title": "3.2 Scenarios – Output Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 62,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 63,
+          "title": "3.2 Scenarios – Output Cont.",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 64,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 65,
+          "title": "3.3 Visual Demo & Graphs",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 66,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 67,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 68,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 69,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 70,
+          "title": "Demo/Visual",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 71,
+          "title": "Future Work",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 72,
+          "title": "Summary",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 73,
+          "title": "Questions/Notes",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        }
+      ]
+    },
+    {
+      "id": "R03",
+      "relative_path": "Spring 2026/04-02 mmWave Mesh.pptx",
+      "sha256": "b89bb90880bfd8cf6da10109e889d84638e6f49587c0dd9cdc3d6c0c3ca6dde5",
+      "slide_count": 30,
+      "slides_with_notes": 12,
+      "hidden_slides": [],
+      "slides_without_native_text": [
+        6,
+        15,
+        18
+      ],
+      "slides": [
+        {
+          "slide": 1,
+          "title": "mmWave Mesh Simulation",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 2,
+          "title": "Contents",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 3,
+          "title": "1. Review",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 4,
+          "title": "1.1 What Has Been Completed?",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 5,
+          "title": "1.2 Issue with ns3-mmWave",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 6,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 7,
+          "title": "1.3 Potential Next Steps",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 8,
+          "title": "2. Solution",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 9,
+          "title": "2.1 New Bootstrap",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 10,
+          "title": "2.2 Walkthrough/Assumptions",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 11,
+          "title": "2.2 Walkthrough/Assumptions Cont.",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 12,
+          "title": "2.2 Walkthrough/Assumptions Cont.",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 13,
+          "title": "2.2 Walkthrough/Assumptions Cont.",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 14,
+          "title": "2.2 Walkthrough/Assumptions Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 15,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 3,
+          "chart_count": 0
+        },
+        {
+          "slide": 16,
+          "title": "2.2 Walkthrough/Assumptions Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 17,
+          "title": "2.2 Walkthrough/Assumptions Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 18,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 19,
+          "title": "2.2 Walkthrough/Assumptions Cont.",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 20,
+          "title": "2.2 Walkthrough/Assumptions Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 21,
+          "title": "2.2 Walkthrough/Assumptions Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 22,
+          "title": "2.2 Walkthrough/Assumptions Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 23,
+          "title": "2.2 Walkthrough/Assumptions Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 24,
+          "title": "2.2 Walkthrough/Assumptions Cont.",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 25,
+          "title": "2.3 Modeling",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 26,
+          "title": "2.4 Verification",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 27,
+          "title": "3. New Functionality",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 28,
+          "title": "4. Scenarios",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 29,
+          "title": "5. Next Steps/Questions",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 30,
+          "title": "Summary",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        }
+      ]
+    },
+    {
+      "id": "R04",
+      "relative_path": "Spring 2026/04-30 Corruption.pptx",
+      "sha256": "66b6de474d9e8733dc36e90d124b3d67279e22485e6db8a957fca53690d125d5",
+      "slide_count": 2,
+      "slides_with_notes": 0,
+      "hidden_slides": [],
+      "slides_without_native_text": [],
+      "slides": [
+        {
+          "slide": 1,
+          "title": "Corruption",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 2,
+          "title": "Data Overview",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        }
+      ]
+    },
+    {
+      "id": "R05",
+      "relative_path": "Spring 2026/05-06.pptx",
+      "sha256": "763ba0bf47d24a8e3ad661947cc34c462401bf8090808faefac5c991aeda5eb4",
+      "slide_count": 8,
+      "slides_with_notes": 1,
+      "hidden_slides": [],
+      "slides_without_native_text": [],
+      "slides": [
+        {
+          "slide": 1,
+          "title": "Simulation Setup",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 2,
+          "title": "Simulation Setup Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 3,
+          "title": "Results",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 4,
+          "title": "Results Cont.",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 5,
+          "title": "Results",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 6,
+          "title": "Results",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 7,
+          "title": "Next Steps",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 8,
+          "title": "Notes",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        }
+      ]
+    },
+    {
+      "id": "R06",
+      "relative_path": "Spring 2026/Potential Modeling Techniques.pptx",
+      "sha256": "117750d60715f69e6638e2a5a92005ac48f3207c32d8fd6edd5cc9328964c69e",
+      "slide_count": 21,
+      "slides_with_notes": 10,
+      "hidden_slides": [
+        20
+      ],
+      "slides_without_native_text": [
+        4,
+        6,
+        13,
+        16
+      ],
+      "slides": [
+        {
+          "slide": 1,
+          "title": "Modeling Techniques",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 2,
+          "title": "Contents",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 3,
+          "title": "Free-space path loss (FSPL) [1]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 4,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 5,
+          "title": "Log-distance path loss [3]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 6,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 7,
+          "title": "LoS Probability",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 8,
+          "title": "LoS Probability",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 9,
+          "title": "LoS Probability",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 4,
+          "chart_count": 0
+        },
+        {
+          "slide": 10,
+          "title": "LoS Probability",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 11,
+          "title": "SNR, SINR, and AWGN [2]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 5,
+          "chart_count": 0
+        },
+        {
+          "slide": 12,
+          "title": "Path Loss vs. Fading",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 13,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 14,
+          "title": "Rayleigh vs. Rician Fading",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 15,
+          "title": "Shadowing (medium scale)",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 16,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 17,
+          "title": "Antenna Gain Modeling [4]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 18,
+          "title": "NYUSIM and ns-3",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 19,
+          "title": "Other Effects",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 20,
+          "title": "High-Level Simulation",
+          "hidden": true,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 21,
+          "title": "References",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        }
+      ]
+    },
+    {
+      "id": "R07",
+      "relative_path": "Summer 2026/05-14 Update.pptx",
+      "sha256": "d8e60a8d9c63a37d5e3822c5e99b13263a245c8b1c7eedf280700158176a1323",
+      "slide_count": 25,
+      "slides_with_notes": 12,
+      "hidden_slides": [],
+      "slides_without_native_text": [
+        7,
+        9,
+        10,
+        11,
+        12,
+        16,
+        17,
+        18,
+        19,
+        20,
+        22,
+        23
+      ],
+      "slides": [
+        {
+          "slide": 1,
+          "title": "Simulator Update",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 2,
+          "title": "Contents",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 3,
+          "title": "Data Analysis",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 4,
+          "title": "Data Analysis Cont.",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 5,
+          "title": "Data Analysis Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 6,
+          "title": "Data Analysis Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 7,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 8,
+          "title": "Data Analysis Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 9,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 10,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 11,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 12,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 13,
+          "title": "Simulation Setup",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 14,
+          "title": "Simulation Setup Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 15,
+          "title": "Validation Sweep",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 16,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 17,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 18,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 19,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 20,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 21,
+          "title": "Validation Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 22,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 23,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 24,
+          "title": "Summary",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 25,
+          "title": "Notes",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        }
+      ]
+    },
+    {
+      "id": "R08",
+      "relative_path": "Summer 2026/June-16-2026.pptx",
+      "sha256": "881263198897f5a98062172af3cedaa665fe310f2cb3015034af07f0a8bbe739",
+      "slide_count": 14,
+      "slides_with_notes": 0,
+      "hidden_slides": [],
+      "slides_without_native_text": [
+        6,
+        7,
+        8
+      ],
+      "slides": [
+        {
+          "slide": 1,
+          "title": "June 16th Update",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 2,
+          "title": "Slides Contents",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 3,
+          "title": "Config Settings",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 4,
+          "title": "Jeddoc Sim w/ Jeddoc Config",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 5,
+          "title": "Problem Nodes",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 6,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 7,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 8,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 9,
+          "title": "Calfex Data w/ Jeddoc Config",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 10,
+          "title": "Better Config",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 11,
+          "title": "2025-05-14",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 12,
+          "title": "2025-05-15",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 13,
+          "title": "2025-05-16",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 14,
+          "title": "Summary",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        }
+      ]
+    },
+    {
+      "id": "R09",
+      "relative_path": "Summer 2026/June-23-2026.pptx",
+      "sha256": "63f9128e5d3bf893999409ee9456db555cd2744a33a51b041a43b7738e4e6b24",
+      "slide_count": 12,
+      "slides_with_notes": 0,
+      "hidden_slides": [],
+      "slides_without_native_text": [
+        5,
+        7,
+        9,
+        11
+      ],
+      "slides": [
+        {
+          "slide": 1,
+          "title": "June 23, 2026 Update",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 2,
+          "title": "Preface",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 3,
+          "title": "Config ran for:",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 4,
+          "title": "1420-1430",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 5,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 6,
+          "title": "1446-1458",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 7,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 8,
+          "title": "1538-1545​",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 9,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 10,
+          "title": "1635-1656",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 11,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 12,
+          "title": "Summary",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        }
+      ]
+    },
+    {
+      "id": "R10",
+      "relative_path": "Fall 2026/9-11 ARPO Weekly Update.pptx",
+      "sha256": "5a8cf8d2f9141068adf0d9480d8aca02f9de6dc0ea1cf123260bab5235938eb7",
+      "slide_count": 14,
+      "slides_with_notes": 0,
+      "hidden_slides": [],
+      "slides_without_native_text": [
+        5
+      ],
+      "slides": [
+        {
+          "slide": 1,
+          "title": "09/11/26 Weekly Meeting Presentation",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 2,
+          "title": "Preface",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 3,
+          "title": "Slide Contents",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 4,
+          "title": "Current Timeline",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 5,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 6,
+          "title": "Interference Model",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 7,
+          "title": "Example Scenario",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 3,
+          "chart_count": 0
+        },
+        {
+          "slide": 8,
+          "title": "[channel]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 9,
+          "title": "Heatmap Mean Results",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 10,
+          "title": "Histogram Comparison of I25",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 11,
+          "title": "Interference Model Review",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 12,
+          "title": "Literature Review – Revisited",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 13,
+          "title": "GUI Additions",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 14,
+          "title": "Reinforcement Learning Experiments",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        }
+      ]
+    },
+    {
+      "id": "R11",
+      "relative_path": "Fall 2026/09-18 ARPO Weekly Update.pptx",
+      "sha256": "5ef73ec91c713c75c082e536b6c392fdabac6cea68505f0cd1904cfca0135573",
+      "slide_count": 19,
+      "slides_with_notes": 5,
+      "hidden_slides": [
+        7
+      ],
+      "slides_without_native_text": [
+        7,
+        8,
+        11,
+        13,
+        14
+      ],
+      "slides": [
+        {
+          "slide": 1,
+          "title": "09-18 ARPO Weekly Update",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 2,
+          "title": "Contents",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 3,
+          "title": "Literature  Review",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 4,
+          "title": "Experiment Plan",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 5,
+          "title": "New Additions – RL Experiments",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 6,
+          "title": "P0 – Establish Baseline Results",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 7,
+          "title": "[no native text]",
+          "hidden": true,
+          "has_notes": true,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 8,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 9,
+          "title": "P1 – Centralize Multi-node Control",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 10,
+          "title": "P1 – Centralize Multi-node Control",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 11,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 12,
+          "title": "P2 – Observations, Rewards, & Telemetry",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 2,
+          "chart_count": 0
+        },
+        {
+          "slide": 13,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 14,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 15,
+          "title": "P3 – Policy lifecycle",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 16,
+          "title": "P4/5 – Comparisons, Experiments, & SLURM",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 17,
+          "title": "Future Work",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 18,
+          "title": "Questions/Notes",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 19,
+          "title": "Summary",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        }
+      ]
+    },
+    {
+      "id": "R12",
+      "relative_path": "Fall 2026/09-25 ARPO Weekly Update.pptx",
+      "sha256": "8149ab457a98fe48a088358760293966567e899e447a7ed85d3b26c6e3e35c5d",
+      "slide_count": 12,
+      "slides_with_notes": 0,
+      "hidden_slides": [],
+      "slides_without_native_text": [],
+      "slides": [
+        {
+          "slide": 1,
+          "title": "09-25 ARPO Weekly Update",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 2,
+          "title": "Contents",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 3,
+          "title": "Last Week's Deliverables",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 4,
+          "title": "Simulation Setup – 5 Scenarios300 Episodes, 1 seed",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 5,
+          "title": "Simulation Setup Cont.",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 6,
+          "title": "Reinforcement Learning Assumptions",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 7,
+          "title": "RL Assumptions Cont.",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 8,
+          "title": "Results",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 9,
+          "title": "Results Cont. – Takeaways",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 10,
+          "title": "Next Week’s Tasks",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 11,
+          "title": "Summary",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 12,
+          "title": "Notes",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        }
+      ]
+    },
+    {
+      "id": "R13",
+      "relative_path": "Fall 2026/10-02 ARPO Weekly Update.pptx",
+      "sha256": "8a6ce2d50ed6af2dd839fbf06f8f70987a1794a3bc4bd6ef4cafe684dbbc1ae3",
+      "slide_count": 15,
+      "slides_with_notes": 6,
+      "hidden_slides": [
+        5
+      ],
+      "slides_without_native_text": [
+        5
+      ],
+      "slides": [
+        {
+          "slide": 1,
+          "title": "10-02 ARPO Weekly Update",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 2,
+          "title": "Contents",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 3,
+          "title": "Last Week’s Deliverables",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 4,
+          "title": "Baselines",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 5,
+          "title": "[no native text]",
+          "hidden": true,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 6,
+          "title": "Baselines Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 7,
+          "title": "Baselines Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 8,
+          "title": "Baselines Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 9,
+          "title": "Simulation Setup",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 10,
+          "title": "Simulation Setup Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 11,
+          "title": "Demo w/ GUI",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 12,
+          "title": "Result Summary",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 13,
+          "title": "Result Summary Cont.",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 14,
+          "title": "Next Week’s Tasks/Notes",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 15,
+          "title": "Summary",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        }
+      ]
+    },
+    {
+      "id": "R14",
+      "relative_path": "Fall 2026/10-09 ARPO Weekly Update.pptx",
+      "sha256": "51c6761183ebddb0cf5a0080f72841b9fa4639d2f4d2edf54c029586ce8993f3",
+      "slide_count": 13,
+      "slides_with_notes": 3,
+      "hidden_slides": [
+        9
+      ],
+      "slides_without_native_text": [
+        8,
+        9
+      ],
+      "slides": [
+        {
+          "slide": 1,
+          "title": "10-09 ARPO Weekly Update",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 2,
+          "title": "Contents",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 3,
+          "title": "Last Week’s Deliverables",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 4,
+          "title": "Baselines Update",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 5,
+          "title": "Simulation Setup",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 6,
+          "title": "Simulation Setup Cont.",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 7,
+          "title": "Reward Functions and PPO Settings",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 8,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 1,
+          "chart_count": 0
+        },
+        {
+          "slide": 9,
+          "title": "[no native text]",
+          "hidden": true,
+          "has_notes": true,
+          "image_count": 5,
+          "chart_count": 0
+        },
+        {
+          "slide": 10,
+          "title": "Result Summary",
+          "hidden": false,
+          "has_notes": true,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 11,
+          "title": "GUI Demo",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 12,
+          "title": "Summary",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        },
+        {
+          "slide": 13,
+          "title": "Next Week’s Tasks/Notes",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        }
+      ]
+    },
+    {
+      "id": "R15",
+      "relative_path": "Fall 2026/10-23 ARPO Weekly Update.pptx",
+      "sha256": "b45d53040ab400461b553420c9b30047e28746a170026aefda9e4e2350fe5245",
+      "slide_count": 1,
+      "slides_with_notes": 0,
+      "hidden_slides": [],
+      "slides_without_native_text": [
+        1
+      ],
+      "slides": [
+        {
+          "slide": 1,
+          "title": "[no native text]",
+          "hidden": false,
+          "has_notes": false,
+          "image_count": 0,
+          "chart_count": 0
+        }
+      ]
+    }
+  ],
+  "provenance": {
+    "generated_for": "mesh-sim-research-handoff",
+    "upstream_manifest_filename": "research-sources.json",
+    "upstream_manifest_sha256": "d0535aec3b3542bd87054297b173ae7bd72b39bbcbf604250a4d286430b37583",
+    "upstream_transcript_filename": "research-slide-text.md",
+    "upstream_transcript_sha256": "5a7dd36b52a0265c403917cf8b0ead3b19a291cf870e2778d8d64542b616cd37",
+    "normalized_transcript_filename": "research-slide-text.txt",
+    "normalized_transcript_sha256": "8510945bc3c53b74514dd689685c99145395c7a1df0c8367f0355cebd052abf3",
+    "removed_fields": [
+      "path"
+    ],
+    "normalization_notes": [
+      "Removed each source entry's absolute 'path' field; all other upstream fields and values are unchanged.",
+      "The companion transcript research-slide-text.txt is the upstream research-slide-text.md with only its 15 source-location header lines rewritten to the manifest relative_path values; all other bytes are unchanged."
+    ],
+    "original_decks_bundled": false,
+    "original_decks_shared_location": "unassigned"
+  }
+}

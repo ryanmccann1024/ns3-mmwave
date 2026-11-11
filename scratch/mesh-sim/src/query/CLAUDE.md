@@ -25,7 +25,7 @@ children through `TopologyBuilder` + `LinkEvaluator`, results on stdout. Contrac
   simulator change stays visible to clients.
 - Stdout carries only NDJSON: the child redirects its stdout to stderr and answers through its pipe.
 - Drain the child pipe while it runs, reap every child, and terminate/kill/reap on deadline.
-- Never serialise NaN/inf; report them as a layout error.
+- Never serialize NaN/inf; report them as a layout error.
 - Request-level errors keep the worker serving; only `shutdown`/EOF (exit 0) or a broken stdout
   (exit 1) end it.
 

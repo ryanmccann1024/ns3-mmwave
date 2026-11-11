@@ -1,61 +1,230 @@
 @page Contributing Contributing
 
-Start with the [main README](@ref index) for setup and the
-[RL bridge contract](@ref src_rl) for centralized control. Keep generated
-outputs, trained models, large regression snapshots, and local virtual
-environments out of Git. Add a focused test only when it checks behavior the
-existing tests do not cover; the [RL test map](@ref scripts_rl_tests)
-shows the current coverage and inputs/outputs.
+This page lists what to update together when you change user-visible behavior,
+the current saved-file schema versions, and the checks to run. Start with the
+[main README](@ref index) for setup and the [RL bridge contract](@ref src_rl)
+for centralized control.
 
-Before changing a user-visible behavior, check the affected layers:
+## 1\. Update together
+
+Before changing a user-visible behavior, update every layer in its row:
 
 | Change | Update together |
 | --- | --- |
-| `run.ini` or CLI option | Loader, resolution/validation, [documented options](README.md#centralized-multi-node-control), example, and one valid/invalid configuration check. |
+| `run.ini` or CLI option | Loader, resolution/validation, [run.ini options](@ref src_config_run_ini_reference), [CLI options](@ref src_cli), example, and one valid/invalid configuration check. |
 | RL action, observation, mask, cadence, or reward semantics | C++ bridge and simulator loop, Python protocol/environment, [contract](src/rl/README.md), focused fake-simulator and real-binary checks. |
 | Placement engine or query contract | Component/strategy owners, settings/hash, C++ query owners, client/fake worker, [engine workflow](scripts/baselines/planners/README.md), query units and real-binary checks. |
 | Placement seeds, penalties or provenance | INI/CLI owner, preparation and seed-role preflight, runtime identity, baseline artifacts, examples, and a fake-worker check. |
 | Comparison metrics | `policy/metrics.py` registry, evaluation writer, comparison JSON/CSV, schema versions, tests and fetch include rules. Keep initial relocation separate from scored travel. |
-| Training or episode output | Writer, any reader, [output layout](README.md#where-output-lands), and a test of the changed fields. |
-| Scenario identity | `read_scenario_identity` in `scripts/rl/env/config.py`, saved training manifest, relevant tests, and the [identity description](src/rl/README.md#saved-scenario-identity). |
+| Training or episode output | Writer, any reader, [output layout](@ref readme_where_output_lands), and a test of the changed fields. |
+| Scenario identity | `read_scenario_identity` in `scripts/rl/env/config.py`, saved training manifest, relevant tests, and the [identity description](@ref src_rl_saved_scenario_identity). |
+| Batch matrix (version 2) field, kind requirement, path rule, task kind, task-key dimension or output destination | `scripts/rl/experiments/config.py` or `plan.py`, the plan version if the plan payload changes, `test_matrix_v2.py`, the public example under `inputs/experiments/examples/`, and the [batch reference](@ref mesh_sim_rl_batch_reference). |
+| `experiment.py`, `run-experiments.sh`, `operate.py` or `train.py m-ppo` flag, default or exit code | Parser, launcher normalization if it is a path flag, the [batch reference](@ref mesh_sim_rl_batch_commands) and [scripts/rl](@ref scripts_rl) flag tables, and a CLI test. Compare documentation with actual `--help`. |
+| Operation mode, online protocol default, schedule, replay-gate or reward-audit method, selection rule | Its policy or `experiments/selection.py` owner, the record version beside it, `test_operation.py`/`test_online_protocols.py`/`test_matrix_v2.py`, and the [protocol](@ref mesh_sim_rl_batch_protocols), [schedule](@ref mesh_sim_rl_batch_schedules) and [selection](@ref mesh_sim_rl_batch_selection) sections. Never merge the two online protocols. |
+| Batch receipt, task or batch state, binding, runtime identity or recovery rule | `scripts/rl/ops/` and `policy/bundle.py` bindings, their versions, scheduler/recovery tests, and the [states](@ref mesh_sim_rl_batch_states) and [resume](@ref mesh_sim_rl_batch_resume) sections. |
+| Batch scenario index (`mission_scenario.json` version 4) or online manifest fields | The producer (`experiments/reporting.py`, `policy/operation.py`), producer contract fixtures, and the companion reader in the sibling `ns3-mmwave-viz` repository (`src/lib/batchMissionIndex.ts`) with its tests and docs. Keep every legacy reader branch. |
+| Reward/observation registry module, order or descriptor | `env/rewards/`/`observations/` registration, `tests/fixtures/registry_identity.json` (never regenerated to hide a change), saved-model loading test, and [policy inputs](@ref src_rl_policy_inputs). |
+| `inputs/baselines/01-static-los-baseline/`, default output layout, root `VERSION`, CI configure line in `.github/workflows/mesh-sim.yml`, `run.log` Resolved-config fields or `flows.csv` columns/format | The getting-started pages [Install and build](@ref mesh_sim_install_build), [Your first run](@ref mesh_sim_first_run), [Understand the result](@ref mesh_sim_first_result) and [Change one setting](@ref mesh_sim_change_one_setting), which quote build commands, binary names, scenario values, output file names and field formats. |
 
-The C++/Python `contract` name (`mesh_move_2d_v2`) describes the wire and
-action meaning. Change it for incompatible protocol semantics or layout, not
-for a refactor that preserves behavior. A saved JSON `manifest_version`
-describes a file's schema: increment the *relevant* version when fields or
-their meanings change, then update writers, readers, examples, and tests.
-Currently `train_manifest.json` uses version 7;
-`rl_episode.json` uses version 6, including scored tick counts and a consistent
-pre-handshake failure schema. `eval_manifest.json` uses version 8 for scored
-metrics, mission outcomes, initial relocation and planning seed roles. Comparison JSON uses
-version 2 and validates the evaluation version and scoring metadata. Baseline
-manifest/plan and plan fingerprints use version 3; mapping JSON uses version 2.
-Existing outputs must be regenerated rather than relabeled. Telemetry uses version 3
-for resolved input parameters and movement-context inputs; experiment plans use
-version 2 for resolved parameter identities. Versions do not
-increment for each run. The SHA-256
-fields in `scenario_identity` are file fingerprints, not schema versions;
-change them only by changing the corresponding input files or the identity
-definition.
+## 2\. Versioning rules
 
-For a protocol or simulator change, run the small Python contract suite,
-the C++ configuration tests, and the real-binary integration checks listed
-in the [test map](@ref scripts_rl_tests) against a fresh build. Record
-any known platform limitation; matching results on one platform do not prove
-cross-platform bit-for-bit equality.
+| Identifier | Describes | Change it when |
+|---|---|---|
+| `contract` name (`mesh_move_2d_v2`, C++ and Python) | The wire format and action meaning. | Protocol semantics or layout change incompatibly. A refactor that keeps behavior does not change it. |
+| A saved JSON `manifest_version` | That file's schema. | Its fields or their meanings change. Increment only the relevant version, then update writers, readers, examples and tests. |
+| SHA-256 fields in `scenario_identity` | Fingerprints of input files (not schema versions). | The corresponding input files or the identity definition change. |
 
-Keep CLI modules to parsing and delegation. Configuration belongs beside its
-domain owner; preparation, child lifecycle, artifacts, and runtime provenance
-have separate owners. Use the shared artifact I/O implementation instead of
-copying helpers into scripts. New planner modules must enter the automatic
-code identity; test Python defaults against the actual C++ configuration loader.
-Keep optimizer, channel-planning, training, selection and evaluation seeds
-separate. An explicit overlap override marks diagnostics, not held-out results.
-See the [placement walkthrough](scripts/baselines/walkthrough.md) for the full
-zero-cost/penalized workflow and the limits of planner predictions.
+- Versions do not increment per run.
+- Regenerate existing outputs after a version change; do not relabel them.
+- Navigation, team, `coordination_v1` and `deployment_gate` extensions are
+  versioned inside the unchanged `mesh_move_2d_v2` wire contract.
 
-Training version 7 records all PPO settings and the full validation seed set.
-Episode version 6 adds optional jammer-motion metadata and configurable
-progress persistence. Evaluation version 8 records mission metrics alongside
-coverage, service, safety and delayed-jammer metrics. Unavailable optional
-measurements remain null and are omitted from paired comparisons.
+## 3\. Current schema versions
+
+### Core outputs
+
+| File or schema | Version | Contents |
+|---|---|---|
+| `train_manifest.json` | 7 | All PPO settings and the full validation seed set. |
+| `rl_episode.json` | 6 | Scored tick counts, a consistent pre-handshake failure schema, optional jammer-motion metadata, and configurable progress persistence. |
+| `eval_manifest.json` | 8 | Scored metrics, initial relocation, planning seed roles, coverage, service, safety and delayed-jammer metrics. Optional: mission outcomes, survivor service, failure accounting, final-minute service/coverage, survivor outage, post-failure movement, team arrival and collision-attempt metrics. Unavailable optional measurements are `null` and are left out of paired comparisons. |
+| Comparison JSON | 2 | Validates the evaluation version and scoring metadata. |
+| Telemetry | 3 | Resolved input parameters and movement-context inputs. |
+| Experiment plans (`experiment_plan_version`) | 2 (matrix version 1), 3 (matrix version 2 batches) | Version 2: resolved parameter identities. Version 3 (`EXPERIMENT_PLAN_VERSION` in `experiments/plan.py`): task graph, SHA-256 task keys over fixed dimensions, destinations, argument lists and hashed inputs (`experiments/plan.py`). Version 2 plans are read unchanged and never rewritten with extra fields. |
+| Online operation manifest (`online_experiment_version`) | 3, 4 (legacy, historical meaning below); 5 (batch operations) | Saves the optional evaluation measurements above. **3:** standalone `scripts.rl.online` with exactly the default mode tuple `('fixed_sampled', 'online')` in default order. **4:** any other standalone mode subset or order (with a `modes` list), **and** the gated online protocol written by the Phase 2, Phase 3 and Phase 8 runners. Version 4 alone therefore does not identify the protocol, and old version 4 files are never relabeled as a verified protocol without evidence from their original writer. **5:** written by `policy/operation.py` (`ONLINE_MANIFEST_VERSION`) for batch operations, with required `protocol` (`frozen_deterministic`, `frozen_sampled`, `online_gated_v1`, `online_sb3_v1`), settings, parent/model/optimizer identities, seed role, schedule metadata where applicable, update/tail accounting and relative evaluation references. The standalone CLI keeps its 3/4 envelope. Readers: the GUI's legacy branch accepts 2–4; version 5 is read only through batch scenario-index references by the companion GUI reader (`ns3-mmwave-viz` `src/lib/batchMissionIndex.ts`, `BATCH_ONLINE_VERSION`). |
+| Episode `event_timing.json` | 1 | The checked fixed jammer interval and whether the actual command was verified. |
+| `deployment_gate` extension | 1 | Opt-in; scenarios with the default of zero emit no extension. |
+
+### Batch runner
+
+Written for matrix version 2 batches. Constants live beside their writers (the
+constant name is given for each row; every number below was checked against
+its constant on 2026-10-29); the contracts are in the
+[batch reference](@ref mesh_sim_rl_batch_reference).
+
+| File or schema | Version | Writer / reader |
+|---|---|---|
+| Matrix (`matrix_version`) | 1, 2 | Input. Version 1 read by `policy/experiment.py` (unchanged); version 2 (`MATRIX_V2_VERSION`) by `experiments/config.py`, including placement and per-row configuration extensions (placement baselines, `rows[].configs`, `checks[].applies_to`, operation candidates, `source_checkpoint`, `configs_scope`, `decision_record_seeds`, and replay `comparison`/`parent`/`case`/`contact_audit`) within version 2. Plan v3 keeps its existing payload and key dimensions; replay identities use `operation_digest` and `model_source`. |
+| Runtime identity (`runtime_identity_version`, `runtime_identity.json`) | 1 (`RUNTIME_IDENTITY_VERSION`) | Writer/reader `ops/batch_identity.py`. Written once; pins plan, matrix, inputs, parent models, binary, non-test `scripts/**/*.py`, package versions and registry descriptor digests. |
+| Step receipt (`batch_step_version`, `state/steps/<task-key>.json`) | 1 (`BATCH_STEP_VERSION`) | Only the scheduler (`ops/local.py`) writes, through `ops/batch_receipts.py`; recovery and status read. |
+| Model binding (`model_binding_version`, `state/bindings/*.json`) | 1 (`MODEL_BINDING_VERSION`) | `policy/bundle.py` `bind_model` (writer, called by the scheduler) and `read_bound_checkpoint` (reader); write-once. |
+| Recovery proposal (`batch_recovery_version`, `state/recovery/<proposal-id>.json`) | 1 (`BATCH_RECOVERY_VERSION`) | `ops/recovery.py`. Not the Phase 9 `recovery_plan.json` schema, which it never reads. |
+| `campaign_status.json` (`campaign_version`) | 2 for batch roots (`CAMPAIGN_VERSION`) | `ops/local.py`. State, counts, incomplete/blocked lists, execution, invocations and receipt pointers. Legacy campaign statuses (version 1 rows below) remain readable data. |
+| Shared resource pool (`resource_pool_version`, `<pool>/pool.json`) | 1 (`RESOURCE_POOL_VERSION`) | `ops/local.py`. Records the pool capacity; a batch declaring another capacity is refused. |
+| `mission_scenario.json` (scenario index) | 4 for batch roots (`MISSION_SCENARIO_VERSION`) | `experiments/reporting.py`. Explicit relative references to models, baselines (placement entries add an optional `planning`) and evaluations, with per-entry `config` INI records. GUI reader: companion `batchMissionIndex.ts`; the existing v1–3 branch is unchanged. |
+| Selection receipt (`selection_receipt_version`) | 1 (`SELECTION_RECEIPT_VERSION`) | `experiments/selection.py`; evidence from `experiments/reporting.py` `selection_evidence`. |
+| `check_result.json` (`check_result_version`) | 1 (`CHECK_RESULT_VERSION`) | `policy/operation.py` (writer and `check_result_passed` reader). |
+| `replay_gate.json` | 2 (`REPLAY_GATE_VERSION`; reader accepts 1 and 2) | `policy/replay_gate.py`; case, verified parent, compatibility, boundary audit and jammer-timing evidence. |
+| Reward audit | 1 (`REWARD_AUDIT_VERSION`) | `policy/reward_audit.py`. |
+| Frozen schedules (`coverage_execution.json`) | 1 (`SAMPLING_SCHEDULE_VERSION`, `COVERAGE_SCHEDULE_VERSION`) | `policy/schedules.py`; the 30 s qualification, 5 s relapse and service thresholds are part of the coverage schedule version. |
+| `post_update_checkpoints.json` | 1 (`POST_UPDATE_CHECKPOINTS_VERSION`) | `agents/post_update.py` (also used by the historical Phase 8 package). |
+| `training_curve_sources.json` | 1 (`TRAINING_CURVE_SOURCES_VERSION`) | `experiments/reporting.py`; payload key `training_curve_version`. No completion-status field. |
+| `phase_comparison.json` | 1 (`PHASE_COMPARISON_VERSION`) | `experiments/reporting.py`. |
+| Reward summary (`reward_comparison.{csv,json}`) | 1 (`REWARD_SUMMARY_VERSION`) | `experiments/reporting.py`; keeps the retired campaign summary's metric meanings; not a ranking across unrelated rewards. |
+
+Train, evaluation, episode, telemetry, review, comparison, history and
+checkpoint payloads keep their versions when batch metadata lives in wrappers
+and receipts. `train_manifest.json` gains optional `checkpoint_timing`,
+`decisions_per_episode`, `curriculum` and `continuation` keys only when the
+matching `train.py` option is used; its version is unchanged.
+
+### Placement baselines
+
+| File or schema | Version | Notes |
+|---|---|---|
+| `baseline_manifest.json`, `baseline-plan.json`, plan fingerprints | 3 | See [scripts/baselines](@ref scripts_baselines). |
+| Mapping JSON | 2 | |
+| Placement engine settings | 2 with optional outdoor probe domains or physical constraints; 1 for unconstrained rectangular requests | The settings version enters the settings hash. |
+
+### Campaigns and GUI output (historical)
+
+These rows document saved artifacts from the retired research runners. Their
+files remain readable data; new batches use the supported schemas above.
+The numbered runner packages were removed; the [batch reference](@ref mesh_sim_rl_batch_retired)
+explains the supported replacements.
+
+| Files | Version | Notes |
+|---|---|---|
+| Checks-only campaign, status and report | 1 | Written beside evaluation version 8 artifacts. |
+| Correction campaign | 2 | Supports an explicit subset of cases and optional omission of placement benchmarks. Version 1 campaigns keep their 24-case / 168-episode inventory. |
+| Phase 1 input, status and report | 1 | |
+| `phase-four.json`, campaign status, `phase_four_report.json` | 1 | Reports keep nested variant/baseline diagnostics; the visualizer accepts the report identity. Historical artifact; the current contract is in the batch reference. |
+| `phase-five.json`, status, report | 1 | Historical artifact; the current contract is in the batch reference. |
+| `mission_scenario.json` | 3 | Adds source-phase tags. Batch roots write version 4 (see Batch runner). |
+| `phase_comparison.json` (optional) | 1 | Source-hashed recorded Phase 1–4 diagnostic summaries for narrow-folder GUI comparisons. Historical metrics are not rerun or pooled. |
+| `phase-six.json`, campaign status, `phase_six_report.json` | 1 | Historical artifact; the current contract is in the batch reference. |
+| `phase-eight.json`, package campaign status, per-job results, `post_update_checkpoints.json`, `coverage_execution.json` | 1 | Historical artifact; the current contract is in the batch reference. |
+| `phase-nine.json`, Phase 9 status, per-track results, report, native gate and curve-source inventory | 1 | Historical artifact; the current contract is in the batch reference. Existing training/evaluation/index schemas are unchanged. |
+| Phase 9 `recovery_plan.json` | 1 | Explicit restart ownership, checkpoint/source pins, archived partial tracks and retained completed results. Optional result/curve provenance distinguishes repeated tails from accepted checkpoint history. |
+| GUI scenario index | 2 (Phase 1), 3 (Phase 6 and Phase 8) | The scenario index is `main/<case>/mission_scenario.json`; these are the versions the historical writers produced. Batch reporting writes version 4 (Batch runner table); the plan calls it "scenario index v4". |
+| Comparison history | 1 | |
+| `mission_review.json` | 1 | |
+
+### Descriptor identities
+
+- `mission_compact_v1` and the new reward descriptors have their own schema
+  identities. Historical presets and components, and the native wire, are
+  unchanged.
+- The Phase 5 arrival fraction has its own descriptor identity.
+- `coordination_v1` reward and observation descriptors declare optional
+  Python-derived facts: current/history measurements, phase/dwell and
+  completed-action feedback. They are appended after native validation, only
+  for selections that opt in. Native facts, masks and old schema hashes are
+  unchanged. New history sequences and decomposed rewards are replayed
+  independently in tests.
+
+### Behavior notes tied to these versions
+
+- Directed explicit traffic validates ordered duplicates.
+- Investigation secondary target ranges extend to zero in both the native and
+  Python validators, with no change to the wire shape.
+- `control_start_s` is loaded, validated, logged, mirrored in the fake and
+  Python protocol, and covered by user-run native configuration/deployment
+  checks.
+- Phase 8 diagnostics reconstruct available-peer radio connectivity from native
+  links, not from the investigation-only mission flag.
+- The optional campaign checkpoint callback in `policy/training.py` keeps
+  default callers working and performs no validation during training.
+- Phase 8 leaves model and evaluation manifest versions and reward/observation
+  meanings unchanged.
+- The functional renames of the former `phase3`–`phase7` environment files leave
+  every reward/observation ID, descriptor, registration order and schema hash
+  unchanged (`tests/fixtures/registry_identity.json`).
+
+## 4\. Checks to run
+
+For a protocol or simulator change, run these against a fresh build (listed in
+the [test map](@ref scripts_rl_tests)):
+
+1. The small Python contract suite.
+2. The C++ configuration tests.
+3. The real-binary integration checks.
+
+Record any known platform limitation. Matching results on one platform do not
+show bit-for-bit equality on others.
+
+Add a focused test only when it checks behavior the existing tests do not
+cover; the [RL test map](@ref scripts_rl_tests) shows current coverage with
+inputs and outputs.
+
+## 5\. Code ownership
+
+- Keep CLI modules to parsing and delegation.
+- Put configuration beside its domain owner. Preparation, child lifecycle,
+  artifacts and runtime provenance each have their own owner.
+- Use the shared artifact I/O implementation; do not copy helpers into scripts.
+- New planner modules must be included in the automatic code identity.
+- Test Python defaults against the actual C++ configuration loader.
+- Keep optimizer, channel-planning, training, selection and evaluation seeds
+  separate. An explicit overlap override marks results as diagnostics, not
+  held-out results.
+- Keep generated outputs, trained models, large regression snapshots and local
+  virtual environments out of Git.
+
+The [placement guide](@ref mesh_sim_placement_start) runs both cost settings
+and shows the limits of planner predictions.
+
+## 6\. Pull requests
+
+Use the repository's [PR template](https://github.com/ryanmccann1024/ns3-mmwave/blob/develop/.github/pull_request_template.md).
+Write for someone who has not followed the implementation conversation. A small
+change may need only a paragraph and its validation results; a larger change
+needs enough context to explain the behavior and the important tradeoffs.
+
+- **Title:** use the Conventional Commit format from `CLAUDE.md`,
+  under 72 characters. Name the resulting behavior or responsibility.
+- **Branch:** use a purpose-based prefix such as `feat/`, `fix/`, `refactor/`
+  or `docs/`, followed by a short description. Name the responsibility rather
+  than the author, tool or private experiment phase.
+- **Summary:** start with the concrete problem and what changes for the user.
+  Use a short before/after example when it helps. Add a few bullets for distinct
+  changes; avoid a file inventory, implementation diary or repeated checklist.
+- **Validation:** list actual checks and results, including commands or a short
+  reproduction where useful. Distinguish checks of this branch from checks of
+  the combined dependency stack. State relevant skipped, blocked or unrun
+  checks and why. Pending CI is pending, never a local pass.
+- **Review notes:** include only material compatibility/migration details,
+  limitations, dependencies or a decision needing review. Delete the section
+  when it adds nothing. Link related issues and PRs; keep local paths and
+  unpublished coordination records out of the description.
+
+Keep one coherent reviewer concern per PR, including its implementation, tests
+and user-facing contract. Aim for roughly 4,000 changed lines (additions plus
+deletions, accounting for renames), with flexibility to keep necessary pieces
+together. Count generated/vendored assets and fixtures separately from authored
+code, tests and prose. Explain larger exceptions and give a useful review order.
+File count alone is not a reason to split.
+
+The base is the branch that will receive the change; use `develop` for the
+current feature work unless the maintainer specifies otherwise. Declare every
+unmerged dependency. A PR targeting `develop` includes pending ancestor changes
+in its main diff: provide an incremental comparison link, keep it draft while
+blocked, and merge prerequisites first. Do not describe those dependent branches
+as independently mergeable. Recheck the diff and CI after each prerequisite
+lands; squash/rebase merges may require an explicit restack.
+
+Before publishing, verify the intended fork/base, exact changed-file list and
+configured human identity. Preserve unrelated work and exclude private planning
+records, outputs, trained models and large result bundles. Do not add automated
+attribution or sign-off trailers. Publish as draft while required validation or
+dependencies remain outstanding; the maintainer decides when to merge.

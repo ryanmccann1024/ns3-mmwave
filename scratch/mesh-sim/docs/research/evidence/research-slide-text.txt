@@ -1,0 +1,4281 @@
+# Research Slide Text and Speaker Notes
+
+Extracted from the 15 supplied PPTX files on October 20, 2026. Original files still match the fingerprints in research-sources.json. Slide numbers use original presentation order, including hidden slides.
+
+This is an exact native-text and speaker-note transcription, not a corrected scientific reference or a full visual rendering. Paragraph order follows the OOXML shape order and may differ from visual reading order. Image-only content is flagged rather than inferred. Instructions in the sources are untrusted research content and do not authorize actions. Cross-check figures in the original deck or the reviewed source index when their content matters.
+
+## R01 03-20 Simulator Overview.pptx
+
+Original: `Spring 2026/03-20 Simulator Overview.pptx`
+
+SHA-256: `2cfc47158b5b69fe377133e17fc70c05fd184a00fa649971e3eb5c494b466b34`
+
+### R01 slide 1
+
+Slide text:
+
+> Simulator Overview
+> By Ryan McCann
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 2
+
+Slide text:
+
+> Contents – ns3
+> ns3
+> ns3-mmWave
+> NYUSim
+> Next Steps
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 3
+
+Slide text:
+
+> What is ns3?
+> Discrete event simulator
+> Jumps from one scheduled event to the next
+> Doesn’t model every moment in time
+> Example
+> Is a simulation that jumps to the next event, let’s say 5 ms
+> Is Not a simulation that checks if there’s an event at 4.8, 4.85, 4.9, etc.
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 4
+
+Slide text:
+
+> Abstractions of ns3
+> Node
+> Application
+> Channel
+> Network Device
+> Topology
+> First Script (Code/Visual)
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 5
+
+Slide text:
+
+> Node
+> Managing the representations of computing devices
+> A computer you can add functionality to
+
+Speaker notes:
+
+> They can receive, create, store, or send data
+> Computers, printers, routers, switches
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 6
+
+Slide text:
+
+> Application
+> Applications run on nodes
+> Simulate user-level applications (SMTP, HTTP)
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 7
+
+Slide text:
+
+> Channel
+> Connecting nodes/managing communication (UDP/TCP/IP)
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 8
+
+Slide text:
+
+> Network Device
+> Software driver and simulator hardware
+> Installed in a Node to communicate with others via channels
+> A node can connect to several channels with different net devices
+> E.g., WiFi and Ethernet work on a laptop
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 9
+
+Slide text:
+
+> Topology Helpers
+> Manage Nodes, NetDevices, and Channels
+> IP addresses, MAC addresses, protocol stack, etc.
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 10
+
+Slide text:
+
+> First Demo (myfirst.cc)
+
+Speaker notes:
+
+> Don’t forget about the transmission delay (d / s)
+> We only set the propagation delay
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 11
+
+Slide text:
+
+> Track With pcap
+> pointToPoint.EnablePcapAll("myfirst");
+> <name>-<node>-<device>.pcap
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 12
+
+Slide text:
+
+> Resources
+> Docs: https://www.nsnam.org/docs/doxygen/index.html
+> There’s also the manual and model library
+> https://www.nsnam.org/docs/release/3.47/manual/html/index.html
+> https://www.nsnam.org/docs/release/3.47/models/html/index.html
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 13
+
+Slide text:
+
+> What About a Wireless Network?
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 14
+
+Slide text:
+
+> Second Demo (mythird.cc)
+
+Speaker notes:
+
+> Don’t forget about the transmission delay (d / s)
+> We only set the propagation delay
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 15
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 16
+
+Slide text:
+
+> What About mmWave?
+> ns3-mmWave
+> NYUSim
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 17
+
+Slide text:
+
+> ns3 vs. ns3-mmWave vs. NYUSim
+> ns3 is a network simulator with IP/UDP/TCP/WiFi protocols
+> ns3-mmWave is ns3 w/ a mmWave module
+> NYUSim is another simulator, realistic channel model
+> Ns3-mmWave uses the exact same channel model as NYUSim
+> But…NYUSim can also plug-in to ns3
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 18
+
+Slide text:
+
+> ns3-mmWave
+> PHY and MAC layer implementation of mmWave Cellular
+> With several channel options
+> Same used in NYUSim
+> Why do we care about the channel?
+> Channel modifies the signal
+> We can model terrains, probability of Line of Sight (LOS) and Not LOS (NLOS)
+
+Speaker notes:
+
+> Rough Notes:
+> It has the ability to incorporate real measurements
+> It’s a new module in ns3, but they include all of ns3 (I forget which version) on their GitHub
+> Would be good to reference this paper saying
+> The channel model is fundamental to every wireless simulation
+> It must account for NLOS and LOS for the propagation loss and fading
+> Beamforming should be applied on top of the channel to accurately model directional transmissions
+> The Doppler Effect is highly relevant
+> Mobility affects the performance of beam tracking algorithms
+> It’s important to model the protocol stack of the mmWave links
+> Implements custom PHY and MAC layers with existing LTE/EPC protocols (LTE comes from LENA some other module)
+> McUeNetDevice seems really important
+> Says LTE and mmWave, can I just select mmWave?
+> Definitely look into MmWaveEnbMac and MmWaveUeMac
+> Can calculate interference, SINR, and MI (mutual information) based error (This is the packet error probability)
+> Channel model based on reference 29
+> Is this different than NYUSim? Do we need NYUSim?
+> They actually have different channel models, each with different computational complexity (more realistic, more computation)
+> Their pathloss model is based on reference 31
+> Small scale fading seems to be based on reference 31 and reference 53 (Which…Is 3D? But path loss they said is 2D?)
+> You can enable movement of the UE in the mmWave3gppChannel class it has a setting
+> Blockage can also be a feature in the 3gppChannel
+> Again, different models with different computation
+> Raytracing (which I’m really not as familiar with) is in mmwave/model/Raytracing
+> It’s possible to deploy deterministically or randomly objects of different sizes (mimic humans, cars, and buildings)
+> Again important: MmWavePropagationLossModel and BuildingsObstaclePropagationLossModel
+> They integrated hybrid and digital transceiver designs
+> These are loosely based on references 62 and 63 if I understand correctly
+> They also model interference, INR (interference to noise ratio)
+> You can even control what the mmWave PHY looks like (the frames/amount of symbols)
+> Should we mess with this?
+> PHY layer is where SINR is calculated, look in the PHY section for those functions
+> Same for beamforming gains (MIMO I guess?), and frequency selective fading
+> Also the error for packets being dropped are here I think based on the SINR
+> MAC layer again has their own classes, this is where the modulation coding happens
+> Main procedure is scheduling and controlling
+> MmWaveMiErrorModel is used mapping the CQI (What is CQI) to the coding scheme
+> AMC is implemented in MmWaveAmc class
+> the GetTbSizeFromMcsSymbols() and GetNumSymbolsFromTbsMcs() methods are used by the scheduler to compute the TB size from the number of symbols for a given MCS value, and vice versa.
+> The modulation coding scheme is related to the SINR
+> So, as SINR decreases (bad) the modulation level will lower
+> The HARQ reference is in [82], apparently used in LTE networks
+> They have different schedulers (which should we use? Do we care?)
+> SymPerSlot seems important?
+> Questions
+> In our case, do we need all of this? Remote host, PGW/SGW, eNodeB, and UE? What about our network?
+> What is soft combining? HARQ?
+> Can we remote like the LTE protocols or?
+> What is 3GPP exactly and why should we trust that?
+> What is the LTE LENA module?
+> It’s interesting, it’s 4G but says we can test design with 5G, meaning it’s not limited to LTE? What about in our case?
+> It sounds like it’s just a cellular mmWave module, what does this mean?
+> What is Time Division Duplexing?
+> A cluster is a combination of M = 20 rays? What does that mean?
+> I honestly think the channel model they have is based off of NYUSim’s channel model…It’s called the NYUStatistical Model
+> MAC/PHY protocols are a little hard to understand, also uplink and downlink?
+> What is RLC again and do we need this feature? Dual connectivity?
+> What is TTI again?
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 19
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 20
+
+Slide text:
+
+> ns3-mmWave Cont.
+> Includes:
+> Modulation format calculation automatically (AMC/MCS)
+> Motion
+> Buildings and Terrains
+> Along with several other parameters
+> Transmit power
+> Protocol details
+> Frequency
+> Data rate
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 21
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> They have 28 modulation coding schemes that range from
+> QPSK
+> 16/64-QAM
+> 64/256-QAM
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 22
+
+Slide text:
+
+> Simulation Example
+> Created the simulator with queries on:
+> What I wanted to do
+> The architecture/functionality
+> Checked every script/line
+> Created ns3-mmWave-viz
+> Rough draft visualization repo
+
+Speaker notes:
+
+> Simulator
+> Every link is more (I think) base station to end device
+> So, is that ok?
+> We can treat them as infrastructure nodes and endpoints or mobile agents
+> We could pretend mesh with multiple bases/end users I think
+> Also, I believe single hop
+> Works with 2D and 3D coordinates
+> Go over all the packets and columns
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 23
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 3 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 24
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 25
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 26
+
+Slide text:
+
+> Next Steps
+> Finalize a v0 simulator
+> Including RL
+> Understand end-to-end assumptions
+> Maybe not every protocol detail, but better than now
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 27
+
+Slide text:
+
+> ns3-Gym
+> TBD
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 28
+
+Slide text:
+
+> Notes
+> Test NYUSim and ns3-mmwave
+> Run a 3D simulation
+> Run without the visualization tool
+> How much better?
+> What resources do we need to run this?
+> Do we need NYUSim?
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R01 slide 29 [hidden]
+
+Slide text:
+
+> Tutorial
+
+Speaker notes:
+
+> Tutorial
+> Configure all the attributes
+> Located in mmWaveAttributesList file in the module repository
+> Second step, setup MmWaveHelperobject
+> This provides the methods to create the entities involved in the simulation (channel related objects among others)
+> MmWavePointToPointEpcHelper
+> Third step, positions and velocities of the eNBs and UEs
+> Specified with MobilityHelper objects
+> Also, buildings and obstacles can be added
+> Buildings and BuildingsHelper objects
+> Misc. ns3
+> Several TCP versions are available
+> Fourth step, simulation can be run of course with the Simulator object of ns-3
+> Running a simulation
+> They ran with 1 GHz bandwidth
+> UEs have similar distances from the eNB and constant speeds of 25 m/s
+> First scenario, average arrival rate of 10 Mbps
+> 7 UEs simulated with 100 Mbps arrival rate per UE in the second scenario
+> Seems like we can play with the number of Ues and the sized packets, and lambda number of packets per second (Poisson)
+> My general notes
+> We can probably start with a single cell and then run with multiple cells? I don’t know
+> Probably want several of these things configurable, stats about modulation, etc.
+> A lot of overlap with FUSION
+> Probably want link utilization and all of that
+> Here is where I’ll have many questions about modeling (for example, power, packets per second, etc.)
+> We’ll probably use a lot of defaults which is fine, but be very clear what they are and why
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+## R02 03-26 ns3 Continued.pptx
+
+Original: `Spring 2026/03-26 ns3 Continued.pptx`
+
+SHA-256: `738649eba061ab3c6cf874a8ce5d8b0a8761e8ecdcb7adaad688ae8842317a94`
+
+### R02 slide 1
+
+Slide text:
+
+> Ns3-mmWave Continued
+> By Ryan McCann
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 2
+
+Slide text:
+
+> Contents
+> Review/Vanilla ns3
+> ns3-mmWave
+> In Detail
+> Scenarios & Demo
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 3
+
+Slide text:
+
+> 1. Vanilla ns3
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 4
+
+Slide text:
+
+> 1. Vanilla ns3
+> What is ns3? (Review)
+> How a packet moves through ns3
+> Not Covered
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 5
+
+Slide text:
+
+> 1.1 What is ns3?
+> A discrete event simulator
+> Classes with abstractions of:
+> Nodes – Host/router/base station
+> Applications – Traffic Generation
+> Channels – Modeling
+> NetDevices – NIC/Radio Interface
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 6
+
+Slide text:
+
+> 1.2 How does a packet move through ns3?
+> Core Classes (ns3 namespace)
+> Application – Creates and receives traffic
+> Stores socket, destination, packet size, and rate
+> Methods: Setup, StartApplication, SendPacket, ScheduleTx
+> Objects: Packet
+> UdpSocketImpl – Application-facing UDP socket
+> Uses socket-style calls
+> Methods: Bind, Connect, Send, SendTo, Recv, RecvFrom
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 7
+
+Slide text:
+
+> 1.2 How does a packet move through ns3?
+> UdpL4Protocol – Adds and removes the UDP header
+> Makes UDP sockets, hands to or receive from IP
+> Methods: CreateSocket, Allocate, Send
+> Ipv4L3Protocol – Decides to deliver to a node or forward
+> Main IPv4 stack object on a node, builds IPv4 packet and invokes routing
+> Methods: Receive, SendRealOut, IPForward, LocalDeliver
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 8
+
+Slide text:
+
+> 1.2 How does a packet move through ns3?
+> Ipv4Interface – IPv4-facing representation of a network device
+> Holds IPv4- addresses and interface state
+> Methods: Send, SetArpCache, SetMetric, SetForwarding
+> Ipv4EndPoint – Socket-binding record for UDP demux
+> Stores local address/port
+> Methods: SetLocalAddress, BindToNetDevice, SetRxCallback
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 9
+
+Slide text:
+
+> 1.2 How does a packet move through ns3?
+> PointToPointNetDevice – NetDevice Example
+> Takes the packet from IP and frames/queues it
+> Methods: TransmitStart, TransmitComplete, Receive (from link layer)
+> PointToPointChannel – Channel Example
+> Simulates a wire between two devices
+> Methods: Attach, TransmitStart, GetDevice
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 10
+
+Slide text:
+
+> 1.2 How does a packet move through ns3?
+> IPv4RoutingProtocol – Abstraction used by IPv4L3Protocol
+> Path selection only
+> Methods: RouteOutput, RouteInput
+> Packet – Data passes around
+> Application creates it, UDP/IP add headers, devices frame it, etc.
+> Methods: Create, AddHeader, RemoveHeader
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 11
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 12
+
+Slide text:
+
+> Not Coveredhttps://www.nsnam.org/docs/models/html/index.html
+> NetDevice Specifics
+> Topology Generation (BRITE)
+> Routing Protocols
+> Energy Modeling
+> Source, consumption, harvesting
+> Traffic Models
+> Flow Monitor
+> Protocol Performance
+> Protocol Specifics
+> TCP, IPv4/6, UDP, Wi-Fi
+> OpenFlow
+> Propagation Delay Models
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 13
+
+Slide text:
+
+> 2. ns3-mmWave
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 14
+
+Slide text:
+
+> 2. ns3-mmWave
+> LENA
+> Channel Models
+> Physical Layer
+> MAC Layer
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 15
+
+Slide text:
+
+> 2.1 LENA
+> They modified LENA to work for mmWave
+> Due to similarities in structure
+> Skipped details for now
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 16
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> PGW is the packet gateway
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 17
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> You do not need the LTE radio device unless you want it, you can just run with mmWave (mmWave channel model)
+> But upper-layer stuff is reused, for example RLC
+> RLC = Radio Link Control Layer, the layer between PDCP and MAC
+> Segmentation and reassembly of packets
+> Retransmission in ack mode
+> Buffering before MAC scheduling
+> PDCP = Packet Data Convergence Protocol, sits below IP
+> Packet/header handling before radio transmission
+> Sequence numbering
+> Duplicate detection
+> Handing packets down to RLC
+> Roughly moves like IP/app  PDCP  RLC  MAC  PHY
+> Link Layer is split into PDCP, RLC, MAC, major difference in Radio
+> Mac vs. Physical Layer Refresh
+> PHY: Deals with signals, SINR, beamforming, channel effects, interference, HARQ, transmit power
+> MAC: Packet scheduling, resource allocation, how much data, coordination with RLC
+> In simple terms MAC = scheduler/traffic controller and PHY = Radio hardware and air interference behavior
+> RLC  Here is data to send MAC  Send it in this slot with these resources  PHY transmit it over the mmWave channel
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 18
+
+Slide text:
+
+> 2.2 Channel Models
+> 3GPP Statistical Channel Model
+> Ray-Tracing Model
+> NYU Statistical Model
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 19
+
+Slide text:
+
+> Quick Refresher
+> Large-scale (Slow) fading
+> Path Loss & Shadowing
+> Small-scale (Fast) fading
+
+Speaker notes:
+
+> Path loss
+> Average drop in signal power as the Tx and Rx are further apart (smooth downward trend)
+> Shadowing
+> Adds slower ups and downs, coming from big objects like buildings, hills, walls, or blocking
+> Multipath / small-scale fading
+> Rapid fluctuations, the signal reaches the receiver along multiple paths, those copies add constructively or destructively causing fast variations
+> Although some would say shadowing is medium-scale fading
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 20
+
+Slide text:
+
+> 2.2.1 3GPP Statistical Channel Model – 3GPPCM
+> What is 3GPP?
+> 3rd generation partnership project
+> Global standards body
+> Defines how modern cellular networks work
+> 3G, 4G LTE, and 5G
+> 6-100 GHz band
+
+Speaker notes:
+
+> Mention relevant companies and universities
+> Intel, AT&T, Qualcomm
+> Mention that 3GPP is the default model, NYU Statistical model must be added separately
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 21
+
+Slide text:
+
+> 2.2.1 3GPPCM – Path Losssrc/propagation/model/three-gpp-propagation-loss-model
+> Pathloss model – Parameters in terrain distributions
+> ThreeGppUmaPropagationLossModel
+> Channel model – Probablistic or Deterministic LOS/NLOS
+> ThreeGppUmaChannelConditionModel (prob.)
+> BuildingsChannelConditionModel (det.)
+
+Speaker notes:
+
+> This leads into the pathloss and how it’s modeled for each scenario
+> Parameters change w.r.t. terrain
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 22
+
+Slide text:
+
+> Terrains & Probabilities of LOS/NLOS
+> Modeled for standardization
+> Companies: AT&T, Intel, NOKIA, Qualcomm, Samsung
+> Universities: NYU, Aalto University
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 23
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 24
+
+Slide text:
+
+> RMa
+> Rural deployment scenario
+> Large wide-open area with a tall base station
+
+Speaker notes:
+
+> Channel frequency of 7GHz
+> Means the radio wave is oscillating 7 billion cycles per second
+> Carrier is the main electromagnetic wave you ride your information on
+> Determine antenna size/distance it can travel ratio
+> So heights are fixed params but you are stuck within certain ranges (warning is printed for example if you model Rma and choose a HUT height higher than 10m)
+> I think, but have to double check, NYUSim is much more configurable
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 25
+
+Slide text:
+
+> RMa Cont.
+> Prob. of NLOS is just 1 – LOS
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 26
+
+Slide text:
+
+> UMi “Street Canyon” and UMa
+> UMi = Dense city with short base stations
+> UMa = City with tall base stations
+
+Speaker notes:
+
+> What does UT stand for?
+> - It’s a user terminal, same as UE so user equipment
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 27
+
+Slide text:
+
+> UMi/UMa Cont.
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 28
+
+Slide text:
+
+> InH – Mixed & Open Office
+> Open Office: Open space
+> Mixed office: Walls, rooms w/ items…
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 29
+
+Slide text:
+
+> InH – Mixed & Open Office Cont.
+
+Speaker notes:
+
+> I’d be curious what these are exactly?
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 30
+
+Slide text:
+
+> O2I Loss
+
+Speaker notes:
+
+> O2I = Outside to inside
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 31
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> I’m not too familiar with opt yet
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 32
+
+Slide text:
+
+> Small-scale Fading
+> Class
+> MmWave3gppChannel
+> Review
+
+Speaker notes:
+
+> Wireless channels vary over time
+> Also mentioned we already have propagation delay/large-scale fading
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 33
+
+Slide text:
+
+> Small-scale Fading Cont.
+> How do we simulate that?
+> Define a cluster (Channel Matrix ‘H’ = H1 + H2 + H3)
+> Rays that arrive at roughly similar times/angles (20)
+> E.g., Cluster 1 – Direct LOS, 2 – Building reflection, 3 – Ground bounce
+> Generate per-cluster (Faster)
+> Delay, Power, Cluster Angle
+> Per-ray
+> Angle (Cluster angle + offset), Phase (Random)
+
+Speaker notes:
+
+> Imagine an office building to the left of the UE
+> Bunch of rays bounce off it at roughly the same time/angle
+> That group of reflections is modeled as a cluster
+> A cluster is just a physical object or surface in the environment that causes a group of related reflections
+> The cluster center angle
+> Where that object is located w.r.t the UE
+> And then, each ray has a slight offset (lookup table)
+> Each terrain has a different amount of clusters roughly (real world measurements)
+> So, how many clusters and how spread out they are
+> They define each cluster as having 20 rays
+> They then build a channel matrix (H)
+> For each (Tx, Rx, cluster) combination, sum the 20 rays
+> Sometimes rays are constructive, other times destructive
+> H
+> A matrix of complex numbers
+> Accounts for the multipath roughly
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 34
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 35
+
+Slide text:
+
+> Blockage
+> Optional
+> But important for mmWave, can drop sharply
+> Based on angle of arrival, model blocks specific clusters
+> Self-blocking = your own body or hand blocks the phone’s antenna
+> Non-self-blocking = cars, people, trees, etc.
+> Angle dependent
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 36
+
+Slide text:
+
+> 2.2.2 Ray-Tracing Channel Model
+> Class
+> MmWaveChannelRaytracing
+> Not in the repo by default
+> Uses software-generated or measurement traces
+> E.g., WinProp
+
+Speaker notes:
+
+> Reference 54
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 37
+
+Slide text:
+
+> 2.2.3 NYU Statistical Channel & Differences
+> 3GPP
+> Standardization > Measurement
+> Agreed upon consensus model
+> 5G (0.5-100 GHz)
+> Fixed clusters
+> NYU
+> Measurement > Standardization
+> For mmWave experiments only
+> Dynamic/Realistic Clusters
+> Up to 150 GHz
+> Extremely customizable
+
+Speaker notes:
+
+> NYUSim also has drop based vs. spatial channel mode?
+> I can’t say I understand this fully either
+> I would say results vs 3GPP would be extremely helpful, not sure if they have them
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 38
+
+Slide text:
+
+> 2.2.3 Differences Cont.
+
+Speaker notes:
+
+> Unlike 3GPP, NYU Statistical Model has a two-tier decoupled structure
+> Time clusters: Groups of subpaths close in time
+> Spatial lobes: Groups of subpaths coming from similar directions
+> 3GPP is deterministic, NYU statistical channel is not
+> Comparisons in research say NYU statistical channel is generally more accurate
+> They also claim the number of clusters they put does not directly map to real-world measurements at mmWave bands
+> I still have to understand this clustering better
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 39
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> Try to explain all parameters
+> Maybe highlight the ones you configured
+
+Visual content: 4 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 40
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> Try to roughly understand each block
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 41
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> Remember this is at 28 GHz
+> Should try to explain each row?
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 42
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 43
+
+Slide text:
+
+> 2.3 Physical Layer
+> Time Division Duplexed (TDD)
+> Base Station (eNB) and UE share frequency, split time (UL/DL)
+> This is encoded in the subframe
+> Hybrid Automatic Repeat Request (HARQ)
+> Accept partially failed packets to save energy
+> Only take the Transport Block (TB) you need on retransmission
+
+Speaker notes:
+
+> Hybrid because it combines ARQ with FEC
+> Packet level transmit with forward error correction at the bit level
+> 
+> MAC schedules a TB on HARQ process #N (you have NumHarqProcesses=20)
+> PHY receives it → checks CRC → if fail, sends NACK back after PhyMacDataLatency=2 subframes
+> MAC schedules retransmission on same process #N
+> PHY combines old + new → tries decode again
+> After timeout (m_harqTimeout) the process is reset
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 44
+
+Slide text:
+
+> 2.3 Physical Layer Cont.
+> Classes
+> MmWavePhyMacCommon
+> Shared config object which holds everything from Table 1.
+> MmWaveEnbPhy
+> MmWaveUePhy
+> SetBeamformingVectorForDevice
+
+Speaker notes:
+
+> I don’t understand these classes fully but here is what’s relevant
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 45
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> Imagine the highway only lets cars travel in one direction at a time, and it resets every millisecond.
+> 
+> 1 ms (1 Frame)
+> |----|----|----|----|----|----|----|----|----|----|
+> SF1  SF2  SF3  SF4  SF5  SF6  SF7  SF8  SF9  SF10
+> SubframePerFrame = 10
+> The 1ms is divided into 10 equal slots called subframes
+> Like, 10 train departures per second
+> SubframeLength = 100 us
+> Each slot lasts 100 us (1ms / 10 = 100 us each)
+> 1 Subframe (100 µs)
+> |--1--|--2--|--3--| ...      |--23--|--24--|
+> DL   DATA  DATA          DATA   UL
+> CTRL                                CTRL
+> SymbolsPerSubframe = 24
+> Each 100 us subframe is cut into 24 tiny time slices called OFDM symbols
+> SymbolLength = 4.16
+> Each symbol lasts 4.16 us
+> NumDlCtrlSymbols = 1
+> First symbol allocated for tower (eNB) control
+> NumUlCtrlSymbols = 1
+> Last symbol reporting back, like how many symbols from UE to eNB
+> GuardPeriod = 4.16
+> Brief pause from switching to UL to DL communication
+> Frequency (The lanes on the highway)
+> NumSubbands = 72
+> The 1,000 lanes are grouped into 72 bundles (subbands). Easier to manage groups than lanes
+> SubbandWidth = 13.89 MHz
+> Each bundle is 13.89 MHz wide (72 * 13.89) = 1000 MHz or 1 GHz
+> SubcarriersPerSubband
+> Inside each bundle, there are 48 individual lanes (subcarriers)
+> CenterFreq = 6-100 GHz
+> Where on the radio spectrum your highway is located
+> Reference Subcarriers: Road Signs
+> NumRefScPerSymbol = 864 (25%)
+> Out of all lanes, 25% are not carrying user data, they carry known signals for channel quality estimation
+> Cross-Layer Delays: Processing Time
+> MacPhyDataLatency = 2
+> After the scheduler decides on resources, it takes 2 subframes before the actual transmission happens
+> PhyMacDataLatency = 2
+> After the radio receives the packet, it takes 2 subframes to decode it and hand it to the mac layer (processing time)
+> HARQ (Delivery confirmation)
+> NumHarqProcesses
+> Sending multiple packages at the same time with IDs, if one ID is bad resend that one not all 20
+> So, 20 packets almost in transmit at the same time
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 46
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> Design taken from reference [74]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 47
+
+Slide text:
+
+> 2.4 Mac Layer
+> Classes
+> MmWaveEnbMac
+> MmWaveUeMac
+> Adaptive Modulation and Coding (AMC)
+> Maps the channel quality index to a modulation coding scheme (MCS)
+> In classes: MmWaveMiErrorModel and MmWaveAmc (Two modes)
+> Probability packet was corrupted (CQI) and MCS based on SINR
+
+Speaker notes:
+
+> Touch again on how Enb is the base station and Ue is the user equipment/device
+> The two modes for mmWaveAmc are
+> Shannon model – theoretical upper bound, optimistic simple (I don’t understand it fully)
+> Error Model uses MmWaveLteMiErrorModel to find the highest MCS where BLER is acceptable, more realistic
+> CQI is the channel quality index
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 48
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> Briefly explain again how the symbols relate to the graph that I had shown before
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 49
+
+Slide text:
+
+> 2.4 Mac Layer Cont.
+> Schedulers
+
+Speaker notes:
+
+> Every scheduler internally holds a Ptr<MmWaveAmc> m_amc (visible in all four headers). Before ranking UEs, the scheduler asks AMC:
+> "given UE X's CQI, what MCS can we use, and how many symbols does it need to deliver its queued data?" That symbol count feeds
+> directly into the scheduling decision. So AMC and the scheduler are tightly coupled — the scheduler can't rank UEs without first
+> knowing their channel quality.
+> Mention that you didn’t dive into the RLC layer
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 50
+
+Slide text:
+
+> 3. Scenarios & Demo
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 51
+
+Slide text:
+
+> 3. Scenarios & Demo
+> New Functionality
+> Input/Output
+> Scenarios & Simulation Assumptions
+> Visual Demo & Graphs
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 52
+
+Slide text:
+
+> 3.1 New Functionality
+> Ability to switch between 3GPP and NYU channel models
+> Simulation run times w/ estimated end times
+> Plotting module
+> SINR
+> Network stats
+> Modulation tracking
+> Throughput
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 53
+
+Slide text:
+
+> 3.1 New Functionality Cont.
+> Customize channel updates
+> Channel update period – How often channel matrix updates
+> Condition update period – LOS/NLOS condition
+> Beamforming model – Algorithms used for beamforming weight
+> CQI Period Slots – How often channel quality indicator reports to eNB
+> AMC model – How to map SINR to MCS
+
+Speaker notes:
+
+> Channel update period
+> So for things like the multipath clusters, delays, complex gains
+> Condition update period
+> Every time we “reroll” the probabilistic LOS/NLOS calculation
+> Beamforming model
+> Svd is singular value decomposition, optimal beam weights and the most accurate
+> Dft is discrete fourier transform, points the beam in the geometric direction of the other node, fast and simple
+> Codebook is pre-computed beam patterns, search for the best beam match, fast per-call but limited
+> CQI Period Slots
+> Translates roughly to reports per second per UE
+> AMC model
+> Error, uses EESM (exponential effective SINR mapping) which has accurate throughput numbers
+> Accounts for MCS granularity, coding rate, and BLER targets
+> Shannon
+> Shannon capacity formula is simple and faster but probably not as accurate: C = BW * log2(1 + SINR)
+> Trace level
+> This is for ns3, how much per-packet data ns3 writes to trace files during simulation
+> Full, all traces
+> Minimal only PHY and RX traces with RLC stats
+> None tracks nothing
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 54
+
+Slide text:
+
+> 3.2 Scenarios & Assumptions
+> This models a cellular path (Remote host – Go back to the Fig.)
+> Not truly peer-to-peer
+> A UE must connect to a base station
+> Connects to the closest one at sim start, does not change (I believe)
+> Although, I found I could have base stations move
+> Not sure how this affects the sim end-to-end (it has a P2P link…)
+> Set the Remote host link to accept 100 Gbps to not interfere
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 55
+
+Slide text:
+
+> 3.2 Scenarios & Assumptions Cont.
+> Are there other modules for Sidelink
+> Still have to look more thoroughly
+> Millicar – Models only vehicles
+> WigGig – Not familiar
+> Sionna – Not familiar
+> mmMesh – Not familiar
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 56
+
+Slide text:
+
+> 3.2 Scenarios & Assumptions Cont.What would we lose from each?
+> ns3
+> IP networking stack
+> Mobility framework
+> Buildings/obstacle modeling
+> Packet-level simulation
+> ns3-mmwave
+> PHY & MAC layers
+> Beam management
+> Adaptive MCS / HARQ
+> RLC
+> Multi-cell mmWave interference
+> 3GPP
+
+Speaker notes:
+
+> - How much does each layer effect a positioning algorithm?
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 57
+
+Slide text:
+
+> 3.2 Scenarios & Assumptions – Scenario 1
+> Scenario
+> Warmup (60s)
+> Skipped
+> Duration (480s)
+> Scenario (RMa)
+> Atmospheric Loss (enabled)
+> Foliage loss (None)
+> 60m height, 250m spread
+> Assumed
+> Frequency (28 GHz), Tx power (30 dBM)
+> Rf Bandwidth (800 MHz)
+> Pressure
+> Humidity
+> Temperature
+> Packet size (1400 B)
+> Inter packet arrival (11.2 Mbps)
+
+Speaker notes:
+
+> What is Rf Bandwidth?
+> Total bandwidth of the radio signal, how wide a slice of the radio spectrum a link uses, centered at 28 GHz in our scenario
+> So, 27.6 to 28.4 GHz since we +- 400 MHz
+> Wider bandwidth, more data will flow per second
+> Up to 400 MHz per component carrier
+> Affects the channel matrix size and the number of multipath clusters/subpaths
+> So at 1000 us or 1 ms, sends one 1400 pyte packet
+> 11.2 Mbps offered load
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 58
+
+Slide text:
+
+> 3.2 Scenarios & Assumptions – Scenario 2
+> Scenario
+> Warmup (60s)
+> Skipped
+> Duration (600s)
+> Cut to 300s, 1 seed some IP bug (module?)
+> Scenario (RMa)
+> Atmospheric Loss (enabled)
+> Foliage loss (None)
+> 60m height, 50m spread
+> Velocity of 5 m/s
+> Assumed
+> Frequency (28 GHz), Tx power (30 dBM)
+> Rf Bandwidth (800 MHz)
+> Pressure
+> Humidity
+> Temperature
+> Packet size (1400 B)
+> Inter packet arrival (11.2 Mbps)
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 59
+
+Slide text:
+
+> 3.2 Scenarios – Output
+> RxPacketTrace.txt
+> Per-packet PHY reception log
+> Row is written every time the receiver receives a TB
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 60
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 61
+
+Slide text:
+
+> 3.2 Scenarios – Output Cont.
+> DlRlcStats.txt & ULRlcStats.txt
+> RLC (Radio Link Control) layer
+> Throughput statistics over time windows
+
+Speaker notes:
+
+> Mention that DlPdcpStats.txt and UlPdcpStats.txt is the same idea but one layer up (PDCP – Packet Data Convergence Protocol)
+> The difference: PDCP stats measure what the IP layer sees whereas RLC stats measure what happens at the radio level
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 62
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 63
+
+Slide text:
+
+> 3.2 Scenarios – Output Cont.
+> DlPhyTransmissionTrace.txt & UlPhyTransmissionTrace.txt
+> Scheduler allocation log
+> Logs every slot allocation decision
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 64
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> Mention that EnbSchedAllocTraces.txt is a fine-grained scheduler decisions
+> Very similar, but from the eNB scheduler’s perspective
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 65
+
+Slide text:
+
+> 3.3 Visual Demo & Graphs
+> Graphs
+> SINR time series
+> MCS
+> Demo
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 66
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 67
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 68
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 69
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 70
+
+Slide text:
+
+> Demo/Visual
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 71
+
+Slide text:
+
+> Future Work
+> How to speed this simulator up
+> Understanding is better, can dive into/compare techniques; Run seeds in parallel
+> Add all requested metrics w/ updated parameters
+> Did not add RL, waiting to see if this simulator is acceptable
+> Finalize a v0 architecture, tests, and docs
+> Any other assigned tasks
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 72
+
+Slide text:
+
+> Summary
+> Review/Vanilla ns3
+> ns3-mmWave
+> In Detail
+> Scenarios & Demo
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R02 slide 73
+
+Slide text:
+
+> Questions/Notes
+> Here
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+## R03 04-02 mmWave Mesh.pptx
+
+Original: `Spring 2026/04-02 mmWave Mesh.pptx`
+
+SHA-256: `b89bb90880bfd8cf6da10109e889d84638e6f49587c0dd9cdc3d6c0c3ca6dde5`
+
+### R03 slide 1
+
+Slide text:
+
+> mmWave Mesh Simulation
+> By Ryan McCann
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 2
+
+Slide text:
+
+> Contents
+> Review
+> Issue with ns3-mmWave
+> Solution
+> New bootstrap
+> Walkthrough/Assumptions
+> Modeling
+> Verification
+> New functionality
+> Scenarios
+> Next Steps/Questions
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 3
+
+Slide text:
+
+> 1. Review
+> What has been completed?
+> Issue with ns3-mmWave
+> Potential next steps (last week)
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 4
+
+Slide text:
+
+> 1.1 What Has Been Completed?
+> Prior presentations
+> Using ns3
+> Incorporating ns3-mmWave & GUI
+> Understanding fundamentals of ns3/ns3-mmWave
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 5
+
+Slide text:
+
+> 1.2 Issue with ns3-mmWave
+> It’s not truly mesh (peer-to-peer)
+> What does that mean? There are no:
+> Relays
+> Sidelinks
+> Device to device communication (UE to UE)
+> Must connect to a base station (beginning of a sim)
+> You can’t just “flip a mesh switch”
+> It’s extremely slow
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 6
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 7
+
+Slide text:
+
+> 1.3 Potential Next Steps
+> Do other libraries exist?
+> I couldn’t find any last week
+> Do we need ns3-mmWave?
+> It has many valuable and trustworthy assumptions
+> How important is each layer?
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 8
+
+Slide text:
+
+> 2. Solution
+> New bootstrap
+> Walkthrough/Assumptions
+> Modeling
+> Verification
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 9
+
+Slide text:
+
+> 2.1 New Bootstrap
+> Mesh-Sim
+> Important Question
+> For a positioning algorithm, what can we abstract?
+> I.e., does modeling IP/UDP/TCP/MAC affect positioning choices?
+> Can I rip out important pieces?
+
+Speaker notes:
+
+> The answer to the last question is…sort of
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 10
+
+Slide text:
+
+> 2.2 Walkthrough/Assumptions
+> What has been abstracted?
+> EPC, RRC, MAC, HARQ, RLC, PDCP, TCP, UDP, IP
+> Packets
+> Base stations/UEs, all nodes are “identical”
+> How does a loop work?
+
+Speaker notes:
+
+> Inter node interference is not simulated either
+> You should note what all the abstracted acronyms are
+> EPC = evolved packet core, the “phone company backend”
+> Handled auth, billing, connecting you to the internet
+> There is no backlink like this!
+> RRC = Radio resource control
+> Manages connection state between a phone and base station
+> Tower handover, seeing if connected, etc.
+> RLC = Radio Link Control
+> Breaks data into segments, handles retransmissions, reordering, etc.
+> MAC
+> Schedules who transmits when, time/frequency slots
+> HARQ
+> Hybrid Automatic Repeat Request
+> Fast retransmission at the physical layer when a packet is corrupted
+> TCP/UDP
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 11
+
+Slide text:
+
+> 2.2 Walkthrough/Assumptions Cont.
+> One loop (or tick)
+> Advance the ns3 clock
+> Evaluate links
+> Update traffic
+> Route flows
+> Write output
+> sim.cc
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 12
+
+Slide text:
+
+> 2.2 Walkthrough/Assumptions Cont.
+> Advance the Clock
+> Why?
+> The mobility and channel condition models depend (point) to it
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 13
+
+Slide text:
+
+> 2.2 Walkthrough/Assumptions Cont.
+> Evaluate every link
+> Distance
+> LOS/NLOS Determination
+> Pathloss
+> All come from ns3 as before (3GPP or NYU)
+> link-evaluator.cc
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 14
+
+Slide text:
+
+> 2.2 Walkthrough/Assumptions Cont.
+> Beamforming Gain (link-evaluator.cc)
+> Modeled as ideal/perfectly & aligned/symmetric
+> No UL/DL (Involves Time Domain Resources)
+> It’s easier/faster (for now); Can add penalties later
+> Beamforming is based on their matrices (H)
+
+Speaker notes:
+
+> You should mention beamforming gain is also symmetric so, no uplink or downlink modeled, it is abstracted (should go into what is/isn’t modeled
+> Not totally sure what the formula means yet
+> In the future may use DFT (discrete foruier transform)
+> NS3 has a Phased Array model I’d need to look into more
+> Also, different array sizes (per-node antenna configuration)
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 15
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> So essentially it works like this:
+> TX power
+> Subtract path loss
+> Add beamforming gain
+> Received power
+> Essentially, assuming what the beam gain is depends on how many antennas we have per node
+
+Visual content: 3 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 16
+
+Slide text:
+
+> 2.2 Walkthrough/Assumptions Cont.
+> Nyquist Noise (link-evaluator.cc)
+> Assume no inter-node interference
+> Shannon-Hartley theorem (sinr-capacity.h)
+
+Speaker notes:
+
+> Noise is unavoidable background let’s say “hum”
+> Hardware, physics, etc.
+> As bandwidth increases, more noise is possible (wider channel)
+> Shannon-Hartley
+> Essentially says, with the SNR calculated, how fast can we theoretically send data?
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 17
+
+Slide text:
+
+> 2.2 Walkthrough/Assumptions Cont.
+> MCS Table Alternative (sinr-capacity.h)
+
+Speaker notes:
+
+> This is the table lookup (alternative to Shannon)
+> You need at least X db (sinr min db) to transmit
+> We try to pick the highest row
+> Spectrum eff, if you use this scheme you get this many bits per second per Hz of bandwidth
+> So, CQI 14 gives 5.55 bits/s/Hz, with 100 MHz bandwidth 5.55 * 100,000,000 = 555 Mbps
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 18
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 19
+
+Slide text:
+
+> 2.2 Walkthrough/Assumptions Cont.
+> Link Table (link-table.h/cc)
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 20
+
+Slide text:
+
+> 2.2 Walkthrough/Assumptions Cont.
+> Generate/Update Traffic (traffic-matrix.cc)
+> Src/Dest Modes
+> All Pairs
+> Random Pairs
+> Gateway
+> Traffic Modes
+> Constant
+> On-Off (Bursty/Exponential)
+> Poisson (Random)
+
+Speaker notes:
+
+> All Pairs – One flow per unordered node pair
+> Random pairs – Randomly choose source and destinations
+> Gateway – All nodes are going to send to one gateway
+> On-Off – Flows alternate between On/Off. Durations taken from an exponential distribution (So phase start/end)
+> - So, flick all on, get duration from exp dist, flick off, get off duration from exp dist, etc…
+> Poisson – Random number of new flows appear, expired flows removed (arrival rate and holding time)
+> Creates new loves at random times, where each flow lives for a random duration, then dies permanently
+> Example
+> Three flows
+> Constant, always transmit 3 for the whole sim
+> On/off, turn all on at the start, but during of on/off from an exponential distribution, they never die
+> Same flows blinking
+> Poisson, No flows start, each tick, a random number of new flows are born between random node pairs, where flows are appearing randomly and for a random duration
+> Flows randomly arrive/disappear
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 21
+
+Slide text:
+
+> 2.2 Walkthrough/Assumptions Cont.
+> Route Traffic (mesh-router.cc)
+> Shortest path (where weight = 1 / capacity in mbps)
+> Prefer high-capacity links, penalize extra hops
+> Max throughput
+> Find each path’s weakest link, pick the best
+> Min hop
+
+Speaker notes:
+
+> We can mention that we use congestion scaling
+> If we can’t allocate, we scale each request’s Mbps by a factor
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 22
+
+Slide text:
+
+> 2.2 Walkthrough/Assumptions Cont.
+> Latency (mesh-router.cc)
+
+Speaker notes:
+
+> - Note that processing in milliseconds is set to a constant!
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 23
+
+Slide text:
+
+> 2.2 Walkthrough/Assumptions Cont.
+> Congestion scaling (mesh-router.cc)
+
+Speaker notes:
+
+> If a capacity is overloaded, nothing is blocked (we can do that if you want)
+> Rather, we scale down overloaded links
+> It’s optimized for fairness, but we can do something else, I wasn’t sure
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 24
+
+Slide text:
+
+> 2.2 Walkthrough/Assumptions Cont.
+> Output
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 25
+
+Slide text:
+
+> 2.3 Modeling
+> What is Modeled?
+> GPS (x, y, z)
+> RSSI/RSRP
+> SNR
+> MCS index + effective rate
+> Throughput (Approx)
+> Latency (Approx)
+> Distance
+> Route table
+> What Isn’t Modeled?
+> Beam index
+> Beam switch events
+> Packet loss
+> UAV heading
+> IMU data
+> Route convergence time
+> Reconnection time
+> Session state preservation
+> QoS
+> Queue depth/drops
+> Neighbor discovery timing
+
+Speaker notes:
+
+> These are based off of the test scenarios
+> Should mention here it’s like 100x faster
+> RSSI/RSRP
+> Received signal strength indicator
+> UAV heading
+> Roll/pitch/yaw
+> Compass direction the drone’s nose is pointing
+> IMU data
+> Inertial Measurement Unit
+> So like gyroscopes and accelerometers
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 26
+
+Slide text:
+
+> 2.4 Verification
+> Show a demo of a few baseline scenarios
+> GUI improvements/additions
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 27
+
+Slide text:
+
+> 3. New Functionality
+> Conduct sweeps
+> More plotting
+> Tests
+> Linting
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 28
+
+Slide text:
+
+> 4. Scenarios
+> Necessary scenario input ini’s ready to run
+> Will send a zip
+> A lot of abstractions
+> Not sure how accurate/similar they’ll be
+> Can continue updating/refining the simulator assumptions
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 29
+
+Slide text:
+
+> 5. Next Steps/Questions
+> Working on the RL branch
+> RL will direct desired positioning
+> Gymnasium + SB3 (Is this ok?)
+> Basic E-Greedy Bandit for verification
+> Can it move out of the way of a building?
+
+Speaker notes:
+
+> I know there’s also clean RL
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R03 slide 30
+
+Slide text:
+
+> Summary
+> Review [Slides 3-7]
+> Issue with ns3-mmWave
+> Solution [Slides 8-25]
+> New bootstrap
+> Walkthrough/Assumptions
+> Modeling
+> Verification
+> New functionality [Slide 26]
+> Scenarios [Slide 27]
+> Next Steps/Questions
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+## R04 04-30 Corruption.pptx
+
+Original: `Spring 2026/04-30 Corruption.pptx`
+
+SHA-256: `66b6de474d9e8733dc36e90d124b3d67279e22485e6db8a957fca53690d125d5`
+
+### R04 slide 1
+
+Slide text:
+
+> Corruption
+> Ns3 uses src/network/utils/error-model.cc
+> If corrupt packet, drop based on desired probability
+> No actual bit corruption
+> Probability based (Distribution or roughly X% of the time)
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R04 slide 2
+
+Slide text:
+
+> Data Overview
+> Good starting point to compare w/ simulator
+> Try to tweak other parameters given:
+> SNR, throughput, Lat/Long
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+## R05 05-06.pptx
+
+Original: `Spring 2026/05-06.pptx`
+
+SHA-256: `763ba0bf47d24a8e3ad661947cc34c462401bf8090808faefac5c991aeda5eb4`
+
+### R05 slide 1
+
+Slide text:
+
+> Simulation Setup
+> New Pipeline: Read data  Run sim w/ params  Compare results
+> Parameters estimated:
+> Frequency (GHz) – (70 GHz)
+> Also double check data
+> Bandwidth (MHz) – Default for ns3
+> Tx Power (db)
+> Dataset (bh2?)
+> Noise (db) – Default for ns3
+> Double check bh2
+> Demand (100 mbps)
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R05 slide 2
+
+Slide text:
+
+> Simulation Setup Cont.
+> Are the source CSVs multi-antenna?
+> I saw four MAC addresses from one radio w/ SNR, MCS, etc.
+> This is not simulated
+> Took the greatest value each second (assuming 1 antenna is active)
+> Running Median: 30s window (attempt at less noise)
+> This could be improved (e.g., taking the average)
+> Does not model a switch between antennas well
+
+Speaker notes:
+
+> Why 1 second windows? To make it more simulation like
+> Get some value every second
+> For every 30 seconds, get the midpoint (SNR can be heavily tailed)
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R05 slide 3
+
+Slide text:
+
+> Results
+> 3GPP (Rab 1 to Rab 2)
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R05 slide 4
+
+Slide text:
+
+> Results Cont.
+> NYUSim
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R05 slide 5
+
+Slide text:
+
+> Results
+> 3GPP (Rab 2 to Rab 3)
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R05 slide 6
+
+Slide text:
+
+> Results
+> NYU (Rab 2 to Rab 3)
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R05 slide 7
+
+Slide text:
+
+> Next Steps
+> Fine tune input params
+> See how close we can get
+> Run for multiple scenarios
+> Some “score” to minimize difference in results
+> Wait for more results?
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R05 slide 8
+
+Slide text:
+
+> Notes
+> Rab 2 GPS
+> Stationary
+> Rough estimate: 20-30 ft   from Rab 1
+> Email
+> First point should be good
+> Rabs 1,3
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+## R06 Potential Modeling Techniques.pptx
+
+Original: `Spring 2026/Potential Modeling Techniques.pptx`
+
+SHA-256: `117750d60715f69e6638e2a5a92005ac48f3207c32d8fd6edd5cc9328964c69e`
+
+### R06 slide 1
+
+Slide text:
+
+> Modeling Techniques
+> A Rough Review
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 2
+
+Slide text:
+
+> Contents
+> Path loss
+> LoS Probability
+> Noise
+> Fading
+> Simulators
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 3
+
+Slide text:
+
+> Free-space path loss (FSPL) [1]
+> Assume
+> Nothing blocks the signal
+> No reflections
+> Perfect open space
+> Signal spread: Spherical
+> How signal changes w.r.t distance
+> No: Buildings, trees, terrain, etc.
+
+Speaker notes:
+
+> Energy spreads out
+> D: Of course the Euclidean distance
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 4
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 5
+
+Slide text:
+
+> Log-distance path loss [3]
+> Real environments are worse than free space
+> Adjust FSPL with a path loss exponent [3]
+
+Speaker notes:
+
+> What is d0?
+> Reference distance, usually 1m for mmWave/3GPP style models
+> It’s where we anchor the path loss model, need a known baseline point to define the intercept
+> It’s essentially a known path loss at some distance i.e., at distance 1m, we know what the path loss is
+> This is where the line starts on a graph
+> ‘d0’ is just the y-intercept/starting point
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 6
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 7
+
+Slide text:
+
+> LoS Probability
+> Ground to ground
+> Air to ground
+> Air to air
+
+Speaker notes:
+
+> This is the Probability of the LoS for some terrain that is ground-to-ground (doesn’t really matter)
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 8
+
+Slide text:
+
+> LoS Probability
+> Ground to ground comms [4]
+> Specific to terrain
+> LoS Prob. = Low
+> Path loss exp = larger
+> Urban microcell, urban microcell, office, rural microcell, etc.
+
+Speaker notes:
+
+> This is the Probability of the LoS for some terrain that is ground-to-ground (doesn’t really matter)
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 9
+
+Slide text:
+
+> LoS Probability
+> Air to ground model [5]
+
+Speaker notes:
+
+> ‘a’ and ‘b’ come from the environment, references given
+> Theta is the elevation angle (would be good to visualize this)
+> d2D is the horizontal difference between a UAV and ground terminal
+> Delta h is the height difference between the UAV and terminal height
+> Theta, elevation angle
+> The angle we look up at the drone
+> If the drone is high, horizontal distance is large, so the angle is large, more likely LOS
+
+Visual content: 4 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 10
+
+Slide text:
+
+> LoS Probability
+> Air to air [6]
+> Almost always your standard LoS model
+> Path loss exponent = 2
+
+Speaker notes:
+
+> Here
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 11
+
+Slide text:
+
+> SNR, SINR, and AWGN [2]
+> Received power after loss/antenna gains (P)
+> Noise power spectral density (N0) = AWGN
+> Noise Power = N0 * B
+> Bandwidth (B)
+> Interference (I)
+
+Speaker notes:
+
+> Relates to link feasibility
+> We’d need this if multiple links transmit at the same time/frequency
+> Where, there could be overlaps at the receiver
+> I in this case
+> Other transmitters sending signals at the same frequency
+> AMC: Adaptive modulation and coding selection (MCS)
+> Capacity can come from this, but the ‘C’ equation shown is a simplified version
+> Capacity proxity ‘C’
+> Capacity of a single wireless link
+> Standardized MCS tables live in TS38.214 / 38.211
+> Basically, how many bits/second this link can carry under these conditions
+> Given the strength and bandwidth, what is the maximum theoretical data rate? (Mbps)
+> mmWave can use
+> QPSK, 16QAM, 64QAM, 256QAM
+> Antennas don’t radiate equally in all directions
+> Gtx = transmit antenna gain
+> Grx = Receive antenna gain
+> What is N0? (Thermal noise)
+> Noise spectral density, equal to kT
+> k is the boltzman constant (J / K)
+> And T is temp, 290 K at room temp
+> N_0 is the power spectral density of AWGN
+> PSD = how much power exists per unit frequency
+> L_misc?
+> Path loss due to cable losses, hardware imperfections, etc.
+
+Visual content: 5 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 12
+
+Slide text:
+
+> Path Loss vs. Fading
+> Path Loss: Large-scale signal attenuation
+> Signal weakness due to the distance and environment
+> Fading: Small-scale random fluctuations
+> Multipath (signal reaches due to several reflections)
+> Received signal alters due to Path Loss and Fading
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 13
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 14
+
+Slide text:
+
+> Rayleigh vs. Rician Fading
+> Rayleigh: NLoS fading [2]
+> Rician: Strong LoS w/ Reflections [3]
+
+Speaker notes:
+
+> Rayleigh: Used when there is no direct line of sight
+> Signal arrives from many reflections
+> Amplitude follows a Rayleigh distribution
+> Common for dense/urban
+> Rician: Used when there is one strong LoS and reflections
+> A dominant signal plus scattered ones
+> Drone, satellite link, etc.
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 15
+
+Slide text:
+
+> Shadowing (medium scale)
+> Large obstacles blocking the signal
+> E.g., log-normal shadowing
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 16
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 17
+
+Slide text:
+
+> Antenna Gain Modeling [4]
+> Do we need to model this?
+> Helpful if we want to model:
+> Directional antennas
+> Beam alignment
+> Interference based on pointing direction
+> ns-3 has 3GPP style and channel matrix models
+
+Speaker notes:
+
+> I don’t think we need this at the moment, but other simulators might be handy for this
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 18
+
+Slide text:
+
+> NYUSIM and ns-3
+> NYUSIM
+> Realistic mmWave channel simulator
+> Not a full network simulator
+> ns-3
+> Full network simulator (protocol stack, scheduling, routing, traffic)
+> I believe NYUSIM can be used in ns-3 (not 100% sure)
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 19
+
+Slide text:
+
+> Other Effects
+> Oxygen absorption (matters for 60 GHz)
+> Rain attenuation
+> Vegetation attenuation
+> Probably don’t matter right now
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 20 [hidden]
+
+Slide text:
+
+> High-Level Simulation
+> for each pair of nodes:
+> compute distance
+> determine link type (G2G / A2G / A2A)
+> compute LOS probability
+> choose LOS or NLOS
+> compute path loss
+> compute received power
+> compute noise
+> compute SNR
+> apply fading (optional)
+> compute capacity
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R06 slide 21
+
+Slide text:
+
+> References
+> H. T. Friis, “A Note on a Simple Transmission Formula,” Proceedings of the IRE, 1946.
+> Andrea Goldsmith, Wireless Communications, Cambridge University Press, 2005.
+> T. S. Rappaport, Wireless Communications: Principles and Practice, Prentice Hall, 2002.
+> 3GPP TR 38.901 “Study on Channel Model for Frequencies from 0.5 to 100 GHz.”
+> A. Al-Hourani et al., “Modeling Air-to-Ground Path Loss for Low Altitude Platforms,” IEEE Globecom, 2014.
+> W. Khawaja et al., “A Survey of Air-to-Ground Propagation Channel Modeling for UAV Communications,” IEEE Communications Surveys & Tutorials, 2019.
+
+Speaker notes:
+
+> 3GPP TR 38.901
+> Path loss modeling standard for 0.5-100 GHz
+> UAV LOS Probability
+> Al-Hourani
+> A2G channel modeling overview and limitations
+> Khawaja
+> Ns-3 is based off of the 38.901 channel model
+> ITU-R P.676 / 838 / 833
+> Oxygen/rain/foliage when needed
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+## R07 05-14 Update.pptx
+
+Original: `Summer 2026/05-14 Update.pptx`
+
+SHA-256: `d8e60a8d9c63a37d5e3822c5e99b13263a245c8b1c7eedf280700158176a1323`
+
+### R07 slide 1
+
+Slide text:
+
+> Simulator Update
+> By Ryan McCann
+> 05/21/2026
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 2
+
+Slide text:
+
+> Contents
+> Data Analysis
+> Simulation Setup
+> Validation Sweep
+> Sim vs. Field Comparison
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 3
+
+Slide text:
+
+> Data Analysis
+> Files (scripts/arpo_data)
+> paths.py
+> extract.py (main script)
+> cli.py
+> Output
+> data/arpo_extracted
+> scenario-X/rab-X/…
+
+Speaker notes:
+
+> Mention how there are READMEs at each step to guide users on how to get started/what to run
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 4
+
+Slide text:
+
+> Data Analysis Cont.
+> Files used:
+> Bh2, gps, and geotak_gps (0417)
+> Fields
+> Timestamp, tag_local_mac, tag_sta_mac, tag_interface, field_snr
+> field_rcpi_field_mcs_tx, field_per, field_bytes_tx
+> A few interesting observations
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 5
+
+Slide text:
+
+> Data Analysis Cont.
+> A rab is a chassis of radios
+> From titan01-mw.json
+> Rab 2 netdevs match exactly (4 hydra radios)
+> Assuming Rab 3 is similar?
+> Rab 1 has 6 radios (Is this accurate?)
+> Derived in topology.py based on unique netdevs found
+> For every scenario, read tag_local_mac (source MAC), and tag_interface (netdev)
+
+Speaker notes:
+
+> Same shape as in, that config file showed left, right, back, front, etc.
+> I’m asking is this the same for Rab 3 or?
+> This slide is defining the rabs more clearly and what happened at the event
+> Mac address
+> Serial number for each radio
+> Netdev
+> Name linux gives a radio/nickname
+> And then tag_sta_mac is the peer
+> Also in the Rab 2 config, we define 8 sub radios
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 6
+
+Slide text:
+
+> Data Analysis Cont.
+> Can radios on the same rab listen/communicate?
+
+Speaker notes:
+
+> One hydra showing two MACs in the logs
+> Just double check
+> Each subchannel can have it’s own MAC while transmitting
+> So, different antennas on the same chassis
+> Is rab 1 peering with radios on the same chassis?
+> I want to double check my work, it’s not intuitive (just to triple check)
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 7
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> Introduce how you upgraded the plotting and data pipeline to show per antenna
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 8
+
+Slide text:
+
+> Data Analysis Cont.
+> Multiple days of data (arpo_data/multi_day)
+> What’s an acceptable variance?
+> How to determine what each rab is doing?
+> One curve for all radios
+> Use Histogram
+
+Speaker notes:
+
+> K-S statistic
+> Stack two ECDFs, the worst-case vertical gap is the two-sample Kolmogorov-Smirnov distance
+> The max difference between functions
+> A 0: Days are the same
+> 1: No overlap at all
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 9
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> What does pairs mean?
+> Across all the scenarios, how many distance source/peer-MACs were found
+> Since each MAC corresponds to a particular hydra/subchannel/antenna
+> Each pair is roughly one source antenna to one peer antenna (one beam)
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 10
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> Could the difference be, different antennas used?
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 11
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 12
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 13
+
+Slide text:
+
+> Simulation Setup
+> Frequency
+> Between 60-70 GHz (802.11ad/ay ch4 in config sent)
+> Power
+> RSSI/RCPI given in bh2, still 3 unknowns (Tx power, array gain for tx/rx)
+> NYU Channel Model; 3GPP goes to 20 GHz
+> New motion feature based on GPS coordinates
+> ns3 does not have custom functionality
+
+Speaker notes:
+
+> Can also mention new functionality/variables added here
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 14
+
+Slide text:
+
+> Simulation Setup Cont.
+> Noise figure
+> Could not find
+> Geometry/height of obstructions (buildings)
+> Antenna array gains
+> Approximate heights of each device
+
+Speaker notes:
+
+> Can mention maybe too many for a sweep/only did sweeps for certain variables
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 15
+
+Slide text:
+
+> Validation Sweep
+> Auto run scenario ini files and compare results
+> Focus on SNR
+> Located in scripts/validation
+
+Speaker notes:
+
+> Don’t forget to talk about where this stuff is located
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 16
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 17
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 18
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 19
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 20
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 21
+
+Slide text:
+
+> Validation Cont.
+> What could be contributing?
+> Tx power per rab, Tx/Rx array gains, Noise figure, node heights
+> Channel model (NYU) – No channel model will match 100%
+> New Feature: Per node gains
+> LOS/NLOS probability issue
+
+Speaker notes:
+
+> Look more into the assumptions of the NYU channel model
+> Also double check with a visual
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 22
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> - Mention they went down because of LOS/NLOS model in the simulator
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 23
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 24
+
+Slide text:
+
+> Summary
+> Data Analysis
+> Simulation Setup
+> Validation Sweep
+> Sim vs. Field Comparison
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R07 slide 25
+
+Slide text:
+
+> Notes
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+## R08 June-16-2026.pptx
+
+Original: `Summer 2026/June-16-2026.pptx`
+
+SHA-256: `881263198897f5a98062172af3cedaa665fe310f2cb3015034af07f0a8bbe739`
+
+### R08 slide 1
+
+Slide text:
+
+> June 16th Update
+> Presented by Kimson Lam
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R08 slide 2
+
+Slide text:
+
+> Slides Contents
+> Simulation Configuration Settings
+> Running Jeddoc Sim w/ Best Configurations
+> Comparing Jeddoc Sim vs. Field
+> Running Calfex w/ Jeddoc Config
+> Comparing Calfex Sim vs. Field
+> Running Calfex w/ Best Config
+> Comparing Calfex Sim vs. Field
+> Summary
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R08 slide 3
+
+Slide text:
+
+> Config Settings
+> Picture of Config Data
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R08 slide 4
+
+Slide text:
+
+> Jeddoc Sim w/ Jeddoc Config
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R08 slide 5
+
+Slide text:
+
+> Problem Nodes
+> The nodes are close in SNR value but...
+> The sim's SNR shape of I17, I30, and I31 are "mirrored" of field shape.
+> What might cause this?
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R08 slide 6
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R08 slide 7
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R08 slide 8
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R08 slide 9
+
+Slide text:
+
+> Calfex Data w/ Jeddoc Config
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R08 slide 10
+
+Slide text:
+
+> Better Config
+> Assuming the bug in the new data set script effects config accuracy
+> Data could be erroneous
+> Compared 3 sim days in old dataset with this config file.
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R08 slide 11
+
+Slide text:
+
+> 2025-05-14
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R08 slide 12
+
+Slide text:
+
+> 2025-05-15
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R08 slide 13
+
+Slide text:
+
+> 2025-05-16
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R08 slide 14
+
+Slide text:
+
+> Summary
+> Sim accuracy was not consistent between datasets.
+> Altering noise and tick values, affected accuracy values
+> Calfex Dataset w/ Best Config
+> Average SNR mean diff: < 10 dB
+> Average RCPI mean diff: ~ 10 dB
+> Jeddoc Dataset w/ Best Config
+> Average SNR mean diff: ~14 dB
+> Average RCPI mean diff: ~19 dB
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+## R09 June-23-2026.pptx
+
+Original: `Summer 2026/June-23-2026.pptx`
+
+SHA-256: `63f9128e5d3bf893999409ee9456db555cd2744a33a51b041a43b7738e4e6b24`
+
+### R09 slide 1
+
+Slide text:
+
+> June 23, 2026 Update
+> By Kimson Lam
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R09 slide 2
+
+Slide text:
+
+> Preface
+> Created a script for ArpoData to split the days based on UTC start and end times.
+> Sim and compared 4 scenarios:
+> 14:20-14:30
+> 14:46-14:58
+> 15:38-15:45
+> 16:35-16:56
+> Time from GeoTak boxes did not match with times provided in dataset, so it was assumed +4 hours
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R09 slide 3
+
+Slide text:
+
+> Config ran for:
+> 14:20-14:30
+> 14:46-14:58
+> 15:38-15:45
+> 16:35-16:56
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R09 slide 4
+
+Slide text:
+
+> 1420-1430
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R09 slide 5
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R09 slide 6
+
+Slide text:
+
+> 1446-1458
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R09 slide 7
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R09 slide 8
+
+Slide text:
+
+> 1538-1545​
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R09 slide 9
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R09 slide 10
+
+Slide text:
+
+> 1635-1656
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R09 slide 11
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R09 slide 12
+
+Slide text:
+
+> Summary
+> Config needed to adjust noise variable, while gain values can be constant.
+> Noise adjustments was able to tune the sim to have SNR within ~10db close to real.
+> Config is applied to all nodes indiscriminately, so scenarios where some nodes are affected by noise, while others aren't will show poor comparison results.
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+## R10 9-11 ARPO Weekly Update.pptx
+
+Original: `Fall 2026/9-11 ARPO Weekly Update.pptx`
+
+SHA-256: `5a8cf8d2f9141068adf0d9480d8aca02f9de6dc0ea1cf123260bab5235938eb7`
+
+### R10 slide 1
+
+Slide text:
+
+> 09/11/26 Weekly Meeting Presentation
+> By Ryan and Kimson
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R10 slide 2
+
+Slide text:
+
+> Preface
+> The presentation is focused on questioning and reviewing what we know and don't know currently.
+> By bringing up these points, we hope it will help clear up the project timeline.
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R10 slide 3
+
+Slide text:
+
+> Slide Contents
+> Timeline Review (September to November)
+> Interference Model
+> Key Jammer files
+> Simulator comparison example
+> Literature Review
+> Questions for Reinforcement Learning
+> Gui Additions
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R10 slide 4
+
+Slide text:
+
+> Current Timeline
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R10 slide 5
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R10 slide 6
+
+Slide text:
+
+> Interference Model
+> Jammer's config is described in jammer-spec.h (positioning, operation scheduling, frequency, power, etc.)
+> Jammer beam logic and configuration is located in jammer-model.cc
+> Jammer mobility models are created in topology-builder.cc
+> Jammer is configured in link-evaluator.cc
+> The sim's SINR value is calculated in link-evaluator.cc
+> SINR equation:
+> r.sinr_db = 10.0 * std::log10(signalWatt / (noiseWatt + jamWatt));
+> SINR's min is capped to 0.0
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R10 slide 7
+
+Slide text:
+
+> Example Scenario
+> The sim ran scenario from line 11 in trials2.csv (chosen at random)
+> Note: gain was defaulted to 12.0, Z was defaulted to 2.0, beamwidth_deg was defaulted to 60.0, and zenith_deg was defaulted to 0.0.
+> jammer.json
+> run.ini
+
+Visual content: 3 slide-level image relationships; 0 native chart relationships.
+
+### R10 slide 8
+
+Slide text:
+
+> [channel]
+> frequency_ghz = 2.2113
+> tx_power_dbm = 30.0
+> scenario = RMa
+> channel_model = 3gpp
+> blockage_enabled = false
+> bandwidth_mhz = 5.0
+> noise_figure_db = 5.0
+> condition_model = static_los
+> amc_model = silvus
+> beamforming_model = table
+> tx_array_gain_dbi = 6.0
+> rx_array_gain_dbi = 6.0
+> Run.ini channel config
+> Note: Noise_figure_db is set to 5.0 instead of 20.0 because of the Jammer.
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R10 slide 9
+
+Slide text:
+
+> Heatmap Mean Results
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R10 slide 10
+
+Slide text:
+
+> Histogram Comparison of I25
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R10 slide 11
+
+Slide text:
+
+> Interference Model Review
+> The jammer model average mean SINR: ± ~9 dBm
+> Is this SINR margin close enough?
+> All values that are missing (i.e. gain) are defaulted.
+> The simulator is more accurate than it was previous, now able to work with Jammer datasets.
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R10 slide 12
+
+Slide text:
+
+> Literature Review – Revisited
+> Conducted before for mmWave-mesh networks
+> Hard to find this topic + AI
+> Interference wasn’t considered yet
+> Shifted to traditional cellular networks
+> Warrants another review in my opinion
+> Desired baseline algorithm(s) to compare to?
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R10 slide 13
+
+Slide text:
+
+> GUI Additions
+> Would the GUI be valuable to the team?
+> May change how much time is dedicated
+> Example pipeline:
+> CLI integration/Cluster (SLURM)
+> Simulation run/visualization
+> Analyze output all in one place
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R10 slide 14
+
+Slide text:
+
+> Reinforcement Learning Experiments
+> Questions
+> 2D action space for simplicity or right to 3D?
+> Any desired observation spaces? Reward functions?
+> RL metrics: Average reward is enough?
+> Definition of improvement for this project’s scope?
+> E.g., SNR, Resource Utilization, outage time, etc.
+> How many independent random seeds are sufficient?
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+## R11 09-18 ARPO Weekly Update.pptx
+
+Original: `Fall 2026/09-18 ARPO Weekly Update.pptx`
+
+SHA-256: `5ef73ec91c713c75c082e536b6c392fdabac6cea68505f0cd1904cfca0135573`
+
+### R11 slide 1
+
+Slide text:
+
+> 09-18 ARPO Weekly Update
+> By Ryan McCann and Kimson Lam
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 2
+
+Slide text:
+
+> Contents
+> Literature Review
+> Experiment Plan
+> New additions
+> 7 Phases
+> Future Work; Questions/Notes
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 3
+
+Slide text:
+
+> Literature  Review
+> Reviewer 9 papers briefly
+> Observations
+> Delay, throughput, node positions (relative/self), link capacity, current rate/congestion
+> Actions
+> UAV movement (velocity or position, including stay)
+> Rewards (Negative/Positive)
+> Movement from init position/steps, collisions, area coverage, SINR, throughput
+> Training: All very different, mostly 2D, smaller/larger playing bounds
+
+Speaker notes:
+
+> Can mention not exactly all of them were directly related
+> Can mention several algorithms used, including PPO/DQN
+> Seeds not really defined
+> The playing bounds: restricting an area to a certain space and then growing, also some used only 1 node
+> Some rewards did use some type of weighting strategy
+> Many as expected did not show the number of seeds, some showed 6, limited model parameters I’d say
+> Although, some ranged from a very small amount of nodes to a large amount
+> I did see plenty of rewards normalized
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 4
+
+Slide text:
+
+> Experiment Plan
+> Observation space
+> Node positions (self/neighbors), link capacity, congestion
+> Action space
+> N/S/E/W/Stay
+> Reward function
+> Start static: +1/-1 for network uptime (all nodes are LOS)
+> May test dynamic e.g., SINR, movement penalty, other COAs mentioned
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 5
+
+Slide text:
+
+> New Additions – RL Experiments
+> Split into 7 phases
+> Establish baseline results
+> Centralize multi-node RL control
+> Configurable observations, rewards, and telemetry
+> Algorithm policy tracking
+> Evaluate seeds and confidence intervals
+> Optuna & SLURM
+> GUI
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 6
+
+Slide text:
+
+> P0 – Establish Baseline Results
+> Produced results so if we make changes in the future
+> CI runs on Ubuntu & MacOS
+> Bounds can be defined for RL; defaults to sim bounds
+> Only 2D action control (north, south, east, west, hold)
+> Reward and observations will be configurable
+> Better docs all around
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 7 [hidden]
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> Explain each variable
+> Type
+> is type of interference, constant or random (switch on/off each second)
+> Target frequency
+> Left empty, targets all
+> One value is +/- 2.5MHz values defined in the range, can even put a list
+> Tx power is of course the power for the jammer, but dbi is the antenna gain added on top of that
+> Duty cycle
+> Constant: scales power and random: chance of being on each second
+> Max range, 0 meaning no cutoff
+> Beamwidth of course the LOS of jamming
+> Azimuth: horizontal aim
+> Zenith: vertical aim
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 8
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 9
+
+Slide text:
+
+> P1 – Centralize Multi-node Control
+> Can select which nodes you want to control with RL
+> Or use the “all” variable
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 10
+
+Slide text:
+
+> P1 – Centralize Multi-node Control
+> Revalidated slots
+> If the model makes a mistake
+> E.g., Move north, but there’s a wall, simulator overrides w/ “hold”
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 11
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> Max controlled nodes vs. nodes defined
+> Max controlled nodes is a padded version, only 2 nodes are controlled, to keep the observation space shape fixed
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 12
+
+Slide text:
+
+> P2 – Observations, Rewards, & Telemetry
+
+Visual content: 2 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 13
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> This is an example of configurable observations, rewards are very similar
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 14
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> This is an example of telemetry info
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 15
+
+Slide text:
+
+> P3 – Policy lifecycle
+> I.e., information I need from the policy to make decisions
+> Checkpoints added for failed runs
+> Best model and evaluations saved if failure happens
+> Located in scripts/rl/policy directory
+> eval_manifest.json
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 16
+
+Slide text:
+
+> P4/5 – Comparisons, Experiments, & SLURM
+> Can run experiment matrices
+> Calculate confidence intervals between runs
+> Compare runs against each other, baselines (e.g., hold only)
+> P6: GUI being developed for a nice visual demo
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 17
+
+Slide text:
+
+> Future Work
+> Initial results display w/ GUI integration
+> Using the simulator to:
+> Find bugs
+> Check results
+> Minor additions/features
+> Improve docs
+> Goal: v0 results by next Friday
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 18
+
+Slide text:
+
+> Questions/Notes
+> Should jamming work on mmWave?
+> Not useful
+> No CI needed for Windows
+> Positioning of nodes
+> Start with cardinal directions, goal is to have realistic combinations
+> Change if useful/time permits
+> Current
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R11 slide 19
+
+Slide text:
+
+> Summary
+> Literature Review
+> Experiment Plan
+> New additions
+> 7 Phases
+> Future Work; Questions/Notes
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+## R12 09-25 ARPO Weekly Update.pptx
+
+Original: `Fall 2026/09-25 ARPO Weekly Update.pptx`
+
+SHA-256: `8149ab457a98fe48a088358760293966567e899e447a7ed85d3b26c6e3e35c5d`
+
+### R12 slide 1
+
+Slide text:
+
+> 09-25 ARPO Weekly Update
+> By Ryan McCann and Kimson Lam
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R12 slide 2
+
+Slide text:
+
+> Contents
+> Review: Last Week’s Deliverables
+> Simulation Setup
+> RL Assumptions
+> Results
+> Next Week’s Tasks
+> Questions/Notes
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R12 slide 3
+
+Slide text:
+
+> Last Week's Deliverables
+> Initial results display w/ GUI integration
+> Using the simulator to:
+> Find bugs
+> Check results
+> Minor additions/features
+> Improve docs
+> Goal: v0 results by next Friday
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R12 slide 4
+
+Slide text:
+
+> Simulation Setup – 5 Scenarios300 Episodes, 1 seed
+> Scenario 1 – Simple 2 node topology
+> Can the policy make the nodes get closer and then stop?
+> Scenario 2 – Building interference
+> Can the policy move out of the way?
+> Scenario 3 – Multi-node control
+> Can the policy control multiple nodes?
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R12 slide 5
+
+Slide text:
+
+> Simulation Setup Cont.
+> Scenario 4 – Jamming (Back to 2-node scenario)
+> Can the policy learn interference it can’t see?
+> Scenario 5 – Multi-node jamming (Calfex start)
+> Can the policy learn realistic jamming?
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R12 slide 6
+
+Slide text:
+
+> Reinforcement Learning Assumptions
+> Observation Space
+> Neighboring nodes: x, y, and z positions | SNR |Capacity
+> Action Space
+> Move N/S/E/W
+> Moving “NW” could be learned by the policy: Move N then W
+> Baselines
+> Hold (Do nothing) & Random
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R12 slide 7
+
+Slide text:
+
+> RL Assumptions Cont.
+> Reward Functions
+> +1 x Delivery Ratio (Throughput)
+> +1 x SNR (scaled to 0-1)
+> +1 x (Ratio + Throughput) – (0.01 x travel)
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R12 slide 8
+
+Slide text:
+
+> Results
+> Show results + GUI updates
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R12 slide 9
+
+Slide text:
+
+> Results Cont. – Takeaways
+> More episodes/longer episodes are needed
+> Just SNR/SINR quality performed the best
+> Throughput is not needed if no jammer present
+> Movement penalty may be too high
+> Hard to tell how a single node thinks
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R12 slide 10
+
+Slide text:
+
+> Next Week’s Tasks
+> Optimize observation/reward for collisions
+> Analyze & Include sent baseline in the simulator
+> Improve on policies/implement anything requested
+> Encourage movement away from jammer + nodes stick together
+> More reward function and observation space testing
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R12 slide 11
+
+Slide text:
+
+> Summary
+> Review: Last Week’s Deliverables
+> Simulation Setup
+> RL Assumptions
+> Results
+> Next Week’s Tasks
+> Questions/Notes
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R12 slide 12
+
+Slide text:
+
+> Notes
+> SNR is probably not enough for rewards
+> Measure extent/long-term policy (e.g., area coverage)
+> How to quantify coverage?
+> Check models sent over and their movement penalties
+> Sufficient movement penalty or by spans (e.g., per meter)
+> Initial penalty to move at all
+> Ideally nodes move as little as possible
+> Different movement penalties for different types
+> Maybe in the observation space too
+> E.g., drones could be cheaper to move than a vehicle
+> Probably a reward optimization problem to solve
+> Consider COAs sent
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+## R13 10-02 ARPO Weekly Update.pptx
+
+Original: `Fall 2026/10-02 ARPO Weekly Update.pptx`
+
+SHA-256: `8a6ce2d50ed6af2dd839fbf06f8f70987a1794a3bc4bd6ef4cafe684dbbc1ae3`
+
+### R13 slide 1
+
+Slide text:
+
+> 10-02 ARPO Weekly Update
+> By Ryan McCann and Kimson Lam
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R13 slide 2
+
+Slide text:
+
+> Contents
+> Review: Last Week’s Deliverables
+> Baselines (Heuristics sent)
+> Simulation Setup
+> Demo & Result Summary
+> Next Week’s Tasks/Notes
+> Questions/Notes
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R13 slide 3
+
+Slide text:
+
+> Last Week’s Deliverables
+> Optimize observation/reward for collisions
+> Analyze & include sent baselines in the simulator
+> Encourage more strategic movement (jammer + together)
+> Continued reward/observation testing
+> Could involve penalty by spans, greater movement penalty (by node type), and considering other COAs sent
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R13 slide 4
+
+Slide text:
+
+> Baselines
+> Assumptions
+> Only 2 UAVs moveable
+> Friis link budget
+> Geometric (square/rectangle)
+> Draw a grid over a field (400 x 400 m)
+> Planner checks 400 candidates & 400 coverage spots about 20m apart
+> Estimate reach from RF settings (Friis)
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R13 slide 5 [hidden]
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R13 slide 6
+
+Slide text:
+
+> Baselines Cont.
+> Geometric cont.
+> Test spot added if falls inside radius (RF) & connection back to a node
+> Non-moveable nodes cover 139 spots (gw, uav-b, walker, truck)
+> Choose to place uav-a (inside field, < loc max {500m}, connects to nodes)
+> How many grid spots would this drone cover that fixed nodes don’t?
+> After uav-a placed, try to increase coverage w/ uav-c
+
+Speaker notes:
+
+> - Should operate over a variety of test scenarios (control all nodes)
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R13 slide 7
+
+Slide text:
+
+> Baselines Cont.
+> Optimization (coverage)
+> Also scores unchanged & geometric layout coverage
+> Suggestions alterations, if rules pass, change node position
+> Nudge (55%), go to uncovered ground (20%), swap (10%), change altitude (15%)
+> Check score, if current layout is best (points system), keep
+> Use best ever only if better than geometric & unchanged
+> X drone movements allowed
+
+Speaker notes:
+
+> Nudge: Randomly pick one moveable drone, then draw a random change in X and Y
+> Jump toward uncovered ground:  (also randomly pick node) Randomly pick an uncovered test spot and propose moving one drone near it
+> Swap: Exchange the two moveable drones’ positions AND heights
+> Change altitude: Propose a new height (omitted because our sims are 2D for now)
+> Remember, huge penalties if disconnect from gw (same with geometric)
+> Cost of relocation drones as well
+> Other modes exist like balanced (cover ground, but build some backup connectivity) and resilience (survive when a node is lost)
+> Uses a point system (based on field’s area):
+> Costs include a fixed moving cost, per-meter moving cost, maximum relocation allowed
+> Max relocation we chose 500m for drones and 300m for vehicles (we didn’t use vehicles yet)
+> 320,000 score because they use 2 x area of the planning field
+> 3,200 oints because their code for balanced uses 0.02 x field area (not active yet)
+> We said max changes to 60 for now
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R13 slide 8
+
+Slide text:
+
+> Baselines Cont.
+> Optimization (coverage) cont.
+> Points are based on field area
+> 2 x field area – penalty for node disconnecting from gw
+> Max changes (60 for now)
+> Max distance (500m for drones, 300m for vehicles for now)
+> Movement at all penalty & movement per dist. penalty
+
+Speaker notes:
+
+> Nudge: Randomly pick one moveable drone, then draw a random change in X and Y
+> Jump toward uncovered ground:  (also randomly pick node) Randomly pick an uncovered test spot and propose moving one drone near it
+> Swap: Exchange the two moveable drones’ positions AND heights
+> Change altitude: Propose a new height (omitted because our sims are 2D for now)
+> Remember, huge penalties if disconnect from gw (same with geometric)
+> Cost of relocation drones as well
+> Other modes exist like balanced (cover ground, but build some backup connectivity) and resilience (survive when a node is lost)
+> Uses a point system (based on field’s area):
+> Costs include a fixed moving cost, per-meter moving cost, maximum relocation allowed
+> Max relocation we chose 500m for drones and 300m for vehicles (we didn’t use vehicles yet)
+> 320,000 score because they use 2 x area of the planning field
+> 3,200 points because their code for balanced uses 0.02 x field area (not active yet)
+> We said max changes to 60 for now
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R13 slide 9
+
+Slide text:
+
+> Simulation Setup
+> 4 scenarios
+> Calfex
+> Baseline
+> Baseline w/ medium & strong jamming (5 dBm & 25 dBm)
+> 1 seed for training & 1 for evaluation
+> 120s & 300 episodes
+> Hyperparameters not optimized
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R13 slide 10
+
+Slide text:
+
+> Simulation Setup Cont.
+> Observation space
+> Est. capacity of neighbors, SINR, and positions
+> Reward Functions (All have collision term)
+> Delivery – Delivered fraction of requested traffic
+> Throughput – Log-scaled delivered Mbps
+> SINR – Link quality scaled to 0-1
+> SINR + Travel – SINR minus 0.5 x movement (spans – 500m for drone & 300m for others)
+> Cohesion – delivery + 0x25 SINR – 0.5 x movement + 2 x closeness to nearest peer
+
+Speaker notes:
+
+> PPO:
+> Gamma set to 0.99, entropy coeff (0.01 for exploration), learning right 0.0003 and batch size of 64
+> Clipping range as 0.2
+> Approx 54,000 training decisions and 720 decisions per rollout/update
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R13 slide 11
+
+Slide text:
+
+> Demo w/ GUI
+> Show functioning GUI
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R13 slide 12
+
+Slide text:
+
+> Result Summary
+
+Speaker notes:
+
+> Hold is the best choice for unjammed, PPO didn’t seem to respond to holding…Probably because of the safety penalty for distance
+> Geometric and optimization are only allowed to move 2 nodes still (that’s what was sent) and optimize for ground coverage not throughput
+> For mid jamming, wondering and remaining close to the original layout held up again (geometric and optimization aren’t optimized for jamming haven’t implemented them yet and only one shape)
+> Of course they don’t respond to jammer strength either
+> Any action doesn’t mean strong
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R13 slide 13
+
+Slide text:
+
+> Result Summary Cont.
+> 2m unsafe-proximity threshold – poor choice?
+> 2 vehicles start at 0.3m apart for Calfex
+> PPO action probabilities have small diffs (e.g., 24.4% vs. 24.1%)
+> Span travel penalty is small in comparison to SINR reward
+> Doesn’t reliably reduce travel yet
+> Hard to attribute credit node when jamming
+> The node near the jammer is a gw, it can’t move
+
+Speaker notes:
+
+> Some scenarios I saw 109 SINR points and only 0.39 points for distance reduction
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R13 slide 14
+
+Slide text:
+
+> Next Week’s Tasks/Notes
+> Think of some more scenarios to run (e.g., no fixed nodes/gws)
+> See if this is what is holding PPO back
+> Models train for 300 eps but evaluated on 1 episode & 1 seed
+> This is not enough | Longer episodes & more
+> Hyperparameter comparisons for MPPO
+> Improve GUI/dashboard for easier comparisons
+> There aren’t strong signals from any particular direction due to gw
+> Area coverage should be added to the reward function
+> Nodes are too tightly clustered in some scenarios, good for “hold” but not for coverage
+> Something similar to geometric & optimization
+> Probably no cluster access, not a priority
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R13 slide 15
+
+Slide text:
+
+> Summary
+> Review: Last Week’s Deliverables
+> Baselines (Heuristics sent)
+> Simulation Setup
+> Demo & Result Summary
+> Next Week’s Tasks
+> Questions/Notes
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+## R14 10-09 ARPO Weekly Update.pptx
+
+Original: `Fall 2026/10-09 ARPO Weekly Update.pptx`
+
+SHA-256: `51c6761183ebddb0cf5a0080f72841b9fa4639d2f4d2edf54c029586ce8993f3`
+
+### R14 slide 1
+
+Slide text:
+
+> 10-09 ARPO Weekly Update
+> By Ryan McCann and Kimson Lam
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R14 slide 2
+
+Slide text:
+
+> Contents
+> Last Week’s Deliverables
+> Baselines Update
+> Simulation Setup
+> Reward Functions and PPO settings
+> Result Summary
+> GUI Demo
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R14 slide 3
+
+Slide text:
+
+> Last Week’s Deliverables
+> All nodes movable, no fixed gateways
+> Longer episodes and more seeds
+> Coverage, service balance, and dynamic rewards
+> PPO hyperparameter tuning
+> GUI improvements
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R14 slide 4
+
+Slide text:
+
+> Baselines Update
+> Geometric and Optimization
+> Placement now includes every movable peer
+> Coverage planning uses the simulated channel model
+> Building and collision constraints apply
+> Initial placement stays fixed during evaluation
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R14 slide 5
+
+Slide text:
+
+> Simulation Setup
+> Environment
+> Scenarios: 12
+> Movable peers: 3 or 6
+> Field: 400 x 400 m
+> UAV altitude: 20 m
+> Safety distance: 1 m
+> Training and Evaluation
+> 100 training episodes
+> 10 minutes per episode
+> 1 decision / second
+> One training seed
+> Five evaluation seeds
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R14 slide 6
+
+Slide text:
+
+> Simulation Setup Cont.
+> Small: 3 nodes; Large: 6 nodes
+> Jammer: Moving or static
+> Buildings: Two large, concrete
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R14 slide 7
+
+Slide text:
+
+> Reward Functions and PPO Settings
+> Reward Strategies
+> PPO profiles for Dynamic Balance
+> Reward
+> What changes
+> Low Travel
+> Movement cost: 0.5S
+> Strong Travel
+> Movement cost: 2.5S
+> Coverage Strong
+> Strong + coverage
+> Service Balance
+> Low + weakest service
+> Dynamic Balance
+> Fair service, coverage
+> adaptive move cost
+> Profile
+> Layers
+> Main change
+> Default
+> 64 × 64
+> Reference settings
+> Exploration
+> 64 × 64
+> Entropy decay
+> Stable
+> 64 × 64
+> Lower LR + KL limit
+> Credit
+> 64 × 64
+> GAE + rollout
+> Wider
+> 128 × 128
+> More units
+> Deeper
+> 128 × 128 × 128
+> Additional layer
+
+Speaker notes:
+
+> Exploration: Entropy decay. Reduce bonus weight from 0.01 to 0.001 over training for less exploration.
+> Learning rate from 0.0003 to 0.0001, smaller updates.
+> KL (Kullback-Leibler divergence) target added of 0.02. Allowing to collect more experience if gradient updates are too large since it measures how much the updated policy’s action probabilities differ from the previous policy’s. Was disabled before and only used the probability ratio clipping. It’s a measure of how much a policy has changed across a batch and it is a constant.
+> GAE + longer rollout. We raised GAE lambda from 0.95 to 0.98 to give rewards further into the future more influence when assigning credit to earlier actions. Rollout increased from 1,000 to 1,200 decisions. Training batch size from 64 to 100
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R14 slide 8
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 1 slide-level image relationships; 0 native chart relationships.
+
+### R14 slide 9 [hidden]
+
+Slide text:
+
+[No native slide text extracted.]
+
+Speaker notes:
+
+> Maps roughly -20 dB or lower to zero, 10 dB roughly to 0.5, and 40 dB or higher to 1. -20 to + 40 dB is the normalization range.
+> Unmet delivery (second equation) means the remaining gap to 95% delivery, normalized by that target. For example, if delivery is 50%, then g is about 0.474. If normalized signal quality is 0.6, then Q roughly equals 0.284. Intention: stop chasing additional signal quality once delivery is already good.
+> Connected-core coverage, C: Find the largest connected group of nodes, where nodes can communicate through usable links, including multiple hops. A grid point counts as covered if at least one node in that group provides SINR of at leas -6.7 dB. Example: if there are 16 cells (like our 400 x 400 m scenario), covering 12 gives C = 12 / 16 = 75%
+> Fair service averages their square roots (unlike the minimum) each node contributes. The square root makes an improvement to a poorly served node count more than the same improvement to an already well-served node.
+> H previous equation: Conservative summary of the previous decision’s network condition. This directly changes the movement penalty (M equation) where ‘T’ is the average fraction of each node’s available movement (depending on node type, for example 100% of movement allowed in that second for a given node) used during the decision. So, movement becomes more expensive when the network is healthy.
+
+Visual content: 5 slide-level image relationships; 0 native chart relationships.
+
+### R14 slide 10
+
+Slide text:
+
+> Result Summary
+> Scenario
+> Reward
+> PPO setting
+> Whole %
+> Final 60 s %
+> Coverage %
+> Travel m
+> Small hold
+> Dynamic Balance
+> Exploration
+> 98.0
+> 97.1
+> 99.9
+> 2,298
+> Small jammer
+> Low Travel
+> Prior PPO
+> 87.5
+> 97.8
+> 52.3
+> 2,105
+> Small delayed jammer
+> Service Balance
+> Prior PPO
+> 100.0
+> 100.0
+> 76.0
+> 1,616
+> Small buildings
+> Dynamic Balance
+> Stable
+> 92.0
+> 94.0
+> 76.3
+> 1,224
+> Small buildings + jammer
+> Dynamic Balance
+> Stable
+> 90.3
+> 100.0
+> 54.6
+> 460
+> Small moving jammer
+> Dynamic Balance
+> Stable
+> 65.0
+> 60.2
+> 80.5
+> 2,300
+> Large hold
+> Dynamic Balance
+> Stable
+> 100.0
+> 100.0
+> 100.0
+> 1,108
+> Large jammer
+> Dynamic Balance
+> Wider
+> 72.9
+> 96.0
+> 65.1
+> 3,008
+> Large delayed jammer
+> Low Travel
+> Prior PPO
+> 92.5
+> 89.3
+> 83.1
+> 3,314
+> Large buildings
+> Coverage Strong
+> Prior PPO
+> 79.4
+> 81.4
+> 100.0
+> 2,314
+> Large buildings + jammer
+> Coverage Strong
+> Prior PPO
+> 71.2
+> 82.7
+> 68.9
+> 2,943
+> Large moving jammer
+> Dynamic Balance
+> Stable
+> 75.7
+> 72.3
+> 80.6
+> 2,619
+
+Speaker notes:
+
+> Holding and moving jammer are weaknesses
+> There’s no one reward function or configuration that is a definite winner
+> But, dynamic balance with stable PPO is a good start
+> This does not transfer to larger obstructed networks well
+> Successful delivery does not mean successful holding
+> Whole episode delivery vs. final 60s delivery is…Interesting
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R14 slide 11
+
+Slide text:
+
+> GUI Demo
+> Four Scenarios
+> Large hold
+> Small + buildings + jammer
+> Large + buildings + jammer
+> Large + moving jammer
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R14 slide 12
+
+Slide text:
+
+> Summary
+> Last Week’s Deliverables
+> Baselines Update
+> Simulation Setup
+> Reward Functions and PPO settings
+> Result Summary
+> GUI Demo
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+### R14 slide 13
+
+Slide text:
+
+> Next Week’s Tasks/Notes
+> More exploration on movement penalty
+> Compared to dynamic, why did it move up to 3x more?
+> Try XL nodes (10-15ish)
+> Question: Should collisions be masked or learned to avoid?
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.
+
+## R15 10-23 ARPO Weekly Update.pptx
+
+Original: `Fall 2026/10-23 ARPO Weekly Update.pptx`
+
+SHA-256: `b45d53040ab400461b553420c9b30047e28746a170026aefda9e4e2350fe5245`
+
+### R15 slide 1
+
+Slide text:
+
+[No native slide text extracted.]
+
+Visual content: 0 slide-level image relationships; 0 native chart relationships.

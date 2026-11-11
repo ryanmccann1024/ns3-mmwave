@@ -75,3 +75,13 @@ Paths inside `run.ini` are resolved against the `run.ini` directory.
 
 `query-config.h/cc` owns worker budget parsing and validation; defaults come
 from `domain/query-config.h`. See the [query guide](../query/README.md).
+
+Explicit traffic pairs identify ordered source/destination flows. Reverse
+directions are legal; duplicate ordered pairs, self flows, missing peers and
+nonpositive rates are rejected. This enables equal per-source offered load.
+
+Investigation permits zero goal-coverage and team-delivery targets to disable
+secondary gates during the simple objective stage. Both C++ validation and
+Python mission-contract validation enforce [0,1] for those investigation fields.
+Other positive-only mission targets retain their ranges. The configuration
+suite includes all 34 October 23 correction configurations.

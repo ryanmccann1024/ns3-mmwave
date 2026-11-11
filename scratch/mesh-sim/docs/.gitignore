@@ -1,0 +1,5 @@
+# Local Doxygen output for this docs directory (generated; never commit).
+/html/
+/latex/
+/doxygen-warnings.log
+/.api-src/
