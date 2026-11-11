@@ -14,10 +14,21 @@ from scripts.rl.env.selection import TELEMETRY_MODES, RlSelection
 from scripts.rl.policy.compat import BundleError
 from scripts.rl.policy.training_artifacts import MANIFEST_VERSION, CHECKPOINT_DIR
 
-_SELECTION_KEYS = ("observation_preset", "reward_components", "reward_weights",
-                   "telemetry", "telemetry_every", "observation_parameters", "reward_parameters")
-_SCENARIO_SHA_KEYS = ("run_ini_sha256", "nodes_json_sha256", "buildings_json_sha256",
-                      "jammers_json_sha256")
+_SELECTION_KEYS = (
+    "observation_preset",
+    "reward_components",
+    "reward_weights",
+    "telemetry",
+    "telemetry_every",
+    "observation_parameters",
+    "reward_parameters",
+)
+_SCENARIO_SHA_KEYS = (
+    "run_ini_sha256",
+    "nodes_json_sha256",
+    "buildings_json_sha256",
+    "jammers_json_sha256",
+)
 _READABLE_MANIFEST_VERSIONS = (4, 5, 6, MANIFEST_VERSION)
 
 
@@ -33,10 +44,14 @@ class ModelBundle:
     num_timesteps: int | None
 
     def describe(self) -> dict:
-        return {"run_dir": str(self.run_dir), "model_selection": self.selection,
-                "model_path": str(self.model_path), "model_sha256": self.model_sha256,
-                "num_timesteps": self.num_timesteps,
-                "train_manifest_sha256": sha256_file(self.run_dir / MANIFEST_NAME)}
+        return {
+            "run_dir": str(self.run_dir),
+            "model_selection": self.selection,
+            "model_path": str(self.model_path),
+            "model_sha256": self.model_sha256,
+            "num_timesteps": self.num_timesteps,
+            "train_manifest_sha256": sha256_file(self.run_dir / MANIFEST_NAME),
+        }
 
 
 def read_manifest(run_dir) -> dict:
@@ -53,33 +68,48 @@ def read_manifest(run_dir) -> dict:
     return manifest
 
 
-def _checkpoint_target(run_dir: Path, manifest: dict, model: str) -> tuple[Path, str, int]:
+def _checkpoint_target(
+    run_dir: Path, manifest: dict, model: str
+) -> tuple[Path, str, int]:
     relative = Path(model)
-    if (relative.is_absolute() or len(relative.parts) != 2
-            or relative.parts[0] != CHECKPOINT_DIR or relative.suffix != ".zip"):
+    if (
+        relative.is_absolute()
+        or len(relative.parts) != 2
+        or relative.parts[0] != CHECKPOINT_DIR
+        or relative.suffix != ".zip"
+    ):
         raise BundleError(
             f"--model {model!r} must be 'final', 'best', or "
-            f"'{CHECKPOINT_DIR}/<name>.zip' relative to {run_dir}")
+            f"'{CHECKPOINT_DIR}/<name>.zip' relative to {run_dir}"
+        )
     target = (run_dir / relative).resolve()
     if target.parent != (run_dir / CHECKPOINT_DIR).resolve():
-        raise BundleError("checkpoint must remain inside the training checkpoint directory")
+        raise BundleError(
+            "checkpoint must remain inside the training checkpoint directory"
+        )
     for entry in manifest.get("checkpoints") or []:
         if Path(entry["path"]).resolve() == target:
             return target, entry["sha256"], int(entry["num_timesteps"])
     raise BundleError(f"{model} is not listed in the manifest's retained checkpoints")
 
 
-def _model_target(run_dir: Path, manifest: dict, model: str) -> tuple[Path, str, int | None]:
+def _model_target(
+    run_dir: Path, manifest: dict, model: str
+) -> tuple[Path, str, int | None]:
     if model == "final":
         path, digest = manifest.get("model_path"), manifest.get("model_sha256")
         if not path or not digest:
             raise BundleError(f"{run_dir} has no final model recorded")
         return Path(path), digest, None
     if model == "best":
-        path, digest = manifest.get("best_model_path"), manifest.get("best_model_sha256")
+        path, digest = (
+            manifest.get("best_model_path"),
+            manifest.get("best_model_sha256"),
+        )
         if not path or not digest:
             raise BundleError(
-                f"{run_dir} has no best model; train with --eval-every-steps > 0")
+                f"{run_dir} has no best model; train with --eval-every-steps > 0"
+            )
         return Path(path), digest, None
     return _checkpoint_target(run_dir, manifest, model)
 
@@ -93,16 +123,25 @@ def _read_bundle(run_dir, model: str, recovering=False) -> ModelBundle:
     if version not in _READABLE_MANIFEST_VERSIONS:
         raise BundleError(
             f"train manifest version {version!r} is not {MANIFEST_VERSION}; "
-            "retrain with current tooling")
+            "retrain with current tooling"
+        )
     status = manifest.get("status")
-    allowed = ("completed", "failed", "running", "interrupted") if recovering else ("completed",)
+    allowed = (
+        ("completed", "failed", "running", "interrupted")
+        if recovering
+        else ("completed",)
+    )
     if status not in allowed:
-        raise BundleError(f"training run {run_dir} has status {status!r}, not 'completed'")
+        raise BundleError(
+            f"training run {run_dir} has status {status!r}, not 'completed'"
+        )
     control_mode = manifest.get("control_mode")
     if control_mode == "legacy":
         raise BundleError("legacy control mode is not supported by this loader")
     if control_mode != "centralized":
-        raise BundleError(f"control mode {control_mode!r} is not supported by this loader")
+        raise BundleError(
+            f"control mode {control_mode!r} is not supported by this loader"
+        )
 
     path, digest, num_timesteps = _model_target(run_dir, manifest, model)
     if not path.is_file():
@@ -110,7 +149,8 @@ def _read_bundle(run_dir, model: str, recovering=False) -> ModelBundle:
     actual = sha256_file(path)
     if actual != digest:
         raise BundleError(
-            f"model file digest mismatch for {path}: recorded {digest}, found {actual}")
+            f"model file digest mismatch for {path}: recorded {digest}, found {actual}"
+        )
     selection = model if model in ("final", "best") else "checkpoint"
     return ModelBundle(run_dir, manifest, selection, path, digest, num_timesteps)
 
@@ -132,7 +172,10 @@ def training_provenance(manifest: dict) -> dict:
         "seed": manifest.get("seed"),
         "seed_source": manifest.get("seed_source"),
         "evaluation_seed": evaluation.get("seed"),
-        "evaluation_seeds": list(evaluation.get("seeds") or ([] if evaluation.get("seed") is None else [evaluation["seed"]])),
+        "evaluation_seeds": list(
+            evaluation.get("seeds")
+            or ([] if evaluation.get("seed") is None else [evaluation["seed"]])
+        ),
         "evaluation_episodes": evaluation.get("episodes"),
         "scenario_identity": {key: identity.get(key) for key in _SCENARIO_SHA_KEYS},
         "hyperparameters": dict(manifest.get("hyperparameters") or {}),
@@ -159,17 +202,28 @@ def seed_roles(
     evaluation = (manifest or {}).get("evaluation")
     selection_seed = (evaluation or {}).get("seed") if evaluation else None
     roles["training_seed"] = None if training_seed is None else int(training_seed)
-    roles["model_selection_seed"] = None if selection_seed is None else int(selection_seed)
+    roles["model_selection_seed"] = (
+        None if selection_seed is None else int(selection_seed)
+    )
     reserved = {
-        seed for seed in (roles["training_seed"], roles["model_selection_seed"]) if seed is not None
+        seed
+        for seed in (roles["training_seed"], roles["model_selection_seed"])
+        if seed is not None
     }
-    roles["model_selection_seeds"] = list((evaluation or {}).get("seeds") or ([] if selection_seed is None else [selection_seed]))
+    roles["model_selection_seeds"] = list(
+        (evaluation or {}).get("seeds")
+        or ([] if selection_seed is None else [selection_seed])
+    )
     reserved.update(roles["model_selection_seeds"])
-    roles["planning_overlap"] = [seed for seed in held_out_seeds if seed in roles["planning_seeds"]]
+    roles["planning_overlap"] = [
+        seed for seed in held_out_seeds if seed in roles["planning_seeds"]
+    ]
     reserved.update(roles["planning_seeds"])
     roles["overlap"] = [seed for seed in held_out_seeds if seed in reserved]
     roles["held_out"] = (
-        not roles["overlap"] if manifest is not None or roles["planning_seeds"] else None
+        not roles["overlap"]
+        if manifest is not None or roles["planning_seeds"]
+        else None
     )
     return roles
 
@@ -199,7 +253,9 @@ def check_run_overlap(output_dir, run_dir):
     """Refuse equal, child, or ancestor output roots before any run artifacts are written."""
     out, run = Path(output_dir).resolve(), Path(run_dir).resolve()
     if out == run or run in out.parents or out in run.parents:
-        raise ValueError(f"--output-dir {out} overlaps the training run {run}; choose a separate root")
+        raise ValueError(
+            f"--output-dir {out} overlaps the training run {run}; choose a separate root"
+        )
 
 
 def selection_from_manifest(manifest: dict) -> RlSelection:
@@ -219,7 +275,8 @@ def selection_from_manifest(manifest: dict) -> RlSelection:
     if len(weights) != len(components):
         raise BundleError(
             f"recorded reward_weights has {len(weights)} entries but reward_components "
-            f"has {len(components)}")
+            f"has {len(components)}"
+        )
     try:
         RewardComposer(components, weights)
     except ValueError as exc:
@@ -231,10 +288,16 @@ def selection_from_manifest(manifest: dict) -> RlSelection:
     if every < 1:
         raise BundleError(f"recorded telemetry_every must be >= 1, got {every}")
     try:
-        return RlSelection(preset, components, weights, telemetry, every,
-                           {key: "manifest" for key in _SELECTION_KEYS},
-                           observation_parameters=saved.get("observation_parameters", {}),
-                           reward_parameters=saved.get("reward_parameters", {}))
+        return RlSelection(
+            preset,
+            components,
+            weights,
+            telemetry,
+            every,
+            {key: "manifest" for key in _SELECTION_KEYS},
+            observation_parameters=saved.get("observation_parameters", {}),
+            reward_parameters=saved.get("reward_parameters", {}),
+        )
     except ValueError as exc:
         raise BundleError(str(exc)) from exc
 
@@ -243,8 +306,9 @@ def eval_selection(selection: RlSelection) -> RlSelection:
     """Force per-decision telemetry so evaluation can derive its own domain metrics."""
     source = dict(selection.source)
     source.update({"telemetry": "eval", "telemetry_every": "eval"})
-    return dataclasses.replace(selection, telemetry="steps", telemetry_every=1,
-                               source=source)
+    return dataclasses.replace(
+        selection, telemetry="steps", telemetry_every=1, source=source
+    )
 
 
 def load_model(bundle: ModelBundle, env, mask_fn):
@@ -270,17 +334,29 @@ def model_identity(bundle, deterministic=True) -> dict:
         "model_path_recorded": recorded,
         "num_timesteps": bundle.num_timesteps,
         "train_manifest_sha256": sha256_file(run_dir / MANIFEST_NAME),
-        "inference": {"deterministic": bool(deterministic), "device": "cpu",
-                      "stable_baselines3": versions["stable_baselines3"],
-                      "sb3_contrib": versions["sb3_contrib"],
-                      "torch": versions["torch"]},
+        "inference": {
+            "deterministic": bool(deterministic),
+            "device": "cpu",
+            "stable_baselines3": versions["stable_baselines3"],
+            "sb3_contrib": versions["sb3_contrib"],
+            "torch": versions["torch"],
+        },
     }
 
 
 MODEL_BINDING_VERSION = 1
-_BINDING_FIELDS = ("model_binding_version", "run_dir", "model_selection", "model_path",
-                   "model_sha256", "optimizer_sha256", "num_timesteps", "n_updates",
-                   "train_manifest_path", "train_manifest_sha256")
+_BINDING_FIELDS = (
+    "model_binding_version",
+    "run_dir",
+    "model_selection",
+    "model_path",
+    "model_sha256",
+    "optimizer_sha256",
+    "num_timesteps",
+    "n_updates",
+    "train_manifest_path",
+    "train_manifest_sha256",
+)
 
 
 def parameter_digest(model) -> str:
@@ -357,26 +433,39 @@ def checkpoint_counters(zip_path) -> dict:
     for key in ("num_timesteps", "_n_updates"):
         value = data.get(key)
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-            raise BundleError(f"{zip_path} data.{key} is not a non-negative integer: {value!r}")
+            raise BundleError(
+                f"{zip_path} data.{key} is not a non-negative integer: {value!r}"
+            )
         counters[key] = value
-    return {"num_timesteps": counters["num_timesteps"], "n_updates": counters["_n_updates"],
-            "policy_state_present": "policy.pth" in names,
-            "optimizer_state_present": "policy.optimizer.pth" in names}
+    return {
+        "num_timesteps": counters["num_timesteps"],
+        "n_updates": counters["_n_updates"],
+        "policy_state_present": "policy.pth" in names,
+        "optimizer_state_present": "policy.optimizer.pth" in names,
+    }
 
 
-def _manifest_model_selection(manifest: dict, model_path: Path, model_sha256: str) -> str:
+def _manifest_model_selection(
+    manifest: dict, model_path: Path, model_sha256: str
+) -> str:
     """Which recorded model of the manifest this file is; refuse an unrecorded file."""
     resolved = model_path.resolve()
-    for selection, path_key, sha_key in (("final", "model_path", "model_sha256"),
-                                         ("best", "best_model_path", "best_model_sha256")):
+    for selection, path_key, sha_key in (
+        ("final", "model_path", "model_sha256"),
+        ("best", "best_model_path", "best_model_sha256"),
+    ):
         if manifest.get(path_key) and Path(manifest[path_key]).resolve() == resolved:
             if manifest.get(sha_key) != model_sha256:
-                raise BundleError(f"bound {selection} model digest differs from its manifest")
+                raise BundleError(
+                    f"bound {selection} model digest differs from its manifest"
+                )
             return selection
     for entry in manifest.get("checkpoints") or []:
         if Path(entry["path"]).resolve() == resolved:
             if entry.get("sha256") != model_sha256:
-                raise BundleError("bound checkpoint digest differs from its manifest entry")
+                raise BundleError(
+                    "bound checkpoint digest differs from its manifest entry"
+                )
             return "checkpoint"
     raise BundleError(f"{model_path} is not recorded by its training manifest")
 
@@ -397,13 +486,20 @@ def bind_model(run_dir, model_path) -> dict:
     manifest = read_manifest(run_dir)
     model_sha256 = sha256_file(model_path)
     counters = checkpoint_counters(model_path)
-    return {"model_binding_version": MODEL_BINDING_VERSION, "run_dir": str(run_dir),
-            "model_selection": _manifest_model_selection(manifest, model_path, model_sha256),
-            "model_path": str(model_path), "model_sha256": model_sha256,
-            "optimizer_sha256": checkpoint_optimizer_digest(model_path),
-            "num_timesteps": counters["num_timesteps"], "n_updates": counters["n_updates"],
-            "train_manifest_path": str(manifest_path),
-            "train_manifest_sha256": sha256_file(manifest_path)}
+    return {
+        "model_binding_version": MODEL_BINDING_VERSION,
+        "run_dir": str(run_dir),
+        "model_selection": _manifest_model_selection(
+            manifest, model_path, model_sha256
+        ),
+        "model_path": str(model_path),
+        "model_sha256": model_sha256,
+        "optimizer_sha256": checkpoint_optimizer_digest(model_path),
+        "num_timesteps": counters["num_timesteps"],
+        "n_updates": counters["n_updates"],
+        "train_manifest_path": str(manifest_path),
+        "train_manifest_sha256": sha256_file(manifest_path),
+    }
 
 
 def read_bound_checkpoint(binding: dict) -> ModelBundle:
@@ -420,36 +516,57 @@ def read_bound_checkpoint(binding: dict) -> ModelBundle:
     if missing:
         raise BundleError(f"model binding lacks {missing}")
     if binding["model_binding_version"] != MODEL_BINDING_VERSION:
-        raise BundleError(f"model binding version {binding['model_binding_version']!r} "
-                          f"is not {MODEL_BINDING_VERSION}")
+        raise BundleError(
+            f"model binding version {binding['model_binding_version']!r} "
+            f"is not {MODEL_BINDING_VERSION}"
+        )
     run_dir = Path(binding["run_dir"])
     manifest_path = Path(binding["train_manifest_path"])
     model_path = Path(binding["model_path"])
     if manifest_path != run_dir / MANIFEST_NAME:
-        raise BundleError("binding manifest is not the run directory's training manifest")
-    for path, key in ((manifest_path, "train_manifest_sha256"), (model_path, "model_sha256")):
+        raise BundleError(
+            "binding manifest is not the run directory's training manifest"
+        )
+    for path, key in (
+        (manifest_path, "train_manifest_sha256"),
+        (model_path, "model_sha256"),
+    ):
         if not path.is_file():
             raise BundleError(f"bound file is missing: {path}")
         actual = sha256_file(path)
         if actual != binding[key]:
-            raise BundleError(f"bound file digest mismatch for {path}: "
-                              f"recorded {binding[key]}, found {actual}")
+            raise BundleError(
+                f"bound file digest mismatch for {path}: "
+                f"recorded {binding[key]}, found {actual}"
+            )
     manifest = read_manifest(run_dir)
     if manifest.get("manifest_version") not in _READABLE_MANIFEST_VERSIONS:
-        raise BundleError(f"bound manifest version {manifest.get('manifest_version')!r} "
-                          "is not readable")
+        raise BundleError(
+            f"bound manifest version {manifest.get('manifest_version')!r} "
+            "is not readable"
+        )
     if manifest.get("control_mode") != "centralized":
         raise BundleError("bound model is not from a centralized training run")
     selection = _manifest_model_selection(manifest, model_path, binding["model_sha256"])
     if selection != binding["model_selection"]:
-        raise BundleError(f"binding says {binding['model_selection']!r}, manifest records {selection!r}")
+        raise BundleError(
+            f"binding says {binding['model_selection']!r}, manifest records {selection!r}"
+        )
     counters = checkpoint_counters(model_path)
     if not (counters["policy_state_present"] and counters["optimizer_state_present"]):
         raise BundleError("bound model lacks policy or optimizer state")
-    if (counters["num_timesteps"], counters["n_updates"]) != (binding["num_timesteps"],
-                                                               binding["n_updates"]):
+    if (counters["num_timesteps"], counters["n_updates"]) != (
+        binding["num_timesteps"],
+        binding["n_updates"],
+    ):
         raise BundleError("bound model counters differ from the binding")
     if checkpoint_optimizer_digest(model_path) != binding["optimizer_sha256"]:
         raise BundleError("bound model optimizer state differs from the binding")
-    return ModelBundle(run_dir.resolve(), manifest, selection, model_path.resolve(),
-                       binding["model_sha256"], counters["num_timesteps"])
+    return ModelBundle(
+        run_dir.resolve(),
+        manifest,
+        selection,
+        model_path.resolve(),
+        binding["model_sha256"],
+        counters["num_timesteps"],
+    )

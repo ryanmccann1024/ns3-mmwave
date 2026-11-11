@@ -402,9 +402,10 @@ row per `node_ids` entry. Each column sums to twice its survivor total.
   "outdoor_probe_cells"`). Older whole-field scenarios measure a different
   domain.
 - **Metrics.** Mission metrics are optional registry entries in
-  `policy/metrics.py`. Evaluation manifest version 7 records them; regenerate
-  version 6 evaluations with current tooling before using them with current
-  comparison readers.
+  `policy/metrics.py`. Evaluation manifest version 8 records them. The
+  mission score for coverage or investigation is null when the episode has
+  zero offered demand. Regenerate older evaluations with current tooling
+  before comparison.
 - **Observations.** `mission_facts_v2` keeps the `mission_facts_v1` inputs and
   adds, per slot, four local obstacle ranges, goal offsets, and team arrival and
   connectivity measurements. The `mission_facts_v1` layout is unchanged.
