@@ -88,16 +88,35 @@ def register_pool(pool: dict) -> None:
 
 def _group_members(pgid: int) -> list[tuple[int, str]]:
     try:
+        # An attempt path can be longer than the default width when ps is piped.
         result = subprocess.run(
-            ["ps", "-A", "-o", "pid=,pgid=,command="], capture_output=True, text=True
+            [
+                "ps",
+                "-ww",
+                "-A",
+                "-o",
+                "pid=",
+                "-o",
+                "pgid=",
+                "-o",
+                "stat=",
+                "-o",
+                "command=",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
         )
-    except OSError:
+    except (OSError, subprocess.CalledProcessError):
         return []
     members = []
     for line in result.stdout.splitlines():
-        fields = line.split(None, 2)
-        if len(fields) >= 2 and fields[1].isdigit() and int(fields[1]) == pgid:
-            members.append((int(fields[0]), fields[2] if len(fields) > 2 else ""))
+        fields = line.split(None, 3)
+        if len(fields) == 4:
+            pid, group, state, command = fields
+            # Zombies have already released their inherited pool descriptors.
+            if pid.isdigit() and group == str(pgid) and not state.startswith("Z"):
+                members.append((int(pid), command))
     return members
 
 
