@@ -58,9 +58,16 @@ def test_investigation_single_mean_distance_and_availability():
 def test_event_reward_delivers_partial_feedback_and_no_free_demand(mission, ratio):
     context = {
         "deployment": {"active": True, "eligible_ticks": 2},
-        "mission": {"survivor_demand_mbps_sum": 10, "survivor_delivered_mbps_sum": 10 * ratio},
+        "mission": {
+            "survivor_demand_mbps_sum": 10,
+            "survivor_delivered_mbps_sum": 10 * ratio,
+        },
     }
-    window = {"scored_ticks": 2, "demand_mbps_sum": 10, "delivered_mbps_sum": 10 * ratio}
+    window = {
+        "scored_ticks": 2,
+        "demand_mbps_sum": 10,
+        "delivered_mbps_sum": 10 * ratio,
+    }
     assert score(mission, context, window).total == pytest.approx(ratio)
     context["deployment"]["eligible_ticks"] = 1
     assert score(mission, context, window).total == 0
@@ -89,56 +96,122 @@ def test_jammer_onset_not_reward_identity_but_geometry_is():
     assert a != reward_schema([comp], [1], contract=contract)
 
 
-@pytest.mark.parametrize('mission',['coverage','investigation','recovery','jamming'])
+@pytest.mark.parametrize(
+    "mission", ["coverage", "investigation", "recovery", "jamming"]
+)
 def test_online_eligibility_preserves_zero_demand_but_excludes_forced_windows(mission):
-    f={'window':{'scored_ticks':2,'demand_mbps_sum':0},'deployment':{'active':False,'eligible_ticks':0}}
-    assert eligible(mission,f)==(mission in ('coverage','investigation'))
-    f['deployment']={'active':True,'eligible_ticks':1}
-    assert eligible(mission,f)==(mission in ('coverage','investigation'))
-    f['deployment']['eligible_ticks']=2;assert eligible(mission,f)
-    f['window']['scored_ticks']=0;assert not eligible(mission,f)
+    f = {
+        "window": {"scored_ticks": 2, "demand_mbps_sum": 0},
+        "deployment": {"active": False, "eligible_ticks": 0},
+    }
+    assert eligible(mission, f) == (mission in ("coverage", "investigation"))
+    f["deployment"] = {"active": True, "eligible_ticks": 1}
+    assert eligible(mission, f) == (mission in ("coverage", "investigation"))
+    f["deployment"]["eligible_ticks"] = 2
+    assert eligible(mission, f)
+    f["window"]["scored_ticks"] = 0
+    assert not eligible(mission, f)
 
 
-@pytest.mark.parametrize('size,expected',[(120,60),(110,55),(80,40),(60,60),(50,50),(2,2),(61,61)])
-def test_partial_batch_never_has_a_singleton_or_pads(size,expected):
-    assert batch_for(size,60)==expected
-    assert size%batch_for(size,60)==0
-    with pytest.raises(ValueError):batch_for(1,60)
+@pytest.mark.parametrize(
+    "size,expected",
+    [(120, 60), (110, 55), (80, 40), (60, 60), (50, 50), (2, 2), (61, 61)],
+)
+def test_partial_batch_never_has_a_singleton_or_pads(size, expected):
+    assert batch_for(size, 60) == expected
+    assert size % batch_for(size, 60) == 0
+    with pytest.raises(ValueError):
+        batch_for(1, 60)
 
 
-def test_online_buffer_and_update_accounting_without_an_optimizer(tmp_path,monkeypatch):
+def test_online_buffer_and_update_accounting_without_an_optimizer(
+    tmp_path, monkeypatch
+):
     """Real rollout/GAE arithmetic, but train and optimizer remain inert stubs."""
     import torch
     from gymnasium import spaces
     from scripts.rl.policy import online_adaptation as adaptation
-    calls=[]
-    policy=SimpleNamespace(state_dict=lambda:{},optimizer=None,
-        predict_values=lambda tensor:torch.tensor([[4.]]),obs_to_tensor=lambda obs:(torch.as_tensor(np.asarray([obs])),False))
-    model=SimpleNamespace(observation_space=spaces.Box(-1,1,(2,),dtype=np.float32),
-        action_space=spaces.MultiDiscrete([5]),device='cpu',gamma=.99,gae_lambda=.95,
-        policy=policy,_n_updates=0,n_epochs=10,num_timesteps=0,
-        logger=SimpleNamespace(record=lambda *a:None,dump=lambda **k:None))
-    obj=OnlinePolicy.__new__(OnlinePolicy)
-    obj.model=model;obj.settings={'n_steps':120,'batch_size':60};obj.buffer=[];obj.initial={}
-    obj.events=[];obj.collected=0;obj.trained=0;obj.skipped_tail=0;obj.optimizer_steps=0
-    obj.output=tmp_path;obj.initial_digest='initial';obj.decisions=0;obj.excluded=0;obj.start_steps=0
-    obj._hook=SimpleNamespace(remove=lambda:None)
-    monkeypatch.setattr(adaptation._bundle,'parameter_digest',lambda model:'stub-no-weights')
+
+    calls = []
+    policy = SimpleNamespace(
+        state_dict=lambda: {},
+        optimizer=None,
+        predict_values=lambda tensor: torch.tensor([[4.0]]),
+        obs_to_tensor=lambda obs: (torch.as_tensor(np.asarray([obs])), False),
+    )
+    model = SimpleNamespace(
+        observation_space=spaces.Box(-1, 1, (2,), dtype=np.float32),
+        action_space=spaces.MultiDiscrete([5]),
+        device="cpu",
+        gamma=0.99,
+        gae_lambda=0.95,
+        policy=policy,
+        _n_updates=0,
+        n_epochs=10,
+        num_timesteps=0,
+        logger=SimpleNamespace(record=lambda *a: None, dump=lambda **k: None),
+    )
+    obj = OnlinePolicy.__new__(OnlinePolicy)
+    obj.model = model
+    obj.settings = {"n_steps": 120, "batch_size": 60}
+    obj.buffer = []
+    obj.initial = {}
+    obj.events = []
+    obj.collected = 0
+    obj.trained = 0
+    obj.skipped_tail = 0
+    obj.optimizer_steps = 0
+    obj.output = tmp_path
+    obj.initial_digest = "initial"
+    obj.decisions = 0
+    obj.excluded = 0
+    obj.start_steps = 0
+    obj._hook = SimpleNamespace(remove=lambda: None)
+    monkeypatch.setattr(
+        adaptation._bundle, "parameter_digest", lambda model: "stub-no-weights"
+    )
+
     def no_optimizer():
         assert model.rollout_buffer.full
-        calls.append((model.rollout_buffer.buffer_size,model.batch_size,
-                      model.rollout_buffer.returns.copy()))
-        obj.optimizer_steps+=model.n_epochs*(model.rollout_buffer.buffer_size//model.batch_size)
-        model._n_updates+=model.n_epochs
-    model.train=no_optimizer
-    for decision in range(1,271):
-        obj.pending=(np.zeros(2),np.asarray([4]),torch.tensor([0.]),torch.tensor([0.]),np.ones(5,dtype=bool))
-        facts={'window':{'scored_ticks':2},'deployment':{'active':decision>10,'eligible_ticks':2 if decision>10 else 0}}
-        obj.mission='recovery'
-        obj.observe(np.zeros(2),1.,decision==270,False,{'time_s':decision},facts)
-    assert [c[0] for c in calls]==[120,120,20]
-    assert obj.trained==obj.collected==260 and obj.excluded==10 and obj.skipped_tail==0
-    assert [e['time_s'] for e in obj.events]==[130,250,270]
-    assert [e['affects_later_actions'] for e in obj.events]==[True,True,False]
-    assert calls[-1][2][-1,0]==pytest.approx(1.) # terminal bootstrap must be zero
-    assert calls[0][2][-1,0]==pytest.approx(1+.99*4) # continuing bootstrap
+        calls.append(
+            (
+                model.rollout_buffer.buffer_size,
+                model.batch_size,
+                model.rollout_buffer.returns.copy(),
+            )
+        )
+        obj.optimizer_steps += model.n_epochs * (
+            model.rollout_buffer.buffer_size // model.batch_size
+        )
+        model._n_updates += model.n_epochs
+
+    model.train = no_optimizer
+    for decision in range(1, 271):
+        obj.pending = (
+            np.zeros(2),
+            np.asarray([4]),
+            torch.tensor([0.0]),
+            torch.tensor([0.0]),
+            np.ones(5, dtype=bool),
+        )
+        facts = {
+            "window": {"scored_ticks": 2},
+            "deployment": {
+                "active": decision > 10,
+                "eligible_ticks": 2 if decision > 10 else 0,
+            },
+        }
+        obj.mission = "recovery"
+        obj.observe(
+            np.zeros(2), 1.0, decision == 270, False, {"time_s": decision}, facts
+        )
+    assert [c[0] for c in calls] == [120, 120, 20]
+    assert (
+        obj.trained == obj.collected == 260
+        and obj.excluded == 10
+        and obj.skipped_tail == 0
+    )
+    assert [e["time_s"] for e in obj.events] == [130, 250, 270]
+    assert [e["affects_later_actions"] for e in obj.events] == [True, True, False]
+    assert calls[-1][2][-1, 0] == pytest.approx(1.0)  # terminal bootstrap must be zero
+    assert calls[0][2][-1, 0] == pytest.approx(1 + 0.99 * 4)  # continuing bootstrap
