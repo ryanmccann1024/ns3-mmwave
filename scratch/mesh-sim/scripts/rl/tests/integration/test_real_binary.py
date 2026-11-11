@@ -856,37 +856,59 @@ def test_active_gateway_cannot_be_controlled(tmp_path, selector):
 
 def test_deployment_gate(tmp_path):
     """Native masks, physics and eligible samples agree before/at/after deployment."""
-    from scripts.rl.scenario_check.inputs import read_ini,write_ini
-    ini=read_ini(RUN_CONFIG)
-    ini['scenario']['nodes_file']=str(RUN_CONFIG.parent/'nodes.json')
-    ini['scenario']['duration_s']='1.5'
-    ini['scenario']['warmup_s']='0'
-    ini['rl']['control_start_s']='0.5'
-    ini['rl']['controlled_nodes']='all'
-    ini['rl']['max_controlled_nodes']='3'
-    for key in ('buildings_file','jammers_file'):
-        ini['scenario'][key]=''
-    path=tmp_path/'run.ini';write_ini(path,ini)
-    env=MeshRlEnv(MESH_SIM_BIN,str(path),output_dir=str(tmp_path/'out'),seed=71,
-                  selection=resolve_selection(str(path),telemetry='steps'))
+    from scripts.rl.scenario_check.inputs import read_ini, write_ini
+
+    ini = read_ini(RUN_CONFIG)
+    ini["scenario"]["nodes_file"] = str(RUN_CONFIG.parent / "nodes.json")
+    ini["scenario"]["duration_s"] = "1.5"
+    ini["scenario"]["warmup_s"] = "0"
+    ini.setdefault("output", {})["dir"] = str(tmp_path / "native-output")
+    ini["rl"]["control_start_s"] = "0.5"
+    ini["rl"]["controlled_nodes"] = "all"
+    ini["rl"]["max_controlled_nodes"] = "3"
+    for key in ("buildings_file", "jammers_file"):
+        ini["scenario"][key] = ""
+    path = tmp_path / "run.ini"
+    write_ini(path, ini)
+    env = MeshRlEnv(
+        MESH_SIM_BIN,
+        str(path),
+        output_dir=str(tmp_path / "out"),
+        seed=71,
+        selection=resolve_selection(str(path), telemetry="steps"),
+    )
     try:
         env.reset()
-        assert env.contract['deployment_gate']['version']==1
+        assert env.contract["deployment_gate"]["version"] == 1
         # At t=0 all controlled and padded slots permit hold only.
-        assert list(env.action_masks())==[0,0,0,0,1]*env.contract['max_controlled_nodes']
-        _,_,_,_,info=env.step([0]*env.contract['max_controlled_nodes'])
+        assert (
+            list(env.action_masks())
+            == [0, 0, 0, 0, 1] * env.contract["max_controlled_nodes"]
+        )
+        _, _, _, _, info = env.step([0] * env.contract["max_controlled_nodes"])
         # First boundary has no strictly post-gate samples; next window is eligible.
-        assert env.contract['control_start_s']==.5
+        assert env.contract["control_start_s"] == 0.5
         assert env._protocol is not None
-        assert any(env.action_masks()[i] for i in range(len(env.action_masks())) if i%5!=4)
-        env.step([4]*env.contract['max_controlled_nodes'])
+        assert any(
+            env.action_masks()[i] for i in range(len(env.action_masks())) if i % 5 != 4
+        )
+        env.step([4] * env.contract["max_controlled_nodes"])
     finally:
         env.close()
-    records=[json.loads(line) for line in next((tmp_path/'out').glob('episode-*/steps.jsonl')).read_text().splitlines()]
-    steps=records[1:]
-    initial=steps[0]['facts']['nodes']
+    records = [
+        json.loads(line)
+        for line in next((tmp_path / "out").glob("episode-*/steps.jsonl"))
+        .read_text()
+        .splitlines()
+    ]
+    steps = records[1:]
+    initial = steps[0]["facts"]["nodes"]
     for row in steps:
-        if row['time_s']<=.5:
-            assert [n[:3] for n in row['facts']['nodes']]==[n[:3] for n in initial]
-            assert row['facts']['deployment']['eligible_ticks']==0
-    assert any(r['facts']['deployment']['eligible_ticks']>0 for r in steps if r['time_s']>.5)
+        if row["time_s"] <= 0.5:
+            assert [n[:3] for n in row["facts"]["nodes"]] == [n[:3] for n in initial]
+            assert row["facts"]["deployment"]["eligible_ticks"] == 0
+    assert any(
+        r["facts"]["deployment"]["eligible_ticks"] > 0
+        for r in steps
+        if r["time_s"] > 0.5
+    )
