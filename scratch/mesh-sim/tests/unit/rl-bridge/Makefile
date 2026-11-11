@@ -3,7 +3,7 @@ CXXFLAGS ?= -std=c++17 -Wall -Wpedantic
 ROOT     := ../../..
 COMMON   := ../../common
 
-SRCS := rl-bridge-test.cc \
+SRCS := rl-bridge-test.cc mission-bridge-test.cc \
         $(ROOT)/src/rl/rl-bridge.cc \
         $(ROOT)/src/rl/rl-motion.cc \
         $(ROOT)/src/eval/link-table.cc
@@ -17,7 +17,7 @@ NS3_STUBS := ns3/log.h ns3/random-variable-stream.h ns3/constant-velocity-mobili
 
 all: $(OUT)
 
-$(OUT): $(NS3_STUBS) $(SRCS) ns3-mobility-stub.h
+$(OUT): $(NS3_STUBS) $(SRCS) bridge-test-support.h ns3-mobility-stub.h
 	$(CXX) $(CXXFLAGS) -I. -I$(ROOT) -o $@ $(SRCS)
 
 ns3/log.h: $(COMMON)/ns3-log-stub.h
