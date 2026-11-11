@@ -566,6 +566,7 @@ def test_band_and_decision_records_reach_the_seeded_env_and_record(
     assert seen and seen[0][0] == "mmwave" and seen[0][1] is None
 
 
+@pytest.mark.parametrize("policy", ["geometric", "optimization"])
 def test_placement_baselines_delegate_to_the_evaluate_placement_path(
     policy, tmp_path, monkeypatch
 ):
