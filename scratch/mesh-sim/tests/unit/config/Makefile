@@ -2,7 +2,7 @@ CXX      ?= c++
 CXXFLAGS ?= -std=c++17 -Wall -Wpedantic
 ROOT     := ../../..
 
-SRCS := config-validator-test.cc \
+SRCS := config-validator-test.cc mission-config-test.cc \
         $(ROOT)/src/config/query-config.cc \
         $(ROOT)/src/config/config-validator.cc \
         $(ROOT)/src/config/config-loader.cc \
@@ -17,8 +17,8 @@ OUT := config-validator-test
 
 all: $(OUT)
 
-$(OUT): $(SRCS)
-	$(CXX) $(CXXFLAGS) -I$(ROOT) -o $@ $^
+$(OUT): $(SRCS) config-test-support.h
+	$(CXX) $(CXXFLAGS) -I$(ROOT) -o $@ $(SRCS)
 
 test: $(OUT)
 	@./$(OUT)

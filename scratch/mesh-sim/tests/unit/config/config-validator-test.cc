@@ -8,8 +8,7 @@
  * Build and run: `make -C tests/unit/config test`.
  */
 
-#include "src/config/config-loader.h"
-#include "src/config/config-validator.h"
+#include "config-test-support.h"
 #include "src/config/layout-override.h"
 #include "src/config/rl-control.h"
 #include "src/util/string-utils.h"
@@ -27,72 +26,11 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+using namespace config_test;
 using namespace mesh_sim;
 
-// ---- helpers ----
-
-static int g_pass = 0;
-static int g_fail = 0;
-
-static void
-check(bool cond, const std::string& name)
-{
-    if (cond)
-    {
-        ++g_pass;
-    }
-    else
-    {
-        ++g_fail;
-        std::cerr << "FAIL: " << name << "\n";
-    }
-}
-
-static SimConfig
-makeValid()
-{
-    SimConfig cfg;
-    cfg.scenario_name = "test";
-    cfg.seed       = 42;
-    cfg.run_id     = 1;
-    cfg.duration_s = 10.0;
-    cfg.warmup_s   = 0.0;
-    cfg.tick_s     = 0.1;
-
-    cfg.channel.frequency_ghz = 28.0;
-    cfg.channel.bandwidth_mhz = 400.0;
-    cfg.channel.channel_model  = "3gpp";
-    cfg.channel.scenario       = "UMi";
-
-    cfg.mesh.traffic.model         = "constant";
-    cfg.mesh.traffic.demand_mbps   = 10.0;
-    cfg.mesh.traffic.flow_topology = "all_pairs";
-    cfg.mesh.routing.algorithm     = "shortest_path";
-
-    NodeSpec n1;
-    n1.id       = "node0";
-    n1.mobility = "fixed";
-    n1.node_type = "drone";
-    NodeSpec n2;
-    n2.id       = "node1";
-    n2.mobility = "fixed";
-    n2.node_type = "drone";
-    cfg.nodes.push_back(n1);
-    cfg.nodes.push_back(n2);
-
-    return cfg;
-}
-
-static bool
-hasError(const ValidationResult& r, const std::string& substr)
-{
-    for (const auto& e : r.errors)
-    {
-        if (e.find(substr) != std::string::npos)
-            return true;
-    }
-    return false;
-}
+int config_test::g_pass = 0;
+int config_test::g_fail = 0;
 
 // ---- config validation tests ----
 
@@ -340,60 +278,6 @@ test_multiple_errors()
     check(r.errors.size() >= 3, "multiple errors reported at once");
 }
 
-// ---- loader-backed scenario helper ----
-
-namespace
-{
-
-// Writes a throwaway scenario dir and loads it; extraChannel/extraRl are raw INI lines.
-class TempScenario
-{
-  public:
-    TempScenario(const std::string& extraChannel, const std::string& extraRl)
-    {
-        static int          counter = 0;
-        static std::random_device rd;
-        static const auto   salt = rd();
-        m_dir = std::filesystem::temp_directory_path() /
-                ("mesh-sim-cfg-test-" + std::to_string(salt) + "-" +
-                 std::to_string(++counter));
-        std::filesystem::remove_all(m_dir);
-        std::filesystem::create_directories(m_dir / "out");
-
-        std::ofstream ini(m_dir / "run.ini");
-        ini << "[scenario]\nname = temp\nnodes_file = nodes.json\n"
-            << "duration_s = 10.0\ntick_s = 0.1\n"
-            << "[output]\ndir = out\n"
-            << "[channel]\n" << extraChannel
-            << "[rl]\nenabled = true\n" << extraRl;
-        ini.close();
-
-        std::ofstream nodes(m_dir / "nodes.json");
-        nodes << R"([{"id":"node0","mobility":"fixed"},)"
-              << R"({"id":"node1","mobility":"fixed"}])";
-        nodes.close();
-    }
-
-    ~TempScenario()
-    {
-        std::error_code ec;
-        std::filesystem::remove_all(m_dir, ec);
-    }
-
-    void Write(const std::string& file, const std::string& data) const
-    {
-        std::ofstream out(m_dir / file);
-        out << data;
-    }
-
-    SimConfig Load() const { return ConfigLoader::Load((m_dir / "run.ini").string()); }
-
-  private:
-    std::filesystem::path m_dir;
-};
-
-}  // namespace
-
 // ---- band tests ----
 
 static void
@@ -572,26 +456,6 @@ test_seed_skip_empty_tokens()
 }
 
 // ---- rl centralized control resolution tests ----
-
-static SimConfig
-makeRlCfg(size_t n = 3)
-{
-    SimConfig cfg = makeValid();
-    cfg.nodes.clear();
-    for (size_t i = 0; i < n; ++i)
-    {
-        NodeSpec s;
-        s.id        = std::string("node-") + static_cast<char>('a' + static_cast<int>(i));
-        s.mobility  = "fixed";
-        s.node_type = "drone";
-        s.position  = Position{10.0 * static_cast<double>(i), 20.0, 10.0};
-        cfg.nodes.push_back(s);
-    }
-    cfg.rl.enabled             = true;
-    cfg.rl.controlled_nodes_set = true;
-    cfg.rl.controlled_nodes    = "all";
-    return cfg;
-}
 
 static bool
 hasResErr(const RlControlResolution& r, const std::string& substr)
@@ -1221,116 +1085,13 @@ test_seed_rejections()
     }
 }
 
-static void
-test_mission_validation()
-{
-    auto cfg = makeValid();
-    auto third = cfg.nodes.front();
-    third.id = "node2";
-    cfg.nodes.push_back(third);
-    cfg.rl.enabled = true;
-    cfg.rl.controlled_nodes_set = true;
-    cfg.rl.controlled_nodes = "all";
-    cfg.rl.coverage_enabled = true;
-    cfg.rl.mission.kind = "recovery";
-    cfg.nodes[1].failure_at_s = 3.0;
-    check(ValidateConfig(cfg).ok(), "pure mission recovery config valid");
-    cfg.nodes[1].failure_at_s = 10.0;
-    check(!ValidateConfig(cfg).ok(), "pure dropout at duration rejected");
-    cfg.nodes[1].failure_at_s = -1.0;
-    cfg.rl.mission.kind = "investigation";
-    cfg.rl.mission.investigator_id = "node1";
-    cfg.rl.controlled_nodes = "node0,node2";
-    check(!ValidateConfig(cfg).ok(), "uncontrolled investigator rejected");
-    cfg.rl.controlled_nodes = "all";
-    check(ValidateConfig(cfg).ok(), "controlled investigator valid");
-    cfg.rl.x_max = 100.0;
-    check(hasError(ValidateConfig(cfg), "mission goal must be within RL bounds"),
-          "investigation rejects a goal outside its bounds");
-
-    cfg.rl.mission.kind = "coverage";
-    check(ValidateConfig(cfg).ok(), "coverage ignores an out-of-bounds investigation goal");
-
-    cfg.rl.mission.kind = "recovery";
-    cfg.nodes[1].failure_at_s = 3.0;
-    check(ValidateConfig(cfg).ok(), "recovery ignores an out-of-bounds investigation goal");
-    cfg.nodes[1].failure_at_s = -1.0;
-    cfg.rl.mission.kind = "unknown";
-    check(!ValidateConfig(cfg).ok(), "unknown mission rejected");
-}
-
-static void
-test_mission_inputs()
-{
-    for (const auto& environment : {"RMa", "UMa"})
-        for (const auto& mission : {"coverage", "investigation", "recovery"})
-            for (const int peers : {3, 6, 9})
-            {
-                TempScenario scenario(
-                    std::string("scenario = ") + environment + "\n[mission]\nkind = " + mission +
-                        "\ninvestigator_id = node0\n" +
-                        (std::string(mission) == "investigation"
-                             ? "team_investigation = true\ngoal_coverage_target = "
-                               "0\nteam_delivery_target = 0\n"
-                             : "team_investigation = false\ngoal_coverage_target = "
-                               "0.8\nteam_delivery_target = 0.8\n"),
-                    "controlled_nodes = all\ncoverage_enabled = true\n"
-                    "decision_interval_s = 1\ncontrol_start_s = 1\n"
-                    "x_min = 0\nx_max = 400\ny_min = 0\ny_max = 400\nz_min = 0\nz_max = 50\n");
-                std::string nodes = "[";
-                for (int i = 0; i < peers; ++i)
-                {
-                    if (i)
-                        nodes += ",";
-                    nodes += "{\"id\":\"node" + std::to_string(i) +
-                             "\",\"mobility\":\"fixed\","
-                             "\"node_type\":\"drone\",\"position\":{\"x\":" +
-                             std::to_string(30 + 20 * i) + ",\"y\":50,\"z\":20}";
-                    if (i == 0 && std::string(mission) == "recovery")
-                        nodes += ",\"failure_at_s\":3";
-                    nodes += "}";
-                }
-                scenario.Write("nodes.json", nodes + "]");
-                auto cfg = scenario.Load();
-                check(ValidateConfig(cfg).ok(), "generated mission scenario validates");
-                check(cfg.nodes.size() == static_cast<std::size_t>(peers),
-                      "mission team size parsed");
-                if (std::string(mission) == "recovery")
-                {
-                    check(cfg.nodes[0].failure_at_s == 3, "permanent relay dropout parsed");
-                    cfg.nodes[0].failure_at_s = 3.05;
-                    check(!ValidateConfig(cfg).ok(), "unaligned dropout rejected");
-                    cfg.nodes[0].failure_at_s = cfg.duration_s;
-                    check(!ValidateConfig(cfg).ok(), "dropout at episode end rejected");
-                }
-                if (std::string(mission) == "investigation")
-                {
-                    check(cfg.rl.mission.goal_coverage_target == 0 &&
-                              cfg.rl.mission.team_delivery_target == 0,
-                          "investigation secondary gates may be explicitly disabled");
-                    cfg.rl.mission.goal_coverage_target = -0.1;
-                    check(!ValidateConfig(cfg).ok(), "negative investigation target rejected");
-                    cfg.rl.mission.goal_coverage_target = 0;
-                    cfg.rl.mission.team_delivery_target = 1.1;
-                    check(!ValidateConfig(cfg).ok(), "investigation delivery above one rejected");
-                }
-                cfg.rl.control_start_s = -1;
-                check(!ValidateConfig(cfg).ok(), "negative control gate rejected");
-                cfg.rl.control_start_s = 1.25;
-                check(!ValidateConfig(cfg).ok(), "unaligned control gate rejected");
-                cfg.rl.control_start_s = cfg.duration_s;
-                check(!ValidateConfig(cfg).ok(), "control gate at episode end rejected");
-            }
-}
-
 int
 main()
 {
     test_invalid_numeric_inputs();
     test_seed_rejections();
 
-    test_mission_validation();
-    test_mission_inputs();
+    testMissionConfig();
     // Config validation
     test_valid_config();
     test_zero_duration();
@@ -1397,74 +1158,6 @@ main()
     test_rl_start_outside_bounds();
     test_rl_validator_reports_resolver_errors();
 
-    {
-        auto cfg=makeValid(); cfg.rl.enabled=true;
-        cfg.rl.unsafe_separation_m=0;
-        check(!ValidateConfig(cfg).errors.empty(), "reject zero unsafe separation");
-        cfg.rl.unsafe_separation_m=1;
-        cfg.rl.controlled_nodes_set=true; cfg.rl.controlled_nodes="all";
-        cfg.rl.coverage_enabled=true; cfg.rl.coverage_grid_cells=0;
-        check(!ValidateConfig(cfg).errors.empty(), "reject zero RL coverage cells");
-        cfg.rl.coverage_grid_cells=64;
-        check(ValidateConfig(cfg).errors.empty(), "accept 1m separation and live coverage");
-    }
-
-    {
-        auto cfg = makeRlCfg();
-        cfg.rl.avoid_node_collisions = true;
-        cfg.rl.unsafe_separation_m = 1;
-        check(ValidateConfig(cfg).ok(), "joint collision guard accepts separated starts");
-        cfg.nodes[1].position = cfg.nodes[0].position;
-        check(!ValidateConfig(cfg).ok(), "joint collision guard rejects overlapping starts");
-        cfg.nodes[1].position.z += 20;
-        check(ValidateConfig(cfg).ok(), "joint collision guard uses 3D separation");
-    }
-
-    {
-        TempScenario scenario("", "controlled_nodes = all\navoid_node_collisions = true\n");
-        check(scenario.Load().rl.avoid_node_collisions, "loader reads joint collision flag");
-        TempScenario defaults("", "controlled_nodes = all\n");
-        check(!defaults.Load().rl.avoid_node_collisions, "joint collision flag defaults false");
-    }
-
-    {
-        const std::string fields =
-            R"("x_min":10,"x_max":30,"y_min":40,"y_max":60,"z_min":0,"z_max":38)";
-        TempScenario flat(
-            "[scenario]\nbuildings_file = buildings.json\n",
-            "controlled_nodes = all\nbuilding_clearance_m = 2\nmask_building_moves = false\n");
-        flat.Write("buildings.json", "[{\"id\":\"wall\"," + fields + "}]");
-        auto cfg = flat.Load();
-        check(cfg.buildings[0].x_min == 10 && cfg.buildings[0].z_max == 38,
-              "flat geometry loaded without default boxes");
-        check(cfg.rl.building_clearance_m == 2 && !cfg.rl.mask_building_moves,
-              "collision proposal controls loaded");
-        flat.Write("buildings.json", "[{\"id\":\"wall\",\"bounds\":{" + fields + "}}]");
-        check(flat.Load().buildings[0].y_max == 60, "nested geometry loaded");
-        flat.Write("buildings.json", "[{\"id\":\"wall\",\"x_min\":10}]");
-        bool threw = false;
-        try
-        {
-            flat.Load();
-        }
-        catch (const std::exception&)
-        {
-            threw = true;
-        }
-        check(threw, "incomplete geometry rejected rather than silently defaulted");
-        flat.Write("buildings.json",
-                   "[{\"id\":\"wall\",\"x_min\":999,\"bounds\":{" + fields + "}}]");
-        threw = false;
-        try
-        {
-            flat.Load();
-        }
-        catch (const std::exception&)
-        {
-            threw = true;
-        }
-        check(threw, "conflicting geometry rejected");
-    }
     {
         TempScenario explicitPairs("[traffic]\nflow_topology = explicit_pairs\npairs = "
                                    "[{\"src\":\"node0\",\"dst\":\"node1\",\"demand_mbps\":6}]\n",
