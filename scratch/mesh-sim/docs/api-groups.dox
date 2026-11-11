@@ -396,6 +396,9 @@
 /** @class mesh_sim::RlBridge
  *  @ingroup api_src_rl
  */
+/** @file src/rl/rl-motion.cc
+ *  @ingroup api_src_rl
+ */
 
 /** @defgroup api_src_query query
  *  @ingroup api_cpp_interfaces
@@ -788,6 +791,9 @@
 /** @namespace scripts::rl::env::mesh_env
  *  @ingroup api_scripts_rl_env
  */
+/** @namespace scripts::rl::env::mission_protocol
+ *  @ingroup api_scripts_rl_env
+ */
 /** @namespace scripts::rl::env::normalization
  *  @ingroup api_scripts_rl_env
  */
@@ -809,6 +815,9 @@
  *  @ingroup api_scripts_rl_env_observations
  */
 /** @namespace scripts::rl::env::observations::coordination
+ *  @ingroup api_scripts_rl_env_observations
+ */
+/** @namespace scripts::rl::env::observations::mission
  *  @ingroup api_scripts_rl_env_observations
  */
 /** @namespace scripts::rl::env::observations::radio
@@ -875,16 +884,64 @@
  *
  *  Guide: \ref scripts_rl_experiments
  */
+/** @namespace scripts::rl::experiments::check_config
+ *  @ingroup api_scripts_rl_experiments
+ */
 /** @namespace scripts::rl::experiments::config
+ *  @ingroup api_scripts_rl_experiments
+ */
+/** @namespace scripts::rl::experiments::matrix_fields
+ *  @ingroup api_scripts_rl_experiments
+ */
+/** @namespace scripts::rl::experiments::model_config
+ *  @ingroup api_scripts_rl_experiments
+ */
+/** @namespace scripts::rl::experiments::operation_config
  *  @ingroup api_scripts_rl_experiments
  */
 /** @namespace scripts::rl::experiments::plan
  *  @ingroup api_scripts_rl_experiments
  */
+/** @namespace scripts::rl::experiments::plan_inputs
+ *  @ingroup api_scripts_rl_experiments
+ */
+/** @namespace scripts::rl::experiments::plan_tasks
+ *  @ingroup api_scripts_rl_experiments
+ */
+/** @namespace scripts::rl::experiments::report_artifacts
+ *  @ingroup api_scripts_rl_experiments
+ */
+/** @namespace scripts::rl::experiments::report_comparison
+ *  @ingroup api_scripts_rl_experiments
+ */
+/** @namespace scripts::rl::experiments::report_curves
+ *  @ingroup api_scripts_rl_experiments
+ */
+/** @namespace scripts::rl::experiments::report_index
+ *  @ingroup api_scripts_rl_experiments
+ */
+/** @namespace scripts::rl::experiments::report_selection
+ *  @ingroup api_scripts_rl_experiments
+ */
 /** @namespace scripts::rl::experiments::reporting
  *  @ingroup api_scripts_rl_experiments
  */
+/** @namespace scripts::rl::experiments::row_config
+ *  @ingroup api_scripts_rl_experiments
+ */
+/** @namespace scripts::rl::experiments::scenario_config
+ *  @ingroup api_scripts_rl_experiments
+ */
+/** @namespace scripts::rl::experiments::scenario_timing
+ *  @ingroup api_scripts_rl_experiments
+ */
 /** @namespace scripts::rl::experiments::selection
+ *  @ingroup api_scripts_rl_experiments
+ */
+/** @namespace scripts::rl::experiments::stage_config
+ *  @ingroup api_scripts_rl_experiments
+ */
+/** @namespace scripts::rl::experiments::task_graph
  *  @ingroup api_scripts_rl_experiments
  */
 
@@ -893,6 +950,15 @@
  *  @brief Run, benchmark, tune, submit to SLURM, and fetch an experiment plan.
  *
  *  Guide: \ref scripts_rl_ops
+ */
+/** @namespace scripts::rl::ops::batch_identity
+ *  @ingroup api_scripts_rl_ops
+ */
+/** @namespace scripts::rl::ops::batch_processes
+ *  @ingroup api_scripts_rl_ops
+ */
+/** @namespace scripts::rl::ops::batch_receipts
+ *  @ingroup api_scripts_rl_ops
  */
 /** @namespace scripts::rl::ops::benchmark
  *  @ingroup api_scripts_rl_ops
@@ -952,6 +1018,9 @@
 /** @namespace scripts::rl::policy::baseline_cache
  *  @ingroup api_scripts_rl_policy
  */
+/** @namespace scripts::rl::policy::baseline_execution
+ *  @ingroup api_scripts_rl_policy
+ */
 /** @namespace scripts::rl::policy::bundle
  *  @ingroup api_scripts_rl_policy
  */
@@ -985,6 +1054,12 @@
 /** @namespace scripts::rl::policy::operation
  *  @ingroup api_scripts_rl_policy
  */
+/** @namespace scripts::rl::policy::operation_checks
+ *  @ingroup api_scripts_rl_policy
+ */
+/** @namespace scripts::rl::policy::operation_inputs
+ *  @ingroup api_scripts_rl_policy
+ */
 /** @namespace scripts::rl::policy::preferences
  *  @ingroup api_scripts_rl_policy
  */
@@ -995,6 +1070,9 @@
  *  @ingroup api_scripts_rl_policy
  */
 /** @namespace scripts::rl::policy::reward_matrix
+ *  @ingroup api_scripts_rl_policy
+ */
+/** @namespace scripts::rl::policy::sb3_operation
  *  @ingroup api_scripts_rl_policy
  */
 /** @namespace scripts::rl::policy::schedules
@@ -1017,7 +1095,16 @@
 /** @namespace scripts::rl::scenario_check::__main__
  *  @ingroup api_scripts_rl_scenario_check
  */
-/** @namespace scripts::rl::scenario_check::correction
+/** @namespace scripts::rl::scenario_check::archive
+ *  @ingroup api_scripts_rl_scenario_check
+ */
+/** @namespace scripts::rl::scenario_check::assessment
+ *  @ingroup api_scripts_rl_scenario_check
+ */
+/** @namespace scripts::rl::scenario_check::case_execution
+ *  @ingroup api_scripts_rl_scenario_check
+ */
+/** @namespace scripts::rl::scenario_check::defaults
  *  @ingroup api_scripts_rl_scenario_check
  */
 /** @namespace scripts::rl::scenario_check::execution
@@ -1027,6 +1114,9 @@
  *  @ingroup api_scripts_rl_scenario_check
  */
 /** @namespace scripts::rl::scenario_check::inputs
+ *  @ingroup api_scripts_rl_scenario_check
+ */
+/** @namespace scripts::rl::scenario_check::october_23_followup
  *  @ingroup api_scripts_rl_scenario_check
  */
 /** @namespace scripts::rl::scenario_check::placement
