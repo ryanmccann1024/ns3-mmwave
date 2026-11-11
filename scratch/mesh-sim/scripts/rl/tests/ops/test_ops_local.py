@@ -592,9 +592,10 @@ def test_shared_pool_caps_two_supervisors(
     assert not list((fakes / "pool").glob("slot-*.json"))
 
 
-def test_worker_crash_keeps_slot_until_owned_child_is_reaped(fakes):
+def test_worker_crash_keeps_slot_until_owned_child_is_reaped(fakes, monkeypatch):
+    monkeypatch.setenv("COLUMNS", "80")
     pool = {"path": str(fakes / "pool"), "reference": "pool", "capacity": 1}
-    marker = str(fakes / "attempt-marker")
+    marker = str(fakes / ("long-attempt-directory-" * 8) / "attempt-marker")
     holder = f"""
 import subprocess, sys, time
 from scripts.rl.ops import local
