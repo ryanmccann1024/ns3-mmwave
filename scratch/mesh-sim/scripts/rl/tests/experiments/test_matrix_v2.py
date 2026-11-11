@@ -1,4 +1,4 @@
-"""Matrix v2 validation, plan v3 expansion and identity, selection rules and the launcher.
+"""Matrix v2 validation, plan v3 expansion and identity, and selection rules.
 
 No simulator or training runs: binaries are fake executables that are hashed only.
 """
@@ -6,7 +6,6 @@ No simulator or training runs: binaries are fake executables that are hashed onl
 import copy
 import json
 import subprocess
-import sys
 import zipfile
 from pathlib import Path
 
@@ -25,9 +24,7 @@ from scripts.rl.experiments.plan import (
 from scripts.sim_support import find_mesh_root
 
 MESH = find_mesh_root()
-TRACKED_V1 = MESH / "inputs/experiments/bypass-smoke-matrix.json"
 EXAMPLE = MESH / "inputs/experiments/examples/coordination-smoke"
-LAUNCHER = MESH / "scripts/rl/run-experiments.sh"
 
 
 def _matrix(run_config: str, **changes) -> dict:
@@ -709,24 +706,6 @@ def test_public_example_validates_and_plans(tmp_path, sim_binary):
     replay = next(t for t in plan["tasks"] if t["kind"] == "replay_gate")
     assert any(arg.startswith("{accepted_dir:baseline/") for arg in replay["args"])
     assert not (tmp_path / "root").exists()
-
-
-def _fake_root(tmp_path: Path) -> tuple[Path, Path]:
-    """Mesh-shaped root whose .venv python only records its argv and cwd."""
-    root = tmp_path / "fake mesh"
-    (root / "scripts/rl").mkdir(parents=True)
-    (root / "sim.cc").write_text("")
-    record = tmp_path / "argv.json"
-    python = root / ".venv/bin/python"
-    python.parent.mkdir(parents=True)
-    python.write_text(
-        f"#!{sys.executable}\nimport json, os, sys\n"
-        f'json.dump({{"argv": sys.argv[1:], "cwd": os.getcwd(), '
-        f'"bin": os.environ.get("MESH_SIM_BIN")}}, open({str(record)!r}, "w"))\n'
-        "sys.exit(7)\n"
-    )
-    python.chmod(0o755)
-    return root, record
 
 
 def test_gated_and_scheduled_operations_need_a_case_mission(tmp_path, multi_run_config):

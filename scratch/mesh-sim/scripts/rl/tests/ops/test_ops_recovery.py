@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.rl.ops import batch_identity, local, recovery
+from scripts.rl.ops import batch_identity, batch_receipts, local, recovery
 from scripts.rl.tests.ops.test_ops_local import (
     EXAMPLE,
     EXECUTION,
@@ -485,13 +485,18 @@ def test_resume_completes_missing_bindings_after_an_interrupted_acceptance(
         proposal = recovery.build_proposal(root, plan, EXECUTION, None)
         assert proposal["tasks"][task["id"]]["action"] == "accept"
 
-        def interrupt(*_args):
-            raise KeyboardInterrupt
+        write_json = batch_receipts.write_json
+
+        def interrupt_after_first_binding(path, payload):
+            write_json(path, payload)
+            if Path(path).parent.name == "bindings":
+                raise KeyboardInterrupt
 
         with monkeypatch.context() as patch:
-            patch.setattr(recovery, "write_bindings", interrupt)
+            patch.setattr(batch_receipts, "write_json", interrupt_after_first_binding)
             with pytest.raises(KeyboardInterrupt):
                 recovery.apply_proposal(root, plan, proposal)
+        assert len(list((root / "state/bindings").glob("*.json"))) == 1
         assert recovery.read_receipt(root, task)["state"] == "interrupted"
 
     # Test recovery without launching workers. A completed training receipt must

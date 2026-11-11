@@ -413,4 +413,3 @@ A simulator is required only for native plan/run operations. Existing-parent
 continuation is supported; same-batch parent/child training is not. The retired
 campaign scripts are replaced by explicit configurations. See the batch
 reference in `docs/rl/batch-reference.md` and the tracked example.
-

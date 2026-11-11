@@ -29,9 +29,9 @@ been run against the real simulator.
 | Launcher | `scripts/rl/run-experiments.sh` | Implemented; `--help`, `validate` and `--dry-run` executed. |
 | Training options | `scripts/rl/train.py m-ppo` | Implemented; flags checked against `--help`. |
 | Operations, schedules, online protocols, replay gate, reward audit, scripted baselines | `scripts/rl/policy/{operation,online_adaptation,schedules,replay_gate,reward_audit,scripted}.py` | Implemented library owners; documented from source. |
-| Operation CLI that plan tasks call | `scripts/rl/operate.py` | Implemented; every subcommand's flags checked against `--help` (section 10.4). The `preflight` subcommand has no adapter yet (section 6.9). |
-| Local scheduler, `campaign_status.json`, root lock, shared worker pool | `scripts/rl/ops/local.py` | Implemented; documented from source (constants, states, file names, exit codes). |
-| Identity checks, task receipts, bindings and recovery proposals | `scripts/rl/ops/recovery.py` | Implemented; documented from source. |
+| Operation CLI that plan tasks call | `scripts/rl/operate.py` | Implemented; every subcommand's flags checked against `--help` (section 10.4). The standalone `preflight` subcommand probes one seed and INI (section 6.9). |
+| Local scheduler, status, root lock and shared worker pool | `scripts/rl/ops/local.py` and `batch_processes.py` | Implemented; documented from source (constants, states, file names, exit codes). |
+| Identity checks, task receipts and recovery | `scripts/rl/ops/batch_identity.py`, `batch_receipts.py` and `recovery.py` | Implemented; documented from source. |
 | Curves, reviews, comparison views, scenario index, reward summaries, selection evidence | `scripts/rl/experiments/reporting.py` | Implemented; documented from source. |
 
 No native simulator run of a version 2 batch has been executed. The public
@@ -297,7 +297,7 @@ recorded incomplete view.
 
 | `kind` | Keys | Contract |
 |---|---|---|
-| `preflight` | Reserved; not accepted | Validation refuses this kind before planning or launching: the single-case adapter is unavailable (R6). Run the existing physical preflight separately. Direct `operate preflight` still writes a failed result and exits 1. |
+| `preflight` | Reserved; not accepted | Run the single-case capability probe with `python -m scripts.rl.operate preflight` and see the [policy operations guide](../../scripts/rl/policy/README.md) for arguments. Use `preflight_campaign` for campaign difficulty checks. |
 | `replay_gate` | `id`, `scenario`, `seeds`, `source`, `applies_to?`, `comparison?`, `parent?`, `case?`, `contact_audit?` | Replays a saved trajectory; `source` is `{baseline, seed}` (a planned baseline) or `{path}` (an existing directory, which then accepts exactly one seed). See the replay contract below. |
 | `reward_audit` | `id`, `scenario`, `method`, `row`, `source`, `applies_to?` | Reconstructs a reward; `row` must be a row of that scenario with a reward selection. |
 
@@ -412,10 +412,9 @@ and digest.
 
 | Kind | Task ID | Runs | Needs |
 |---|---|---|---|
-| `preflight` | `preflight/<scenario>/<check>/seed-<S>` | `scripts.rl.operate preflight` | — |
-| `baseline` | `baseline/<scenario>/<policy>/<role>/seed-<E>`, plus `/config-<digest12>` for each non-default physical variant | `scripts.rl.operate baseline` | The scenario's preflights. |
-| `replay_gate` | `check/<scenario>/<check>/seed-<S>` | `scripts.rl.operate replay-gate` | Preflights; the source baseline. |
-| `reward_audit` | `check/<scenario>/<check>` | `scripts.rl.operate reward-audit` | Preflights; the source baseline. |
+| `baseline` | `baseline/<scenario>/<policy>/<role>/seed-<E>`, plus `/config-<digest12>` for each non-default physical variant | `scripts.rl.operate baseline` | — |
+| `replay_gate` | `check/<scenario>/<check>/seed-<S>` | `scripts.rl.operate replay-gate` | The source baseline, if planned. |
+| `reward_audit` | `check/<scenario>/<check>` | `scripts.rl.operate reward-audit` | The source baseline, if planned. |
 | `train` | `train/<scenario>/<row>/train-seed-<S>` | `scripts.rl.train ... m-ppo` | Every check that applies to the row (section 6.9); earlier stages; the selection, if a branch. |
 | `operate` | `operate/<scenario>/<row>/<train-seed-S or model-<digest>>/checkpoint-<C>/<operation>/<role>/seed-<E>` | `scripts.rl.operate model` | Its producer train task (or none for an imported model); checks; stage and selection. |
 | `select` | `select/<stage>` | Selection handler | Every candidate's source tasks. |
@@ -458,7 +457,7 @@ write-once binding at `state/bindings/<producer-key>-<checkpoint>.json` records
 `bind_model`). `read_bound_checkpoint` re-verifies the manifest bytes, model
 SHA-256, counters and optimizer digest, and never rewrites anything. Replacing
 a bound ZIP invalidates the consumer. The scheduler writes bindings when a
-producer completes (`ops/recovery.py` `write_bindings`, following the accepted
+producer completes (`ops/batch_receipts.py` `write_bindings`, following the accepted
 training lineage for a retained checkpoint) and verifies them at dispatch; an
 existing binding with different content is a problem, never overwritten.
 `operate model --binding` accepts only a scheduler binding under
@@ -517,8 +516,8 @@ results change. Expected outputs per task: `train_manifest.json` and
 
 ## 9\. Task and batch states {#mesh_sim_rl_batch_states}
 
-Owners: `ops/local.py` (scheduler, status) and `ops/recovery.py` (receipts,
-validators), documented from source.
+The scheduler and status reader live in `ops/local.py`. Task receipts, output
+validation and model bindings live in `ops/batch_receipts.py`.
 
 **Receipts, not directory existence.** `state/steps/<KEY>.json` is a versioned
 receipt (`batch_step_version`) with fields `task_id`, `task_key`, `kind`,
@@ -675,7 +674,7 @@ Flags, from each subcommand's `--help`:
 |---|---|---|
 | `model` | `--sim-binary`, `--run-dir`, `--model` (`final`, `best` or `checkpoints/<name>.zip`), `--mode`, `--operation-id`, `--seed`, `--seed-role` (`model_selection`, `diagnostic`, `held_out`), `--run-config`, `--output-dir`, `--protocol-settings-json` | `--band`, `--schedule-json`, `--gate-s`, `--binding` (scheduler binding JSON; required for a bound checkpoint whose training manifest is unfinished), `--mission` (required by gated and sampling-schedule operations; never inferred from `run.ini`), `--coverage-target`, `--decision-records`, `--decision-records-every`, `--decision-records-max-bytes`, `--decision-records-obs-vector {auto,always}`, `--decision-records-preferences {auto,off}` |
 | `baseline` | `--sim-binary`, `--policy` (`hold`, `random_valid`, `scripted`, `geometric`, `optimization`), `--seed`, `--seed-role` (also `training`), `--run-config`, `--output-dir` | `--band`, `--reference-kind`, `--reference`, `--gate-s`, `--mission`, `--coverage-target`, the five decision-record flags, `--import-from`, `--planning-seed` (placement; overrides `[baseline] planning_seed`), `--allow-seed-overlap` (placement only) |
-| `preflight` | `--check-id`, `--sim-binary`, `--seed-configs-json`, `--output-dir` | `--band`, `--requirements`, `--reference-kind`, `--reference`. BLOCKED: always writes a failed result and exits 1 (section 6.9). |
+| `preflight` | `--check-id`, `--sim-binary`, `--seed-configs-json`, `--output-dir` | `--band`, `--requirements`, `--reference-kind`, `--reference`. Pass comma-separated capability names with `--requirements`. |
 | `replay-gate` | `--check-id`, `--sim-binary`, `--seed-configs-json`, `--source` (episode directory), `--output-dir` | `--band`, `--comparison {strict_v1,pre_contact_source_v1}` (default `strict_v1`), `--parent-run-dir`, `--parent-model` (default `final`; requires parent directory), `--case-json` (object, default `{}`), `--contact-audit` |
 | `reward-audit` | `--check-id`, `--source` (evaluation or episode directory), `--method`, `--run-config`, `--observation-preset`, `--reward-components`, `--reward-weights`, `--observation-parameters`, `--reward-parameters`, `--output-dir` | — |
 
@@ -731,7 +730,8 @@ or a held-out seed role blocks the selection.
 
 ## 13\. Identity and resume {#mesh_sim_rl_batch_resume}
 
-Owner: `ops/recovery.py`, documented from source.
+Runtime identity lives in `ops/batch_identity.py`. Checkpoint recovery and
+resume proposals live in `ops/recovery.py`.
 
 At first run the batch writes `runtime_identity.json` once
 (`runtime_identity_version`, `created_at`, `plan` path and SHA-256, `matrix`
@@ -753,8 +753,9 @@ Resume procedure:
 2. Build the whole recovery proposal (`state/recovery/<proposal-id>.json`,
    `batch_recovery_version`) before changing anything. Blockers are listed;
    nothing is half-applied.
-3. Completed tasks keep their accepted attempt. Pending tasks stay pending. An
-   interrupted operation, baseline or check retries only itself in a new
+3. Completed tasks keep their accepted attempt. Resume verifies and writes missing
+   checkpoint bindings from completed training before dispatch. Pending tasks
+   stay pending. An interrupted operation, baseline or check retries in a new
    attempt.
 4. Interrupted training with `recovery: checkpoint` restarts from the latest
    verified post-update checkpoint of that task: timing event, ZIP SHA-256,
@@ -817,8 +818,8 @@ batches without a shared pool **add** their workers (the launcher's help says
 so). There is no memory-based automatic increase, and no fixed worker count is
 claimed safe on every machine.
 
-`ops/local.py`, documented from source: one root lock (`campaign.lock`)
-refuses a second supervisor for the same root. `execution.resource_pool` gives
+`ops/batch_processes.py` uses `campaign.lock` to refuse a second supervisor
+for the same root. `execution.resource_pool` gives
 cooperating batches one cross-terminal cap: the first batch records
 `pool.json` (`resource_pool_version`, `capacity`, `created_at`) under
 `pool.lock`, and a batch declaring another capacity is refused. Each task
@@ -934,16 +935,17 @@ unrelated rewards.
 
 | Owner | Test (behavior map) |
 |---|---|
-| `experiments/config.py`, `experiments/plan.py`, `experiments/selection.py`, `experiment.py`, `run-experiments.sh` | `test_matrix_v2.py` (\ref src_rl_policy_comparison_tests "Policy comparison tests") |
-| `policy/operation.py`, `policy/schedules.py`, `policy/replay_gate.py`, `policy/reward_audit.py` | `test_operation.py`, `test_online_protocols.py` (\ref scripts_rl_tests "scripts/rl/tests") |
+| `experiments/config.py`, `experiments/plan.py`, `experiments/selection.py` | `test_matrix_v2.py` (\ref src_rl_policy_comparison_tests "Policy comparison tests") |
+| `experiment.py`, `run-experiments.sh` | `test_experiment_launcher.py` covers CLI dispatch, v1 compatibility, and invoking the Bash launcher from another directory. |
+| `policy/operation.py`, `policy/schedules.py`, `policy/replay_gate.py`, `policy/reward_audit.py` | `test_operation.py`, `test_schedules.py`, `test_replay_and_audit.py`, `test_online_protocols.py` (\ref scripts_rl_tests "scripts/rl/tests") |
 | `policy/online_adaptation.py`, `online.py` | `test_online_protocols.py` |
 | `policy/bundle.py` bindings and digests, `policy/training.py`, `agents/post_update.py`, `train.py` | `test_checkpoint_recovery_support.py` (\ref src_rl_policy_lifecycle_tests "Lifecycle tests") |
 | Reward and observation registries | `test_registry_identity.py` (\ref src_rl_policy_input_tests "Policy-input tests") |
-| `env/geometry.py`, `env/curriculum.py`, `env/seeded_env.py`, `policy/scripted.py` | `test_env_geometry_curriculum.py` |
-| `operate.py` | CLI cases in `test_operation.py` (help/usage exit 1, argument dispatch, `check_result.json` pass table, frozen model and hold baseline end to end on the fake simulator, placement-baseline argv). |
+| `env/geometry.py`, `env/curriculum.py`, `env/seeded_env.py`, `policy/scripted.py` | `test_geometry.py`, `test_curriculum.py`, `test_seeded_env.py` and `test_scripted_mission_policy.py` |
+| `operate.py` | `test_operate_cli.py` covers help, argument dispatch and capability probes. `test_operate_integration.py` runs model and baseline commands against the fake simulator. |
 | `ops/local.py` | `test_ops_local.py` (\ref scripts_rl_ops_tests "Operations test map"); inert child, worker and supervisor entry points. |
 | `ops/recovery.py` | `test_ops_recovery.py` (\ref scripts_rl_ops_tests "Operations test map"). |
-| `experiments/reporting.py` | `test_gui_index.py` (index v4, online v5 fixtures, comparison views, selection evidence). |
+| `experiments/reporting.py` | `test_gui_index.py` (index v4 and online v5 fixtures), `test_report_comparison.py` and `test_report_selection.py`. |
 | Historical conversions | `test_conversion_parity.py` (private datasets; a named skip where absent). |
 
 Native authority: no agent builds or runs the simulator. The human builds the

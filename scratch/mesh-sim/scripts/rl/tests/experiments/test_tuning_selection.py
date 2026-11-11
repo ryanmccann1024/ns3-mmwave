@@ -84,5 +84,3 @@ def test_post_update_schedule_rejects_partial_rollouts_before_environment_start(
                 SimpleNamespace(n_steps=600,total_timesteps=18500)):
         with pytest.raises(ValueError):validate_schedule(bad,cadence)
     with pytest.raises(ValueError):validate_schedule(cfg,cadence,resume=object())
-
-
