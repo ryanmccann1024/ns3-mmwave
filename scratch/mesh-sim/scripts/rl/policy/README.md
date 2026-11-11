@@ -173,11 +173,49 @@ with the current reader.
 
 ## PPO operation and continuation
 
-Frozen deterministic and sampled modes preserve both policy and optimizer
-states. `online_gated_v1` trains eligible windows from one episode;
-`online_sb3_v1` uses the SB3 learning loop. Their defaults/accounting stay
-separate. Post-update checkpoints retain optimized policies. Continuation
-requires a completed saved parent, matching selection, seed and input identity,
-and a larger cumulative budget. Schedules change frozen action selection;
-they do not update weights. `scripts.rl.operate --help` lists single-operation
-commands; `scripts.rl.train m-ppo --help` lists continuation/checkpoint flags.
+Use `scripts.rl.operate model` to run one saved policy on one diagnostic seed.
+Supply the completed training run, a model selector, the seed's `run.ini`, and
+a fresh output directory. The band defaults to the parent run's band.
+Per-seed inputs may change the seed, native deployment time, and jammer
+event times. The operation verifies the original training inputs against
+their saved hashes before allowing timing changes.
+
+| Mode | Protocol settings | Behavior |
+| --- | --- | --- |
+| `frozen_deterministic` | `{}` | Deterministic inference, with an optional frozen action schedule. |
+| `frozen_sampled` | `{}` | Sampled inference, with an optional frozen action schedule. |
+| `online_gated_v1` | Explicit `n_steps`, `batch_size`, and a `--mission` argument | Trains on eligible windows from one episode. Other PPO settings come from the parent, including a null `target_kl`. |
+| `online_sb3_v1` | Explicit `n_steps` and `batch_size`. Optional `learning_rate`, `ent_coef`, and `target_kl`. | Uses the SB3 learning loop. Defaults cap the parent learning rate at 0.0001, with `ent_coef=0.001` and `target_kl=0.02`. |
+
+Use `--protocol-settings-json '{"n_steps":120,"batch_size":60}'` for an online
+operation that can fit that rollout. The rollout size must be divisible by the
+minibatch size. Each seed starts from the saved parent model and optimizer.
+
+A frozen operation can take
+`--schedule-json '{"kind":"sample-then-hold","settings":{"coverage_target":0.8}}'`.
+Coverage schedules accumulate 30 seconds of qualifying scored simulator time
+before switching. The schedule records its rules in `online_manifest.json`
+and its transitions in `coverage_execution.json` version 2.
+
+Operations write `weight_audit.json` to record policy and optimizer identity.
+Sampled, scheduled, and online operations also write `online_manifest.json`
+version 5 with the protocol, settings, and update accounting. A replay gate
+uses the saved actions and preserves a scenario-check case's reference-policy
+gate. Native `[rl] control_start_s` still controls when the simulator accepts
+movement.
+
+`scripts.rl.operate preflight` probes one INI and seed before operation. Pass
+`--seed-configs-json '{"201":"path/to/run.ini"}'` and list the required
+capabilities with `--requirements`. Supported names are `coverage`,
+`building_masks`, and `peer_separation`. `check_result.json` records what the
+simulator exposes and which requirements are missing. Use the
+[scenario-check guide](@ref mesh_sim_rl_scenario_check_runner) for the separate
+campaign difficulty checks.
+
+Use `scripts.rl.train m-ppo --continue-from-run-dir` to extend a completed
+compatible run. `--continue-model` defaults to `final` and also accepts
+`best` or a retained checkpoint path. Supply a larger cumulative timestep
+budget. With `--checkpoint-timing after-update`, enable checkpointing and
+align the cadence and budget to complete rollouts and episodes. The
+`post_update_checkpoints.json` record identifies checkpoints saved after
+optimization.

@@ -80,33 +80,79 @@ def check_difficulty(name, episodes, maximum):
             )
 
 
-def _probe_features(name, ini, binary, output, selection, seed, maximum):
+PREFLIGHT_REQUIREMENTS = ("coverage", "building_masks", "peer_separation")
+
+
+def _probe(ini, binary, output, selection, seed, band=None):
     env = MeshRlEnv(
         str(binary),
         str(ini),
         seed=seed,
         output_dir=output,
         selection=selection,
+        band=band,
     )
     try:
         env.reset()
-        if (
-            env.contract.get("unsafe_separation_m") != 1.0
-            or "coverage" not in env.contract
-            or not env.contract.get("avoid_buildings")
-        ):
-            raise RuntimeError(
-                "binary lacks coverage, 1m separation, or building-mask support; rebuild the simulator"
-            )
-        if "coverage" not in env._protocol.facts:
-            raise RuntimeError("binary did not emit measured coverage facts")
-        if maximum is not None and "jammer" in name:
-            if not any(link[0] < -6.7 for link in env._protocol.facts["links"]):
-                raise RuntimeError(
-                    f"{name}: jammer does not create failed links; rebuild with negative-SINR fix and calibrate"
-                )
+        return env.contract, env._protocol.facts
     finally:
         env.close()
+
+
+def check_scenario_features(ini, binary, output, seed, requirements, band=None):
+    """Read the live contract and verify the requested simulator capabilities."""
+    unknown = sorted(set(requirements) - set(PREFLIGHT_REQUIREMENTS))
+    if unknown:
+        raise ValueError(
+            f"unknown preflight requirements {unknown}; expected {PREFLIGHT_REQUIREMENTS}"
+        )
+    if Path(output).exists() and any(Path(output).iterdir()):
+        raise ValueError(f"preflight output already exists: {output}")
+    from scripts.rl.env.seeded_env import resolve_band
+
+    contract, facts = _probe(
+        ini, binary, output, resolve_selection(str(ini)), seed, band
+    )
+    capabilities = {
+        "coverage": "coverage" in contract and "coverage" in facts,
+        "building_masks": bool(contract.get("avoid_buildings"))
+        and (contract.get("navigation") or {}).get("mask_building_moves", True),
+        "peer_separation": bool(contract.get("avoid_node_collisions"))
+        and contract.get("unsafe_separation_m", 0) > 0,
+    }
+    missing = [
+        requirement for requirement in requirements if not capabilities[requirement]
+    ]
+    return {
+        "seed": seed,
+        "band": resolve_band(ini, band)[0],
+        "requirements": list(requirements),
+        "capabilities": capabilities,
+        "missing": missing,
+        "scenario_identity": read_scenario_identity(str(ini)),
+    }
+
+
+def _probe_features(name, ini, binary, output, selection, seed, maximum):
+    contract, facts = _probe(ini, binary, output, selection, seed)
+    if (
+        contract.get("unsafe_separation_m") != 1.0
+        or "coverage" not in contract
+        or not contract.get("avoid_buildings")
+    ):
+        raise RuntimeError(
+            "binary lacks coverage, 1m separation, or building-mask support; rebuild the simulator"
+        )
+    if "coverage" not in facts:
+        raise RuntimeError("binary did not emit measured coverage facts")
+    if (
+        maximum is not None
+        and "jammer" in name
+        and not any(link[0] < -6.7 for link in facts["links"])
+    ):
+        raise RuntimeError(
+            f"{name}: jammer does not create failed links; rebuild with negative-SINR fix and calibrate"
+        )
 
 
 def _evaluate_hold(name, ini, binary, target, selection, seeds):

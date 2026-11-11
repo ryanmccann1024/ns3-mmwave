@@ -16,6 +16,7 @@ Accounting rules preserved from the original writer:
 - ``weight_updates.json`` is rewritten after every update and ``verify()``
   requires balanced transition accounting and a real actor change.
 """
+
 import math
 from pathlib import Path
 
@@ -29,7 +30,15 @@ from scripts.rl.policy import bundle as _bundle
 from scripts.rl.policy.evaluate import ModelPolicy
 
 GATED_PROTOCOL = "online_gated_v1"
-INHERITED_PPO_KEYS = ("learning_rate", "gamma", "gae_lambda", "n_epochs", "ent_coef", "clip_range", "target_kl")
+INHERITED_PPO_KEYS = (
+    "learning_rate",
+    "gamma",
+    "gae_lambda",
+    "n_epochs",
+    "ent_coef",
+    "clip_range",
+    "target_kl",
+)
 _ACTOR = ("mlp_extractor.policy_net", "action_net")
 _CRITIC = ("mlp_extractor.value_net", "value_net")
 
@@ -56,17 +65,35 @@ def gated_settings(hyperparameters, n_steps, batch_size):
     """Inherited PPO settings plus explicit rollout/minibatch overrides; no defaults."""
     missing = [key for key in INHERITED_PPO_KEYS if key not in hyperparameters]
     if missing:
-        raise ValueError(f"parent training records no {missing}; gated settings cannot be inherited")
+        raise ValueError(
+            f"parent training records no {missing}; gated settings cannot be inherited"
+        )
     settings = {key: hyperparameters[key] for key in INHERITED_PPO_KEYS}
-    settings.update(n_steps=n_steps, batch_size=batch_size, eligible_only=True, flush_final_partial=True)
+    settings.update(
+        n_steps=n_steps,
+        batch_size=batch_size,
+        eligible_only=True,
+        flush_final_partial=True,
+    )
     for key in ("n_steps", "batch_size"):
         value = settings[key]
         if isinstance(value, bool) or not isinstance(value, int) or value < 2:
-            raise ValueError(f"gated {key} must be an explicit integer >= 2, got {value!r}")
+            raise ValueError(
+                f"gated {key} must be an explicit integer >= 2, got {value!r}"
+            )
     if settings["target_kl"] is not None:
-        raise ValueError("online_gated_v1 requires target_kl = null (no target-KL early stop)")
+        raise ValueError(
+            "online_gated_v1 requires target_kl = null (no target-KL early stop)"
+        )
     from scripts.rl.agents.config import validate_training_settings
-    validate_training_settings({k: v for k, v in settings.items() if k not in ("eligible_only", "flush_final_partial")})
+
+    validate_training_settings(
+        {
+            k: v
+            for k, v in settings.items()
+            if k not in ("eligible_only", "flush_final_partial")
+        }
+    )
     return settings
 
 
@@ -77,14 +104,21 @@ def verify_inherited_settings(model, settings):
         if key == "clip_range" and callable(actual):
             actual = actual(1.0)
         if actual != settings[key]:
-            raise ValueError(f"loaded model {key} differs from inherited gated settings")
+            raise ValueError(
+                f"loaded model {key} differs from inherited gated settings"
+            )
 
 
 def _change_from(initial, model):
-    return {scope + "_change_l2_from_start": sum(
-                float(((value.detach().cpu() - initial[key]) ** 2).sum())
-                for key, value in model.policy.state_dict().items() if key.startswith(prefixes)) ** .5
-            for scope, prefixes in (("actor", _ACTOR), ("critic", _CRITIC))}
+    return {
+        scope + "_change_l2_from_start": sum(
+            float(((value.detach().cpu() - initial[key]) ** 2).sum())
+            for key, value in model.policy.state_dict().items()
+            if key.startswith(prefixes)
+        )
+        ** 0.5
+        for scope, prefixes in (("actor", _ACTOR), ("critic", _CRITIC))
+    }
 
 
 class OnlinePolicy(ModelPolicy):
@@ -96,7 +130,9 @@ class OnlinePolicy(ModelPolicy):
         self.excluded = self.collected = self.trained = 0
         self.decisions = self.skipped_tail = self.optimizer_steps = 0
         self.initial_digest = _bundle.parameter_digest(model)
-        self.initial = {k: v.detach().cpu().clone() for k, v in model.policy.state_dict().items()}
+        self.initial = {
+            k: v.detach().cpu().clone() for k, v in model.policy.state_dict().items()
+        }
         self.start_steps = int(model.num_timesteps)
         self.model = model
         model.set_logger(configure(str(self.output / "ppo"), ["csv"]))
@@ -105,7 +141,9 @@ class OnlinePolicy(ModelPolicy):
         model._current_progress_remaining = 1.0
         if model.target_kl is not None:
             raise ValueError("gated online protocol expects no target-KL early stop")
-        self._hook = model.policy.optimizer.register_step_post_hook(self._optimizer_step)
+        self._hook = model.policy.optimizer.register_step_post_hook(
+            self._optimizer_step
+        )
         self._write()
 
     def _optimizer_step(self, *args, **kwargs):
@@ -115,10 +153,17 @@ class OnlinePolicy(ModelPolicy):
         self.model.policy.set_training_mode(False)
         tensor, _ = self.model.policy.obs_to_tensor(obs)
         with torch.no_grad():
-            actions, values, log_prob = self.model.policy(tensor, action_masks=np.asarray(mask, dtype=bool))
+            actions, values, log_prob = self.model.policy(
+                tensor, action_masks=np.asarray(mask, dtype=bool)
+            )
         action = actions.cpu().numpy().reshape(-1)
-        self.pending = (np.asarray(obs).copy(), action.copy(), values.detach(), log_prob.detach(),
-                        np.asarray(mask, dtype=bool).copy())
+        self.pending = (
+            np.asarray(obs).copy(),
+            action.copy(),
+            values.detach(),
+            log_prob.detach(),
+            np.asarray(mask, dtype=bool).copy(),
+        )
         return action
 
     def observe(self, next_obs, reward, terminated, truncated, info, facts):
@@ -130,7 +175,9 @@ class OnlinePolicy(ModelPolicy):
         else:
             self.excluded += 1
             if self.buffer:
-                raise RuntimeError("ineligible gap after adaptation started; cannot join disjoint transitions")
+                raise RuntimeError(
+                    "ineligible gap after adaptation started; cannot join disjoint transitions"
+                )
         done = bool(terminated or truncated)
         if len(self.buffer) >= self.settings["n_steps"] or done:
             self._update(next_obs, done, info)
@@ -149,11 +196,25 @@ class OnlinePolicy(ModelPolicy):
             self.buffer.clear()
             return
         model = self.model
-        rollout = MaskableRolloutBuffer(size, model.observation_space, model.action_space, device=model.device,
-                                        gamma=model.gamma, gae_lambda=model.gae_lambda, n_envs=1)
+        rollout = MaskableRolloutBuffer(
+            size,
+            model.observation_space,
+            model.action_space,
+            device=model.device,
+            gamma=model.gamma,
+            gae_lambda=model.gae_lambda,
+            n_envs=1,
+        )
         for obs, action, value, log_prob, mask, reward, start in self.buffer:
-            rollout.add(obs.reshape((1, *obs.shape)), action.reshape((1, -1)), np.asarray([reward]),
-                        np.asarray([start]), value, log_prob, action_masks=mask)
+            rollout.add(
+                obs.reshape((1, *obs.shape)),
+                action.reshape((1, -1)),
+                np.asarray([reward]),
+                np.asarray([start]),
+                value,
+                log_prob,
+                action_masks=mask,
+            )
         with torch.no_grad():
             tensor, _ = model.policy.obs_to_tensor(next_obs)
             last_values = model.policy.predict_values(tensor)
@@ -164,14 +225,25 @@ class OnlinePolicy(ModelPolicy):
         model.train()
         expected = model.n_epochs * (size // model.batch_size)
         if self.optimizer_steps - before_steps != expected:
-            raise RuntimeError("online optimizer step count disagrees with complete minibatches")
+            raise RuntimeError(
+                "online optimizer step count disagrees with complete minibatches"
+            )
         self.trained += size
         changes = _change_from(self.initial, model)
-        event = dict(decision=self.decisions, time_s=info["time_s"], eligible_decisions=self.collected,
-                     rollout_decisions=size, terminal_update=done, affects_later_actions=not done,
-                     batch_size=model.batch_size, optimizer_epochs=int(model._n_updates) - before_updates,
-                     optimizer_steps=self.optimizer_steps - before_steps, optimizer_steps_total=self.optimizer_steps,
-                     parameter_sha256=_bundle.parameter_digest(model), **changes)
+        event = dict(
+            decision=self.decisions,
+            time_s=info["time_s"],
+            eligible_decisions=self.collected,
+            rollout_decisions=size,
+            terminal_update=done,
+            affects_later_actions=not done,
+            batch_size=model.batch_size,
+            optimizer_epochs=int(model._n_updates) - before_updates,
+            optimizer_steps=self.optimizer_steps - before_steps,
+            optimizer_steps_total=self.optimizer_steps,
+            parameter_sha256=_bundle.parameter_digest(model),
+            **changes,
+        )
         if not all(math.isfinite(v) for v in changes.values()):
             raise RuntimeError("nonfinite online parameters")
         self.events.append(event)
@@ -182,21 +254,38 @@ class OnlinePolicy(ModelPolicy):
         self._write()
 
     def _write(self):
-        write_json(self.output / "weight_updates.json", dict(
-            initial_parameter_sha256=self.initial_digest, updates=self.events, episode_decisions=self.decisions,
-            eligible_decisions=self.collected, excluded_prefix_decisions=self.excluded,
-            trained_decisions=self.trained, untrained_tail_decisions=self.skipped_tail,
-            optimizer_steps=self.optimizer_steps))
+        write_json(
+            self.output / "weight_updates.json",
+            dict(
+                initial_parameter_sha256=self.initial_digest,
+                updates=self.events,
+                episode_decisions=self.decisions,
+                eligible_decisions=self.collected,
+                excluded_prefix_decisions=self.excluded,
+                trained_decisions=self.trained,
+                untrained_tail_decisions=self.skipped_tail,
+                optimizer_steps=self.optimizer_steps,
+            ),
+        )
 
     def verify(self):
         if self.trained + self.skipped_tail != self.collected or self.buffer:
             raise RuntimeError("adaptation transition accounting does not balance")
-        if not self.events or not self.optimizer_steps or _bundle.parameter_digest(self.model) == self.initial_digest:
+        if (
+            not self.events
+            or not self.optimizer_steps
+            or _bundle.parameter_digest(self.model) == self.initial_digest
+        ):
             raise RuntimeError("online mode performed no verified neural update")
         if self.events[-1]["actor_change_l2_from_start"] <= 0:
             raise RuntimeError("online actor weights did not change")
-        return dict(update_cycles=len(self.events), optimizer_steps=self.optimizer_steps,
-                    eligible_decisions=self.collected, trained_decisions=self.trained,
-                    excluded_prefix_decisions=self.excluded, untrained_tail_decisions=self.skipped_tail,
-                    initial_parameter_sha256=self.initial_digest,
-                    final_parameter_sha256=_bundle.parameter_digest(self.model))
+        return dict(
+            update_cycles=len(self.events),
+            optimizer_steps=self.optimizer_steps,
+            eligible_decisions=self.collected,
+            trained_decisions=self.trained,
+            excluded_prefix_decisions=self.excluded,
+            untrained_tail_decisions=self.skipped_tail,
+            initial_parameter_sha256=self.initial_digest,
+            final_parameter_sha256=_bundle.parameter_digest(self.model),
+        )

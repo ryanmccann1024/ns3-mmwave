@@ -144,8 +144,10 @@ def build_callbacks(out_dir: str, checkpoint_every: int, keep_last: int,
         # The first update must trigger both underlying callbacks even when it
         # precedes the normal cadence. The coordinator controls actual timing.
         for child in callbacks:
-            if hasattr(child, "eval_freq"): child.eval_freq = 1
-            if hasattr(child, "save_freq"): child.save_freq = 1
+            if hasattr(child, "eval_freq"):
+                child.eval_freq = 1
+            if hasattr(child, "save_freq"):
+                child.save_freq = 1
         callbacks = [PostUpdateValidation(callbacks, out_dir, eval_every)]
     return callbacks, eval_callback
 
