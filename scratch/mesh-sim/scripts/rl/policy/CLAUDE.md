@@ -54,5 +54,5 @@ codes; this package owns the logic.
   held-out groups.
 - Initial source-to-plan relocation is an exported metric with no paired/group
   reduction. Show it beside scored travel in comparison JSON/CSV; never add
-  it to post-reset episode movement. Evaluation v5 and comparison v2 readers
+  it to post-reset episode movement. Evaluation v8 and comparison v2 readers
   must stay aligned with baseline manifest/plan v3.

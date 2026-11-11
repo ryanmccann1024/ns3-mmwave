@@ -15,6 +15,7 @@ not repeat them.
 | File | Role |
 | --- | --- |
 | [`mesh_env.py`](mesh_env.py) | `MeshRlEnv`, the Gymnasium environment; owns reset/step flow, spaces, and action masks. |
+| [`seeded_env.py`](seeded_env.py) | `SeededEnv`, a wrapper that selects a prepared scenario configuration on each reset. |
 | [`episode.py`](episode.py) | `EpisodeSession`: simulator subprocess, stderr tail, and process cleanup. |
 | [`protocol.py`](protocol.py) | `CentralizedProtocol`: message validation and joint-action checks; raises `ProtocolError`. |
 | [`episode_artifacts.py`](episode_artifacts.py) | Episode allocation, manifests, telemetry, and optional decision sidecars. |
@@ -62,6 +63,19 @@ Any protocol error, bad JSON, or early process exit marks the episode `failed`
 and raises `RuntimeError` with the command, exit code, and stderr tail.
 `close()` marks it `interrupted`. Every path stops the child process and the
 stdout drain thread.
+
+## Seeded scenario checks
+
+Scenario checks use `SeededEnv` to run each policy on the prepared
+configuration for a given diagnostic seed. For example, `reset(seed=202)`
+selects `seed-202/run.ini` and reads seed 202's controller gate from the
+case manifest. The wrapper closes the previous environment, creates a fresh
+`MeshRlEnv`, and keeps the same output root so episode directories stay in
+one sequence.
+
+The scenario checker supplies `sub-6` as an explicit band override. Other
+callers can supply a band or let the wrapper use the seed's `[channel] band`
+setting, with `mmwave` as the simulator default.
 
 ## Control Modes
 
