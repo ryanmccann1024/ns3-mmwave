@@ -1,0 +1,8 @@
+# Private documentation, encrypted with git-crypt. These files are readable
+# only in a checkout unlocked with the project key; docs/build.sh leaves them
+# out of the site while they are locked. See docs/generating-the-docs.md.
+docs/research/** filter=git-crypt diff=git-crypt
+docs/field-data/why-the-sides-differ.md filter=git-crypt diff=git-crypt
+scripts/arpo_data/README.md filter=git-crypt diff=git-crypt
+scripts/arpo_data/CLAUDE.md filter=git-crypt diff=git-crypt
+scripts/validation/field-comparison.md filter=git-crypt diff=git-crypt
