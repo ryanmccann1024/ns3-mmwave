@@ -2,13 +2,17 @@
 
 ## Scope
 Per-link path loss, SINR, and capacity for all node pairs each tick. Wraps ns-3
-propagation models; no cellular stack. Only `sinr-capacity.h` and `link-table.*`
-are ns-3-free.
+propagation models; no cellular stack. `sinr-capacity.h`, `link-table.h`,
+`coverage-grid.*` and `probe-diagnostics.*` are ns-3-free; `link-table.cc` uses
+only `ns3/log.h`.
 
 ## Files
 - **link-evaluator.h/cc** -- `LinkEvaluator` (`Configure`, `Evaluate`, `EvaluateAll`, `EvaluateProbe`); owns a `JammerModel`.
 - **sinr-capacity.h** -- header-only `SINR_MIN_DB`, `MCS_TABLE`, `SILVUS_MCS_TABLE`, `SinrToMcsIndex`, `SinrToSilvusMcsIndex`, `SinrToCapacity`.
 - **link-table.h/cc** -- `LinkTable` symmetric N×N matrix: `Update`, `Get`, `MaxCapacity`, `ConnectedLinkCount`, `IsConnected`.
+- **coverage-grid.h/cc** -- clipped receiver cells and connected-core covered area.
+- **probe-diagnostics.h/cc** -- pure model-aware height advisories. Preserve them in
+  query/planning output; do not silently adjust physical inputs.
 
 ## Behavior to preserve
 - `EvaluateAll` returns only i < j pairs in row-major order; `LinkTable::Update`
@@ -31,11 +35,10 @@ are ns-3-free.
 Update together: `sinr-capacity.h`, `LinkEvaluator::Evaluate`, `amc_model` in
 `domain/channel-config.h` (the validator does not check it; `SinrToCapacity`
 throws), `domain/link-result.h`, and the consumers (`io/`, `routing/`, `rl/`). Unit tests: `make -C tests/unit/eval test`
-(covers `sinr-capacity.h` and `link-table.cc`; `link-evaluator.cc` is untested standalone).
+(`eval-test` covers `sinr-capacity.h`, `link-table.cc` and `coverage-grid.cc`;
+`reconfigure-test` compiles `link-evaluator.cc` against ns-3 stubs and checks only
+that reconfiguring clears jammers).
 
 ## Dependencies
 - Depends on: `domain/`, `jammer/`, ns-3 (propagation, mobility, channel condition)
 - Depended on by: `sim.cc`, `query/`, `routing/` (link-table), `io/` (link-table, sinr-capacity), `rl/` (link-table)
-
-- `probe-diagnostics.h/cc` owns pure model-aware height advisories. Preserve
-  them in query/planning output; do not silently adjust physical inputs.

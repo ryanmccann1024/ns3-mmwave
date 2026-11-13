@@ -22,7 +22,7 @@ the [jammer model](../jammer/README.md) for `jammers.json`, and the
 | `seed` | `42` | Simulation random seed; CLI `--seed`/`--seeds` can override it. |
 | `run_id` | `1` | Run identifier; CLI `--run-id` can override it. |
 | `duration_s` | `10` | Simulated duration in seconds. |
-| `warmup_s` | `0` | Initial seconds excluded from output metrics. RL rewards still count them. |
+| `warmup_s` | `0` | Initial seconds excluded from output metrics and RL rewards; RL decisions still happen during warmup. |
 | `tick_s` | `0.1` | Simulation time advanced per tick, in seconds. |
 | `nodes_file` | `nodes.json` | Mesh-node input file. |
 | `buildings_file` | blank | Optional building input file. |
@@ -125,15 +125,12 @@ run.
 | Key | Default | Controls |
 | --- | --- | --- |
 | `enabled` | `false` | Enable the simulator's action/observation bridge. |
-| `controlled_node_id` | blank | Legacy single-node selector; blank selects the last mesh node. |
-| `controlled_nodes` | absent | Centralized selector: `all` or comma-separated node IDs. Its presence selects centralized mode; cannot coexist with `controlled_node_id`. |
-| `max_controlled_nodes` | `0` | Centralized action positions; `0` sizes to the selected nodes. Maximum `64`. |
-| `action_type` | `discrete` | Legacy: `discrete` or `continuous`; centralized requires `discrete`. |
-| `action_profile` | `move_2d` | Centralized movement profile; only `move_2d` is implemented. |
-| `decision_interval_s` | `0` | Seconds between centralized decisions; `0` means `tick_s`, otherwise an integer multiple of it. |
+| `controlled_nodes` | absent | Controlled nodes: `all` or comma-separated node IDs. Required when RL is enabled. |
+| `max_controlled_nodes` | `0` | Action positions; `0` sizes to the selected nodes. Maximum `64`. |
+| `action_profile` | `move_2d` | Movement profile; only `move_2d` is implemented. |
+| `decision_interval_s` | `0` | Seconds between decisions; `0` means `tick_s`, otherwise an integer multiple of it. |
 | `reward_type` | `throughput` | C++ reward: `throughput` or `all_links_los`. `mean_sinr` is a deprecated alias for `all_links_los`: it still runs, prints a warning on stderr, and `run.log` records it as `rl.reward_alias`. |
-| `step_size_m` | `50` | Nominal discrete move per simulation tick, capped by node speed in centralized mode. |
-| `arrival_threshold_m` | `1` | Legacy continuous-target arrival distance, in meters. |
+| `step_size_m` | `50` | Nominal move per simulation tick, capped by node speed. |
 | `x_min`, `x_max` | `-1000`, `2000` | Allowed east/west movement bounds, in meters. Each min must be below its max (same for y and z). |
 | `y_min`, `y_max` | `-1000`, `1000` | Allowed north/south movement bounds, in meters. |
 | `z_min`, `z_max` | `0`, `100` | Allowed height bounds, in meters; centralized `move_2d` does not change height. |
@@ -141,6 +138,10 @@ run.
 - In centralized mode, `all_links_los` is true only when every controlled node
   has at least one peer link and all of them are line-of-sight.
 - `action_set` and `dimensions` are not keys; the loader ignores them.
+
+The old single-node keys `controlled_node_id`, `action_type` and
+`arrival_threshold_m` have been removed; with RL enabled, any of them is an
+error that points to `controlled_nodes` and `action_profile = move_2d`.
 
 ### Python keys
 
@@ -274,15 +275,16 @@ running and reading a plan.
 
 Python engine settings use `[placement_objective]`, `[placement_optimizer]` and
 `[channel_query_client]`; see the complete
-[planner parameter example](../../scripts/baselines/planners/README.md#configuration-and-extension).
+[planner parameter example](@ref scripts_baselines_planners_config).
 Both baseline CLIs and the placement evaluation policies pass these sections to
 the channel-scored engine.
 
 ## 8\. [mission] {#src_config_mission_controls}
 
 `kind` defaults to `none`. `coverage`, `investigation` and `recovery` require
-centralized RL with `coverage_enabled = true`. See
-`inputs/custom/10-16/README.md` for examples and outcome rules.
+centralized RL with `coverage_enabled = true`. For a working example see
+`inputs/experiments/examples/coordination-smoke/run.ini`; outcome rules are in
+[Mission reward formulas](@ref mesh_sim_rl_mission_rewards).
 
 | Key | Default | Valid values |
 | --- | --- | --- |

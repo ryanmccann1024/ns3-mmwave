@@ -5,24 +5,29 @@ This directory holds the learning-side code used by [`../train.py`](@ref scripts
 For the overall RL code map, setup, and training command, see
 [scripts/rl README](@ref scripts_rl); this page does not repeat them.
 
-## Module Layout
+## 1\. Module layout
 
 | File | Role |
 |------|------|
-| [`mask_ppo.py`](@ref scripts/rl/agents/mask_ppo.py) | `MaskablePPOConfig` and `MaskablePpoTrainer`: wraps the env in `ActionMasker` and builds a `MaskablePPO` model. |
-| [`callbacks.py`](@ref scripts/rl/agents/callbacks.py) | `BoundedCheckpointCallback`, `list_checkpoints`, and `build_callbacks` (checkpoint and evaluation wiring). |
+| `config.py` | `MaskablePPOConfig`, `Cadence`, `PPO_FIELDS`, `PPO_SEARCH_PARAMETERS` and `validate_training_settings`. |
+| [`mask_ppo.py`](@ref scripts/rl/agents/mask_ppo.py) | `MaskablePpoTrainer`: wraps the env in `ActionMasker` and builds a `MaskablePPO` model. |
+| [`callbacks.py`](@ref scripts/rl/agents/callbacks.py) | `BoundedCheckpointCallback`, `EntropyDecayCallback`, `MissionBudgetCallback` and `build_callbacks` (checkpoint and evaluation wiring). |
 | [`post_update.py`](@ref scripts/rl/agents/post_update.py) | `PostUpdateCheckpoints` and `PostUpdateValidation`: checkpoint and validation timing after completed PPO updates, and `validate_after_update_schedule`. |
 | [`q_learning.py`](@ref scripts/rl/agents/q_learning.py) | `TabularQLearning`: exploratory agent, not used for training. |
 | `__init__.py` | Re-exports `TabularQLearning`, `MaskablePpoTrainer`, `MaskablePPOConfig`. |
 
-## MaskablePPO wrapper
+## 2\. MaskablePPO wrapper
 
 `MaskablePpoTrainer(cfg, env, mask_fn)` wraps `env` in `ActionMasker` so only
-valid actions are sampled. `train()` calls `learn(total_timesteps)`; `save(path)`
+valid actions are sampled. `train()` runs `learn()` for the remaining budget
+(all of `total_timesteps`, or what is left when continuing), adding entropy
+decay when `ent_coef_final` is set; `save(path)`
 writes the model. `MaskablePpoTrainer.load` forces `device="cpu"` so evaluation
 replay is deterministic.
 
 ### Hyperparameters that reach MaskablePPO
+
+Defaults come from `MaskablePPOConfig` in `config.py`.
 
 | Field | Default | Reaches `MaskablePPO(...)` |
 |-------|---------|----------------------------|
@@ -30,15 +35,24 @@ replay is deterministic.
 | `n_steps` | 1024 | yes |
 | `gamma` | 0.95 | yes |
 | `ent_coef` | 0.01 | yes |
+| `learning_rate` | 3e-4 | yes |
+| `batch_size` | 64 | yes |
+| `gae_lambda` | 0.95 | yes |
+| `clip_range` | 0.2 | yes |
+| `n_epochs` | 10 | yes |
+| `target_kl` | `None` | yes |
+| `net_arch` | (64, 64) | yes (actor and critic layer widths) |
+| `ent_coef_final` | `None` | no; applied by `EntropyDecayCallback` |
 | `verbose` | 1 | yes (logging only) |
 | `tensorboard_log` | `None` | yes (logging only) |
 | `total_timesteps` | 100000 | no; used by `learn()` as the training budget |
 
 All other MaskablePPO settings use SB3 defaults. Adding a new tunable
 hyperparameter means updating the `train.py` CLI, the train manifest,
-`policy/compare.py` (`_TRAINING_SETTINGS`), and `ops/tune.py`'s `_SEARCHABLE`.
+`policy/compare.py` (`_TRAINING_SETTINGS`), and `config.py` (`PPO_FIELDS`,
+`PPO_SEARCH_PARAMETERS`).
 
-## Callbacks
+## 3\. Callbacks
 
 `build_callbacks` returns the callback list and the eval callback (or `None`).
 All cadences are SB3 timesteps (one env, one decision each).
@@ -49,8 +63,8 @@ All cadences are SB3 timesteps (one env, one decision each).
 - Files are `<out_dir>/checkpoints/checkpoint_<N>_steps.zip`, where `N` is the timestep count.
 - `BoundedCheckpointCallback` deletes older files so only the newest `keep_last` remain
   (`--keep-checkpoints`, default 3, must be at least 1).
-- `list_checkpoints` returns `(steps, path)` pairs in ascending order and ignores names it cannot parse.
-  `policy/bundle.py` and `train.py` rely on this naming.
+- `list_checkpoints` (in `policy/training_artifacts.py`) returns `(steps, path)` pairs in
+  ascending order and ignores names it cannot parse; `BoundedCheckpointCallback` uses it to prune.
 
 ### Evaluation
 
@@ -79,19 +93,19 @@ completed optimizer update, so a checkpoint's weights, optimizer state and
 Test map: `test_checkpoint_recovery_support.py` in
 [scripts/rl/tests](@ref scripts_rl_tests).
 
-## Q-learning (exploratory)
+## 4\. Q-learning (exploratory)
 
 `TabularQLearning` discretizes the observation into `(x_bin, y_bin, sinr_bin)`
 and keeps a Q-table with epsilon-greedy `predict()`. It is not on the
 training, evaluation, or experiment path; nothing outside `__init__.py`
 imports it.
 
-## Conventions
+## 5\. Conventions
 
 - One-line docstrings; longer detail lives in the READMEs.
 - Package imports use the `scripts.rl.agents` path; run tools as `python -m scripts.rl.<module>` from `scratch/mesh-sim/`.
 
-## Dependencies
+## 6\. Dependencies
 
 - `__init__.py` imports `sb3_contrib` eagerly, so importing the package needs the full `requirements.txt`.
   Code that must work without it (for example `load_model` in `policy/bundle.py`) imports `mask_ppo` lazily.

@@ -56,16 +56,14 @@ struct RlControlResolution
  * @throws std::invalid_argument Not in practice: waypoint nodes without
  *         waypoints are reported as errors before start positions are read.
  *
- * Mode is centralized when @c cfg.rl.controlled_nodes_set is true, else legacy.
- * Legacy: one slot, the node named by @c controlled_node_id (falling back to
- * the last node if empty or unmatched), ticks = floor(duration/tick).
- * Centralized: parses @c controlled_nodes (@c "all" or comma-separated ids),
- * rejects mixing with @c controlled_node_id, non-discrete @c action_type, and
- * any @c action_profile other than @c move_2d; sizes slots from
+ * Control is always centralized. Rejects the removed keys
+ * @c controlled_node_id, @c action_type and @c arrival_threshold_m; requires
+ * @c controlled_nodes (@c "all" or comma-separated ids); rejects any
+ * @c action_profile other than @c move_2d; sizes slots from
  * @c max_controlled_nodes (0 = number of controlled nodes, at most 64); turns
  * @c decision_interval_s (0 = @c tick_s) into an integer tick multiple; and
  * checks each start position lies inside the [rl] bounds. Ticks use a
- * 1e-6-tolerant rounding in this mode. Pure; no I/O.
+ * 1e-6-tolerant rounding. Pure; no I/O.
  */
 RlControlResolution ResolveRlControl(const SimConfig& cfg);
 

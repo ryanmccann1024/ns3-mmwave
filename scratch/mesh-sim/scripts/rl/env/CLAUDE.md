@@ -14,21 +14,23 @@ specified in `src/rl/policy-inputs.md`. Read those before changing anything here
   (they come from the simulator's `init` / first `step`). A later reset whose
   contract signature differs is a protocol error, and the original spaces stay.
 - `episode.py` -- `EpisodeSession`: one simulator subprocess per `reset`
-  (`--rl-mode --seed --output-dir=<root>/episode-NNN`), a stderr tail, a stdout
+  (`--run-config --rl-mode --seed --output-dir=<root>/episode-NNNN`), a stderr tail, a stdout
   drain thread on close. `recording/artifacts.py` owns manifests and sidecars. Every exit path must leave no child
   process or reader thread; tests assert this.
-- `protocol.py` -- `CentralizedProtocol` validate every
+- `protocol.py` -- `CentralizedProtocol` validates every
   message (contract `mesh_move_2d_v2`, facts `mesh_facts_v2`, window sums,
   tick monotonicity) and the outgoing joint action shape. Raise `ProtocolError`;
   never coerce.
 - `mission_protocol.py` -- validates native mission metadata and decision facts.
 - `state/mission.py` -- reconstructs arrival, dwell, and recovery across decisions.
-- `observations/__init__.py` -- presets `raw_links_v1` (default, float64) and
-  `local_links_v1` (float32, normalized to RL bounds); `observation_schema` +
+- `observations/__init__.py` -- the preset registry: `raw_links_v1` (default,
+  float64), `local_links_v1` (float32, normalized to RL bounds), `geometry_v1`,
+  `service_v1`, `full_facts_v1`, `mission_facts_v1` and `mission_facts_v2`; `observation_schema` +
   `schema_sha256`; `check_schema` raises on structural fields, warns on
   `node_ids` / `slot_node_ids`.
-- `rewards/__init__.py` -- components `delivery_ratio`, `connectivity`,
-  `throughput_mbps`, `legacy`; `RewardComposer` sums only components whose
+- `rewards/__init__.py` -- the component registry (for example
+  `delivery_ratio`, `connectivity`, `throughput_mbps`, `legacy`; the full list
+  is in `src/rl/policy-inputs.md`); `RewardComposer` sums only components whose
   window is valid.
 - `selection.py` -- `RlSelection`, resolved CLI > `run.ini [rl]` > default, with
   a per-key `source`. Presets and components validate their own parameters.
@@ -57,7 +59,7 @@ specified in `src/rl/policy-inputs.md`. Read those before changing anything here
   and breaks saved-model compatibility (`policy/compat.py`). Add a new `_vN`
   preset instead of editing an existing one.
 - Registration order, component/preset IDs, descriptor text and context field
-  lists are saved identities (`tests/env/test_registry_identity.py` and
+  lists are saved identities (`tests/env/test_registry_identity.py` and the mesh-sim root's
   `tests/fixtures/registry_identity.json`). A source rename must not change
   them; never regenerate the fixture to hide a change. Historical context keys
   such as `phase3_eligible` stay.

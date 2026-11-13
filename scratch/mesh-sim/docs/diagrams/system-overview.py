@@ -13,10 +13,10 @@ Layout: a legend, then four numbered bands read top to bottom (scenario,
 simulator, run outputs, visualizer), with the Python tools beside the scenario.
 The simulator band shows the once-per-run steps and the per-tick loop.
 
-Colour is by category and is used the same way everywhere (panel, card accent,
+Color is by category and is used the same way everywhere (panel, card accent,
 module tag): amber = files on disk, blue = simulator C++ (src/), purple =
 Python tools (scripts/), green = visualizer. Solid arrows are data flow; dashed
-arrows are a Python tool driving the simulator. Colours are flat on a white
+arrows are a Python tool driving the simulator. Colors are flat on a white
 card so the figure reads on light and dark pages. Labels follow README.md,
 CLAUDE.md and the module pages; keep them in step when those change.
 """
@@ -74,7 +74,7 @@ def panel(x, y, w, h, kind, number, title, subtitle=None):
 
 
 def tag(x, y, label, kind):
-    """A small module-path tag, coloured by category. Returns the right edge."""
+    """A small module-path tag, colored by category. Returns the right edge."""
     w = len(label) * 11.5 * MONO_W + 14
     add(f'<rect x="{x:.1f}" y="{y}" width="{w:.1f}" height="20" rx="4" fill="{C[kind + "_tag"]}"/>')
     text(x + 7, y + 14, label, size=11.5, color=C[kind + "_head"], family=MONO)
@@ -115,7 +115,7 @@ def chip(x, y, label, kind, mono=True, note=None):
 
 
 def label_pill(x, y, s, mono=False, bg="#ffffff"):
-    """A label centred on (x, y) with a background, for labels that sit on a line."""
+    """A label centered on (x, y) with a background, for labels that sit on a line."""
     w = len(s) * 12 * (MONO_W if mono else SANS_W) + 16
     add(f'<rect x="{x - w / 2:.1f}" y="{y - 10}" width="{w:.1f}" height="20" rx="10" fill="{bg}"/>')
     text(x, y + 4, s, size=12, color=C["muted"], anchor="middle", family=MONO if mono else SANS)

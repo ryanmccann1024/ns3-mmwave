@@ -5,12 +5,17 @@ Flow-level demand generation (no packets). Owns the list of `Flow`s and updates
 it once per tick for the constant, Poisson, and on-off models.
 
 ## Files
-- **traffic-matrix.h/cc** -- `Flow` struct; `TrafficMatrix` with `Initialize()` (all_pairs / random_pairs / gateway), `Tick()` (expiry, model update, removal), `GetActiveFlows()`, `GetDemand()`; private `MakeFlow`, `TickOnOff`, `TickPoisson`, `Init*`.
+- **traffic-matrix.h/cc** -- `Flow` struct; `TrafficMatrix` with `Initialize()` (all_pairs / random_pairs / gateway / explicit_pairs), `Tick()` (expiry, model update, removal), `GetActiveFlows()`, `GetDemand()`; private `MakeFlow`, `TickOnOff`, `TickPoisson`, `Init*`.
 
 ## Behavior to preserve
 - Config comes from `run.ini` `[traffic]` via `TrafficConfig` (`model`,
   `flow_topology`, `demand_mbps`, `arrival_rate_hz`, `on_time_s`, `off_time_s`,
-  `holding_time_s`, `random_pair_count`, `gateway_node_id`); `tick_s` from `SimConfig`.
+  `holding_time_s`, `random_pair_count`, `gateway_node_id`, `pairs`); `tick_s` and
+  the node list from `SimConfig`.
+- `explicit_pairs` resolves `pairs` endpoints by node ID and uses each pair's own
+  `demand_mbps`; the validator requires `model = constant` for it.
+- `holding_time_s` is a fixed lifetime for initial flows and the exponential mean
+  for Poisson arrivals.
 - `end_time_s == 0` means permanent. Only flows with `!active && end_time_s > 0`
   are erased; on-off OFF flows stay in the list with `in_on_phase = false`.
 - `GetActiveFlows()` returns everything, including inactive/OFF flows.
@@ -30,8 +35,8 @@ Update together: `TrafficConfig` in `domain/mesh-config.h`, the loader in
 `README.md`. `Flow` fields are consumed by `routing/mesh-router`.
 
 ## Tests
-`make -C tests/unit/traffic test` (from `scratch/mesh-sim/`; uses
-`tests/unit/traffic/ns3-traffic-stub.h`, no ns-3).
+`make -C tests/unit/traffic test` and `make -C tests/unit/traffic-extra test`
+(from `scratch/mesh-sim/`; each suite has its own ns-3 stub header, no ns-3).
 
 ## Dependencies
 - Depends on: `domain/` (`sim-config.h`), ns-3 `random-variable-stream.h` (stubbed in unit tests)

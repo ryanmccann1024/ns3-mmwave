@@ -10,6 +10,8 @@ and tested standalone.
 - **config-validator.h/cc** -- `ValidationResult`, `ValidateConfig()`.
 - **rl-control.h/cc** -- `ResolveRlControl()`, `ApplyRlControl()`, `ComputeTickCount()`, `ControlledStartPosition()`.
 - **layout-override.h/cc** -- `ApplyLayout()`: candidate start layout for `--channel-query`.
+- **query-config.h/cc** -- strict `[channel_query]` parsing and budget validation;
+  use `domain/query-config.h` defaults and advertise resolved values in query init.
 
 ## Behavior to preserve
 - The validator collects all errors instead of failing fast; new rules must only `push_back`.
@@ -32,7 +34,7 @@ and tested standalone.
 ## Adding a run.ini key
 Update together: the `SimConfig` field in `domain/`, the read in `Load`, a rule in
 `ValidateConfig` if it has a constrained range, the tables in `config-loader.h` /
-`config-validator.h` and `README.md`, a case in `tests/unit/config/`, and the top-level
+`config-validator.h`, `run-ini-reference.md`, a case in `tests/unit/config/`, and the top-level
 `README.md` and `CONTRIBUTING.md` "update together" row.
 
 ## Tests
@@ -41,6 +43,3 @@ Update together: the `SimConfig` field in `domain/`, the read in `Load`, a rule 
 ## Dependencies
 - Depends on: `domain/`, `util/` (`ini-parser.h`, `string-utils.h`), `third_party/json.hpp`
 - Depended on by: `sim.cc`, `setup/` (`rl-control.h`), `query/` (`layout-override.h`, `rl-control.h`), `tests/unit/config`
-
-- `query-config.h/cc` owns strict `[channel_query]` parsing and budget validation;
-  use `domain/query-config.h` defaults and advertise resolved values in query init.

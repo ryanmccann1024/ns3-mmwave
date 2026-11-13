@@ -1090,7 +1090,9 @@
 
 /** @defgroup api_scripts_rl_scenario_check scenario_check
  *  @ingroup api_scripts_rl
- *  @brief Scenario validation references, physical routes, and reports; no training stage.
+ *  @brief Checks-only package: runs reference policies on fixed diagnostic seeds to validate scenarios before training.
+ *
+ *  Guide: \ref scripts_rl_scenario_check
  */
 /** @namespace scripts::rl::scenario_check::__main__
  *  @ingroup api_scripts_rl_scenario_check
@@ -1110,13 +1112,13 @@
 /** @namespace scripts::rl::scenario_check::execution
  *  @ingroup api_scripts_rl_scenario_check
  */
+/** @namespace scripts::rl::scenario_check::followup
+ *  @ingroup api_scripts_rl_scenario_check
+ */
 /** @namespace scripts::rl::scenario_check::geometry
  *  @ingroup api_scripts_rl_scenario_check
  */
 /** @namespace scripts::rl::scenario_check::inputs
- *  @ingroup api_scripts_rl_scenario_check
- */
-/** @namespace scripts::rl::scenario_check::october_23_followup
  *  @ingroup api_scripts_rl_scenario_check
  */
 /** @namespace scripts::rl::scenario_check::placement

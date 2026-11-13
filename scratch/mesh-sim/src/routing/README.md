@@ -8,7 +8,7 @@ scales down flows that overload a link, and returns one `FlowResult` per flow.
 `sim.cc` calls it once per tick after the traffic update. There are no packets
 or queues.
 
-## Module Layout
+## 1\. Module layout
 
 | File | Role |
 |------|------|
@@ -16,12 +16,12 @@ or queues.
 | @ref mesh-router.cc "mesh-router.cc" | Dijkstra, widest-path and BFS path finding, congestion scaling, latency model. |
 | `CLAUDE.md` | Scope and dependency notes for AI assistants. |
 
-## Setup
+## 2\. Setup
 
 Nothing to install. The router is compiled into the simulator. The user builds
 the simulator binary; do not build from here.
 
-## Run
+## 3\. Run
 
 The router has no CLI. Choose its behavior in the scenario `run.ini`:
 
@@ -35,6 +35,7 @@ Run the unit tests (plain compiler, no ns-3) from `scratch/mesh-sim/`:
 
 ```bash
 make -C tests/unit/routing test
+make -C tests/unit/routing-extra test
 ```
 
 | Algorithm | Strategy |
@@ -43,16 +44,16 @@ make -C tests/unit/routing test
 | `max_throughput` | Widest path: maximize the bottleneck link capacity. |
 | `min_hop` | Breadth-first search; fewest hops, ignores link quality. |
 
-## Output
+## 4\. Output
 
 | Step | Where |
 |------|-------|
 | `MeshRouter::Route()` returns `std::vector<FlowResult>`, same order as the input flows | In memory. `sim.cc` passes it to `io/` (metrics and viz writers) and `rl/`. The router writes no files. |
 
-Each `FlowResult` holds `path`, `hop_count`, `demand_mbps`, `delivered_mbps`
-(Mbps), `latency_ms` (ms), and `routable`.
+Each `FlowResult` holds `src`, `dst`, `path`, `hop_count`, `demand_mbps`,
+`delivered_mbps` (Mbps), `latency_ms` (ms), and `routable`.
 
-## Conventions
+## 5\. Conventions
 
 - An edge exists only where the link capacity is above 0 Mbps.
 - `max_hops = 0` means unlimited. A path longer than `max_hops` makes the flow unroutable; no longer path is used instead.
@@ -61,7 +62,7 @@ Each `FlowResult` holds `path`, `hop_count`, `demand_mbps`, `delivered_mbps`
 - Routing is deterministic for a given link table, so the RL agent is judged on positioning only.
 - Comments use Doxygen `/** */` blocks.
 
-## Dependencies
+## 6\. Dependencies
 
 - C++17.
 - `domain/` (`mesh-config.h`, `link-result.h`), `eval/link-table.h`, `traffic/traffic-matrix.h`.

@@ -85,7 +85,7 @@ struct TrafficConfig
  * | @c algorithm         | Strategy                                                |
  * |----------------------|---------------------------------------------------------|
  * | @c "shortest_path"   | Dijkstra on the inverse-capacity-weighted graph (default). |
- * | @c "max_throughput"  | Widest-path: maximise the bottleneck link capacity.      |
+ * | @c "max_throughput"  | Widest-path: maximize the bottleneck link capacity.      |
  * | @c "min_hop"         | Minimum hop count, ignoring link quality entirely.       |
  */
 struct RoutingConfig

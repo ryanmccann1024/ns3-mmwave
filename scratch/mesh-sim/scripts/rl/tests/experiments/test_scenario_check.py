@@ -1,4 +1,4 @@
-"""Pure October 23 checks: no simulator, fake peer, planner worker, or PPO launch."""
+"""Pure scenario checks: no simulator, fake peer, planner worker, or PPO launch."""
 
 import copy
 import json

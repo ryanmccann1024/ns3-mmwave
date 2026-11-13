@@ -5,12 +5,13 @@ Header-only POD config and result types. No ns-3 includes and no logic beyond
 `MaxSpeedForType()`. Other layers depend on these headers; keep them light.
 
 ## Files
-- **sim-config.h** -- `SimConfig` (root), `RlConfig`, `TimingInfo`
+- **sim-config.h** -- `SimConfig` (root), `RlConfig`, `MissionConfig`, `BaselineConfig`, `TimingInfo`
 - **node-spec.h** -- `Position`, `Velocity`, `RandomWalkParams`, `Waypoint`, `NodeSpec`, `BuildingSpec`, `MaxSpeedForType()`
 - **channel-config.h** -- `ChannelConfig`, `NyuChannelConfig`
-- **mesh-config.h** -- `MeshConfig`, `TrafficConfig`, `RoutingConfig`
+- **mesh-config.h** -- `MeshConfig`, `TrafficConfig`, `TrafficPairSpec`, `RoutingConfig`
 - **link-result.h** -- `LinkResult` (one per node pair per tick)
 - **probe-spec.h** -- `ProbeGrid` (channel-query coverage probes)
+- **query-config.h** -- `QueryConfig` (channel-query worker budgets and defaults)
 
 ## Behavior to preserve
 - Defaults in the structs must match the fallbacks in `ConfigLoader::Load` and
@@ -35,4 +36,4 @@ and check the "update together" table in `CONTRIBUTING.md`.
 
 ## Dependencies
 - Depends on: standard library; `jammer/jammer-spec.h` (from `sim-config.h` only)
-- Depended on by: `config/`, `cli/`, `eval/`, `io/`, `jammer/`, `routing/`, `rl/`, `setup/`, `traffic/`, `sim.cc`, `tests/unit/{config,routing,traffic}`
+- Depended on by: `config/`, `cli/`, `eval/`, `io/`, `jammer/`, `query/`, `routing/`, `rl/`, `setup/`, `traffic/`, `sim.cc`, and most `tests/unit/` suites

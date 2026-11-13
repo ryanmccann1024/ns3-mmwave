@@ -78,7 +78,7 @@ def _read_warmup_s(seed_dir: Path) -> float:
     return cfg.getfloat("scenario", "warmup_s", fallback=0.0)
 
 
-## @brief Load and normalise one sim metric CSV into a per-link DataFrame.
+## @brief Load and normalize one sim metric CSV into a per-link DataFrame.
 #
 # Maps integer node IDs to labels, drops warmup rows and NaN values, and
 # returns a DataFrame with canonical columns. Returns empty if the file is
@@ -91,7 +91,7 @@ def _read_warmup_s(seed_dir: Path) -> float:
 # @param warmup_s  Seconds to discard from the start.
 # @param mirror    If ``True``, also emit the reverse direction of every link
 #                  (see note below). Used by node mode.
-# @return Normalised DataFrame or empty DataFrame.
+# @return Normalized DataFrame or empty DataFrame.
 #
 # @note The sim evaluates each undirected pair once — ``LinkEvaluator::
 #       EvaluateAll`` walks only the upper triangle (``j = i + 1``), so

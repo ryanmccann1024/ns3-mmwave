@@ -1,16 +1,19 @@
 /**
  * @page scripts Python tools
  * Python packages for field data, validation, sweeps, plotting, placement
- * baselines and RL. Run each as `python -m scripts.<pkg>.<module>` from
- * `scratch/mesh-sim/`.
+ * baselines and RL. Run each as `.venv/bin/python -m scripts.<pkg>.<module>`
+ * from `scratch/mesh-sim/`. Shared helpers live beside the packages:
+ * `sim_support.py` (finding and launching the simulator), `artifact_io.py`
+ * (atomic JSON and hashes) and `stats.py` (95% confidence intervals).
  *
- * ## Simulation tools
- * - @subpage scripts_arpo_data — Turns raw ARPO field-test CSVs into per-day plots, GPS traces and per-scenario traces
- * - @subpage scripts_validation — Checks simulator output against ARPO field data and against stored regression results
+ * ## Simulation and field-data tools
+ * - @subpage scripts_arpo_data — Turns raw field-test CSVs into per-day plots, GPS traces and per-scenario traces
+ * - @subpage scripts_validation — Checks simulator output against field data and against stored regression results
  * - @subpage scripts_sweep — Runs a grid of simulations from one sweep INI file into a single output folder
  * - @subpage scripts_plotting — Turns simulator CSV and JSON outputs into figures
  * - @subpage scripts_baselines — Plans geometric and optimization node placements before a run, scored by the simulator channel
- * - @subpage scripts_baselines_planners — The two placement planners, their shared objective and the channel scorer
+	* - @subpage scripts_baselines_planners — The two placement planners, their shared objective and the channel scorer
+	* - @subpage scripts_baselines_tests — What each placement-baseline test file checks, and how to run them
  * ## RL tools
  * - @subpage scripts_rl — Command guide for RL training, evaluation, comparison and experiment matrices
 	* - @subpage scripts_rl_env — Gymnasium environment that runs the simulator as a subprocess over the RL JSON protocol
@@ -18,6 +21,7 @@
 	* - @subpage scripts_rl_ops — Benchmarking, tuning and cluster operations for an experiment plan
 	* - @subpage scripts_rl_policy — Verifies a saved training run, runs policies and computes paired statistics
 	* - @subpage scripts_rl_tests — Map of the RL, ops and placement-baseline Python tests and their helpers
+	* - @subpage scripts_rl_scenario_check — Checks-only package: runs reference policies on fixed diagnostic seeds to validate scenarios before training
 	* - @subpage scripts_rl_experiments — Batch domain: matrix version 2 validation, the plan v3 task graph and named selection rules
 	* - @ref mesh_sim_rl_batch_reference "Batch experiment reference" — Every batch field, path, identity, state, protocol and the retired-command map
  */
@@ -47,4 +51,7 @@
 	* - @subpage src_rl_policy_lifecycle_tests — Map of the policy lifecycle (validate, train, inspect, evaluate) tests
 	* - @subpage src_rl_policy_comparison_tests — Map of the policy comparison, experiment-matrix and evaluation-pipeline tests
 	* - @subpage src_rl_decision_records — Opt-in per-episode records of what a centralized policy saw, requested and got back
+ *
+ * ## Tests
+ * - @subpage tests_coverage — Every C++ and Python test suite, what it checks and how to run it
  */

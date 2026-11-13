@@ -7,7 +7,7 @@
  * theme used by the FUSION documentation: a dark sidebar under a blue header,
  * uppercase group captions, Lato body text with Roboto Slab headings and an
  * 800 px reading column. Fonts load from Google Fonts in header.html and fall
- * back to system fonts offline. Flat colours only: no gradients.
+ * back to system fonts offline. Flat colors only: no gradients.
  */
 
 /* ---------- Tokens ---------- */
@@ -600,9 +600,11 @@ div.contents li span.tt {
 }
 
 /* Code in table cells stays on one line: the column widens to fit it.
- * header.html marks tokens longer than 22 characters (paths, hashes,
- * commands) ms-long; only those wrap, anywhere, so a table never outgrows
- * the text column. */
+ * header.html marks tokens longer than 22 characters: names with separators
+ * (paths, file and module names) get break points after "_", "/" and "-"
+ * and wrap only there (ms-long-sep); tokens without them, such as hashes,
+ * wrap anywhere (ms-long). Either way a table never outgrows the
+ * text column. */
 table.markdownTable td code,
 table.doxtable td code,
 table.markdownTable td span.tt,
@@ -621,6 +623,16 @@ table.doxtable td code.ms-long,
 table.doxtable td span.tt.ms-long {
     white-space: normal;
     overflow-wrap: anywhere;
+}
+
+table.markdownTable td code.ms-long-sep,
+table.markdownTable td span.tt.ms-long-sep,
+table.markdownTable th code.ms-long-sep,
+table.markdownTable th span.tt.ms-long-sep,
+table.doxtable td code.ms-long-sep,
+table.doxtable td span.tt.ms-long-sep {
+    white-space: normal;
+    overflow-wrap: break-word;
 }
 
 /* The theme makes Markdown tables inline-blocks, which scroll sideways once
@@ -719,7 +731,7 @@ tr.markdownTableRowOdd td {
     background: var(--ms-row-odd);
 }
 
-/* Notes and warnings: coloured title bar over a tinted body. */
+/* Notes and warnings: colored title bar over a tinted body. */
 dl.note,
 dl.remark,
 dl.warning,
@@ -789,7 +801,7 @@ div.toc li a {
 }
 
 /* The table of contents is a collapsible "On this page" box at the top of
- * the page at every width (the theme's narrow-screen behaviour), so the
+ * the page at every width (the theme's narrow-screen behavior), so the
  * text, tables and drawings always get the full column. */
 #doc-content > div > div.contents,
 .PageDoc > div.contents {
@@ -1146,7 +1158,7 @@ dl.ms-terms dd {
 
 /* ---------- Repository map (repo-map.md, rendered by theme/repo-map.js) ---------- */
 
-/* Category colours match the system overview diagram: blue simulator,
+/* Category colors match the system overview diagram: blue simulator,
  * purple Python tools, amber inputs; docs teal, tests and vendored grey. */
 html {
     --ms-map-sim: #2980b9;
@@ -1949,7 +1961,7 @@ a.ms-map-file-path:hover {
 /* ---------- Input and output files map (files/index.md) ---------- */
 
 /* Four stages top to bottom: scenario files, simulator, run folder, results.
- * Colours follow the system overview: amber files, blue simulator, purple
+ * Colors follow the system overview: amber files, blue simulator, purple
  * Python tools, green visualizer. Every file card links to its page. */
 html {
     --ms-io-viz: #27ae60;
@@ -2175,7 +2187,7 @@ a.ms-io-file .ms-io-name b {
 /* One type scale for these pages: 16px text (as in tables), 14.5px for
  * secondary text, code at 0.88em of the text around it. */
 
-/* One colour per run.ini section, shared by the anatomy figure and the key
+/* One color per run.ini section, shared by the anatomy figure and the key
  * cards of that section. */
 html {
     --ms-sec-scenario: #2980b9;
@@ -2299,7 +2311,7 @@ html.dark-mode {
     color: var(--page-secondary-foreground-color);
 }
 
-/* Generic group colours for file pages whose groups are not run.ini
+/* Generic group colors for file pages whose groups are not run.ini
  * sections. */
 .ms-c-blue { --ms-c: var(--ms-sec-scenario); }
 .ms-c-purple { --ms-c: var(--ms-sec-channel); }
@@ -2501,7 +2513,7 @@ details.ms-more summary .ms-more-count {
 
 /* ---------- Step cards and drawings (channel-models.md walkthrough) ---------- */
 
-/* A step card: a small drawing in the step's section colour beside a short
+/* A step card: a small drawing in the step's section color beside a short
    explanation. */
 .ms-flow-step {
     position: relative;

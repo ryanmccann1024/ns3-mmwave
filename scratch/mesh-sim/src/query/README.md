@@ -26,7 +26,7 @@ EOF.
 | Rule | Behavior |
 |------|----------|
 | Seeds | Must resolve to exactly one value; otherwise `Error: --channel-query needs exactly one seed`, exit 1. |
-| `--output-dir` | Ignored, with a note on stderr. |
+| `--output-dir` | No effect; silently ignored. |
 | Disk output | None: no output directory, archive or `run.log`. |
 | `[baseline]` guard | Not applied in this mode. |
 | Streams | stdout carries only NDJSON; logs go to stderr. |
@@ -86,7 +86,8 @@ The first stdout line:
 Each `L` is either a result:
 
 ```json
-{"links":[[i,j,sinr_db,capacity_mbps,is_los,connected],...],"coverage":[[k,...],...],"wall_s":0.01,"diagnostics":[]}
+{"links":[[i,j,sinr_db,capacity_mbps,is_los,connected],...],
+ "coverage":[[k,...],...],"wall_s":0.01,"diagnostics":[]}
 ```
 
 or `{"error":"..."}`.
@@ -124,13 +125,13 @@ errors. The resolved values appear in the init `limits`.
 
 The alarm backstop for a child is ceil(deadline + grace + 5) seconds. The
 matching client configuration example is in the
-[planner guide](../../scripts/baselines/planners/README.md).
+[planner guide](@ref scripts_baselines_planners_config).
 
 ### 3.2 Errors
 
 | Level | Causes | Response |
 |-------|--------|----------|
-| Request | Malformed JSON, non-object, bad `request_id`, unknown `type`, wrong shapes, limits exceeded, non-finite numbers, oversized line. | `{"type":"error","request_id":<int\|null>,"message":"..."}`; the worker keeps serving. |
+| Request | Malformed JSON, non-object, bad `request_id`, unknown `type`, wrong shapes, limits exceeded, non-finite numbers, oversized line. | `{"type":"error","request_id":<id>,"message":"..."}`, where `<id>` is an integer or `null`; the worker keeps serving. |
 | Response overflow | The aggregate response exceeds `max_response_bytes`. | A request error asking for smaller batches; the worker keeps serving. |
 | Layout | `ApplyLayout` errors (changed z, outside random-walk bounds); a non-finite SINR or capacity (never serialized as a number); a child that times out, exceeds the response limit, exits non-zero or is killed by a signal; unparsable child output. | `{"error":"..."}` in that layout's slot. |
 
@@ -227,4 +228,5 @@ indices, so every layout is a full `EvaluateAll` plus all probe links.
 | Tests | Covers |
 |-------|--------|
 | `make -C tests/unit/query test` | Protocol, process and diagnostic logic, with a stub scorer for the serving loop. |
+| `MESH_SIM_BIN=<BIN> make -C tests integration` | `tests/integration/cli-integration-test.sh` (Test 13 onward): the init line, requests and errors against the built binary. |
 | `scripts/baselines/tests/test_real_binary.py` | Real-binary parity and repeatability against direct runs. Skipped unless `MESH_SIM_BIN` points at a built binary. |

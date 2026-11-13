@@ -17,10 +17,11 @@ Read [README.md](README.md) and [the test map](../tests/ops-tests.md).
   Cluster workflows live in `../cluster/`; read its guide before scheduler edits.
   Keep ownership, intent recovery and writer locking out of the CLI.
 - Batch execution (matrix version 2, plan v3) has one local owner:
-  `local.py` (queue, root lock, optional shared slot pool, progress,
-  `campaign_status.json`, receipts written only by the scheduler) and
-  `recovery.py` (identity checks, attempt selection, checkpoint recovery
-  proposals under `state/recovery/`). Contract in
+  `local.py` (queue, progress, `campaign_status.json`; receipts are written
+  only by the scheduler), `batch_processes.py` (root lock, process groups,
+  shared slot pool), `batch_receipts.py` (receipts, bindings),
+  `batch_identity.py` (runtime identity) and `recovery.py` (attempt selection,
+  checkpoint recovery proposals under `state/recovery/`). Contract in
   `docs/rl/batch-reference.md`; implemented and covered by worker-run synthetic
   tests (`test_ops_local.py`, `test_ops_recovery.py`), not by a native batch. Reuse
   `process.py` and `measurement.py`; do not add a second process engine.

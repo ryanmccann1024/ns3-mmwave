@@ -26,7 +26,7 @@ def t_critical_95(n: int) -> float:
 
 
 ## @fn sample_stats
-# @brief Summarise a list of numbers.
+# @brief Summarize a list of numbers.
 #
 # @param values  Observations (any length).
 # @param use_ci  If True and n > 1, add a `ci95` half-width.

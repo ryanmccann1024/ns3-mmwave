@@ -34,7 +34,7 @@ Run the sweep:
 |------|---------|-------------|
 | `--config` | required | Path to the sweep INI. |
 | `--dry-run` | off | Print the sweep matrix and exit. |
-| `--resume` | off | Skip points whose `seed-<N>/summary.json` files all exist. Each run writes a new timestamped folder, so in practice nothing is skipped (see `CLAUDE.md`, Known issues). |
+| `--resume` | off | Skip points whose `seed-<N>/summary.json` files all exist. In practice nothing is skipped (section 5). |
 | `--sim-binary` | first `ns3*-sim-*` under `<ns3>/build/scratch/mesh-sim/` | Simulator binary. |
 
 ## 3\. Sweep INI
@@ -80,7 +80,8 @@ Precedence: sweep values win over overrides, and overrides win over the base
 ### Sweeping the band
 
 `band` is an ordinary `run.ini` key and needs no special syntax. Jammer
-interference applies only to `sub-6` points.
+interference applies only to `sub-6` points, and the sweep does not copy
+`jammers.json` (section 5).
 
 ```ini
 [sweep]
@@ -107,8 +108,23 @@ as a flag: `python -m scripts.validation.run_batch ... [--band sub-6]`.
   varies fastest.
 - A failed point is recorded as `failed` in the manifest, and the sweep
   continues.
+- Each point's `run.ini` is rewritten with `configparser`: the base file's
+  comments are dropped and keys are lowercased. `[output] dir` is set to the
+  point folder and `[scenario] name` to `<label>_point-NNN`.
+- Swept values are passed through as strings; the simulator validates each
+  generated `run.ini` itself.
 
-## 5\. Module layout
+## 5\. Known issues
+
+- **`--resume` never skips anything.** Every run creates a new timestamped
+  folder, so no finished points are found.
+- **`jammers.json` is not copied** into the point folders; only the nodes and
+  buildings files are.
+- **A `scenario.buildings_file` in `[sweep.override]` is ignored** when choosing
+  which file to copy. `nodes_file` overrides, and per-point `[sweep]` values of
+  either key, are honored.
+
+## 6\. Module layout
 
 | File | Role |
 |------|------|
@@ -120,7 +136,7 @@ as a flag: `python -m scripts.validation.run_batch ... [--band sub-6]`.
 
 Each function has a Doxygen `##` comment block above it.
 
-## 6\. Dependencies
+## 7\. Dependencies
 
 - Python 3.10+ (uses `X | None` type hints); standard library only.
 - `scripts/sim_support.py` (binary lookup, seed parsing) and `scripts/plotting/`

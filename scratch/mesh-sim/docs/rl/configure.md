@@ -167,9 +167,9 @@ thresholds (`service_success`), fairness (`fair_node_service`,
 `worst_node_delivery_fraction`), movement and safety (`span_travel_fraction`,
 `unsafe_proximity_fraction`), coverage (`coverage_fraction`) and mission
 objectives. A negative weight turns a component into a penalty. Per-component
-settings go in `reward_parameters` as JSON keyed by component name. The full
-catalog: \ref src_rl_policy_inputs "Policy inputs, section 5". To list every
-name:
+settings go in `reward_parameters` as JSON keyed by component name. The core
+components are described in \ref src_rl_policy_inputs "Policy inputs, section 5";
+not every registered component is listed there. To list every name:
 
 ```bash
 .venv/bin/python -c "from scripts.rl.env.rewards import COMPONENTS; print(len(COMPONENTS)); print(sorted(COMPONENTS)[:6])"

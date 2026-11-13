@@ -86,7 +86,7 @@ def _node_metric_series(df: pd.DataFrame, value_col: str) -> pd.Series:
 #
 # Rows are nodes, columns are comparison scenarios; each cell is
 # ``scenario[node] - baseline[node]`` for @p value_col at @p metric. A
-# diverging colormap centred on 0 shows sign (direction of failure).
+# diverging colormap centered on 0 shows sign (direction of failure).
 #
 # @return True if a figure was written.
 def _heatmap_delta(per_scen: dict[str, pd.Series], baseline_name: str,

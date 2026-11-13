@@ -26,9 +26,9 @@ the only file in `src/` that includes `ns3/command-line.h`.
 Update together: `CliArgs` + `ParseCommandLine` (validation), the override
 logic in `sim.cc`, the flag table in `cli-parser.h` and `README.md`, and the
 top-level `README.md`. Also check the "update together" table in
-`CONTRIBUTING.md`. There is no unit-test suite for `cli/`, because it needs
-ns-3. Integration tests (`make integration` in `tests/`) exercise the real
-binary.
+`CONTRIBUTING.md`. Unit tests are in `tests/unit/io-cli/`, which compiles
+`cli-parser.cc` against an ns-3 `CommandLine` stub. Integration tests
+(`make integration` in `tests/`) exercise the real binary.
 
 ## Dependencies
 - Depends on: `domain/`, `util/` (`string-utils.h`), ns-3 core (`CommandLine`)

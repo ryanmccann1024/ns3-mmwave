@@ -1,5 +1,5 @@
 ## @file topology.py
-# @brief MAC-address-to-rab-label resolution and stable per-node plot colours.
+# @brief MAC-address-to-rab-label resolution and stable per-node plot colors.
 #
 # **Vocabulary**
 # - A *rab* is a chassis hostname (``rab1``, ``rab2``, …).
@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pandas as pd
 
-## @brief Fixed matplotlib colour for each well-known node label.
+## @brief Fixed matplotlib color for each well-known node label.
 #
 # Unmapped labels fall back to ``"0.4"`` (medium grey). ``"?"`` is the
 # sentinel used when a MAC cannot be resolved at all.
@@ -269,12 +269,12 @@ _GLOBAL_OWNERS_CACHE: dict[Path, dict[str, str]] = {}
 
 
 ## @fn node_color
-# @brief Return the matplotlib colour string for a node label.
+# @brief Return the matplotlib color string for a node label.
 #
 # Unmapped labels (not in @ref FIXED_COLORS) return ``"0.4"`` (medium grey).
 #
 # @param label Node label such as ``"rab1"`` or ``"ext2"``.
-# @return Matplotlib colour string.
+# @return Matplotlib color string.
 def node_color(label: str) -> str:
     return FIXED_COLORS.get(label, "0.4")
 

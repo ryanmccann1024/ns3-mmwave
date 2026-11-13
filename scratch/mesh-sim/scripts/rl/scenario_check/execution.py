@@ -78,7 +78,7 @@ def run(source, output, binary, workers):
     main = output / "Main"
     main.mkdir()
     (main / "README.md").write_text(
-        "# October 23 scenario checks\n\n"
+        "# Scenario checks\n\n"
         "Open the scenario folder of interest as a standalone evaluation in the GUI.\n\n"
         + "\n".join(f'- {c["name"]}' for c in campaign["cases"])
         + "\n"
@@ -101,7 +101,7 @@ def run(source, output, binary, workers):
     outcomes = []
     status_lock = threading.Lock()
     print(
-        f'10-23 scenario checks only: {len(campaign["cases"])} cases, {campaign["episodes_expected"]} episodes, {workers} workers. No training, no wall-clock cutoff.',
+        f'Scenario checks only: {len(campaign["cases"])} cases, {campaign["episodes_expected"]} episodes, {workers} workers. No training, no wall-clock cutoff.',
         flush=True,
     )
     print(

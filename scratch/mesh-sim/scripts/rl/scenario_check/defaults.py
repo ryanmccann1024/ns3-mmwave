@@ -1,4 +1,4 @@
-"""Settings shared by the October 23 scenario checks and their placement baselines."""
+"""Settings shared by the scenario checks and their placement baselines."""
 
 BAND = "sub-6"
 EVALUATION_SEEDS = (201, 202)

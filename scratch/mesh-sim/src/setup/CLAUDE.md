@@ -15,7 +15,7 @@ propagation and channel-condition models. No EPC, RRC, MAC, or protocol stack.
   automatic stream indices). Without probes `Build()` is unchanged.
 - `GetMobilityModels()` follows `cfg.nodes` order and `GetJammerMobilityModels()` follows
   `cfg.jammers` order. `JammerModel::Configure` asserts equal lengths.
-- In centralized RL mode, nodes in `cfg.rl.controlled_indices` get a `ConstantVelocityMobilityModel`
+- RL-controlled nodes (`cfg.rl.controlled_indices`) get a `ConstantVelocityMobilityModel`
   at `ControlledStartPosition` with zero velocity, whatever their configured mobility.
 - Buildings are created before `BuildingsHelper::Install()`. Install also runs (with no buildings)
   when `condition_model == "static_los"`.

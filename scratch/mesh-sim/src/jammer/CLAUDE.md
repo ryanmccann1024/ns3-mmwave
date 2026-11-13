@@ -24,8 +24,8 @@ are elsewhere; this only computes watts.
 Update together: `jammer-spec.h`, `parseJammerSpec` in `config/config-loader.cc`,
 the jammer block in `config/config-validator.cc`, `setup/topology-builder.cc`
 (`CreateJammersAndMobility`), `io/run-logger.h` (documents the jammer log line), `README.md`, and
-`scripts/validation/make_jammers.py`. No unit suite exists for `jammer/`
-(needs ns-3), so it is unverified by standalone compile.
+`scripts/validation/make_jammers.py`. Unit tests: `tests/unit/eval-jammer/`
+compiles `jammer-model.cc` against ns-3 stubs (`make -C tests/unit/eval-jammer test`).
 
 ## Dependencies
 - Depends on: `domain/` (`node-spec.h` for `Position`, `Velocity`, `Waypoint`, `RandomWalkParams`), ns-3 (propagation, mobility)

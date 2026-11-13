@@ -4,7 +4,7 @@ Read [README.md](README.md) for the API, configuration, limits and extension pat
 Keep objective terms and parameter metadata in `components.py`, presets and
 physical scoring context in `objective.py`, graph facts in `graph.py`, bounded
 reuse in `cache.py`, and algorithm mechanics/settings with each strategy.
-`planner_config.py` delegates INI meaning to those owners; `solver.py` coordinates.
+`../planner_config.py` delegates INI meaning to those owners; `../solver.py` coordinates.
 
 Use registered terms/presets/strategies rather than adding name branches to
 composition. Record resolved values, component versions, worker limits and the

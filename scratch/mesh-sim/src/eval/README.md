@@ -8,16 +8,18 @@ and MCS (modulation and coding scheme) index for each link. It stores the
 results in a symmetric matrix for O(1) lookup by the routing, metrics, and RL
 layers. In the sub-6 band it also adds jammer power (see @ref src_jammer).
 
-## Module Layout
+## 1\. Module layout
 
 | File | Role |
 |------|------|
 | `link-evaluator.h` / `.cc` | `LinkEvaluator`: `Configure`, `Evaluate` (one link), `EvaluateAll` (all pairs), `EvaluateProbe` (mesh node to query probe). Wraps ns-3 propagation and channel-condition models. |
 | `sinr-capacity.h` | Header-only, no ns-3: MCS tables (3GPP-style and Silvus), `SinrToMcsIndex`, `SinrToSilvusMcsIndex`, `SinrToCapacity`. |
 | `link-table.h` / `.cc` | `LinkTable`: symmetric N×N matrix with `Update`, `Get`, `MaxCapacity`, `ConnectedLinkCount`, `IsConnected`. |
+| `coverage-grid.h` / `.cc` | Clipped receiver cells and the covered area of the largest connected mesh component (section 4). |
+| `probe-diagnostics.h` / `.cc` | Advisory checks of 3GPP endpoint-height assumptions for query probes (section 4). |
 | `CLAUDE.md` | Scope notes and invariants for contributors. |
 
-## Run
+## 2\. Run the unit tests
 
 This module is a library used by `sim.cc`; it has no executable of its own.
 Its standalone unit tests (no ns-3 needed) run from `scratch/mesh-sim/`:
@@ -36,7 +38,7 @@ again without jammers clears the old jammer. Neither exercises a real
 propagation model or the full simulator; checking those requires full-simulator
 execution rather than this stub suite.
 
-## Output
+## 3\. Output
 
 No files are written. Two in-memory structures are produced each tick.
 
@@ -59,7 +61,7 @@ No files are written. Two in-memory structures are produced each tick.
 | `mcs_index` | MCS index chosen by the AMC model. |
 | `condition_from_buildings` | `true` when buildings are configured (set for every link in that case). |
 
-## Conventions
+## 4\. Conventions
 
 ### Physics
 - **Noise floor.** `-174 + 10·log10(bandwidth_Hz) + noise_figure_dB` (dBm).
@@ -84,11 +86,24 @@ No files are written. Two in-memory structures are produced each tick.
 ### Probe links
 - `EvaluateProbe` (used only by `src/query/`) runs the same private body as `Evaluate`; only the RX gain comes from the request instead of a node's gain, and `rx_id` is `LinkEvaluator::kProbeRxId`. Path-loss floors, jammer path (larger of probe-end and TX-end power) and the unclamped SINR calculation are identical; negative SINR is preserved.
 
+### Coverage and probe diagnostics
+- `coverage-grid.h/cc` builds clipped receiver cells and computes the covered
+  area of the largest connected mesh component (ties by smallest roster index).
+  `sim.cc` evaluates node-to-probe links at decision endpoints when RL coverage
+  is enabled.
+- Mission coverage excludes a cell if its center lies inside a building at the
+  configured receiver height. Each retained cell contributes its clipped area
+  once if any available peer in the core covers it. Investigation goal coverage
+  uses the same calculation over centers within the goal radius.
+- `probe-diagnostics.h/cc` checks resolved 3GPP RMa/UMa/UMi endpoint height
+  assumptions without ns-3 objects. The [query guide](@ref src_query) describes
+  its advisory output; it does not alter propagation or certify all models.
+
 ### Call order
 - `LinkEvaluator::Configure` must run before `Evaluate`, `EvaluateProbe` or `EvaluateAll`. It throws `std::runtime_error` on a null model pointer.
 - `EvaluateAll` evaluates only i < j; `LinkTable::Update` mirrors each result and throws `std::runtime_error` if the result count is not N·(N−1)/2.
 
-## Dependencies
+## 5\. Dependencies
 
 | Dependency | Used by | Reason |
 |------------|---------|--------|
@@ -99,15 +114,3 @@ No files are written. Two in-memory structures are produced each tick.
 | `src/domain/` (`link-result.h`, `sim-config.h`) | all | Shared POD types. |
 | `src/jammer/jammer-model.h` | `link-evaluator` | Jammer interference. |
 | g++ with C++17 | unit tests | `make -C tests/unit/eval test`. |
-
-`probe-diagnostics.h/cc` checks resolved 3GPP RMa/UMa/UMi endpoint height
-assumptions without ns-3 objects. The [query guide](../query/README.md) describes
-its advisory output; it does not alter propagation or certify all models.
-
-`coverage-grid.h/cc` builds clipped receiver cells and computes the covered area
-of the largest connected mesh component (ties by smallest roster index).
-`sim.cc` evaluates node-to-probe links at decision endpoints when RL coverage
-is enabled. Mission coverage excludes a cell if its center lies inside a
-building at the configured receiver height. Each retained cell contributes its
-clipped area once if any available peer in the core covers it. Investigation
-goal coverage uses the same calculation over centers within the goal radius.

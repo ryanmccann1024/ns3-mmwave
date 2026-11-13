@@ -23,9 +23,8 @@ scenario:
 3. Set the band to sub-6: `--band=sub-6` on the command line, or
    `[channel] band = sub-6` in `run.ini`.
 
-Example scenarios with jammers: `inputs/baselines/p0-jammer-smoke/` and
-`inputs/calfex/1555-1559/`. The smoke scenario's `jammers.json` holds one
-omnidirectional constant jammer:
+Example scenario with a jammer: `inputs/baselines/p0-jammer-smoke/`. Its
+`jammers.json` holds one omnidirectional constant jammer:
 
 ```json
 [
@@ -56,7 +55,7 @@ the defaults are those `ConfigLoader` applies when a key is absent.
 | `id` | string | empty | Label (logs, validation, random-burst seed). |
 | `enabled` | bool | **`false`** | `false` drops the jammer in `JammerModel::Configure`. |
 | `type` | string | `constant` | `constant` or `random`. |
-| `target_freq` | number[] | empty (all) | Target band in MHz. 2 values = `[lo,hi]`; 1 value = spot ±2.5 MHz. |
+| `target_freq` | number[] | empty (all) | Target band in MHz. 1 value = spot ±2.5 MHz; 2 or more values = the band from their minimum to maximum. |
 | `tx_power_dbm` | number | 25 | Transmit power (dBm). |
 | `tx_array_gain_dbi` | number | 12 | Antenna gain (dBi), added to EIRP. |
 | `duty_cycle` | number | 1 | 0 to 1; meaning depends on `type` (section 3). |
@@ -65,7 +64,8 @@ the defaults are those `ConfigLoader` applies when a key is absent.
 | `azimuth_deg` | number | 0 | Horizontal pointing, degrees from North (0=N, 90=E). |
 | `zenith_deg` | number | 0 | Vertical pointing (0=up, 90=horizontal, 180=down). |
 | `position` | {x,y,z} | | Location (ENU meters, same frame as nodes). |
-| `velocity`, `waypoints`, `random_walk` | object / array | | Optional jammer motion, same shapes as node mobility. |
+| `velocity`, `waypoints` | object / array | | Optional jammer motion, same shapes as node mobility. Waypoints take precedence, then a non-zero velocity; otherwise the jammer is fixed. |
+| `random_walk` | object | | Parsed, and its bounds are validated for `type = random`, but jammers never move by random walk. |
 | `intervals` | {start,end}[] | empty (always on) | Active windows in sim seconds from scenario start. |
 
 `ConfigValidator` checks `type`, `duty_cycle`, `beamwidth_deg` and `intervals`.
@@ -163,6 +163,7 @@ CSV-to-field mapping:
 | @c src/config/config-validator.cc | Validates `type`, `duty_cycle`, `beamwidth_deg`, and `intervals`. |
 | @c src/setup/topology-builder.cc | Builds one ns-3 mobility model per jammer, in `cfg.jammers` order. |
 | @c scripts/validation/make_jammers.py | Host-side generator: EW trials CSV to `jammers.json`. |
+| @c tests/unit/eval-jammer/ | Unit tests: `make -C tests/unit/eval-jammer test` compiles `jammer-model.cc` against ns-3 stubs. |
 
 ## 8\. Dependencies
 

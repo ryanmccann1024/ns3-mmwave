@@ -44,7 +44,7 @@ def to_datetime(df: pd.DataFrame) -> pd.Series:
 # @brief Compute seconds elapsed since each session's earliest ``__t__`` value.
 #
 # Groups by ``__session__`` if present, otherwise by ``__node__``. This
-# normalises clock skew so that t=0 is the first sample for each node.
+# normalizes clock skew so that t=0 is the first sample for each node.
 #
 # @param df DataFrame with ``__t__`` (datetime) and either ``__session__``
 #           or ``__node__`` columns.
@@ -198,7 +198,7 @@ def load_gps_scenario(node_dir: Path) -> pd.DataFrame | None:
 # (``silvus/gps.csv``) is skipped.
 #
 # @param node Path to one node subdirectory.
-# @return Normalised DataFrame with columns
+# @return Normalized DataFrame with columns
 #         ``[__node__, __label__, __t__, __lat__, __lon__]``,
 #         or ``None`` if no GPS file is present or usable.
 def _load_node_gps(node: Path) -> pd.DataFrame | None:
@@ -286,7 +286,7 @@ def load_node_id(node_dir: Path) -> dict[str, str] | None:
 
 ## @brief Parses through the network status file for IH Node
 #
-# Reads ``network_status.csv`` from @p net_stat_dir and returns a normalised
+# Reads ``network_status.csv`` from @p net_stat_dir and returns a normalized
 # DataFrame with per-link RF quality columns. Computes ``rcpi`` as the mean
 # RSSI across active antennas (antennas at −110 dBm sentinel are excluded).
 # Rows whose ``neighbor`` is not in @p valid_nodes are dropped.
@@ -335,7 +335,7 @@ def _load_net_stat(net_stat_dir: Path, valid_nodes: list[str]) -> pd.DataFrame |
 
 ## @brief Parses through local stats file for IH Node
 #
-# Reads ``local_stats.csv`` from @p local_stat_dir and returns a normalised
+# Reads ``local_stats.csv`` from @p local_stat_dir and returns a normalized
 # DataFrame with per-node noise, interference, throughput, and PER columns.
 # Rows whose ``node_id`` is not in @p valid_nodes are dropped.
 #
@@ -389,7 +389,7 @@ def _load_local_stat(local_stat_dir: Path, valid_nodes: list[str]) -> pd.DataFra
 
 ## @brief Parses through config file for IH Node
 #
-# Reads ``config.csv`` from @p config_dir and returns a normalised DataFrame
+# Reads ``config.csv`` from @p config_dir and returns a normalized DataFrame
 # with per-node radio configuration columns. Rows whose ``node_id`` is not
 # in @p valid_nodes are dropped.
 #

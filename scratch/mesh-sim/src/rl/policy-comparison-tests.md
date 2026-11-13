@@ -43,7 +43,7 @@ only, and run/status use a stand-in scheduler module.
 | `test_collisions_are_detected_before_writing` | Colliding task IDs/keys/destinations → error and nothing written. |
 | `test_validate_writes_nothing_and_resolves_paths_with_spaces` | `validate` on a matrix in a directory with spaces → paths resolve against the matrix directory; nothing written. |
 | `test_v2_plan_is_immutable` | Re-planning a root with a changed matrix → refused; identical plan accepted. |
-| `test_replay_gates_and_preflights_expand_one_task_per_seed` | Check declarations → expected check tasks and arguments. |
+| `test_replay_gates_expand_one_task_per_seed`, `test_preflight_refused_before_planning_or_launch` | Replay-gate declarations → one check task per seed with the expected arguments; a matrix `preflight` check → refused before planning. |
 | `test_selection_stage_plans_every_branch`, `test_selection_rules_rank_and_block` | Selection stages → every branch planned before execution; each named rule ranks with its tie rule; missing or held-out evidence blocks. |
 | `test_public_example_validates_and_plans` | `inputs/experiments/examples/coordination-smoke/batch.json` → 64 native decisions, retained checkpoints 128 and 256, 8 rollout updates, 16 operation and 6 baseline tasks. |
 | `test_reference_formats_used_by_existing_readers_are_accepted`, `test_malformed_references_are_refused` | `scenario_routes_v1` version 1 and 2 files and `mission_waypoints_v1` files with versions 1–3, 2-D/3-D waypoints and the optional scripted-policy fields → accepted with the version recorded; unknown keys, bad versions or node IDs → refused. |

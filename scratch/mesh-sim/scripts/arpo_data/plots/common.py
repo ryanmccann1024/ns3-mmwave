@@ -9,7 +9,7 @@ import pandas as pd
 from ..paths import KNOWN_BAD_SCENARIOS
 
 ## @fn scenario_caption
-# @brief Generates a short human-readable caption summarising a scenario DataFrame.
+# @brief Generates a short human-readable caption summarizing a scenario DataFrame.
 #
 # Counts the number of unique nodes and computes the total duration from either
 # ``__sec__`` (float seconds) or ``__t__`` (datetime). Duration is formatted as

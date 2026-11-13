@@ -13,9 +13,8 @@ read it before editing there.
 | `validation/` | field traces -> scenarios, batch runs, sim-vs-field comparison, regression and smoke checks |
 | `sweep/` | one sim run per point of a `run.ini` grid |
 | `rl/` | Gymnasium env, training, evaluation, experiment matrices and batches (`rl/run-experiments.sh`), cluster ops |
-| `baselines/` | placement planners (`geometric`, `optimization`) scored by the simulator's `--channel-query` worker; see its `README.md` |
+| `baselines/` | placement planners (`geometric`, `optimization`) scored by the simulator's `--channel-query` worker, plus placement configuration, mapping, effective inputs and baseline artifacts; see its `README.md` |
 | `plotting/` | post-sim figures from finished `seed-N/` folders |
-| `baselines/` | placement configuration, mapping, effective inputs, and baseline artifacts |
 
 Data flow: `arpo_data` -> `validation` (build scenarios, run, compare);
 `sweep`, `validation`, `rl`, and `baselines` launch the simulator; `plotting` reads its
@@ -29,12 +28,12 @@ From `scratch/mesh-sim/`, always as modules (package-relative imports break
 ```bash
 python3 scripts/rl/bootstrap_venv.py              # creates .venv
 .venv/bin/python -m scripts.<pkg>.<module> --help
-.venv/bin/python -m pytest scripts/rl/tests scripts/validation/tests -q   # what CI runs
+.venv/bin/python -m pytest scripts/rl/tests scripts/validation/tests scripts/baselines/tests -q   # what CI runs
 ```
 
 `rl/`, `validation/`, and `baselines/` have test suites; `sweep` launcher behavior is
 covered in `validation/tests`, and `plotting` by one test in
-`rl/tests/test_policy_comparison.py`.
+`rl/tests/policy/test_policy_comparison.py`.
 
 ## Shared modules
 
@@ -76,7 +75,8 @@ needs ns-3's shared libraries) and close its stdin unless it is the RL bridge.
 - RL experiment orchestration has one maintained launcher,
   `rl/run-experiments.sh`, which only locates the root, normalizes path flags
   and `exec`s `rl/experiment.py`. Batch planning lives in `rl/experiments/`,
-  local scheduling/receipts/recovery in `rl/ops/` (`local.py`, `recovery.py`).
+  local scheduling/receipts/recovery in `rl/ops/` (`local.py`, `recovery.py`,
+  `batch_*.py`).
   Do not add another campaign runner, queue or phase-named package; express a
   new study as batch configuration.
 

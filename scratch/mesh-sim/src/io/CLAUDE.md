@@ -24,8 +24,9 @@ never compute physics or routing.
 ## Changing an output file
 Update together: the writer, the schema table in the header and `README.md`,
 the Python readers above, and "Training or episode output" in the
-`CONTRIBUTING.md` table. `summary.json` has no `manifest_version`. No unit
-suite covers `io/`; `make integration` in `tests/` exercises it via the binary.
+`CONTRIBUTING.md` table. `summary.json` has no `manifest_version`. Unit tests
+for `MetricsWriter`, `WriteRunLog` and `VizWriter` are in `tests/unit/io-cli/`
+(against ns-3 stubs); `make integration` in `tests/` exercises the real binary.
 
 ## Dependencies
 - Depends on: `domain/`, `eval/` (`link-table.h`, `sinr-capacity.h`), `routing/` (`mesh-router.h`), `util/` (`string-utils.h`), `cli/` (`cli-parser.h`, `run-logger.h` only), ns-3 `MobilityModel` (`viz-writer` only)

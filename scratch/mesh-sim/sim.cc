@@ -271,7 +271,7 @@ main(int argc, char* argv[]) ///< Takes params for cli at start
 
         mesh_sim::MetricsWriter metricsWriter(cfg);
 
-        /// @brief Optional RL bridge — picks the controlled node and steps
+        /// @brief Optional RL bridge — drives the controlled nodes and steps
         ///        the obs/action loop alongside the main tick loop.
         std::unique_ptr<mesh_sim::RlBridge> rlBridge;
         if (cfg.rl.enabled)

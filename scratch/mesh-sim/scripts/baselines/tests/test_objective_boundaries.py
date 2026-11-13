@@ -2,8 +2,8 @@
 
 Gaps over scripts/baselines/tests/test_objective.py: hand-computed totals with every term
 non-zero, core ties beyond node 0, N = 1 / N = 2, all-disconnected with an unselected core,
-clipped-cell weights and centres, the cap / stay-put / scale-warning boundaries, context
-validation and LayoutCache key normalisation.
+clipped-cell weights and centers, the cap / stay-put / scale-warning boundaries, context
+validation and LayoutCache key normalization.
 """
 
 import math

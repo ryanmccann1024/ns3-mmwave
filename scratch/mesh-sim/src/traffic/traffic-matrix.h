@@ -102,7 +102,7 @@ class TrafficMatrix
      * @brief Create the initial set of flows for the configured topology.
      *
      * Clears any existing flows, sets the node count, then calls the
-     * appropriate initialiser:
+     * appropriate initializer:
      * - @c "all_pairs"    → @ref InitAllPairs
      * - @c "random_pairs" → @ref InitRandomPairs
      * - @c "gateway"      → @ref InitGateway
@@ -112,7 +112,7 @@ class TrafficMatrix
      *
      * @param numNodes    Total number of active simulation nodes.
      * @param currentTime Simulation time at which flows start (seconds).
-     * @throws std::runtime_error for an unrecognised @c flow_topology string,
+     * @throws std::runtime_error for an unrecognized @c flow_topology string,
      *         or (via @ref InitGateway) a gateway ID that matches no node ID
      *         and is not an in-range index.
      *
@@ -239,7 +239,7 @@ class TrafficMatrix
      * @param src         Source node index.
      * @param dst         Destination node index.
      * @param currentTime Flow creation time (seconds).
-     * @return Fully initialised @ref Flow.
+     * @return Fully initialized @ref Flow.
      */
     Flow MakeFlow(uint32_t src, uint32_t dst, double currentTime) const;
 

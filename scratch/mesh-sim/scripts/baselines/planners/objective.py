@@ -188,7 +188,7 @@ def inside(x: float, y: float, rect: dict) -> bool:
 
 
 def rectangle_grid(rect: dict, cells: int, min_resolution_m: float, max_points=100000):
-    """Clipped-cell centres, cell size and per-cell clipped area; areas sum to the AOI."""
+    """Clipped-cell centers, cell size and per-cell clipped area; areas sum to the AOI."""
     if isinstance(cells, bool) or not isinstance(cells, int) or cells < 1:
         raise ValueError(f"grid cells must be an integer >= 1, got {cells!r}")
     if not (math.isfinite(min_resolution_m) and min_resolution_m > 0):

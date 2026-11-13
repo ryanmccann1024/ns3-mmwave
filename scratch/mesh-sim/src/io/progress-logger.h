@@ -21,8 +21,8 @@ namespace mesh_sim
  * @brief Prints sim-time progress, wall-clock elapsed time, and ETA to stderr.
  *
  * All fields must be set before the first call to @ref Tick. The struct has
- * no constructor; use aggregate initialisation or set fields directly.
- * @c wall_start is not initialised by default; set it before the loop.
+ * no constructor; use aggregate initialization or set fields directly.
+ * @c wall_start is not initialized by default; set it before the loop.
  */
 struct ProgressLogger
 {

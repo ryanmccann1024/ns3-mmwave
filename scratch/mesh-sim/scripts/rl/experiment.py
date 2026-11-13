@@ -91,7 +91,7 @@ def _scheduler(name: str):
     """Import a scheduler entry point lazily; a missing owner is a clear error."""
     module = "scripts.rl.ops.local" if name != "prepare_resume" else "scripts.rl.ops.recovery"
     try:
-        # import_module honours sys.modules (including None entries), unlike a
+        # import_module honors sys.modules (including None entries), unlike a
         # package-attribute import once the submodule has been loaded elsewhere.
         return getattr(importlib.import_module(module), name)
     except (ImportError, AttributeError) as exc:

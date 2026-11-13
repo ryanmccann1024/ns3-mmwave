@@ -10,21 +10,23 @@ for centralized control.
 Before changing a user-visible behavior, find the change below and update
 everything listed under it.
 
-**`run.ini` or CLI option**
+### 1.1 run.ini or CLI option
 
 - The loader, plus resolution and validation
 - [run.ini options](@ref src_config_run_ini_reference) and [CLI options](@ref src_cli)
 - An example
 - A valid/invalid configuration check
 
-**RL action, observation, mask, cadence or reward semantics**
+### 1.2 RL semantics
+
+Action, observation, mask, cadence or reward semantics.
 
 - The C++ bridge and simulator loop
 - The Python protocol and environment
 - The [contract](src/rl/README.md)
 - Focused fake-simulator and real-binary checks
 
-**Placement engine or query contract**
+### 1.3 Placement engine or query contract
 
 - Component and strategy owners, and the settings and settings hash
 - C++ query owners
@@ -32,34 +34,36 @@ everything listed under it.
 - The [engine workflow](scripts/baselines/planners/README.md)
 - Query unit tests and real-binary checks
 
-**Placement seeds, penalties or provenance**
+### 1.4 Placement seeds, penalties or provenance
 
 - The INI/CLI owner
 - Preparation and seed-role preflight
 - Runtime identity and baseline artifacts
 - Examples and a fake-worker check
 
-**Comparison metrics**
+### 1.5 Comparison metrics
 
 - The `policy/metrics.py` registry and the evaluation writer
 - Comparison JSON/CSV and their schema versions
 - Tests and fetch include rules
 - Keep initial relocation separate from scored travel.
 
-**Training or episode output**
+### 1.6 Training or episode output
 
 - The writer and any reader
 - The [output layout](@ref readme_where_output_lands)
 - A test of the changed fields
 
-**Scenario identity**
+### 1.7 Scenario identity
 
 - `read_scenario_identity` in `scripts/rl/env/config.py`
 - The saved training manifest and relevant tests
 - The [identity description](@ref src_rl_saved_scenario_identity)
 
-**Batch matrix (version 2): a field, kind requirement, path rule, task kind,
-task-key dimension or output destination**
+### 1.8 Batch matrix (version 2)
+
+A field, kind requirement, path rule, task kind, task-key dimension or output
+destination.
 
 - `scripts/rl/experiments/config.py` or `plan.py`
 - The plan version, if the plan payload changes
@@ -67,8 +71,10 @@ task-key dimension or output destination**
 - The public example under `inputs/experiments/examples/`
 - The [batch reference](@ref mesh_sim_rl_batch_reference)
 
-**A flag, default or exit code of `experiment.py`, `run-experiments.sh`,
-`operate.py` or `train.py m-ppo`**
+### 1.9 Experiment and training command flags
+
+A flag, default or exit code of `experiment.py`, `run-experiments.sh`,
+`operate.py` or `train.py m-ppo`.
 
 - The parser, and launcher normalization if it is a path flag
 - The flag tables in the [batch reference](@ref mesh_sim_rl_batch_commands)
@@ -76,8 +82,10 @@ task-key dimension or output destination**
 - A CLI test
 - Compare the documentation with the actual `--help` output.
 
-**Operation mode, online protocol default, schedule, replay-gate or
-reward-audit method, or selection rule**
+### 1.10 Operations, schedules and selection
+
+An operation mode, online protocol default, schedule, replay-gate or
+reward-audit method, or selection rule.
 
 - Its owner in `policy/` or `experiments/selection.py`, and the record version
   beside it
@@ -87,16 +95,20 @@ reward-audit method, or selection rule**
   [selection](@ref mesh_sim_rl_batch_selection) sections
 - Never merge the two online protocols.
 
-**Batch receipt, task or batch state, binding, runtime identity or recovery
-rule**
+### 1.11 Batch state and recovery
+
+A batch receipt, task or batch state, binding, runtime identity or recovery
+rule.
 
 - `scripts/rl/ops/` and the `policy/bundle.py` bindings, with their versions
 - Scheduler and recovery tests
 - The [states](@ref mesh_sim_rl_batch_states) and
   [resume](@ref mesh_sim_rl_batch_resume) sections
 
-**Batch scenario index (`mission_scenario.json` version 4) or online manifest
-fields**
+### 1.12 Batch scenario index or online manifest
+
+The batch scenario index (`mission_scenario.json` version 4) or online
+manifest fields.
 
 - The producers (`experiments/reporting.py`, `policy/operation.py`) and the
   producer contract fixtures
@@ -104,25 +116,28 @@ fields**
   (`src/lib/batchMissionIndex.ts`), with its tests and docs
 - Keep every legacy reader branch.
 
-**Reward/observation registry module, order or descriptor**
+### 1.13 Reward and observation registry
+
+A registry module, its order or a descriptor.
 
 - Registration in `env/rewards/` or `env/observations/`
 - `tests/fixtures/registry_identity.json`; never regenerate it to hide a change
 - The saved-model loading test
 - [Policy inputs](@ref src_rl_policy_inputs)
 
-**Anything the getting-started pages quote:** the
-`inputs/baselines/01-static-los-baseline/` scenario, the default output layout,
-the root `VERSION`, the CI configure line in `.github/workflows/mesh-sim.yml`,
-the `run.log` Resolved-config fields, or the `flows.csv` columns and format
+### 1.14 Anything the getting-started pages quote
+
+The getting-started pages quote build commands, binary names, scenario values,
+output file names and field formats. Update them when you change the
+`inputs/baselines/01-static-los-baseline/` scenario, the default output
+layout, the root `VERSION`, the CI configure line in
+`.github/workflows/mesh-sim.yml`, the `run.log` Resolved-config fields, or the
+`flows.csv` columns and format:
 
 - [Install and build](@ref mesh_sim_install_build)
 - [Your first run](@ref mesh_sim_first_run)
 - [Understand the result](@ref mesh_sim_first_result)
 - [Change one setting](@ref mesh_sim_change_one_setting)
-
-These pages quote build commands, binary names, scenario values, output file
-names and field formats.
 
 ## 2\. Versioning rules
 

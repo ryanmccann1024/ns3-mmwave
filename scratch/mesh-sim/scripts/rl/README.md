@@ -25,14 +25,14 @@ reference it links back to.
 | Summarize a training run | `.venv/bin/python -m scripts.rl.inspect_model` | 4.3 |
 | Evaluate a saved policy against baselines | `.venv/bin/python -m scripts.rl.evaluate` | 4.4 |
 | Compare evaluations (model minus baseline) | `.venv/bin/python -m scripts.rl.compare` | 5.1 |
-| Plan, run, or check a version 1 experiment matrix | `.venv/bin/python -m scripts.rl.experiment plan\|run\|status` | 5.2 |
-| Validate, plan, run, report or resume a version 2 batch | `bash scripts/rl/run-experiments.sh validate\|plan\|run\|status\|resume` | 9 |
+| Plan, run, or check a version 1 experiment matrix | `.venv/bin/python -m scripts.rl.experiment <command>` (`plan`, `run`, `status`) | 5.2 |
+| Validate, plan, run, report or resume a version 2 batch | `bash scripts/rl/run-experiments.sh <command>` (`validate`, `plan`, `run`, `status`, `resume`) | 9 |
 | Benchmark, tune, run on SLURM, fetch results | `scripts.rl.ops` | 6 |
 | Continue learning during operation (standalone) | `.venv/bin/python -m scripts.rl.online` | 9.2 |
 
 ## 2\. Setup
 
-See the [Overview](@ref index) for the one-command environment setup.
+See [Python environment](@ref readme_python_environment) in the user guide for the one-command setup.
 
 ```bash
 python3 scripts/rl/bootstrap_venv.py          # creates .venv from requirements.txt
@@ -227,9 +227,10 @@ composed rewards. The evaluation manifest records the cache root as
 Keep the training seed, the during-training evaluation (validation) seeds, and
 the standalone evaluation seeds disjoint.
 
-- With `model` in `--policies`, `evaluate` refuses to start when a requested
-  seed is the training seed or a recorded model-selection seed, naming each
-  seed and its role. Seed-overlap checks reserve all validation seeds,
+- `evaluate` refuses to start when a requested seed is the training seed or a
+  recorded model-selection seed (with `model` in `--policies`), or a
+  placement-planning seed (with `geometric` or `optimization` requested),
+  naming each seed and its role. Seed-overlap checks reserve all validation seeds,
   including when reading a best-model bundle.
 - `--allow-seed-overlap` turns the refusal into a stderr `WARNING:` line,
   records `seed_roles.held_out: false`, and excludes the evaluation from
@@ -376,10 +377,32 @@ Each file carries its schema version (`manifest_version`,
 `eval_manifest_version`); the current numbers are in
 [Contributing](@ref Contributing).
 
-| File | Contents |
-| --- | --- |
-| `train_manifest.json` | `status`/`error`, `algorithm`, `seed` and `seed_source`, `control_mode`, the live `contract`, resolved `selection`, `observation_schema` and `reward_schema` (with SHA-256), `scenario_identity` (SHA-256 of `run.ini`, `nodes.json`, and when configured `buildings.json` and `jammers.json`), `model_path`/`model_sha256`, `best_model_path`/`best_model_sha256`/`best_mean_reward`, a `checkpoints` list of `{path, sha256, num_timesteps}`, the `evaluation` block (or `null`), `hyperparameters`, `package_versions`, `python_version`, `platform`, plus `num_timesteps`, `band`, `telemetry`, `evaluation_state` and the `resume` record. |
-| `eval_manifest.json` | `status`/`error`, `label`; `seed_roles` (training, model-selection, held-out seeds, any overlap, whether overlap was allowed, whether held out); `training` (copied from the training manifest); `metric_source`; `episodes_expected` and `episodes_completed`; `scenario_identity`, `bundle` and `compatibility`. Every policy holds one record per requested seed, in seed order, with `status` `completed`, `failed`, or `not_run`; each record adds `error`, `return`, action-health counters, `metrics`, and a `summary_json` pointer that is never parsed. |
+**`train_manifest.json`** holds:
+
+- `status`/`error`, `algorithm`, `seed` and `seed_source`, `control_mode`, the
+  live `contract` and the resolved `selection`;
+- `observation_schema` and `reward_schema` (with SHA-256), and
+  `scenario_identity` (SHA-256 of `run.ini`, `nodes.json`, and when configured
+  `buildings.json` and `jammers.json`);
+- `model_path`/`model_sha256`, `best_model_path`/`best_model_sha256`/`best_mean_reward`
+  and a `checkpoints` list of `{path, sha256, num_timesteps}`;
+- the `evaluation` block (or `null`), `hyperparameters`, `package_versions`,
+  `python_version` and `platform`;
+- `num_timesteps`, `band`, `telemetry`, `evaluation_state` and the `resume`
+  record.
+
+**`eval_manifest.json`** holds:
+
+- `status`/`error` and `label`;
+- `seed_roles`: training, model-selection and held-out seeds, any overlap,
+  whether overlap was allowed, and whether the results are held out;
+- `training` (copied from the training manifest), `metric_source`,
+  `episodes_expected` and `episodes_completed`;
+- `scenario_identity`, `bundle` and `compatibility`;
+- for every policy, one record per requested seed, in seed order, with
+  `status` `completed`, `failed` or `not_run`, plus `error`, `return`,
+  action-health counters, `metrics`, and a `summary_json` pointer that is
+  never parsed.
 
 - Manifest `status` is `completed` (all expected episodes completed), `partial`
   (some did), or `failed` (aborted or nothing completed).
@@ -400,24 +423,22 @@ Each file carries its schema version (`manifest_version`,
   approximate KL, clipping fraction, and explained variance. Explicit
   TensorBoard logging keeps its existing behavior.
 
-## 8\. Control modes
+## 8\. Control
 
-The mode is chosen in `run.ini`, not on the command line.
+Control is chosen in `run.ini`, not on the command line: `[rl]
+controlled_nodes` selects the nodes, and the action space is
+`MultiDiscrete([5]*M)`. (The old single-node `controlled_node_id` mode has been
+removed; the loader rejects its keys.)
 
-| Mode | Selector | Action space | Notes |
-| --- | --- | --- | --- |
-| Legacy single-node | `controlled_node_id` | `Discrete(7)` | No `init` message. Python builds the mask from the `[rl]` bounds. The jammer is part of the scenario, not an agent. |
-| Centralized multi-node | `controlled_nodes` | `MultiDiscrete([5]*M)` | C++ owns masks and clamping; Python builds observations and rewards from the raw facts. |
-
-- The two selectors are mutually exclusive. Keys are in the
-  [run.ini reference](@ref src_config_run_ini_reference); observation and
-  reward selection is in
+- C++ owns masks, clamping, movement limits and action validity; Python never
+  re-derives them. Python builds observations and rewards from the raw facts.
+- Keys are in the [run.ini reference](@ref src_config_run_ini_reference);
+  observation and reward selection is in
   [Selecting observations, rewards, and telemetry](@ref src_rl_policy_inputs_selection).
 - C++ owns the simulation because ns-3 mobility, propagation, link evaluation,
   and routing live there and must stay deterministic and testable without
   Python. Python provides the Gymnasium and Stable-Baselines3 integration.
-- In centralized mode, movement limits and action validity are decided once, in
-  C++; Python never re-derives them.
+- A jammer is part of the scenario, not an agent.
 
 ## 9\. Batch experiments {#scripts_rl_batch}
 
@@ -446,11 +467,18 @@ or `MESH_SIM_BIN`.
 | Launcher | `run-experiments.sh` |
 | CLI | `experiment.py` |
 | Matrix validation, plan v3, selection | `experiments/config.py`, `experiments/plan.py`, `experiments/selection.py` |
-| Local scheduler, receipts, batch status | `ops/local.py` |
-| Identity checks and recovery proposals | `ops/recovery.py` |
+| Local scheduler and batch status | `ops/local.py` |
+| Root lock, process groups, shared slot pool | `ops/batch_processes.py` |
+| Receipts and model bindings | `ops/batch_receipts.py` |
+| Runtime identity checks | `ops/batch_identity.py` |
+| Attempt selection and recovery proposals | `ops/recovery.py` |
 | Curves, reviews, scenario index | `experiments/reporting.py` |
 | Operation CLI used by tasks | `operate.py` |
-| One operation on one seed, both online protocols, schedules, replay gates, reward audits, scripted baselines | `policy/operation.py`, `policy/online_adaptation.py`, `policy/schedules.py`, `policy/replay_gate.py`, `policy/reward_audit.py`, `policy/scripted.py` |
+| One operation on one seed | `policy/operation.py` |
+| Online protocols | `policy/online_adaptation.py`, `policy/sb3_operation.py` |
+| Frozen schedules | `policy/schedules.py` |
+| Replay gates and reward audits | `policy/replay_gate.py`, `policy/reward_audit.py` |
+| Scripted baselines | `policy/scripted.py` |
 | After-update checkpoints, continuation, curriculum | `agents/post_update.py`, `policy/training.py`, `env/curriculum.py`; `train.py m-ppo` flags |
 | Model bindings and digests | `policy/bundle.py` |
 
@@ -464,8 +492,7 @@ check is refused during validation until the single-case adapter exists.
 
 `online` loads one verified checkpoint per operation seed and runs the SB3
 learning loop with short rollouts; its matched sampled control never trains.
-Its command line is unchanged; the algorithm now lives in
-`policy/operation.py`. It keeps writing its legacy `online_manifest.json`
+Its implementation is `policy/sb3_operation.py::run_online`. It keeps writing its legacy `online_manifest.json`
 envelope, whose version is ambiguous between protocols; batch operations write
 a newer version with an explicit `protocol` field. See
 [Operation protocols](@ref mesh_sim_rl_batch_protocols) and
@@ -486,9 +513,10 @@ belong in configuration, not a new Python runner.
 - `scenario_check/` checks legal routes and purposeful reference behavior before
   training. `preflight_campaign` remains a compatibility CLI for stationary
   feature/difficulty checks; its implementation is `scenario_check/preflight.py`.
-- Reward formulas and state-dependent priorities are in the [mission reward reference](../../docs/rl/mission-rewards.md).
-  Numbered research records are not runtime packages.
-  Completed outputs and model/configuration identities are preserved.
+- Reward formulas and state-dependent priorities are in the
+  [mission reward reference](@ref mesh_sim_rl_mission_rewards).
+- Numbered research records are not runtime packages; completed outputs and
+  model/configuration identities are preserved.
 
 ## 11\. Module layout
 
@@ -517,10 +545,12 @@ are listed in [Contributing](@ref Contributing).
 | @ref scripts_rl_agents | MaskablePPO glue; exploratory `q_learning.py` (not on the training path). |
 | @ref scripts_rl_env | Gymnasium env, simulator subprocess, protocol checks, selection, observations, rewards, telemetry. |
 | @ref scripts_rl_policy | Bundle loading, compatibility checks, evaluation, comparison. |
-| @ref scripts_rl_ops | SLURM, benchmark, tuning, and fetch wrappers around an existing plan. |
+| @ref scripts_rl_ops | Task, benchmark, tuning, cluster and fetch commands around an existing plan, and the local batch scheduler. |
+| `cluster/` | SLURM configuration, job scripts, receipts, reconciliation and submission behind `ops.cluster`. |
+| `tuning/` | Optuna study configuration, trainer adapter, driver and checkpoints behind `ops.tune`. |
 | @ref scripts_rl_tests | Test map; `fake_sim.py` exercises the Python exchange without ns-3. |
 | @ref scripts_rl_experiments | Batch domain: matrix version 2 validation, plan v3, selection rules. |
-| `scenario_check/` | Checks-only reference campaign; kept (section 10.5). |
+| `scenario_check/` | Checks-only reference campaign (section 10). |
 
 The C++ end of the bridge is [rl-bridge.cc](@ref src/rl/rl-bridge.cc).
 

@@ -11,8 +11,8 @@ comparison, experiment matrices, and cluster/tuning ops. Docs to read first:
 - `src/rl/README.md` is the **wire contract** (modes, masks, cadence, reward
   window). `src/rl/policy-inputs.md` covers observation presets and reward
   components.
-- `README.md` here is the code map. Each subdirectory (`agents/`, `env/`,
-  `experiments/`, `ops/`, `policy/`, `tests/`) has its own CLAUDE.md with local
+- `README.md` here is the code map. Each subdirectory (`agents/`, `cluster/`,
+  `env/`, `experiments/`, `ops/`, `policy/`, `tests/`, `tuning/`) has its own CLAUDE.md with local
   invariants. `docs/rl/batch-reference.md` is the canonical batch (matrix
   version 2) contract; do not copy its field catalog into READMEs.
   Test maps are split between `tests/README.md` and
@@ -55,16 +55,14 @@ bash scripts/rl/run-experiments.sh {validate,plan,run,status,resume} ...   # ver
 a stdout reader thread) -> `src/rl/rl-bridge.cc`.
 
 - **C++ owns** masks, clamping, speed caps, action revalidation, and the base
-  per-tick reward. **Python never re-derives masks or clamps** in centralized
-  mode; the legacy `Discrete(7)` mask is the one exception (built from `[rl]`
-  bounds in `MeshRlEnv.action_masks`).
+  per-tick reward. **Python never re-derives masks or clamps.**
 - `env/protocol.py` validates each message against the native
   [wire and facts contract](../../src/rl/README.md) and the action shape.
-- Two modes, chosen in `run.ini`: legacy (`controlled_node_id`,
-  `Discrete(7)`, no `init`) and centralized (`controlled_nodes`,
-  `MultiDiscrete([5]*M)`). Action `4` means `-Z` in legacy mode but hold in
-  centralized mode.
-- In centralized mode, Python turns the raw `facts` into the policy's inputs.
+- Control is centralized only: `[rl] controlled_nodes`, `MultiDiscrete([5]*M)`,
+  action `4` = hold. The old single-node legacy mode (`controlled_node_id`,
+  `Discrete(7)`, no `init`) has been removed; the loader rejects its keys and
+  `MeshRlEnv` rejects a stream that does not start with `init`.
+- Python turns the raw `facts` into the policy's inputs.
   `env/selection.py` resolves observation preset, reward components, and
   telemetry (CLI > `run.ini` > default). `observations/__init__.py` builds the preset
   and a schema hash. `rewards/__init__.py` composes rewards from window sums.
@@ -84,8 +82,9 @@ model-minus-baseline stats (`policy/compare.py`, primary metric
   the `run.ini` / nodes / buildings / jammers files (the last two `null` when
   unconfigured). Compat and benchmark compare these
   digests, not paths.
-- Exit code `2` from `evaluate` / `compare` is a warning (health counters,
-  seed overlap, not held out), not a failure. `experiment` and `ops` tolerate
+- Exit code `2` is a warning, not a failure: from `evaluate` it means health
+  counters; from `compare`, health counters or results that are not held out.
+  Seed overlap is refused (exit 1) or warned, not exit 2. `experiment` and `ops` tolerate
   it.
 
 ### Experiments and ops
@@ -95,7 +94,8 @@ model-minus-baseline stats (`policy/compare.py`, primary metric
   `--rows` needs a new `--output-root`.
 - **Version 1 (plan v2)**: train/evaluate/compare steps. Step state comes
   **only from the step's output dir and manifest** (`step_state`): missing dir =
-  `pending`, completed manifest = `done`, anything else = `blocked` ("move or
+  `pending`, completed manifest = `done`, a partial evaluate manifest =
+  `partial`, anything else = `blocked` ("move or
   delete <dir> to retry"). Nothing ever deletes or overwrites a step dir.
   `resume` refuses plan v2. Public helpers stay importable from
   `policy/experiment.py` for cluster/tuning callers.
@@ -118,20 +118,22 @@ model-minus-baseline stats (`policy/compare.py`, primary metric
   frozen modes must leave parameter **and** optimizer digests unchanged. Legacy
   `online_manifest.json` v4 does not identify a protocol (see `CONTRIBUTING.md`).
 - `ops/` wraps an existing plan: it never adds training capability. Constructor-wired PPO settings and network profiles are documented in
-  `agents/CLAUDE.md`; scalar Optuna search and explicit matrix profiles differ. `ops/tasks.py` and `ops/reconcile.py` are pure; subprocess and
-  scheduler calls live in `slurm.py` / `cluster.py`. Scheduler query failures
-  must degrade to `unknown`, which blocks resubmission.
+  `agents/CLAUDE.md`; scalar Optuna search and explicit matrix profiles differ.
+- `ops/tasks.py` and `cluster/reconcile.py` are pure; subprocess and scheduler
+  calls live in `cluster/slurm.py` and `ops/cluster.py` (`ops/slurm.py` and
+  `ops/reconcile.py` are compatibility shims). Scheduler query failures must
+  degrade to `unknown`, which blocks resubmission.
 
 ## Conventions
 
 - Saved JSON files carry a `*_version` constant next to their writer
-  (`train.MANIFEST_VERSION`, mirrored in `policy/bundle.py`;
+  (`policy/training_artifacts.MANIFEST_VERSION`, read by `policy/bundle.py`;
   `EVAL_MANIFEST_VERSION`, mirrored as `REQUIRED_MANIFEST_VERSION` in
   `compare_inputs.py`; `PLAN_VERSION`, `COMPARISON_VERSION`, ops versions).
   Bump the relevant one and update its reader when fields change.
 - `requirements.txt` direct deps (`bootstrap_venv.DIRECT_DEPS`) are recorded
   in every manifest. Keep Optuna in `requirements-tuning.txt` only;
-  `ops/tune.py` imports it lazily and checks the pin.
+  `tuning/study.py` imports it lazily and checks the pin.
 - Shared CI math is in `scripts/stats.py`; shared launch helpers
   (`find_mesh_root`, `simulator_env`, `parse_seed_spec`) are in
   `scripts/sim_support.py`.

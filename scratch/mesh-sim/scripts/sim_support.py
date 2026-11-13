@@ -166,7 +166,7 @@ def _signal_group(proc: subprocess.Popen, signum: int) -> None:
 # @return None.
 #
 # Plain mode does nothing if the child already exited. Group mode always sends
-# SIGKILL to the group afterwards, so descendants that ignored SIGTERM are also reaped.
+# SIGKILL to the group afterward, so descendants that ignored SIGTERM are also reaped.
 def stop_process(proc: subprocess.Popen, wait_s: float, process_group: bool = False) -> None:
     """Terminate, kill after `wait_s`, and always reap; optionally the whole process group."""
     if not process_group:
