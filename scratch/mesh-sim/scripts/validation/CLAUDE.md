@@ -6,13 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Two independent toolchains share this package:
 
-- **Sim-vs-field pipeline** -- turns ARPO field data into scenarios, batch-runs
+- **Sim-vs-field pipeline** -- turns partner field data into scenarios, batch-runs
   the sim, and compares sim vs field SNR / RCPI / MCS distributions.
 - **Regression / smoke checks** -- replays stored cases against a new sim
   binary and compares normalized snapshots.
 
-Newcomer-facing usage, output paths and dependencies are in `README.md`; keep
-it in sync when CLI flags or outputs change.
+Newcomer-facing usage, output paths and dependencies are in `README.md`
+(public) and `field-comparison.md` (field workflow; encrypted with git-crypt,
+readable only in an unlocked checkout). Keep them in sync when CLI flags or
+outputs change, and keep partner names, trial dates and field-derived values
+out of the public README.
 
 ## Commands
 
@@ -46,8 +49,8 @@ validate_days = sim_to_traces + compare + scenario_fidelity per day, then compar
 - `compare.sim_to_field_scenario` is the single sim-name -> field-name mapping;
   `build_waypoints` and `scenario_fidelity` import it. Don't duplicate it.
 - `run_batch --auto-waypoints` calls `build_waypoints.patch_scenario_waypoints`.
-- Two modes throughout: `-m node` (CalFEX, per-node `IH_*` traces) and
-  `-m scenario` (spring_lake, `bh2_*` traces).
+- Two modes throughout: `-m node` (per-node `IH_*` traces) and
+  `-m scenario` (legacy, `bh2_*` traces).
 - `build_config_files` and `build_waypoints` write into `inputs/` in place.
 
 ### Regression / smoke
@@ -72,7 +75,7 @@ validate_days = sim_to_traces + compare + scenario_fidelity per day, then compar
   editing it changes `--help` output.
 - Comparisons are distributional (no time alignment); histograms are
   density-normalized with a KDE overlay and K-S D statistic only (no p-value).
-- MCS is clipped at 12 on both sides before comparison.
+- MCS is clipped to the field radio's ceiling on both sides before comparison.
 
 ## Known issues (left unfixed)
 
