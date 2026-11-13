@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 C++ unit tests that compile without ns-3, the CLI integration script, and
 regression fixtures. Python tests live beside their packages
-(`scripts/rl/tests`, `scripts/validation/tests`), not here.
+(`scripts/rl/tests`, `scripts/validation/tests`, `scripts/baselines/tests`), not here.
 
 ## Commands
 
@@ -16,7 +16,7 @@ an existing binary.
 ```bash
 make test                       # lint, then build + run every suite in UNIT_DIRS
 make                            # build all suites without running
-make -C unit/config test        # one suite: config, eval, routing, traffic
+make -C unit/config test        # one suite (all suites: UNIT_DIRS in Makefile)
 make clean
 MESH_SIM_BIN=<BIN> make integration
 ```
@@ -37,8 +37,9 @@ MESH_SIM_BIN=<BIN> make integration
   explicitly, so a new test must also be added there.
 - `common/` -- shared ns-3 header stubs (`ns3-log-stub.h`,
   `ns3-random-stub.h`). Suite Makefiles symlink them into a local, gitignored
-  `ns3/` dir so `#include "ns3/..."` resolves. `traffic/` has its own
-  `ns3-traffic-stub.h`; `config/` needs no stubs.
+  `ns3/` dir so `#include "ns3/..."` resolves. Some suites add their own
+  stubs (`traffic/`, `traffic-extra/`, `eval/stubs/`, `io-cli/stubs/`);
+  `config/` needs no stubs.
 - `integration/cli-integration-test.sh` -- Tests 1-19 against a real binary
   (`$MESH_SIM_BIN`, else the argument, else the single
   `build/scratch/mesh-sim/ns3*-sim-*` match). Tests 4-9 use `inputs/baselines`

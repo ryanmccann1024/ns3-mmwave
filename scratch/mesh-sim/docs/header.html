@@ -47,7 +47,7 @@ $extrastylesheet
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
 <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&amp;family=Roboto+Slab:wght@400;700&amp;display=swap" rel="stylesheet" type="text/css"/>
 <!-- doxygen-awesome-css v2.5.0 extensions (see theme/provenance.md); scripts are copied
-     to the HTML root by HTML_EXTRA_FILES and each is initialised per upstream docs/extensions.md -->
+     to the HTML root by HTML_EXTRA_FILES and each is initialized per upstream docs/extensions.md -->
 <script type="text/javascript" src="$relpath^doxygen-awesome-darkmode-toggle.js"></script>
 <script type="text/javascript" src="$relpath^doxygen-awesome-fragment-copy-button.js"></script>
 <script type="text/javascript" src="$relpath^doxygen-awesome-paragraph-link.js"></script>
@@ -58,19 +58,35 @@ $extrastylesheet
     DoxygenAwesomeParagraphLink.init()
     DoxygenAwesomeInteractiveToc.init()
 </script>
-<!-- Mesh-Sim behaviour, in its own block so it still runs if a theme script
+<!-- Mesh-Sim behavior, in its own block so it still runs if a theme script
      above fails to load. -->
 <script type="text/javascript">
     // Keep the sidebar synced to the open page: theme/mesh-sim.css hides the
     // sync toggle, so clear any "sync off" state a reader stored earlier.
     if (typeof Cookie !== 'undefined') Cookie.eraseSetting('navpath')
 
-    // Code in table cells never breaks inside a name (theme/mesh-sim.css);
-    // only long tokens such as paths and hashes may break anywhere, so they
-    // cannot push a table past the text column.
+    // Code in table cells never breaks inside a name (theme/mesh-sim.css).
+    // Long tokens must wrap so they cannot push a table past the text column:
+    // names with separators (paths, file and module names) get break points
+    // after "_", "/" and "-" (ms-long-sep), never inside a file extension;
+    // tokens without them, such as hashes, may break anywhere (ms-long).
     document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('table.markdownTable td code, table.markdownTable td span.tt, table.markdownTable th code, table.markdownTable th span.tt, table.doxtable td code, table.doxtable td span.tt').forEach(function (el) {
-            if (el.textContent.trim().length > 22) el.classList.add('ms-long')
+            if (el.textContent.trim().length <= 22) return
+            if (!/[_\/\-]/.test(el.textContent)) { el.classList.add('ms-long'); return }
+            el.classList.add('ms-long-sep')
+            var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), nodes = [], n
+            while ((n = walker.nextNode())) nodes.push(n)
+            nodes.forEach(function (node) {
+                var parts = node.textContent.split(/(?<=[_\/\-])/)
+                if (parts.length < 2) return
+                var frag = document.createDocumentFragment()
+                parts.forEach(function (part, i) {
+                    if (i > 0) frag.appendChild(document.createElement('wbr'))
+                    frag.appendChild(document.createTextNode(part))
+                })
+                node.parentNode.replaceChild(frag, node)
+            })
         })
     })
 

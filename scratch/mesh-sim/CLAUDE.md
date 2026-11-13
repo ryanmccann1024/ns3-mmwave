@@ -72,7 +72,9 @@ python3 scripts/rl/bootstrap_venv.py --check  # verify installed versions only
   Verification and command execution follow the human's task direction and the
   project rules above. When documentation generation is part of the task, use
   the recipe in [README.md](README.md#readme_docs).
-- When adding new source files, update `CMakeLists.txt`'s source list.
+- When adding new source files, update `CMakeLists.txt`'s source list. A new
+  `src/` module or `scripts/` package also needs a row in that folder's
+  `README.md` (the GitHub index) and in `docs/topics.dox` (the docs-site index).
 - New C++ unit test suites: follow `tests/CLAUDE.md` (add to `UNIT_DIRS`).
 - Before changing a user-visible behavior (`run.ini`/CLI option, RL
   action/observation/reward semantics, output files, scenario identity), check

@@ -1,10 +1,11 @@
-# mesh-sim test coverage
+@page tests_coverage Test coverage
+
+@brief Every C++ and Python test suite, what it checks, and how to run it.
 
 [TOC]
 
-This page lists the C++ and Python test suites, what each one checks, and how
-to run them. Python tests live beside their package owners, so one `pytest`
-command and CI discover them together.
+Python tests live beside their package owners, so one `pytest` command and CI
+discover them together.
 
 ## 1\. Run the tests
 
@@ -20,7 +21,9 @@ current source:
 
 ```sh
 MESH_SIM_BIN=/absolute/path/to/simulator make -C tests integration
-MESH_SIM_BIN=/absolute/path/to/simulator .venv/bin/python -m pytest scripts/rl/tests/test_real_binary.py scripts/baselines/tests/test_real_binary.py -q -rs
+MESH_SIM_BIN=/absolute/path/to/simulator .venv/bin/python -m pytest \
+    scripts/rl/tests/integration/test_real_binary.py \
+    scripts/baselines/tests/test_real_binary.py -q -rs
 ```
 
 | Command | Runs |
@@ -28,7 +31,7 @@ MESH_SIM_BIN=/absolute/path/to/simulator .venv/bin/python -m pytest scripts/rl/t
 | `make -C tests test` | Lint, then every C++ unit suite in `UNIT_DIRS` (section 2). |
 | `pytest scripts/rl/tests scripts/validation/tests scripts/baselines/tests` | All Python tests (section 3). |
 | `make -C tests integration` | The CLI checks in `integration/cli-integration-test.sh`. |
-| `pytest .../test_real_binary.py` | The RL and baseline real-binary Python checks. |
+| `pytest .../test_real_binary.py` (both files) | The RL and baseline real-binary Python checks. |
 
 **CI.** The smoke workflow runs the unit tests on Linux and macOS, then
 rebuilds the simulator and runs the CLI and real-binary checks. CI sets
@@ -55,8 +58,11 @@ protocol; legacy control is not restored.
 
 ## 3\. Python test files
 
-Paths are relative to `scripts/`. The existing package conftests and the fake
-query, simulator and SLURM helpers own the fixtures.
+Paths are relative to `scripts/`. RL tests are grouped by package under
+`rl/tests/` (`env/`, `ops/`, `cluster/`, `experiments/`, `policy/`, and so on);
+the per-package maps are linked from @ref scripts_rl_tests "the RL tests page".
+The existing package conftests and the fake query, simulator and SLURM helpers
+own the fixtures.
 
 | Files | What it checks |
 | --- | --- |
@@ -67,15 +73,15 @@ query, simulator and SLURM helpers own the fixtures.
 | `baselines/tests/test_input_snapshots.py`, `test_ini_preservation.py` | Asset bytes, rebased references, comments/newlines, and missing sections. Semantic checks call the compiled C++ INI parser through one shared fixture. |
 | `baselines/tests/test_runtime_identity.py`, `test_fingerprint_boundaries.py` | Atomic/write-once behavior and field-sensitive identity, including all dynamically linked ns-3 libraries. Dedicated planning seeds are covered by the planning-contract tests. |
 | `baselines/tests/test_runner_interruption.py` | Interruption during preparation or execution, completed-seed preservation, and resistant-child cleanup. |
-| `rl/tests/test_episode_failures.py` | Malformed/early exits, done followed by nonzero exit, recovery, escalation, and failure telemetry. `protocol_peer.py` and `scripted_peer.py` supply controlled process failures. |
-| `rl/tests/test_decision_record_failures.py` | Recorder open/close failures do not stop inference or destroy normal episode output. The decision-record tests own the versioned formats and caps. |
-| `rl/tests/test_observation_boundaries.py`, `test_reward_boundaries.py`, `test_selection_sources.py` | Sentinel/clipping and peer/slot ordering, numerical reward boundaries, and mixed per-key precedence. The parameter tests own configurable scales and expanded schemas. |
-| `rl/tests/test_measurement_boundaries.py` | Immediate sampling and descendants that outlive the leader; resource accounting. |
-| `rl/tests/test_submission_failures.py`, `test_reconciliation_edges.py` | Submission intent, scheduler disagreement, exact job identity, missing evidence, and writer blockers. A cancellation request alone does not count as termination. |
-| `rl/tests/test_receipt_concurrency.py`, `test_slurm_jobs.py` | Concurrent locks/receipt allocation and running rendered jobs through hostile paths; prevents duplicate submissions and quoting failures. |
-| `rl/tests/test_retrieval_safety.py` | No destructive rsync options, preservation of earlier manifests, and incomplete-transfer safety. The real-local-rsync checks own actual filtering. |
-| `rl/tests/test_statistics_boundaries.py`, `test_comparison_statistics.py` | Independent quantiles, two-sample intervals, negative differences, and across-run missing-data examples. |
-| `rl/tests/test_policy_lifecycle.py` | Scenario overrides cannot bypass structural or reward compatibility checks; reuses the existing bundle/environment fixtures. |
+| `rl/tests/env/test_episode_failures.py` | Malformed/early exits, done followed by nonzero exit, recovery, escalation, and failure telemetry. `protocol_peer.py` and `scripted_peer.py` supply controlled process failures. |
+| `rl/tests/env/test_decision_record_failures.py` | Recorder open/close failures do not stop inference or destroy normal episode output. The decision-record tests own the versioned formats and caps. |
+| `rl/tests/env/test_observation_boundaries.py`, `test_reward_boundaries.py`, `test_selection_sources.py` | Sentinel/clipping and peer/slot ordering, numerical reward boundaries, and mixed per-key precedence. The parameter tests own configurable scales and expanded schemas. |
+| `rl/tests/ops/test_measurement_boundaries.py` | Immediate sampling and descendants that outlive the leader; resource accounting. |
+| `rl/tests/cluster/test_submission_failures.py`, `test_reconciliation_edges.py` | Submission intent, scheduler disagreement, exact job identity, missing evidence, and writer blockers. A cancellation request alone does not count as termination. |
+| `rl/tests/ops/test_receipt_concurrency.py`, `rl/tests/cluster/test_slurm_jobs.py` | Concurrent locks/receipt allocation and running rendered jobs through hostile paths; prevents duplicate submissions and quoting failures. |
+| `rl/tests/cluster/test_retrieval_safety.py` | No destructive rsync options, preservation of earlier manifests, and incomplete-transfer safety. The real-local-rsync checks own actual filtering. |
+| `rl/tests/experiments/test_statistics_boundaries.py`, `rl/tests/policy/test_comparison_statistics.py` | Independent quantiles, two-sample intervals, negative differences, and across-run missing-data examples. |
+| `rl/tests/policy/test_policy_lifecycle.py` | Scenario overrides cannot bypass structural or reward compatibility checks; reuses the existing bundle/environment fixtures. |
 
 ## 4\. Coverage held by existing tests
 
