@@ -14,8 +14,8 @@
  * |--------------------|------------------------------------------------------------------|----------------|
  * | @c "shortest_path" | Dijkstra with edge weight @c 1/capacity_mbps.                   | min-heap       |
  * |                    | Prefers high-capacity links; default.                            |                |
- * | @c "max_throughput"| Widest-path: maximises the bottleneck link capacity.             | max-heap       |
- * | @c "min_hop"       | BFS; minimises hop count, ignoring link quality entirely.        | FIFO queue     |
+ * | @c "max_throughput"| Widest-path: maximizes the bottleneck link capacity.             | max-heap       |
+ * | @c "min_hop"       | BFS; minimizes hop count, ignoring link quality entirely.        | FIFO queue     |
  *
  */
 #pragma once
@@ -176,7 +176,7 @@ class MeshRouter
 
     /**
      * @fn MeshRouter::FindPathMaxThroughput
-     * @brief Widest-path algorithm: maximises bottleneck link capacity.
+     * @brief Widest-path algorithm: maximizes bottleneck link capacity.
      *
      * Modified Dijkstra using a max-heap. For each candidate next hop,
      * the path bandwidth is @c min(current_bottleneck, link_capacity);
@@ -187,7 +187,7 @@ class MeshRouter
      * @param src       Source node index.
      * @param dst       Destination node index.
      * @param numNodes  Number of nodes in the graph.
-     * @return Ordered path that maximises bottleneck capacity, or empty if
+     * @return Ordered path that maximizes bottleneck capacity, or empty if
      *         @c dst is unreachable.
      */
     std::vector<uint32_t> FindPathMaxThroughput(const LinkTable& links,

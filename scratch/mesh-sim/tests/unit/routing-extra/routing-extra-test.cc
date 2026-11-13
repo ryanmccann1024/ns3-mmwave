@@ -553,9 +553,9 @@ test_bruteforce_optimality()
     check(reachOk, "bruteforce: routable iff reachable (all algorithms)");
     check(validOk, "bruteforce: every path is simple, src->dst, over capacity>0 edges");
     check(fieldsOk, "bruteforce: hop_count/latency/delivered consistent with path");
-    check(spOk, "bruteforce: shortest_path minimises sum 1/capacity");
-    check(mtOk, "bruteforce: max_throughput maximises bottleneck");
-    check(mhOk, "bruteforce: min_hop minimises hop count");
+    check(spOk, "bruteforce: shortest_path minimizes sum 1/capacity");
+    check(mtOk, "bruteforce: max_throughput maximizes bottleneck");
+    check(mhOk, "bruteforce: min_hop minimizes hop count");
 }
 
 static void

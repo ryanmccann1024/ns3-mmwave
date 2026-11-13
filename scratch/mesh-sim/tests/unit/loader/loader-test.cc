@@ -209,9 +209,9 @@ test_ini_get_bool()
         check(!iniGetBool(ini, "s", "k", true),
               std::string("iniGetBool '") + v + "' is false even with def=true");
     }
-    check(iniGetBool(ini, "s", "absent", true), "iniGetBool absent key honours def=true");
-    check(!iniGetBool(ini, "s", "absent", false), "iniGetBool absent key honours def=false");
-    check(iniGetBool(ini, "nosec", "k", true), "iniGetBool absent section honours def=true");
+    check(iniGetBool(ini, "s", "absent", true), "iniGetBool absent key honors def=true");
+    check(!iniGetBool(ini, "s", "absent", false), "iniGetBool absent key honors def=false");
+    check(iniGetBool(ini, "nosec", "k", true), "iniGetBool absent section honors def=true");
 }
 
 // ===========================================================================

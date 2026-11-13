@@ -118,7 +118,7 @@ def _downsample_uniform_time(t: np.ndarray, x: np.ndarray, y: np.ndarray,
 # @param mode     One of ``"raw"``, ``"scale"``, ``"clip"``.
 # @param target_s Target duration in seconds (required for ``clip``/``scale``).
 # @return Relative time array starting at 0.
-# @throws ValueError for an unrecognised mode string.
+# @throws ValueError for an unrecognized mode string.
 def _scale_time(t: np.ndarray, mode: str, target_s: float | None) -> np.ndarray:
     t0  = t[0]
     rel = t - t0
@@ -146,7 +146,7 @@ def _load_nodes_json(path: Path) -> list[dict]:
 ## @brief Write a list of node dicts back to ``nodes.json`` with 2-space indentation.
 #
 # @param path  Destination path.
-# @param nodes List of node specification dicts to serialise.
+# @param nodes List of node specification dicts to serialize.
 def _save_nodes_json(path: Path, nodes: list[dict]) -> None:
     path.write_text(json.dumps(nodes, indent=2) + "\n")
 

@@ -79,13 +79,13 @@ def _discover_batches(root: Path) -> list[Path]:
 #
 # Rows are field scenarios, columns are batch directories. Each cell shows
 # the mean of @p value_col across all links for that (scenario, batch)
-# combination. Text colour flips from white to black at 50 % of the colour
+# combination. Text color flips from white to black at 50 % of the color
 # scale maximum for legibility on the viridis palette.
 #
 # @param df          Combined DataFrame of all batches' ``validation_summary.csv`` contents.
 # @param metric      Short metric name to filter on (e.g. ``"snr"``).
 # @param value_col   Column to aggregate per cell (e.g. ``"abs_diff_medians"``).
-# @param value_label Human-readable label for the colour bar (e.g. ``"|Δmedian|"``).
+# @param value_label Human-readable label for the color bar (e.g. ``"|Δmedian|"``).
 # @param out_path    Destination path for the PNG file.
 # @return            ``True`` if the figure was written, ``False`` if no matching rows exist.
 def _heatmap_png(df: pd.DataFrame, metric: str, value_col: str,

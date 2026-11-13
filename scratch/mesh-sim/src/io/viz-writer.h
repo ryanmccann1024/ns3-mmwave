@@ -57,7 +57,7 @@ class VizWriter
      * @fn VizWriter::VizWriter
      * @brief Construct a writer for the given simulation configuration.
      *
-     * Computes @c m_vizTickS from @c cfg.viz_tick_ms and initialises
+     * Computes @c m_vizTickS from @c cfg.viz_tick_ms and initializes
      * @c m_nextWriteS to 0.0 so the very first tick is always written.
      * Does not open any files; call @ref Open before the step loop.
      *

@@ -11,7 +11,7 @@
  *
  * @note @ref mesh_sim::LinkEvaluator::Configure must be called before @ref mesh_sim::LinkEvaluator::Evaluate or
  *       @ref mesh_sim::LinkEvaluator::EvaluateAll; calling either without first configuring produces
- *       undefined behaviour (null model pointers and empty gain vectors).
+ *       undefined behavior (null model pointers and empty gain vectors).
  */
 #pragma once
 

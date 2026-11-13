@@ -2,7 +2,7 @@
 # @brief Day-vs-day comparison for the same scenario family.
 #
 # Pools per-day trace CSVs at the (link, metric) level, then renders
-# normalised histogram + KDE overlays and computes two-sample K-S distances
+# normalized histogram + KDE overlays and computes two-sample K-S distances
 # for every day pair. Only ``bh2_<metric>__<src>_to_<peer>_trace.csv`` files
 # are read (the ``IH_*`` Silvus traces are not consumed).
 # Antenna identity is dropped here — drill into the per-day plots if you
@@ -308,10 +308,10 @@ def _fd_bins(values: np.ndarray, max_bins: int = 80, min_bins: int = 20) -> np.n
     return np.linspace(lo, hi, n_bins + 1)
 
 
-## @brief Render one normalised histogram overlay per day for a (family, link, metric) triple.
+## @brief Render one normalized histogram overlay per day for a (family, link, metric) triple.
 #
 # Produces one figure with one histogram bar chart and KDE curve per day,
-# all normalised so each area integrates to 1. Days with different sample
+# all normalized so each area integrates to 1. Days with different sample
 # counts overlay directly. A dotted vertical line marks each day's median.
 #
 # Bin edges are computed from all days' pooled values via @ref _fd_bins so

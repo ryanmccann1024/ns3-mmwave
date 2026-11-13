@@ -75,7 +75,7 @@ class MetricsWriter
      * @brief Accumulate metrics for one simulation tick.
      *
      * Ticks with @c time_s < @c cfg.warmup_s are silently skipped so that
-     * transient start-up behaviour is excluded from all averages.
+     * transient start-up behavior is excluded from all averages.
      *
      * For each node pair the SINR sentinel value (-999.0 dB) is filtered:
      * only links with @c sinr_db > −900.0 contribute to SINR accumulators,
@@ -97,7 +97,7 @@ class MetricsWriter
      *
      * All per-node and per-flow values are time-averaged over the number of
      * post-warmup ticks in which they were observed. Node IDs from
-     * @c cfg.nodes are used as JSON keys; unrecognised indices fall back to
+     * @c cfg.nodes are used as JSON keys; unrecognized indices fall back to
      * @c "node<idx>".
      *
      * Prints an error to @c stderr if the file cannot be opened and returns

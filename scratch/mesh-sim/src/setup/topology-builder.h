@@ -119,7 +119,7 @@ class TopologyBuilder
      *
      * Must be called exactly once, before any accessor method.
      *
-     * @throws std::runtime_error for an unrecognised @c NodeSpec::mobility
+     * @throws std::runtime_error for an unrecognized @c NodeSpec::mobility
      *         string or an unknown propagation scenario. An unknown
      *         @c channel_model does not throw here; it falls into the 3GPP
      *         branch.
@@ -198,7 +198,7 @@ class TopologyBuilder
      * In centralized RL mode nodes listed in @c cfg.rl.controlled_indices get
      * @ref InstallMobilityRlControlled instead of their configured model.
      *
-     * @throws std::runtime_error for any unrecognised @c NodeSpec::mobility value.
+     * @throws std::runtime_error for any unrecognized @c NodeSpec::mobility value.
      */
     void CreateNodesAndMobility();
 
@@ -255,7 +255,7 @@ class TopologyBuilder
      * The buildings condition model is also used when
      * @c channel.condition_model is @c "static_los".
      *
-     * @throws std::runtime_error for an unrecognised scenario (3GPP accepts
+     * @throws std::runtime_error for an unrecognized scenario (3GPP accepts
      *         UMi, UMa, RMa, InH, InH-Mixed, InH-Open; NYU accepts UMi, UMa,
      *         RMa, InH, InF). Any @c channel_model other than @c "nyu" takes
      *         the 3GPP branch.

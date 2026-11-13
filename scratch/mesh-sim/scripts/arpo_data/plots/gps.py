@@ -15,12 +15,12 @@ from matplotlib.lines import Line2D
 from .common import crashed_suffix, scenario_caption
 
 ## @fn plot_gps_tracks
-# @brief Plot GPS tracks for all nodes in a scenario as XY scatter coloured by time.
+# @brief Plot GPS tracks for all nodes in a scenario as XY scatter colored by time.
 #
 # Converts latitude/longitude to local East-North metres relative to the
 # centroid of all fixes. Each node is drawn with a distinct marker shape;
-# point colour encodes seconds elapsed since the earliest fix in the scenario.
-# A scale bar is added via @ref _add_scale_bar and a colour bar shows the
+# point color encodes seconds elapsed since the earliest fix in the scenario.
+# A scale bar is added via @ref _add_scale_bar and a color bar shows the
 # time axis.
 #
 # @param df             GPS DataFrame produced by @ref load_gps_scenario.

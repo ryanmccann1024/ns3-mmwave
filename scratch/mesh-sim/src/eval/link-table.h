@@ -64,7 +64,7 @@ class LinkTable
      * @param j  Second node index (column), in [0, N).
      * @return Const reference to the stored @ref LinkResult. Valid until
      *         the next call to @ref Update.
-     * @throws Nothing; out-of-range indices are undefined behaviour.
+     * @throws Nothing; out-of-range indices are undefined behavior.
      *
      * Symmetric: @c Get(i,j) and @c Get(j,i) hold the same values. The
      * diagonal returns a default @ref LinkResult.
@@ -105,7 +105,7 @@ class LinkTable
      * @param j               Second node index, in [0, N).
      * @param sinrThresholdDb Minimum acceptable SINR in dB (default −6.7, equal to @c SINR_MIN_DB).
      * @return @c true if @c Get(i,j).sinr_db >= @p sinrThresholdDb.
-     * @throws Nothing; out-of-range indices are undefined behaviour.
+     * @throws Nothing; out-of-range indices are undefined behavior.
 
      */
     bool IsConnected(uint32_t i, uint32_t j, double sinrThresholdDb = -6.7) const;

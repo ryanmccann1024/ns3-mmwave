@@ -109,7 +109,7 @@ def plot_bh2_mcs(df: pd.DataFrame, scenario_name: str = "") -> list[_BH2_PairRes
 # @brief Plot raw packet-error rate per (source radio, peer antenna).
 #
 # Produces one figure per (src_rab, peer_rab) pair. PER is the raw counter
-# value reported by the driver; it is not normalised.
+# value reported by the driver; it is not normalized.
 #
 # @param df             Loaded bh2 DataFrame from @ref load_bh2_scenario.
 #                       Must contain ``field_per``, ``tag_local_mac``, and
@@ -189,7 +189,7 @@ def plot_bh2_throughput(df: pd.DataFrame, scenario_name: str = "") -> list[_BH2_
 # maps the silvus column names to those conventions so the shared plot machinery
 # can be reused without modification.
 #
-# Sets ``__peer__`` to a constant so all neighbors are plotted as coloured
+# Sets ``__peer__`` to a constant so all neighbors are plotted as colored
 # series within one figure per metric rather than one figure per neighbor.
 # Each unique ``neighbor`` value becomes a separate series via ``tag_sta_mac``.
 #
@@ -456,7 +456,7 @@ def _build_peer_legend_labels(peer_macs: list[str], peer_rab: str,
 # @param value_col           Column to plot on the Y axis.
 # @param metric_label        Y axis label string.
 # @param trace_col           Column name for the metric in the output trace DataFrame.
-# @param color_map           Peer MAC to matplotlib colour mapping.
+# @param color_map           Peer MAC to matplotlib color mapping.
 # @param peer_legend_labels  Peer MAC to display label mapping.
 # @param add_mcs_reference_lines Draw horizontal SNR threshold lines if ``True``.
 # @param integer_yaxis       Constrain Y ticks to integers if ``True``.
@@ -594,7 +594,7 @@ def _format_subplot_axis(
 #
 # Orchestrates the full figure construction pipeline:
 # -# Determines stable local MAC order via @ref _stable_local_mac_order.
-# -# Assigns deterministic colours to peer MACs via @ref _peer_mac_colors.
+# -# Assigns deterministic colors to peer MACs via @ref _peer_mac_colors.
 # -# Computes the header layout via @ref _compute_header_layout.
 # -# Creates the subplot grid via @ref _make_per_radio_axes.
 # -# Calls @ref _plot_one_subplot for each source MAC.
@@ -700,7 +700,7 @@ def _build_per_radio_figure(
 # @param metric_label         Y axis label string passed to the stats table.
 # @param use_antenna_legend   Render the peer antenna legend if ``True``.
 # @param plotted_peer_macs    Set of peer MACs that were actually drawn.
-# @param color_map            Peer MAC to colour mapping for the legend.
+# @param color_map            Peer MAC to color mapping for the legend.
 # @param peer_legend_labels   Peer MAC to display label mapping for the legend.
 def _render_figure_chrome(
         fig: plt.Figure,
@@ -763,14 +763,14 @@ def _make_per_radio_axes(local_macs: list[str], height_per_panel: float,
                              sharex=True, squeeze=False)
     return fig, [axes[i][0] for i in range(n)]
 
-## @brief Assign deterministic matplotlib colours to peer MACs for one figure.
+## @brief Assign deterministic matplotlib colors to peer MACs for one figure.
 #
 # Sorts MACs alphabetically for stability and cycles through ``tab10`` (up to
-# 10 MACs) or ``tab20`` (more than 10). Colours are stable within one figure
+# 10 MACs) or ``tab20`` (more than 10). Colors are stable within one figure
 # but may differ across figures.
 #
 # @param peer_macs  List of peer MAC address strings.
-# @return           Mapping from MAC string to matplotlib colour value.
+# @return           Mapping from MAC string to matplotlib color value.
 #                   Empty dict if @p peer_macs is empty.
 def _peer_mac_colors(peer_macs: list[str]) -> dict[str, str]:
     if not peer_macs:
@@ -837,8 +837,8 @@ def _per_radio_stats_rows(pair_df: pd.DataFrame, value_col: str,
 # @param peer           Peer rab hostname.
 # @param title_metric   Metric name for the main title line.
 # @param df             DataFrame used to compute `scenario_caption`.
-# @param y_main         Normalised Y position for the main title line.
-# @param y_scenario     Normalised Y position for the scenario subtitle line.
+# @param y_main         Normalized Y position for the main title line.
+# @param y_scenario     Normalized Y position for the scenario subtitle line.
 def _figure_centered_header(fig: plt.Figure, scenario_name: str,
                             src: str, peer: str, title_metric: str,
                             df: pd.DataFrame, y_main: float,
@@ -864,8 +864,8 @@ def _figure_centered_header(fig: plt.Figure, scenario_name: str,
 # @param value_col    Column to compute medians from.
 # @param metric_label Column header label for the median column.
 # @param src_rab      Source rab hostname for radio ordering.
-# @param y_top        Normalised Y coordinate of the table top edge.
-# @param y_bottom     Normalised Y coordinate of the table bottom edge.
+# @param y_top        Normalized Y coordinate of the table top edge.
+# @param y_bottom     Normalized Y coordinate of the table bottom edge.
 def _render_per_radio_stats_table(fig: plt.Figure, pair_df: pd.DataFrame,
                                   value_col: str, metric_label: str,
                                   src_rab: str, y_top: float,
@@ -901,7 +901,7 @@ def _render_per_radio_stats_table(fig: plt.Figure, pair_df: pd.DataFrame,
             if col_idx == 0:
                 cell.set_text_props(family="monospace", fontsize=8)
 
-## @brief Render a figure-level horizontal legend mapping colour to peer radio label.
+## @brief Render a figure-level horizontal legend mapping color to peer radio label.
 #
 # Sorts handles by their display label for consistent ordering. Skips MACs
 # that were not actually drawn (not in @p plotted_macs). Limited to 6 columns
@@ -910,9 +910,9 @@ def _render_per_radio_stats_table(fig: plt.Figure, pair_df: pd.DataFrame,
 # @param fig                Figure to add the legend to.
 # @param peer_rab           Peer rab hostname used in the legend title.
 # @param plotted_macs       Set of peer MACs that were drawn in at least one subplot.
-# @param color_map          Peer MAC to matplotlib colour mapping.
+# @param color_map          Peer MAC to matplotlib color mapping.
 # @param peer_legend_labels Peer MAC to display label mapping.
-# @param y_center           Normalised Y position for the legend center.
+# @param y_center           Normalized Y position for the legend center.
 def _render_peer_antenna_legend(fig: plt.Figure, peer_rab: str,
                                 plotted_macs: set[str],
                                 color_map: dict[str, tuple],

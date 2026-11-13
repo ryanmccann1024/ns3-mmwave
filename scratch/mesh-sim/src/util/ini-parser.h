@@ -81,7 +81,7 @@ std::string iniGet(const IniMap& ini,
  * - @c true  for @c "true", @c "1", or @c "yes".
  * - @c false for everything else (including @c "false", @c "0", @c "no").
  *
- * Returns @p def when the section or key is absent. Unrecognised values
+ * Returns @p def when the section or key is absent. Unrecognized values
  * (for example @c "on" or @c "2") give @c false without any error.
  *
  * @param ini      Map produced by @ref parseIni.
@@ -89,7 +89,7 @@ std::string iniGet(const IniMap& ini,
  * @param key      Key within the section.
  * @param def      Default value returned when the entry is not found. It is
  *                 round-tripped through @c "true"/@c "false", so it is
- *                 honoured exactly.
+ *                 honored exactly.
  * @return Parsed boolean value, or @p def if not found.
  */
 bool iniGetBool(const IniMap& ini,

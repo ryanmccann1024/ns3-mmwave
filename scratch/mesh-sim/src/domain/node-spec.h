@@ -83,7 +83,7 @@ struct NodeSpec
 {
     std::string id;         ///< Unique node identifier (required in @c nodes.json).
     std::string role;       ///< Label copied to the viz output; default @c "peer" (all nodes
-                            ///<   are peers, no other value changes behaviour).
+                            ///<   are peers, no other value changes behavior).
     std::string mobility;   ///< @c "fixed" (default), @c "constant_velocity", @c "random_walk",
                             ///<   or @c "waypoint".
     std::string node_type;  ///< @c "drone" (default), @c "vehicle", or @c "pedestrian";
@@ -106,7 +106,7 @@ struct NodeSpec
  * @brief Return the maximum speed (m/s) allowed for a given node type.
  *
  * @param node_type  Node type string from @ref mesh_sim::NodeSpec::node_type; any
- *                   unrecognised value gets the drone limit.
+ *                   unrecognized value gets the drone limit.
  * @return Maximum speed in metres per second.
  *
  * Used by the RL bridge to cap each controlled node's speed
