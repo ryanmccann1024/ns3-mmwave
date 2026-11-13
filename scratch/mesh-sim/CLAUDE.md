@@ -20,7 +20,7 @@ that launch the simulator take `--sim-binary <BIN>` for an already-built binary.
 ```bash
 # C++ unit tests (no ns-3 needed), from scratch/mesh-sim/tests/
 make test                    # lint + build + run all suites in UNIT_DIRS
-make -C unit/config test     # one suite (config, eval, routing, traffic)
+make -C unit/config test     # one suite (all suites: UNIT_DIRS in tests/Makefile)
 make integration             # CLI integration tests; needs a built sim binary
 
 # Python env, from scratch/mesh-sim/

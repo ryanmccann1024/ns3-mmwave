@@ -7,11 +7,28 @@ styled with the doxygen-awesome-css theme.
 
 ## 1\. Quick start
 
-From the ns3-mmwave repository root:
+**Step 1. Install Doxygen and Graphviz** (versions in section 2):
+
+```bash
+brew install doxygen graphviz        # macOS
+sudo apt install doxygen graphviz    # Debian / Ubuntu
+```
+
+`build.sh` also uses `python3` and `rsync`, which macOS and most Linux
+systems already have. On Windows, run it from WSL or Git Bash.
+
+**Step 2. Build.** From the ns3-mmwave repository root:
 
 ```bash
 cd scratch/mesh-sim/docs
 ./build.sh                  # builds html/, warnings go to doxygen-warnings.log
+```
+
+**Checkpoint:** the script ends without an error and `html/index.html` exists.
+
+**Step 3. Open the site:**
+
+```bash
 open html/index.html        # macOS; xdg-open on Linux
 ```
 
@@ -22,12 +39,7 @@ into the ignored `.api-src/` folder (so Doxygen names Python modules
 folders), regenerates `api-groups.dox` with `diagrams/api-groups.py`, then runs
 `doxygen Doxyfile` from `docs/`, where the input paths are relative.
 
-## 2\. Install the tools
-
-```bash
-brew install doxygen graphviz        # macOS
-sudo apt install doxygen graphviz    # Debian / Ubuntu
-```
+## 2\. Tool versions
 
 On other platforms, download [Doxygen](https://www.doxygen.nl/download.html) and
 [Graphviz](https://graphviz.org/download/). Check the install with

@@ -10,7 +10,7 @@ root, the folder that holds the `ns3` script.
 | Tool | Minimum | Used for |
 |---|---|---|
 | Git | any | The checkout |
-| Python 3 | any | Runs the `./ns3` wrapper. The simulator itself needs no Python packages. |
+| Python 3 | any; 3.10 for the Python tools | Runs the `./ns3` wrapper. The simulator itself needs no Python packages; the plotting, RL, sweep and validation tools need 3.10 or newer (step 5). |
 | CMake | 3.13 | Configuring the build |
 | C++ compiler | C++20 support | Building ns-3 and Mesh-Sim |
 
@@ -50,10 +50,30 @@ ls build/scratch/mesh-sim/ns3*-sim-debug
 The name is `ns<ns-3 version>-sim-<build profile>`. This is the `<BIN>` that
 Python tools take as `--sim-binary <BIN>`. `./ns3 run` finds it on its own.
 
-## 5\. Next
+## 5\. Set up the Python environment
+
+Skip this step if you only need the simulator. The plotting, RL, sweep and
+validation tools run from a virtual environment in `scratch/mesh-sim/.venv`.
+From `scratch/mesh-sim/`:
+
+```bash
+python3 --version                             # needs 3.10 or newer
+python3 scripts/rl/bootstrap_venv.py          # creates .venv and installs requirements.txt
+python3 scripts/rl/bootstrap_venv.py --check  # checks the installed versions
+```
+
+**Checkpoint:** `--check` prints one `name==version` line per package and exits
+without a `DEPENDENCY-FAILED` line.
+
+Run the tools with the environment's interpreter, as modules:
+`.venv/bin/python -m scripts.<package>.<module>` (on Windows,
+`.venv\Scripts\python.exe`). The first install downloads PyTorch, so it can
+take several minutes.
+
+## 6\. Next
 
 - \ref mesh_sim_first_run "Your first run": run a scenario with this binary.
-- \ref readme_python_environment "Python environment": set up `.venv` for the
-  plotting, RL, sweep and validation tools.
+- \ref generating_the_docs "Generating the docs": build this documentation
+  site on your machine.
 
 Previous: \ref mesh_sim_start_here "Start here" · Next: \ref mesh_sim_first_run "Your first run"

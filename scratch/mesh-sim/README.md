@@ -2,9 +2,11 @@
 
 @brief Lightweight time-stepped mmWave / sub-6 mesh simulator built on ns3-mmwave.
 
-\note New here? \ref mesh_sim_start_here "Start here" walks through a first
-run; \ref mesh_sim_quickstart "Quickstart" has every command on one page. This
-guide is the reference for everyday tasks.
+\note New here? [Start here](docs/getting-started/start-here.md) walks through
+a first run; [Quickstart](docs/getting-started/quickstart.md) has every command
+on one page. This guide is the reference for everyday tasks. The full
+documentation is a site you build locally: see
+[Generating the docs](docs/generating-the-docs.md).
 
 Mesh-Sim loads a scenario, steps through time working out every link's SINR,
 capacity and MCS, routes traffic over the mesh and writes the results
@@ -43,7 +45,8 @@ Step by step: \ref mesh_sim_install_build "Install and build".
 
 ## Python environment {#readme_python_environment}
 
-The simulator needs no Python; the plotting, sweep, validation and RL tools do.
+The simulator needs no Python; the plotting, sweep, validation and RL tools
+need Python 3.10 or newer.
 From `scratch/mesh-sim/`:
 
 ```bash
@@ -150,14 +153,14 @@ python3 -m scripts.validation.smoke_check --sim-binary <BIN> --out outputs/smoke
   m-ppo --total-timesteps 16 --n-steps 16 --seed 1
 ```
 
-- One unit suite: `make -C unit/<suite> test` for `config`, `eval`,
-  `routing` or `traffic`.
+- One unit suite: `make -C unit/<suite> test`, for any suite listed in
+  `UNIT_DIRS` in `tests/Makefile`.
 - The regression suite needs the reference files from the project's cloud
   baseline bundle under `tests/fixtures/regression/p0/`; then
   `python3 -m scripts.validation.regression_check verify-suite`
   (\ref scripts_validation "scripts/validation").
 - CI runs the Python tests, the build, and the CLI and smoke checks on Linux and
-  macOS for pull requests into `arpo-main` and `develop`.
+  macOS for pushes and pull requests to `develop` and `arpo-main`.
 - Every RL test, with its input and expected output: \ref scripts_rl_tests "RL test map".
 
 # 5\. Output {#readme_where_output_lands}
@@ -190,7 +193,7 @@ Without `--output-dir` or `[output] dir`, results go to
 | For | You need |
 |---|---|
 | The simulator | ns3-mmwave, CMake and a C++ compiler |
-| Python tools | Python 3 and `requirements.txt`; `requirements-tuning.txt` for tuning |
+| Python tools | Python 3.10+ and `requirements.txt`; `requirements-tuning.txt` for tuning |
 | Field data and regression | Field data under `data/`; the cloud baseline bundle |
 | These docs | `doxygen`, and `graphviz` for diagrams |
 
