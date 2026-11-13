@@ -1,4 +1,4 @@
-"""Prepare the October 23 follow-up cases from a completed diagnostic run."""
+"""Prepare the follow-up scenario-check cases from a completed diagnostic run."""
 
 import json
 import math

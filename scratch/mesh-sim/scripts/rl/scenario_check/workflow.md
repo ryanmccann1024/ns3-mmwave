@@ -53,7 +53,7 @@ The table lists the fixed settings for the prepared campaign.
 The placement baselines use the same prepared endpoints for both evaluation
 seeds. Each writes its planner result, displacement, and seed roles to
 `planning/<case>/<policy>/placement.json`. For how a seed selects its INI and
-controller gate, see [Seeded scenario checks](@ref scripts_rl_env).
+controller gate, see [Seeded scenario checks](@ref scripts_rl_env_seeded).
 
 ## Read the results
 
@@ -65,7 +65,7 @@ timelines, and safety and replay results. An exit code of 0 means all cases
 passed their acceptance checks. Exit 2 means cases finished with results
 that require review. Exit 1 means execution or auditing failed.
 
-`october_23_followup.py` prepares the second diagnostic batch from a prior
+`followup.py` prepares the second diagnostic batch from a prior
 run's archived inputs and reports. It selects 17 cases, updates specific
 reference routes and event settings, and writes a new campaign with 102
 episodes. The follow-up records its source fingerprints and changes in

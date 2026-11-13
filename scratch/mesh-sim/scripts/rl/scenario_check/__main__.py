@@ -13,7 +13,7 @@ from scripts.rl.scenario_check.validation import validate_inputs
 def main():
     mesh = find_mesh_root()
     parser = argparse.ArgumentParser(
-        description="October 23 scenario checks only; no training stage."
+        description="Scenario checks only; no training stage."
     )
     parser.add_argument(
         "--inputs", type=Path, default=mesh / "inputs/custom/10-23/scenario-check"

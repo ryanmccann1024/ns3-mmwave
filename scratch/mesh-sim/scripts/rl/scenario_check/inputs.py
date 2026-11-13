@@ -1,4 +1,4 @@
-"""Materialize approved October 23 scenarios without launching any processes."""
+"""Materialize the approved scenario-check scenarios without launching any processes."""
 
 import json
 import math

@@ -131,7 +131,7 @@ def write_campaign_report(root, outcomes):
         ),
     )
     text = [
-        "# October 23 scenario check results",
+        "# Scenario check results",
         "",
         "Training was not launched. Open Main for scenario folders; each contains eval_manifest.json and policy episodes.",
         "Exit 0: all scenario gates passed. Exit 2: checks finished, revisions need review. Exit 1: execution or audit errors.",
