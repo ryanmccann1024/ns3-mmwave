@@ -56,7 +56,7 @@ calls `ini_writer.write_point_ini` + `copy_scenario_files`, then launches
 - Config errors print to stderr and `sys.exit(1)`. A bad `seeds` value raises
   an uncaught `ValueError`.
 
-## Known issues (left unfixed)
+## Known issues (left unfixed; also listed in `README.md`)
 
 - `--resume` does nothing useful: every run creates a new timestamped
   `outputs/YYYY-MM/DD/HH-MM-SS/` dir, so no finished points are ever found.

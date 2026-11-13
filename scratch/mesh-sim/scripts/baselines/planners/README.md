@@ -3,8 +3,9 @@
 @brief The geometric and optimization placement planners and their shared objective and channel scorer.
 
 The two placement baselines, `geometric` (sequential greedy) and
-`optimization` (simulated annealing), adapted from the Desktop reference copy
-in `third_party/arpo_placement/` (read-only; nothing imports it). Every
+`optimization` (simulated annealing), adapted from the reference planner: the
+original planner copied unchanged into `third_party/arpo_placement/`
+(read-only; nothing imports it). Section 4 lists every difference. Every
 candidate layout is scored by the simulator's own channel through the
 `--channel-query` worker, so there is no Friis model and no RF YAML here.
 
@@ -20,20 +21,23 @@ candidate layout is scored by the simulator's own channel through the
 | `geometric.py` | Greedy peer-anchor placement. |
 | `optimization.py` | Keep-best annealing, warm-started from `geometric`. |
 
-Both strategies take `(request, scorer, log)` with the scorer's probes already
-set by `objective.prepare_scorer`, and return `(positions N x 3, diagnostics,
-notes)`. Each strategy's `settings(request)` records resolved behavior. `solver.solve`
-adds component versions, query settings and advertised worker limits under
-`engine_settings_version = 1`, with a canonical SHA-256 over the settings.
-Changing a coefficient changes this identity. The engine returns these in
-`PlanResult.planner_settings`, including grid, resolved probe gain, movement
-costs and bounds; callers must persist them with the plan. This settings hash
-is not a complete scenario/source fingerprint: retain staged input hashes,
-seeds and simulator revision separately.
+- **Strategy interface.** Both strategies take `(request, scorer, log)`, with
+  the scorer's probes already set by `objective.prepare_scorer`, and return
+  `(positions N x 3, diagnostics, notes)`. Each strategy's `settings(request)`
+  records its resolved behavior.
+- **Settings identity.** `solver.solve` adds component versions, query
+  settings and advertised worker limits under `engine_settings_version` 1 (2
+  when constraints are supplied; section 8), with a canonical SHA-256 over the
+  settings. Changing a coefficient changes this identity.
+- **Persistence.** The engine returns these in `PlanResult.planner_settings`,
+  including grid, resolved probe gain, movement costs and bounds; callers must
+  persist them with the plan. This settings hash is not a complete
+  scenario/source fingerprint: retain staged input hashes, seeds and simulator
+  revision separately.
 
-## Shared objective
+## 1\. Shared objective
 
-All terms are m² so the Desktop penalty values keep their units. Each layout
+All terms are m² so the reference planner's penalty values keep their units. Each layout
 is one full query: the t = 0 mesh link table plus every node-to-probe link.
 `connected` comes from the worker; Python never re-derives a threshold.
 
@@ -55,10 +59,16 @@ is one full query: the t = 0 mesh link table plus every node-to-probe link.
   `0` if displacement ≤ 1e-6 m, else `fixed_cost_m2 + cost_m2_per_m x d`.
   `max_displacement_m` is a hard cap on candidates and proposals.
 
-The defaults give `total = coverage + separation - movement - BIG x disconnected - w x vuln`.
-The configurable coverage weight multiplies coverage; component overrides can
-replace the resolved coefficients. Diagnostics retain physical coverage and
+With the defaults:
+
+```
+total = coverage + separation - movement - BIG x disconnected - w x vuln
+```
+
+The configurable coverage weight multiplies coverage, and component overrides
+can replace the resolved coefficients. Diagnostics retain physical coverage and
 individual signed score contributions.
+
 `diagnose` adds component sizes, core ids, `survives_single_node_loss`
 (victims = every core member), `controlled_mesh_survives_single_loss`
 (victims = core ∩ selected), per-node displacement and cost, and
@@ -66,13 +76,13 @@ individual signed score contributions.
 never an error. It does not guarantee staying put: connectivity, resilience
 and separation gains can also offset relocation costs.
 
-Grid cell size follows the Desktop rule `max(min_resolution_m,
+Grid cell size follows the reference planner's rule `max(min_resolution_m,
 sqrt(AOI / cells))`, with cells laid from the rectangle's lower-left corner.
-Unlike the Desktop grid, every cell that overlaps the rectangle is kept and
+Unlike the reference grid, every cell that overlaps the rectangle is kept and
 the last row/column is clipped, so edge cells are weighted by their real area.
 The candidate grid uses the same rule with `candidate_cells`.
 
-## Geometric: sequential greedy
+## 2\. Geometric: sequential greedy
 
 1. Query the start layout and score it.
 2. Visit selected nodes once each, in roster order. For node `i`, the anchor
@@ -99,14 +109,14 @@ Results are cached by exact layout bytes within a byte-accounted LRU budget; the
 changed-pairs-only queries, because sampled draws depend on evaluation order
 (see [src/query](@ref src_query)).
 
-## Optimization: keep-best annealing
+## 3\. Optimization: keep-best annealing
 
 1. Run `geometric` with the same objective, then query the greedy layout and
    the start layout (two queries) and continue from the better one (ties go
    to the greedy layout). The best layout seen is returned. `warm_start = current` skips greedy planning
    and records that fact explicitly.
 2. Each iteration draws a move with weights renormalized after dropping the
-   Desktop `altitude` move: nudge 0.55/0.85, teleport 0.20/0.85, swap
+   reference planner's `altitude` move: nudge 0.55/0.85, teleport 0.20/0.85, swap
    0.10/0.85.
    - `nudge`: Gaussian x/y step on one selected node.
    - `teleport`: one selected node to a random uncovered probe plus a Gaussian
@@ -127,9 +137,9 @@ For a fixed worker and seed, a run is repeatable on one machine. Different
 layouts can consume different numbers of channel draws, so the objective is
 not a smooth function of position.
 
-## Differences from the Desktop reference
+## 4\. Differences from the reference planner
 
-| Desktop | Here |
+| Reference planner | Here |
 | --- | --- |
 | C2/gateway root; reachability by BFS from it | Rootless largest-component core; no gateway, fixed anchor or BLOS terminal. |
 | Order: movable C2 first, then longest radio range | Roster order. |
@@ -144,8 +154,7 @@ not a smooth function of position.
 | RF/optimizer YAML (`rf_config`) | Engine settings use the owned INI sections below; movement penalties are supplied in `PlanRequest`. |
 | Altitude chosen per node from its AGL band | z fixed at each node's start. |
 
-
-## Configuration and extension
+## 5\. Configuration and extension {#scripts_baselines_planners_config}
 
 Baseline preparation and placement evaluation policies call this engine API.
 These sections are read by `solver.solve(request, log)` from the staged
@@ -188,28 +197,39 @@ max_child_response_bytes = 16777216
 max_response_bytes = 67108864
 ```
 
-An explicit `ObjectiveSettings`, `OptimizerSettings` or `QuerySettings` on
-`PlanRequest` replaces that entire INI section; otherwise INI overrides owner
-defaults. Empty/unknown keys, non-finite numbers, invalid types and negative
-weights fail. All objective coefficients are nonnegative; optimizer scales
-are positive, final temperature cannot exceed initial temperature, and
-pullback/final sigma ratio are in (0,1]. Move weights are nonnegative with a
-finite positive sum, then normalized; zero disables a move. `warm_start` is
-`geometric` or `current`. Optimizer RNG `planner_seed` is separate from the
-channel realization's `planning_seed`; keep both separate from held-out
-performance seeds. `run_id` must match the staged INI's realization.
+**Precedence and validation.**
 
-The default client deadline is `request_margin_s + layout_count *
-(child_deadline_s + terminate_grace_s)` using the worker handshake. An explicit
-`request_timeout_s` deliberately caps the whole request, including writes and
-reads, and may cancel valid slow work. Batch count also respects request bytes
-and the smaller of client/worker response budgets, reserving envelope space.
-With default 16 MiB child and 64 MiB response bounds, at most three layouts
-are sent together. The parent rejects oversized aggregate responses before
-retaining more entries. A cache budget of zero disables retention; an entry
-larger than the budget is returned without caching. Grid construction rejects
-more than 100,000 candidate points before allocating; coverage also respects
-the worker's probe limit. Per-layout full facts still cost O(N² + N×probes).
+- An explicit `ObjectiveSettings`, `OptimizerSettings` or `QuerySettings` on
+  `PlanRequest` replaces that entire INI section; otherwise the INI overrides
+  owner defaults.
+- Empty/unknown keys, non-finite numbers, invalid types and negative weights
+  fail.
+- All objective coefficients are nonnegative. Optimizer scales are positive,
+  the final temperature cannot exceed the initial temperature, and pullback
+  and final sigma ratio are in (0,1].
+- Move weights are nonnegative with a finite positive sum, then normalized;
+  zero disables a move. `warm_start` is `geometric` or `current`.
+- The optimizer RNG `planner_seed` is separate from the channel realization's
+  `planning_seed`; keep both separate from held-out performance seeds.
+  `run_id` must match the staged INI's realization.
+
+**Deadlines and resource bounds.**
+
+- The default client deadline is `request_margin_s + layout_count *
+  (child_deadline_s + terminate_grace_s)`, using the worker handshake. An
+  explicit `request_timeout_s` deliberately caps the whole request, including
+  writes and reads, and may cancel valid slow work.
+- Batch count also respects request bytes and the smaller of the client and
+  worker response budgets, reserving envelope space. With the default 16 MiB
+  child and 64 MiB response bounds, at most three layouts are sent together.
+- The parent rejects oversized aggregate responses before retaining more
+  entries. A cache budget of zero disables retention; an entry larger than the
+  budget is returned without caching.
+- Grid construction rejects more than 100,000 candidate points before
+  allocating; coverage also respects the worker's probe limit. Per-layout full
+  facts still cost O(N² + N×probes).
+
+**Extending the engine.**
 
 To add a score term, register a `ScoreComponent` in `components.py` with
 `value(ctx, facts, parameters)`, owned default parameters, unit and version.
@@ -226,7 +246,7 @@ when exposing a new strategy through those entry points. The full list of
 files to change, with a worked example, is in
 \ref mesh_sim_placement_add "Add a baseline".
 
-## Engine example and artifacts
+## 6\. Engine example
 
 Use an already built binary; the following API example creates no training
 run. The scenario must contain fixed nodes `A` at (50,50,10) and `B` at
@@ -273,13 +293,16 @@ An init mismatch, bad layout, timeout or response overflow raises
 `PlannerError` and closes the worker group; configuration errors fail before
 launch. Do not publish a partial plan after an exception.
 
-Capacity is returned as a channel fact but is not a default objective term.
-Reduced capacity alone therefore does not change placement scores. These
-are initial 2D layouts scored at t=0, not warmup/episode performance or a
-periodic controller. Keep initial relocation separate from scored episode
-travel. The default thresholds and jammed-SINR clamp may make binary
-coverage/connectivity insensitive to jamming; these scores do not establish
-jammer avoidance.
+## 7\. Limits
+
+- Capacity is returned as a channel fact but is not a default objective term,
+  so reduced capacity alone does not change placement scores.
+- These are initial 2D layouts scored at t=0, not warmup/episode performance
+  or a periodic controller. Keep initial relocation separate from scored
+  episode travel.
+- A strong jammer can push links and probes below the connectivity threshold
+  (see [Channel scoring](@ref scripts_baselines)), but the planners do not
+  steer away from jammers, so these scores do not establish jammer avoidance.
 
 The fake engine example is exercised by `test_engine_settings.py`. Pure query
 units use a stub evaluator to test protocol limits, pipe draining, deadlines
@@ -287,7 +310,7 @@ and reaping. Real t=0 parity, sampled-channel isolation, timing, cancellation
 and performance remain checks for a human-built binary; the unit passes and
 syntax checks do not establish them.
 
-### Outdoor probe domains for scenario checks
+## 8\. Outdoor probe domains for scenario checks
 
 `PlanRequest.probe_exclusion_buildings` optionally excludes probe centers inside
 uninflated 3D building bounds, inclusive on edges, at the configured probe height.

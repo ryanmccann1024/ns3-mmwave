@@ -336,7 +336,7 @@ and plan. This block does not change `eval_manifest_version` (current value in
 | `planner_code_sha256` | Aggregate hash of every baseline Python owner outside tests, plus shared `artifact_io.py` and `sim_support.py`; new owners are discovered automatically. |
 | `channel_scoring` | Query contract and isolation, planning seed, `planning_run_id`, `jammer_seed`, `mode_flag` (`--rl-mode` or `null`), band and source, link and coverage thresholds, probe (height, resolved receive gain, cells, cell size, count), candidate grid, and query totals. |
 | `penalties` | Per-platform fixed, per-meter and cap values, `aoi_m2`, and `fixed_cost_over_aoi`. |
-| `planner_settings` | Versioned resolved objective/component parameters, strategy settings, query budgets, grid/probe/cost settings and a settings hash. See [the engine configuration](planners/README.md#configuration-and-extension). |
+| `planner_settings` | Versioned resolved objective/component parameters, strategy settings, query budgets, grid/probe/cost settings and a settings hash. See [the engine configuration](@ref scripts_baselines_planners_config). |
 | `seed_roles` | Dedicated planning seed/source, evaluation seeds, planning overlap, explicit allowance and held-out status. |
 | `ownership` | `mode`, `movable_resolved`, and in evaluation `controlled_resolved` (slot order). |
 | `fingerprint` | Hash (`fingerprint_version` 3) of method, objective, planner seed, `max_iterations`, waypoint policy, mapping hash, penalty/grid/probe/threshold settings, planning seed and `run_id`, mode flag, band, the four effective-input hashes, binary, channel-runtime and adapted-code hashes, `planner_settings`, and ownership; never timing or paths. `scripts.rl.compare` rejects a `--label` group whose placement fingerprints differ. |
@@ -415,16 +415,17 @@ planner behavior unchanged.
 MESH_SIM_BIN=<BIN> .venv/bin/python -m pytest scripts/baselines/tests/test_real_binary.py -q
 ```
 
-| Test or helper | Covers |
-| --- | --- |
-| `test_runner.py` | The runner, driven against `tests/fake_child.py`: a stand-in that checks argv and writes `seed-N/summary.json`, with failure and hang modes selected by `FAKE_CHILD_MODE`. |
-| Planner and preparation tests | Score layouts with `tests/fake_query.py`, a stand-in channel-query worker with a distance-threshold channel and fault modes. |
-| `test_provenance.py` | The reference hashes and the plan identity. |
-| `test_real_binary.py` | On a real binary: the guard, the runner, evaluation (ownership equality, `--rl-mode` query parity, the gateway-free all-movable and partial-selection acceptance rows) and channel-query parity. Without `MESH_SIM_BIN`, each test is skipped with a reason starting `BLOCKED:`, meaning it did not run. |
+- The local suite needs no simulator. `tests/fake_child.py` stands in for the
+  simulator (it checks argv and writes `seed-N/summary.json`, with failure and
+  hang modes selected by `FAKE_CHILD_MODE`), and `tests/fake_query.py` is a
+  channel-query worker with a distance-threshold channel and fault modes.
+- Without `MESH_SIM_BIN`, each real-binary test is skipped with a reason
+  starting `BLOCKED:`, meaning it did not run.
+- Tests use only hand-written synthetic scenarios (`tests/conftest.py` and the
+  inline fixtures of `tests/test_real_binary.py`); no scenario is added under
+  `inputs/`.
 
-Tests use only hand-written synthetic scenarios (`tests/conftest.py` and the
-inline fixtures of `tests/test_real_binary.py`); no scenario is added under
-`inputs/`.
+What each test file covers: [scripts/baselines/tests](@ref scripts_baselines_tests).
 
 ## 12\. Module layout
 

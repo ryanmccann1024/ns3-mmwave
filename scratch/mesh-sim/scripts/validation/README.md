@@ -8,7 +8,7 @@ This package does two jobs:
   mesh-sim over several seeds and compares the simulated SNR, RCPI and MCS
   distributions with the field traces. Its commands, comparison method and
   field-specific notes are on the private
-  [Field comparison](@ref scripts_validation_field) page, which needs an
+  \subpage scripts_validation_field "Field comparison" page, which needs an
   unlocked checkout (git-crypt). The public recipe on synthetic data is
   [Compare the simulator with field data](@ref mesh_sim_field_data_workflow).
 - **Regression and smoke checks.** `regression_check` confirms that a new
@@ -91,7 +91,7 @@ python3 -m scripts.validation.smoke_check --sim-binary <BIN> --out outputs/smoke
 ## 4\. Unit tests
 
 ```bash
-python -m pytest scripts/validation/tests
+.venv/bin/python -m pytest scripts/validation/tests
 ```
 
 
@@ -123,7 +123,7 @@ Field-comparison outputs are listed on the
 | @ref regression_snapshot.py "regression_snapshot" | Builds, normalizes and compares run snapshots. |
 | `regression_suite.py` | Manifest validation, reference integrity and suite output cleanup. |
 | @ref smoke_check.py "smoke_check" | Data-free two-run smoke and repeatability check. |
-| @ref tests/test_regression_check.py "tests/test_regression_check.py" | pytest tests for the snapshot and launcher contracts. |
+| `tests/test_regression_check.py`, `tests/test_regression_suite.py` | pytest tests for the snapshot, suite and launcher contracts. |
 
 Launcher paths and loader setup live in `scripts/sim_support.py`, one level up.
 
