@@ -10,6 +10,10 @@ on this host, measure one task and estimate a larger matrix, tune PPO
 hyperparameters with Optuna, run the plan as SLURM jobs, and copy results to
 another machine. Run every command from `scratch/mesh-sim/`.
 
+Sections 2–9 cover version 1 plans (plan v2). Version 2 batches (plan v3), run
+with `scripts/rl/run-experiments.sh`, execute locally as described in
+[section 10](@ref scripts_rl_ops_batch).
+
 ## 1\. Overview
 
 | Command | What it does |
@@ -40,7 +44,7 @@ An evaluation needs only its own training run, and evaluation seeds cannot be
 split across tasks (`scripts.rl.compare` requires one manifest per label with
 sorted seeds), so each task is self-contained.
 
-### Common exit codes
+### Common exit codes {#scripts_rl_ops_exit_codes}
 
 | Code | Meaning |
 |---|---|
@@ -120,11 +124,15 @@ output root, `C` a cluster config, `<venv>` the cluster's prepared venv.
       --dest outputs/fetched/my-study --select comparison,manifests
     ```
 
-After step 9, inspect `comparison/comparison.json`, the comparison tables and
-`cluster/records/NNNN/compare.json`. The scheduled comparison refuses missing or
-partial evaluations. For a deliberately partial comparison, first settle every
-task, then run `cluster compare --allow-incomplete` on the cluster. Use
-`resume --no-compare` when recording assertions before a local comparison.
+After step 9:
+
+- Inspect `comparison/comparison.json`, the comparison tables and
+  `cluster/records/NNNN/compare.json`.
+- The scheduled comparison refuses missing or partial evaluations. For a
+  deliberately partial comparison, first settle every task, then run
+  `cluster compare --allow-incomplete` on the cluster.
+- Use `resume --no-compare` when recording assertions before a local
+  comparison.
 
 ### Run the tasks without a scheduler
 
@@ -152,6 +160,7 @@ exit codes even when a health-counter exit `2` is tolerated.
 ```bash
 .venv/bin/python -m scripts.rl.ops.run_task --output-root R --task-index I [--record PATH]
 .venv/bin/python -m scripts.rl.ops.run_task --output-root R --compare [--allow-incomplete] [--record PATH]
+.venv/bin/python -m scripts.rl.ops.run_task --output-root R --step ID --attempt A   # plan v3 worker
 ```
 
 | Flag | Default | Description |
@@ -161,6 +170,7 @@ exit codes even when a health-counter exit `2` is tolerated.
 | `--compare` | off | Run the compare step. |
 | `--allow-incomplete` | off | With `--compare` only: compare even when an evaluation is missing or partial. |
 | `--record PATH` | none | Write an execution record ([section 8](@ref scripts_rl_ops_task_record)). |
+| `--step ID --attempt A` | none | Plan v3 worker entry point, launched by the batch scheduler; cannot be combined with the other options ([section 10](@ref scripts_rl_ops_batch)). |
 
 ### Task mode
 
@@ -327,8 +337,8 @@ installed separately:
 | `1` | A refusal, or at least one trial failed. Records are still written for failed trials. |
 | `130` / `143` | Interrupted by SIGINT / SIGTERM. |
 
-An `--output-root` that already holds `study_manifest.json` or `trials/` is
-refused for a fresh run; use `--resume` to continue it.
+An `--output-root` that already holds `study-checkpoint.bin`,
+`study_manifest.json` or `trials/` is refused for a fresh run; use `--resume` to continue it.
 
 ### Trials
 
@@ -430,21 +440,6 @@ Resume refusals:
 dependent compare job. Run it on the cluster after the human has built the
 binary and prepared the venv.
 
-### Ownership
-
-Use one OS/SLURM user per output root.
-
-- Before any receipt, task-table or comparison mutation, every receipt is
-  checked against the account from the OS user database (not `USER`/`LOGNAME`).
-  A different owner is a refusal before any scheduler call or write; use the
-  owning account or another output root.
-- The SLURM resource `account` is a billing/project choice and plays no part
-  in ownership.
-- Read-only `status` queries each receipt's recorded owner; limited scheduler
-  visibility shows as `unknown`.
-- Version 1 receipts with an owner remain readable. Ownerless or unsupported
-  receipts require human repair.
-
 ### Commands
 
 ```bash
@@ -461,11 +456,11 @@ Use one OS/SLURM user per output root.
 
 | Command | What it does |
 |---|---|
-| `plan` | Validates, writes `cluster/tasks.json`, prints the task table, and prints the `sbatch` argv and rendered scripts with a marked provisional receipt number `NNNN` and a `meshops-<random>-tasks` placeholder name. Submits nothing. |
+| `plan` | Validates, writes `cluster/tasks.json` and previews the submission (below). Submits nothing. |
 | `submit` | Submits tasks whose state is `unsubmitted`, optionally narrowed by `--tasks`. Naming a task in any other state is refused and points at `resume`. |
 | `status` | Prints every task's state ([section 9](@ref scripts_rl_ops_cluster_states)). Writes nothing. |
 | `resume` | Submits every `unsubmitted`, `failed` or `canceled` task whose remaining step directories are clean. Unless `--no-compare`, it also queues a missing comparison when no tasks need submission and every task is covered. |
-| `submit-compare` | Queues the comparison alone, once every task is completed, partial, or covered by an active array. Never submits training or evaluation. A complete comparison or an active compare job means nothing new is submitted; an unresolved intent or an unknown prior writer is a refusal. |
+| `submit-compare` | Queues the comparison alone (below). Never submits training or evaluation. |
 | `cancel` | Cancels active jobs recorded in the receipts. Requires exactly one of `--submission` or `--tasks`. |
 | `compare` | Runs the compare step on the current host. |
 
@@ -484,9 +479,30 @@ Use one OS/SLURM user per output root.
 | `--allow-incomplete` | `compare` | Compare even when an evaluation is missing or partial. |
 | `--record PATH` | `compare` | Write an execution record. |
 
-Exit codes: 0 means the command did what was asked; 1 is a refusal or an error,
-with the reason on stderr. `status` exits 0 whenever it could render, including
-when tasks failed.
+- **`plan` preview:** prints the task table, the `sbatch` argv and the
+  rendered scripts, with a marked provisional receipt number `NNNN` and a
+  `meshops-<random>-tasks` placeholder name.
+- **`submit-compare`:** queues once every task is completed, partial, or
+  covered by an active array. A complete comparison or an active compare job
+  means nothing new is submitted; an unresolved intent or an unknown prior
+  writer is a refusal.
+- **Exit codes** follow [section 1](@ref scripts_rl_ops_exit_codes), except that `status`
+  exits 0 whenever it could render, including when tasks failed.
+
+### Ownership
+
+Use one OS/SLURM user per output root.
+
+- Before any receipt, task-table or comparison mutation, every receipt is
+  checked against the account from the OS user database (not `USER`/`LOGNAME`).
+  A different owner is a refusal before any scheduler call or write; use the
+  owning account or another output root.
+- The SLURM resource `account` is a billing/project choice and plays no part
+  in ownership.
+- Read-only `status` queries each receipt's recorded owner; limited scheduler
+  visibility shows as `unknown`.
+- Version 1 receipts with an owner remain readable. Ownerless or unsupported
+  receipts require human repair.
 
 ### Shared refusals
 
@@ -1022,7 +1038,7 @@ with the asserting account and time.
 | `--abandon-intent NNNN:tasks` or `NNNN:compare` | A no-ID submission never reached SLURM. | That element is not an unresolved no-ID intent, or the job name still matches a job. |
 
 Neither assertion overrides a positive active-job observation or a populated
-step directory; the filesystem rules still apply afterwards. `status` never
+step directory; the filesystem rules still apply afterward. `status` never
 writes anything.
 
 ### Reported states
@@ -1036,10 +1052,28 @@ separate from `pending` (queued).
 | `running` | a covering receipt's element is in another active state (`RUNNING`, `COMPLETING`, `SUSPENDED`, `RESIZING`, `SIGNALING`, `STAGE_OUT`) |
 | `completed` | train `done` and evaluate `done` |
 | `partial` | train `done` and evaluate `partial` |
-| `unknown` | a receipt covers the task and the queue query failed; or an unresolved no-ID intent covers it; or a submitted element is absent from the queue and accounting holds no terminal record for it; or accounting says `COMPLETED` while the filesystem is incomplete; or no receipt covers the task and its train manifest says `running` |
+| `unknown` | Any of the cases listed below the table |
 | `canceled` | the latest covering receipt's element is `CANCELLED` in accounting |
-| `failed` | the latest covering receipt's element has an explicit terminal failure in accounting; or no receipt covers the task and a step directory is `blocked`; or every known job id of an otherwise-`unknown` task carries a recorded `--inactive-job` assertion (the row then also reports `asserted_inactive: true`) |
+| `failed` | Any of the cases listed below the table |
 | `unsubmitted` | no receipt covers the task and both step directories are `pending` |
+
+A task is **`unknown`** when:
+
+- a receipt covers it and the queue query failed;
+- an unresolved no-ID intent covers it;
+- a submitted element is absent from the queue and accounting holds no
+  terminal record for it;
+- accounting says `COMPLETED` while the filesystem is incomplete; or
+- no receipt covers it and its train manifest says `running`.
+
+A task is **`failed`** when:
+
+- the latest covering receipt's element has an explicit terminal failure in
+  accounting;
+- no receipt covers it and a step directory is `blocked`; or
+- every known job id of an otherwise-`unknown` task carries a recorded
+  `--inactive-job` assertion (the row then also reports
+  `asserted_inactive: true`).
 
 - Each row carries a `detail`: the scheduler state and reason, the blocked
   directory's `move or delete <dir> to retry` message, or why it is unknown. A
@@ -1113,27 +1147,33 @@ left the queue keeps blocking until the human asserts it inactive.
 
 ## 10\. Local batch execution {#scripts_rl_ops_batch}
 
-Version 2 batches (plan v3) are executed locally by `local.py` and resumed by
-`recovery.py` (implemented; documented from source and covered by
-`test_ops_local.py` and `test_ops_recovery.py` on the fake simulator; no native
-batch has been run). The commands above keep operating on version 1 plans
+Version 2 batches (plan v3) are executed locally by `local.py` and resumed
+through `recovery.py`. This is implemented and covered by `test_ops_local.py`
+and `test_ops_recovery.py` on the fake simulator; no native batch has been run. The commands above keep operating on version 1 plans
 (plan v2) and their cluster callers are unchanged. Cluster execution of
 version 3 task kinds is deferred.
 
 | Owner | Responsibility |
 | --- | --- |
-| `local.py` | The only local queue/scheduler for plan v3: root lock, bounded workers, optional shared slot pool (`execution.resource_pool`), per-task attempt logs, 30-second progress, receipts under `state/steps/`, and `campaign_status.json`. Reuses `process.py` and `measurement.py`. |
-| `recovery.py` | Runtime identity checks, receipt and binding verification, attempt selection, and recovery proposals under `state/recovery/`; checkpoint recovery from verified post-update checkpoints only. |
-| `tasks.py`, `task_execution.py`, `run_task.py` | Legacy pair mode unchanged; plan v3 steps run by ID from an allowlisted dispatch table (`tasks.STEP_MODULES`: `scripts.rl.train`, `scripts.rl.operate`, `scripts.rl.compare`). `run_task --step <id> --attempt <A>` is the worker entry point the scheduler launches; it refuses legacy options. `task_execution.run_step` substitutes the placeholders as whole arguments and holds the pool slot while the child runs. |
+| `local.py` | The only local queue/scheduler for plan v3: bounded workers, per-task attempt logs, 30-second progress and `campaign_status.json`. Reuses `process.py` and `measurement.py`. |
+| `batch_processes.py` | The root lock, owned process groups and the optional shared slot pool (`execution.resource_pool`). |
+| `batch_receipts.py` | Task receipts under `state/steps/`, accepted-output verification and write-once model bindings. |
+| `batch_identity.py` | Runtime identity pinning and checks. |
+| `recovery.py` | Attempt selection and recovery proposals under `state/recovery/`; checkpoint recovery from verified post-update checkpoints only. |
+| `tasks.py`, `task_execution.py`, `run_task.py` | Legacy pair mode unchanged. Plan v3 steps run by ID from an allowlisted dispatch table (`tasks.STEP_MODULES`: `scripts.rl.train`, `scripts.rl.operate`, `scripts.rl.compare`). `run_task --step <id> --attempt <A>` is the worker entry point the scheduler launches. `task_execution.run_step` substitutes placeholders as whole arguments and holds the pool slot while the child runs. |
 
-Records written: `runtime_identity.json` (`RUNTIME_IDENTITY_VERSION`), receipts
-`state/steps/<key>.json` (`BATCH_STEP_VERSION`), bindings
-`state/bindings/<producer-key>-<checkpoint>.json` (written once through
-`policy/bundle.py` `bind_model`), proposals `state/recovery/<id>.json`
-(`BATCH_RECOVERY_VERSION`), `campaign_status.json` (`CAMPAIGN_VERSION`),
-`resources.jsonl`, `local/<key>/attempt-<A>.{log,lease.json}` and, in a shared
-pool directory, `pool.json` (`RESOURCE_POOL_VERSION`) with `slot-<i>` locks.
-Version numbers are in [Contributing](@ref Contributing).
+Records written (version numbers are in [Contributing](@ref Contributing)):
+
+| Record | Path |
+| --- | --- |
+| Runtime identity (`RUNTIME_IDENTITY_VERSION`) | `runtime_identity.json` |
+| Receipts (`BATCH_STEP_VERSION`) | `state/steps/<key>.json` |
+| Bindings, written once through `policy/bundle.py` `bind_model` | `state/bindings/<producer-key>-<checkpoint>.json` |
+| Recovery proposals (`BATCH_RECOVERY_VERSION`) | `state/recovery/<id>.json` |
+| Batch status (`CAMPAIGN_VERSION`) | `campaign_status.json` |
+| Resource samples | `resources.jsonl` |
+| Attempt logs and leases | `local/<key>/attempt-<A>.{log,lease.json}` |
+| Shared pool (`RESOURCE_POOL_VERSION`) | `pool.json` with `slot-<i>` locks, in the pool directory |
 
 The receipt states, batch states, resume procedure and worker limits are
 specified once, in the
@@ -1151,6 +1191,7 @@ specified once, in the
 | `measurement.py` | Task timing, process-tree sampling and completion evidence. |
 | `estimation.py` | Estimate eligible matrices from complete measurements. |
 | `retrieval.py` | Fetch categories (`CATEGORY_INCLUDES`), transfer and fetch manifest. |
+| `local.py`, `recovery.py`, `batch_*.py` | Plan v3 batch execution; see [section 10](@ref scripts_rl_ops_batch). |
 | `../tuning/config.py` | Study settings and distributions. |
 | `../tuning/trainer.py` | Supported trainer adaptation and model-selection objective. |
 | `../tuning/study.py` | Pinned Optuna sampling and seeded sampler state. |
@@ -1222,25 +1263,8 @@ does.
 
 ### Tests
 
-The [operations test map](../tests/ops-tests.md) covers task, benchmark, tuning,
-process cleanup, estimate eligibility and cluster recovery tests. Cluster
-commands are tested against a fake scheduler; live-site checks of flags,
+The [operations test map](../tests/ops-tests.md) lists every task, benchmark,
+tuning, cluster, fetch and batch test with its input and expected behavior.
+Cluster commands are tested against a fake scheduler; live-site checks of flags,
 permissions, filesystem locking and accounting latency are tracked in
 `TODO-RL-OPS-1`.
-
-Fetch tests:
-
-```bash
-.venv/bin/python -m pytest -q scripts/rl/tests/cluster/test_ops_fetch.py \
-  scripts/rl/tests/cluster/test_ops_fetch_local.py scripts/rl/tests/cluster/test_ops_tasks.py
-```
-
-| Tests | What they verify |
-|---|---|
-| `test_ops_fetch.py` | CLI/category refusals, argv, destination and symlink checks, copied task/comparison states, local inventory/digests, manifest history, dry-run and transfer failures |
-| `test_ops_fetch_local.py` | Installed rsync's real include/exclude behavior for every category, checkpoint/baseline/decision artifacts, unchanged local files on update, fresh destination refresh, and malformed copied states |
-| `test_ops_tasks.py` | Shared plan/task mapping and comparison outcomes used during inspection |
-
-The fake transfer tool stages controlled fixtures and failures without network
-access and does not implement rsync filtering. Real transfer tests use only
-pytest's temporary local directories and skip if rsync is unavailable.

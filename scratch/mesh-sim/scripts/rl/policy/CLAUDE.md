@@ -22,7 +22,7 @@ codes; this package owns the logic.
   (`--allow-different-scenario`); the others always raise. Call it before
   `load_model`.
 - `evaluate.py` -- policies `hold`, `random_valid`, `model` (deterministic,
-  masked). One env per policy, every policy over every seed; `eval_manifest.json`
+  masked), and the placement baselines `geometric`, `optimization`. One env per policy, every policy over every seed; `eval_manifest.json`
   (`EVAL_MANIFEST_VERSION`) is rewritten after each episode so a crash leaves a
   `partial` / `failed` manifest, never none.
 - `compare_inputs.py` -- loads eval manifests; `REQUIRED_MANIFEST_VERSION` must
@@ -30,20 +30,25 @@ codes; this package owns the logic.
 - `compare.py` -- paired model-minus-baseline stats per evaluation seed, and
   across training runs when a group has several; `PRIMARY_METRIC =
   "delivery_ratio"`, `COMPARISON_VERSION`. `exit_code` returns 2 for health
-  counters or seed overlap. CI math comes from `scripts/stats.py`.
+  counters or results that are not held out (for example allowed seed overlap). CI math comes from `scripts/stats.py`.
 
 - Batch operation owners (one model, one seed; no batch scheduling here):
-  `operation.py` (`run_operation`, `DiagnosticEnv`/`OperationEnv`, frozen and
-  online modes, `online_manifest.json` v5 with explicit `protocol`;
-  `run_online` keeps the standalone v3/v4 envelope), `online_adaptation.py`
-  (`online_gated_v1`: eligible windows, buffered-gap refusal, final partial
-  flush, singleton skip, `target_kl` null), `schedules.py` (frozen sampling,
-  stall and coverage schedules; no defaults; never an optimizer update),
-  `replay_gate.py` (`strict_v1`, `pre_contact_source_v1`; `gate_passed` is the
-  success test), `reward_audit.py` (named methods `position_replay_v1`,
-  `coordinated_v1`, `team_radio_v1`), `scripted.py` (both route formats and
-  their controllers), `mission_metrics.py` / `episode_review.py` (formulas,
-  windows and null rules unchanged; `mission_review.json` has no status field).
+  - `operation.py`: `run_operation`, frozen and online modes,
+    `online_manifest.json` v5 with explicit `protocol`.
+  - `operation_inputs.py`: `DiagnosticEnv`/`OperationEnv`, inputs and bindings.
+  - `sb3_operation.py`: `online_sb3_v1` and the standalone `run_online`, which
+    keeps the v3/v4 envelope.
+  - `online_adaptation.py`: `online_gated_v1` (eligible windows, buffered-gap
+    refusal, final partial flush, singleton skip, `target_kl` null).
+  - `schedules.py`: frozen sampling, stall and coverage schedules; no
+    defaults; never an optimizer update.
+  - `replay_gate.py`: `strict_v1`, `pre_contact_source_v1`; `gate_passed` is
+    the success test.
+  - `reward_audit.py`: named methods `position_replay_v1`, `coordinated_v1`,
+    `team_radio_v1`.
+  - `scripted.py`: both route formats and their controllers.
+  - `mission_metrics.py` / `episode_review.py`: formulas, windows and null
+    rules unchanged; `mission_review.json` has no status field.
 - `bundle.py` also owns `parameter_digest`, `optimizer_digest`,
   `checkpoint_counters` and model bindings (`bind_model`,
   `read_bound_checkpoint`, `MODEL_BINDING_VERSION`). Policy code never imports
@@ -65,8 +70,10 @@ codes; this package owns the logic.
 - Tests: `tests/policy/test_policy_lifecycle.py`, `test_lifecycle_cli.py`,
   `test_evaluation_pipeline.py`, `test_policy_comparison.py`; their maps are
   `src/rl/policy-lifecycle-tests.md` and `src/rl/policy-comparison-tests.md`.
-  Batch owners: `test_operation.py`, `test_online_protocols.py`,
-  `test_checkpoint_recovery_support.py` (map in `tests/README.md`).
+  Batch owners: `policy/test_operation.py`, `policy/test_online_protocols.py`,
+  `policy/test_schedules.py`, `policy/test_replay_and_audit.py`,
+  `policy/test_operate_cli.py`, `policy/test_operate_integration.py` and
+  `agents/test_checkpoint_recovery_support.py` (map in `tests/README.md`).
 
 - `metrics.py` owns each metric's units, direction, export behavior, and accumulator.
   Register a metric and its accumulator; do not add parallel metric-name lists to

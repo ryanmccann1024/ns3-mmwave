@@ -69,7 +69,7 @@ resume   --output-root O [--sim-binary B] [--prepare-only] [execution flags]
 | `--prepare-only` | `resume` | Write the recovery proposal and launch nothing. |
 | `--workers N` | `run`, `resume` | Concurrent tasks; default 1. |
 | `--threads-per-worker N` | `run`, `resume` | Numerical threads per task; default 1. |
-| `--failure-policy continue\|stop` | `run`, `resume` | `continue` (default) finishes independent tasks; `stop` dispatches no more. |
+| `--failure-policy <policy>` | `run`, `resume` | `continue` (default) finishes independent tasks; `stop` dispatches no more. |
 | `--nice N` | `run`, `resume` | Child niceness 0–19; default 0. |
 
 **Execution settings** resolve CLI > matrix `execution` > defaults (1 worker,
@@ -802,7 +802,7 @@ options keep their meaning):
 |---|---|
 | `--continue-from-run-dir DIR` | Continue a verified completed run; exclusive with `--resume-run-dir`. |
 | `--continue-model SELECTOR` | `final` (default), `best`, or `checkpoints/<file>.zip` of that run. |
-| `--checkpoint-timing standard\|after-update` | `after-update` saves only after an optimizer update, without in-training validation; `post_update_checkpoints.json` records each event. Default `standard`. |
+| `--checkpoint-timing <timing>` | `standard` or `after-update`. `after-update` saves only after an optimizer update, without in-training validation; `post_update_checkpoints.json` records each event. Default `standard`. |
 | `--decisions-per-episode N` | Asserts the simulator's decisions per episode; checked against the native `init` contract before any update; never changes it. |
 | `--curriculum-schedule PATH` | Existing curriculum schedule JSON for the training environment only; evaluation keeps the original configuration. |
 

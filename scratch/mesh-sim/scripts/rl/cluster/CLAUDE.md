@@ -1,6 +1,6 @@
 # Cluster experiments
 
-Read [the operations guide](../ops/README.md#cluster-runs) and
+Read [the operations guide](../ops/README.md), section 6 (Cluster runs), and
 [the test map](../tests/ops-tests.md).
 
 - `ops/cluster.py` parses and delegates. Keep config meaning in `config.py`,
