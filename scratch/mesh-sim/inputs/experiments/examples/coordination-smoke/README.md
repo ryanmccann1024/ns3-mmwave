@@ -1,11 +1,15 @@
 # Coordination smoke batch
 
-A portable, public batch example: one sub-6 rural coverage case with three
-peers (pedestrian and vehicle at 1.5 m, drone at 20 m), one building and
-scripted reference routes. The run.ini resolves to 64 decisions per episode
-(64 s, 0.1 s ticks, 1 s decisions). Training uses 256 decisions with
-post-update checkpoints at 128 and 256; four operations (frozen deterministic,
-frozen sampled and both online protocols) run on diagnostic seeds 201 and 202.
+A portable, public batch example: one sub-6 rural coverage case with scripted
+reference routes. It checks that the batch plumbing works; it is not a
+mission-performance experiment.
+
+- **Scene:** three peers (pedestrian and vehicle at 1.5 m, drone at 20 m) and
+  one building.
+- **Episode:** 64 decisions (64 s, 0.1 s ticks, 1 s decisions).
+- **Training:** 256 decisions, with post-update checkpoints at 128 and 256.
+- **Operations:** frozen deterministic, frozen sampled and both online
+  protocols, run on diagnostic seeds 201 and 202.
 
 Run the single-case capability probe with
 `python -m scripts.rl.operate preflight`. See the

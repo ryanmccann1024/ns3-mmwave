@@ -2,11 +2,12 @@
 
 @brief Numbered synthetic validation scenarios (01-16) and small smoke fixtures for the simulator.
 
-16 numbered scenarios that progressively test each layer of the simulator.  Every
-scenario changes **one knob** from scenario 01 (the baseline) so results are
-easy to interpret and compare.
+16 numbered scenarios that progressively test each layer of the simulator. Every
+scenario changes **one main knob** from scenario 01 (the baseline), plus any
+values that knob needs (such as a higher demand), so results are easy to
+interpret and compare.
 
-## Baseline configuration (scenario 01)
+## 1\. Baseline configuration (scenario 01)
 
 | Parameter | Value | Why |
 |-----------|-------|-----|
@@ -19,9 +20,7 @@ easy to interpret and compare.
 | TX power | 30 dBm | Standard |
 | Bandwidth | 400 MHz | Standard NR bandwidth |
 
----
-
-## Scenario table
+## 2\. Scenario table
 
 | # | Name | Knob changed | Nodes | Expected output shape |
 |---|------|-------------|-------|-----------------------|
@@ -42,23 +41,30 @@ easy to interpret and compare.
 | 15 | umi-los-probability | scenario = UMi | 2 | Seed-dependent (teaching scenario) |
 | 16 | random-walk-urban | everything (integration) | 3 | Noisy, NLOS/LOS transitions |
 
----
+## 3\. Scenario categories
 
-## Smoke fixtures
+| Group | Scenarios | What it tests |
+|---|---|---|
+| A. Physics | 01–06 | The propagation and link-budget pipeline in isolation. All use 2 nodes, constant traffic and shortest-path routing. |
+| B. Routing | 07–09 | Multi-hop routing, algorithm selection and congestion. Physics are kept simple (RMa, stable links) so routing behavior is the only variable. |
+| C. Traffic | 10–12 | Traffic models and flow topologies. Physics and routing are kept simple so throughput patterns reflect only the traffic model. |
+| D. Edge cases | 13–14 | Boundary conditions: co-location guard and hop-limit rejection. |
+| E. Environment and integration | 15–16 | Scenario 15 teaches probabilistic LOS in UMi. Scenario 16 combines mobility, buildings, gateway traffic and relay into one integration test. |
 
-Unnumbered scenarios used by tests, RL and regression checks, not part of the 01-16 ladder.
+## 4\. Tips
 
-| Directory | Role |
-|---|---|
-| `p0-smoke` | 3 fixed peers, mmwave, RL enabled on the relay node (CLI/RL smoke) |
-| `p0-jammer-smoke` | 3 fixed peers plus one 2400 MHz jammer, `band = sub-6`, RL disabled (baseline regression) |
-| `rl-test` | 2 nodes with `buildings.json`, mmwave, RL enabled on `node-b` (not referenced by tests or other docs) |
-| `centralized-multi-smoke` | 3 peers, two RL-controlled slots, mmwave |
-| `building-bypass-smoke` | 2 peers around one building; diagnostic RL fixture used by `inputs/experiments/` |
+- **Start with 01**. If 01 doesn't produce flat lines, something is wrong
+  with the build or the simulator.
+- **Diff scenarios**. Compare 04 vs 05 to see rain penalty. Compare 01 vs
+  15 to see how UMi differs from RMa. Compare 06 vs 01 to see Shannon vs
+  table capacity.
+- **Vary the seed**. Most scenarios use `seed = 1`. Try different seeds to
+  see how shadow fading affects results. Scenario 15 is specifically designed
+  to show seed-dependent behavior.
+- **Read the run.ini header**. Every scenario has a detailed header comment
+  explaining the purpose, geometry, link budget math, and expected behavior.
 
----
-
-## How to interpret the output graphs
+## 5\. How to interpret the output graphs
 
 ### SINR time-series (dB)
 
@@ -71,34 +77,35 @@ Signal-to-interference-plus-noise ratio for each link at each tick.
 | Sharp step | LOS/NLOS transition from building blockage (expected for 03) |
 | Noisy/jittery | Probabilistic channel or random mobility (expected for 15, 16) |
 
-Higher SINR = better link.  Below about -6.7 dB the link is dead (no usable
-MCS).  RMa LOS at 100m gives ~42-50 dB SINR with the baseline TX power.
+Higher SINR = better link. Below about -6.7 dB the link is dead (no usable
+MCS). RMa LOS at 100m gives ~42-50 dB SINR with the baseline TX power.
 
 ### Capacity time-series (Mbps)
 
 Maximum data rate the link can support at the current SINR.
 
 - **Shannon mode** (`amc_model = shannon`): theoretical upper bound,
-  `C = B * log2(1 + SNR)`.  At SINR ~46 dB with 400 MHz BW: ~6100 Mbps.
-- **Table mode** (`amc_model = table`): uses 3GPP MCS table.  At CQI 14
-  (highest): 5.55 bits/s/Hz * 400 MHz = 2220 Mbps.  ~60% of Shannon.
+  `C = B * log2(1 + SNR)`. At SINR ~46 dB with 400 MHz BW: ~6100 Mbps.
+- **Table mode** (`amc_model = table`): uses the 3GPP CQI table. At CQI 15
+  (highest, SINR at least 25 dB): 6.23 bits/s/Hz * 400 MHz = 2492 Mbps, about
+  40% of Shannon at the baseline SINR.
 
 Capacity follows the same shape as SINR (they are directly related).
 
 ### MCS / CQI index
 
-Modulation and coding scheme index (0-14).  Higher = faster but requires
-better SINR.
+Modulation and coding scheme index (0-15 for `shannon` and `table`, 0-6 for
+`silvus`). Higher = faster but requires better SINR.
 
 | Shape | Meaning |
 |-------|---------|
-| Flat at 14 | Link is strong, using highest MCS (expected for most static scenarios) |
+| Flat at 15 | Link is strong, using the highest CQI (expected for most static scenarios) |
 | Staircase descent | SINR falling through CQI thresholds (expected for 02) |
 | Drops to 0 | Link at minimum MCS, barely alive |
 
 ### Flow throughput (Mbps)
 
-Actual data delivered per flow per tick.  Throughput = min(demand, capacity
+Actual data delivered per flow per tick. Throughput = min(demand, capacity
 share).
 
 | Shape | Meaning |
@@ -111,7 +118,7 @@ share).
 
 ### Latency (ms)
 
-Per-flow latency.  In this simulator latency is modeled as 0.5 ms per hop
+Per-flow latency. In this simulator latency is modeled as 0.5 ms per hop
 (processing delay) plus negligible propagation delay.
 
 - 1-hop: ~0.5 ms
@@ -130,40 +137,15 @@ Spatial relationship between node pairs over time.
 | Linear increase | Node moving away at constant speed (expected for 02) |
 | Smooth curves | Random walk or constant velocity at an angle (expected for 03, 16) |
 
----
+## 6\. Smoke fixtures
 
-## Scenario categories
+Unnumbered scenarios used by tests, RL and regression checks, not part of the 01-16 ladder.
 
-### A. Physics (01-06)
-Test the propagation and link-budget pipeline in isolation.  All use 2 nodes,
-constant traffic, and shortest-path routing.
-
-### B. Routing (07-09)
-Test multi-hop routing, algorithm selection, and congestion.  Physics are kept
-simple (RMa, stable links) so routing behavior is the only variable.
-
-### C. Traffic (10-12)
-Test traffic models and flow topologies.  Physics and routing are kept simple
-so throughput patterns reflect only the traffic model.
-
-### D. Edge cases (13-14)
-Test boundary conditions: co-location guard and hop-limit rejection.
-
-### E. Environment and integration (15-16)
-Scenario 15 teaches about probabilistic LOS in UMi.  Scenario 16 combines
-mobility, buildings, gateway traffic, and relay into one integration test.
-
----
-
-## Tips
-
-- **Start with 01**.  If 01 doesn't produce flat lines, something is wrong
-  with the build or the simulator.
-- **Diff scenarios**.  Compare 04 vs 05 to see rain penalty.  Compare 01 vs
-  15 to see how UMi differs from RMa.  Compare 06 vs 01 to see Shannon vs
-  table capacity.
-- **Vary the seed**.  Most scenarios use `seed = 1`.  Try different seeds to
-  see how shadow fading affects results.  Scenario 15 is specifically designed
-  to show seed-dependent behavior.
-- **Read the run.ini header**.  Every scenario has a detailed header comment
-  explaining the purpose, geometry, link budget math, and expected behavior.
+| Directory | Role |
+|---|---|
+| `p0-smoke` | 3 fixed peers, mmwave, RL enabled on the relay node (CLI/RL smoke) |
+| `p0-jammer-smoke` | 3 fixed peers plus one 2400 MHz jammer, `band = sub-6`, RL disabled (baseline regression) |
+| `rl-test` | 2 nodes with `buildings.json`, mmwave, RL enabled on `node-b` (not referenced by tests or other docs) |
+| `centralized-multi-smoke` | 3 peers, two RL-controlled slots, mmwave |
+| `building-bypass-smoke` | 2 peers around one building; diagnostic RL fixture used by `inputs/experiments/` |
+| `channel-scored-example` | 3 peers, mmwave NYU UMi; the worked example in the [placement guides](@ref mesh_sim_placement_start) (`run-zero-cost.ini` is its zero-cost variant) |
