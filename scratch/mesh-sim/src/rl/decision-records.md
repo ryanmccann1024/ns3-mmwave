@@ -2,7 +2,7 @@
 
 @brief Opt-in per-episode records of what a centralized policy saw, requested, and got back.
 
-This file records what the policy saw and chose; it does not explain why. No influence or attribution output exists.
+Decision records capture what the policy saw and chose; they do not explain why. No influence or attribution output exists.
 Each record pairs one centralized decision's pre-action observation identity and
 joint mask with the requested action, its revalidation, and the outcome window that
 followed. Recording never changes actions, observations, rewards, `rl_episode.json`
@@ -177,14 +177,17 @@ that these keys match the resolved reward schema in `rl_episode.json`; verify
 its SHA-256 against `reward_schema_sha256`. Adding a registered reward component
 does not require adding its name to several decision-record tables.
 
-V2 also records `manifest.scoring` (`warmup_s`, `reward_warmup`, `reward_window`)
-when those fields are supplied by the validated simulator contract, and
-`outcome.scored_ticks` when supplied by its validated outcome. Current scored contracts supply these fields. Historical contracts can leave
-them null. Null means unknown,
-not zero warmup or an unscored window. A zero scored-tick count means that no
-time in that window contributed to scoring. `ticks_in_step` still describes
-elapsed simulation ticks, including decisions during warmup. Readers check
-`0 <= scored_ticks <= ticks_in_step` when the count is available.
+V2 also records scoring information:
+
+- **Fields:** `manifest.scoring` (`warmup_s`, `reward_warmup`, `reward_window`)
+  when the validated simulator contract supplies them, and
+  `outcome.scored_ticks` when the validated outcome supplies it. Current scored
+  contracts supply these fields; historical contracts can leave them null.
+- **Null means unknown,** not zero warmup or an unscored window. A zero
+  scored-tick count means no time in that window contributed to scoring.
+- **Elapsed versus scored:** `ticks_in_step` still counts elapsed simulation
+  ticks, including decisions during warmup. Readers check
+  `0 <= scored_ticks <= ticks_in_step` when the count is available.
 
 ### Downstream migration
 
@@ -220,8 +223,9 @@ All in `scripts/rl/tests/env/test_decision_records.py` unless noted; 16, 17, and
 | 16 `test_model_evaluation_records_preferences_and_identity`, 17 `test_capture_on_off_parity` | Model identity, preference capture, on/off action and trace parity. |
 | 18 `test_schema_well_formed_and_documents_validate`, `test_schema_matches_jsonschema_when_installed`, 19 `test_schema_v1_is_frozen` | Produced documents validate; independent Draft 2020-12 checks when installed; historical schema stays pinned. |
 | `test_failed_preference_copy_keeps_actions_and_telemetry`, `test_evaluation_failure_removes_preference_hook` | Copy failure before/after the first capture preserves actions and telemetry, reports unavailable preferences, and removes the hook; cleanup also runs on evaluation failure. |
+| `test_added_reward_components_produce_valid_decision_records` | Newly registered reward components produce schema-valid decision records without per-component table edits. |
+| `test_decision_record_failures.py` (`test_recorder_open_failure_does_not_reach_the_env`, `test_close_failure_does_not_reach_the_env`) | Recorder open and close failures are isolated from the environment. |
 | `test_decision_record_contract.py` | Archived v1 documents/pin, v2 pin and extensible typed reward maps, explicit unavailable/zero/partial/full scored ticks; independent schema checks when installed. |
-| `test_real_binary.py`: `test_decision_records_join_real_steps` | n−1 join and revalidation on the real bridge; skips without `MESH_SIM_BIN`. |
 
 ## TODO
 

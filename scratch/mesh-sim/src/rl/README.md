@@ -43,7 +43,7 @@ RL control is set in the `[rl]` section of `run.ini`:
 | `controlled_nodes` | Required. Comma-separated node IDs, or `all`. Sets the slot order (see section 3). |
 | `max_controlled_nodes` | `M`, the number of slots. `0` auto-sizes to the number of controlled nodes. |
 | `action_profile` | `move_2d`. |
-| `decision_interval_s` | Time between decisions. Must be an integer multiple of `tick_s`, down to one tick; the ratio check allows a `1e-6`-tick tolerance for floating-point rounding. |
+| `decision_interval_s` | Time between decisions. `0` (default) means one tick; otherwise an integer multiple of `tick_s`, with a `1e-6`-tick tolerance for floating-point rounding. |
 | `step_size_m` | Nominal movement **per simulator tick**, not per decision. Sets the speed cap. |
 | `reward_type` | The C++ per-tick reward: `throughput` (default) or `all_links_los` (section 4). |
 | `x_min` … `z_max` | Movement bounds, reported in `init.bounds`. |
@@ -219,7 +219,8 @@ give identical stdout.
 | `band` | Resolved radio band. |
 | `jammer_path_enabled` | `true` when `band = sub-6` and at least one jammer is enabled. Metadata only. |
 | `unsafe_separation_m` | Proximity threshold for `facts.safety` (section 6). |
-| `avoid_buildings`, `avoid_node_collisions`, `navigation`, `node_service_columns`, `coverage`, `mission`, `deployment_gate`, `control_start_s` | Optional-feature fields (section 8). |
+| `avoid_buildings`, `avoid_node_collisions`, `navigation`, `node_service_columns` | Feature fields, always present (section 8). |
+| `coverage`, `mission`, `deployment_gate`, `control_start_s` | Present only when the feature is enabled (section 8). |
 
 `contract`, `reward_window`, and `wall_policy` are reported by the simulator;
 they are not `run.ini` settings.
@@ -256,8 +257,8 @@ fields: `contract`, `dimensions`, `action_meanings`, `num_mesh_nodes`,
 **`obs` layout.** Per slot, `L = 4 + 2*(N-1)` values and `obs_dim = M*L`:
 `[active, x, y, z, sinr(i,j0), cap(i,j0), sinr(i,j1), cap(i,j1), …]`. Peers are
 in node-index order, skipping the slot's own node. A padded slot is all zeros.
-The `-999` SINR sentinel passes through unchanged; the Python observation
-presets treat `sinr_db < -900` or a non-finite value as invalid.
+The `-999` SINR sentinel passes through unchanged. Python rejects non-finite
+values outright, and the observation presets treat `sinr_db < -900` as invalid.
 
 ### Action reply
 
@@ -306,8 +307,8 @@ warmup is zero; that reward is observable but is not a policy reward.
 | Field | Meaning |
 | --- | --- |
 | `threshold_m` | `[rl] unsafe_separation_m` (positive, default 1 m). |
-| `unsafe_ticks` | Scored ticks in the window with any mesh-node pair closer than the threshold in 3D. |
-| `min_pair_distance_m` | Minimum 3D pair distance in meters; `null` at reset or with fewer than two mesh nodes. |
+| `unsafe_ticks` | Scored ticks in the window with any pair of available mesh nodes closer than the threshold in 3D. |
+| `min_pair_distance_m` | Minimum 3D distance between available mesh nodes, in meters; `null` when the window has no scored ticks. Dropped nodes are skipped. |
 | `building_rejected_slots`, `peer_rejected_slots` | Unique slots of the preceding action rejected by building or peer-collision checks (section 8). |
 | `boundary_contacted_slots` | Slots whose moving x/y axis reached a wall during the preceding window. Telemetry only; hold and motion parallel to a wall do not count. |
 
@@ -332,6 +333,7 @@ observation vector.
 | EOF (stdin closed) | All slots hold for the rest of the episode; one warning; ticks and messages continue. |
 | Bad JSON or action shape, non-integer, out of range | All slots hold; one malformed-action warning. |
 | Masked direction, or non-hold padding | Only the invalid slots hold; one revalidation warning; their indices appear in the next `revalidated_slots`. |
+| Building or peer-collision rejection (section 8) | That slot holds; it appears in `revalidated_slots` and in `facts.safety` `building_rejected_slots` / `peer_rejected_slots`. |
 
 `revalidated_slots` lists **zero-based slot positions**, not node IDs. C++
 replaces each invalid position with hold (`4`) before movement; valid positions
@@ -445,7 +447,8 @@ all-peer radius and dwell.
 - adds `facts.deployment` with `active` and `eligible_ticks` (scored samples
   strictly after the gate).
 
-Level 0 event rewards are zero unless the full scored window is eligible, so
+The `level0_recovery_v1` and `level0_jamming_v1` event rewards are zero unless
+the full scored window is eligible, so
 the event-boundary observation carries zero event reward. Raw timing is not
 added to actor observations. Python protocol validation and telemetry replay
 validate the advertised fields. Reward identity depends on the versioned
@@ -516,7 +519,7 @@ When changing the protocol or a saved-file format, follow the
 | `rl-motion.cc` / `joint-motion.h` | Builds action masks, applies velocities, and checks joint paths before advancing the simulator. |
 | `reward-window.h` | `RewardWindow`: counts elapsed and scored ticks and averages post-warmup rewards. |
 | `rl-agent.h` | Unused no-op placeholder. Only the rl-bridge unit test includes it. |
-| `README.md` | This page: the message, mode, and action contract. |
+| `README.md` | This page: the message, mask and action contract. |
 | @ref src_rl_policy_inputs "policy-inputs.md" | Observation presets, reward components, telemetry. |
 | @ref src_rl_decision_records "decision-records.md" | Opt-in per-episode decision records. |
 | @ref src_rl_policy_input_tests "policy-input-tests.md" | Test map for centralized RL and policy inputs. |

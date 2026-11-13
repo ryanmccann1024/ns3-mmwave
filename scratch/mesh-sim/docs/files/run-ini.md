@@ -116,7 +116,7 @@ other input files.
 </div>
 <div class="ms-key">
 <div class="ms-key-name">`warmup_s`<span class="ms-key-def">default `0.0` s</span></div>
-<div class="ms-key-what">Leaves the first seconds out of the `summary.json` averages.<div class="ms-key-note">The CSVs still have every tick, and RL rewards still count the warm-up.</div></div>
+<div class="ms-key-what">Leaves the first seconds out of the `summary.json` averages.<div class="ms-key-note">The CSVs still have every tick. RL rewards also leave out the warm-up, though RL decisions still happen during it.</div></div>
 <div class="ms-key-vals">&ge; 0 and less than `duration_s`</div>
 </div>
 <div class="ms-key">

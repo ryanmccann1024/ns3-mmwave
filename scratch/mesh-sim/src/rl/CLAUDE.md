@@ -16,8 +16,10 @@ process lifecycle.
 - **rl-motion.cc** -- `RlBridge` masks, velocity clamping, and `ApplyAction()`.
 - **joint-motion.h** -- Pure geometry for building intersection and peer separation.
 - **reward-window.h** -- Counts elapsed/scored ticks and averages post-warmup rewards.
-- **README.md** -- Mode/message/mask/action contract shared with the Python env.
-- **rl-agent.h** -- Legacy placeholder (no-op). Superseded by rl-bridge.
+- **README.md** -- Message/mask/action contract shared with the Python env. The
+  other pages here: `policy-inputs.md` (presets, rewards, telemetry),
+  `decision-records.md`, and the `policy-*-tests.md` test maps.
+- **rl-agent.h** -- Unused no-op placeholder; only a unit-test support header includes it.
 
 ## Dependencies
 - Depends on: `domain/`, `eval/link-table`, `routing/mesh-router`, `third_party/json.hpp`, ns-3 mobility

@@ -52,7 +52,7 @@ sim.cc tick loop -> rl-bridge.cc step {obs, mask, reward, facts}
 ## 2\. Selection keys and flags {#src_rl_policy_inputs_selection}
 
 These `[rl]` keys are read by the Python env and `train.py`; the simulator
-ignores them. They apply to centralized mode only.
+ignores them.
 
 | Key | CLI flag | Type | Default | Meaning |
 |---|---|---|---|---|
@@ -86,7 +86,6 @@ Run from `scratch/mesh-sim/`. The flags go before the `m-ppo` subcommand:
 - These fail before the simulator starts:
   - an unknown preset or component;
   - a weight count that does not match the components;
-  - any non-default value of these keys in legacy mode;
   - unknown, unused, non-numeric, or non-finite parameters.
 - Centralized runs need a simulator binary that exports per-decision facts. An
   `init` without `facts_schema` is rejected before training starts.
@@ -140,8 +139,8 @@ compatibility fields. Structural fields define how the policy interprets the
 vector, including its shape, dtype, feature order, and scaling. A preset may
 also require matching simulator settings. For example, the compact mission
 presets record ordered `node_types` because they encode each peer's type in the
-vector. A legacy artifact can recover this field from its recorded init
-contract. The compatibility check uses those recorded types.
+vector. An artifact saved before `node_types` was recorded can recover it from
+its recorded init contract. The compatibility check uses those recorded types.
 
 ### 3.1 `local_links_v1` features
 
@@ -176,11 +175,11 @@ observation_parameters = {"capacity_log10_denominator": 6, "velocity_scale_mps":
 
 | Parameter | Default | Accepted by |
 | --- | --- | --- |
-| `sinr_min_db` | `-20` | Normalized link presets |
+| `sinr_min_db` | `-20` | Normalized link presets (every preset except `raw_links_v1` and `geometry_v1`) |
 | `sinr_max_db` | `40` | Normalized link presets |
 | `sinr_invalid_db` | `-900` | Normalized link presets |
 | `capacity_log10_denominator` | `4` | Normalized link presets |
-| `velocity_scale_mps` | `40` | `full_facts_v1` |
+| `velocity_scale_mps` | `40` | `full_facts_v1`, `mission_facts_v1`, `mission_facts_v2` |
 
 SINR parameters require invalid < min < max. Capacity and velocity denominators
 must be positive. Raw and geometry presets accept no normalization overrides.
@@ -260,11 +259,13 @@ With `tick_s = 0.1` and `decision_interval_s = 0.5`:
 
 The reset observation at tick 0 contains a one-tick measurement but
 contributes **no** policy-step reward. The last window can be shorter;
-`ticks_in_step` reports its length.
+`ticks_in_step` reports its length. Ticks before `warmup_s` are elapsed but not
+scored, so `scored_ticks` can be smaller than `ticks_in_step`; the bridge
+reports `reward_warmup = "exclude"` and the reward schema records `warmup_s`.
 
 ### 4.1 Window sums
 
-Every tick, C++ adds the current flow demands and deliveries, connected and
+Every scored (post-warmup) tick, C++ adds the current flow demands and deliveries, connected and
 line-of-sight link counts, and its own per-tick reward to `facts.window`
 ([field list](@ref src_rl_per_decision_facts)):
 
@@ -310,6 +311,16 @@ averaging rule; Python components use the window sums above. Neither setting
 changes how many ticks elapse per decision.
 
 ## 5\. Reward component catalog
+
+This section describes the core components. Not every registered component is
+listed here: design notes for the remaining mission-state, shaping and
+coordinated components are kept in the project's OneDrive documentation, and
+their formulas are on [Mission reward formulas](@ref mesh_sim_rl_mission_rewards).
+To list every registered name:
+
+```bash
+.venv/bin/python -c "from scripts.rl.env.rewards import COMPONENTS; print(sorted(COMPONENTS))"
+```
 
 Rules for every component:
 
@@ -411,8 +422,7 @@ and does not measure delivery capacity.
 
 Source owners: `scripts/rl/env/rewards/shaping.py` (individual primitives),
 `coordination.py` (fixed and state-dependent combinations) and `radio.py`
-(whole-team radio support and sufficient-area variants). Public component IDs,
-descriptors, registration order and schema hashes remain unchanged.
+(whole-team radio support and sufficient-area variants).
 
 **Phased rewards (`env/rewards/mission_terms.py`).** `team_approach_cost_v1`,
 `investigation_setup_v1`, `investigation_service_deficit_v1`,
@@ -441,8 +451,7 @@ thresholds are tunable. See the component declarations in
 ### 5.5 Binary and continuous mission objectives
 
 `level0_coverage_v1`, `level0_investigation_v1`, `level0_recovery_v1`, and
-`level0_jamming_v1` return `+1` for success and `-0.001` for failure
-when their scoring window is eligible.
+`level0_jamming_v1` return `+1` for success and `-0.001` for failure.
 
 | Component | Success condition |
 | --- | --- |
@@ -451,8 +460,9 @@ when their scoring window is eligible.
 | `level0_recovery_v1` | Survivor critical-flow delivered/offered ≥ 0.90. |
 | `level0_jamming_v1` | Aggregate delivered/offered ≥ 0.90 in an eligible window. |
 
-- Event rewards are zero during deployment waiting and in mixed boundary
-  windows ([deployment gate](@ref src_rl_deployment_gate)).
+- Recovery and jamming return zero (invalid) during deployment waiting and in
+  mixed boundary windows ([deployment gate](@ref src_rl_deployment_gate));
+  coverage and investigation score every scored window.
 - Recovery and jamming require offered traffic to produce success.
 - There are no movement, fairness, SINR, or collision-attempt terms. Native
   building and peer collision constraints stay active.
@@ -514,7 +524,7 @@ From `scratch/mesh-sim/`, inspect or replay one episode:
 
 ```bash
 head -n 2 outputs/rl-multi-custom/episode-0000/steps.jsonl
-.venv/bin/python -c 'from scripts.rl.env.telemetry import replay_file; import sys; print(replay_file(sys.argv[1]))' outputs/rl-multi-custom/episode-0000/steps.jsonl
+.venv/bin/python -c 'from scripts.rl.env.recording.telemetry import replay_file; import sys; print(replay_file(sys.argv[1]))' outputs/rl-multi-custom/episode-0000/steps.jsonl
 ```
 
 **Replay** rebuilds saved observations and Python-composed rewards from each
