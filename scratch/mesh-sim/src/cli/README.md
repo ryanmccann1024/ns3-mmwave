@@ -38,7 +38,7 @@ and `--channel-query` also work with no value. A missing or invalid flag prints
 | `--seed=<int>` | seed from `run.ini` | Single-seed override. Ignored if `--seeds` is given. |
 | `--run-id=<int>` | `run_id` from `run.ini` | Overrides `run_id`. Negative means not set. |
 | `--output-dir=<path>` | `[output] dir`, else timestamped | Where results are written. |
-| `--band=<mmwave\|sub-6>` | `[channel] band`, else `mmwave` | Radio band. Jammers only apply on `sub-6`. |
+| `--band=<band>` | `[channel] band`, else `mmwave` | Radio band: `mmwave` or `sub-6`. Jammers only apply on `sub-6`. |
 | `--positions-override=<path>` | none | JSON file that patches node positions after `nodes.json` loads. Must exist if given. |
 | `--no-viz` | off | Skips the six replay CSVs. `inputs/`, `run.log` and each `summary.json` are still written. |
 | `--jammer-onset-s=<seconds>` | `-1` (off) | Starts every enabled jammer at this time (see below). |
@@ -52,8 +52,9 @@ the scenario must define at least one jammer; otherwise the simulator prints
 interval becomes `[onset, duration_s]`. Disabled jammers stay disabled, and the
 band does not change.
 
-**`--channel-query`:** seeds must resolve to exactly one. `--output-dir` is
-ignored with a note, and no output folder, archive or `run.log` is written.
+**`--channel-query`:** seeds must resolve to exactly one. `--output-dir` has no
+effect (it is silently ignored), and no output folder, archive or `run.log` is
+written.
 
 ## 3\. Precedence
 
@@ -112,6 +113,11 @@ applies the overrides (including `--output-dir`, `--band`, `--no-viz` and
 - **`--channel-query` seed check happens later:** `src/query/` calls
   `ResolveQuerySeed` after the config loads, which rejects more than one seed
   with `Error: --channel-query needs exactly one seed`.
+
+Unit tests: `make -C tests/unit/io-cli test` (from `scratch/mesh-sim/`) runs
+`ParseCommandLine`, `ResolveSeeds`, `ResolveQuerySeed` and
+`ArchiveScenarioInputs` against an ns-3 `CommandLine` stub. The real binary is
+covered by `make integration` in `tests/`.
 
 ## 7\. Dependencies
 

@@ -30,7 +30,8 @@ is read by `io/metrics-writer`, `io/viz-writer`, and `rl/` (`rl-bridge`,
 `rl-agent`), so field changes affect output columns and RL reward/observations.
 
 ## Tests
-`make -C tests/unit/routing test` (from `scratch/mesh-sim/`; no ns-3).
+`make -C tests/unit/routing test` and `make -C tests/unit/routing-extra test`
+(from `scratch/mesh-sim/`; no ns-3).
 
 ## Dependencies
 - Depends on: `domain/` (`mesh-config.h`, `link-result.h`), `eval/link-table.h`, `traffic/traffic-matrix.h` (`Flow`)

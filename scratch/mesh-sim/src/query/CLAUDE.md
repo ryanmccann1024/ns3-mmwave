@@ -28,6 +28,12 @@ children through `TopologyBuilder` + `LinkEvaluator`, results on stdout. Contrac
 - Never serialize NaN/inf; report them as a layout error.
 - Request-level errors keep the worker serving; only `shutdown`/EOF (exit 0) or a broken stdout
   (exit 1) end it.
+- Keep experiment-relevant budgets configurable and advertise resolved values. Bound aggregate
+  responses as well as individual child bodies.
+- Do not move ns-3 objects or random draws into the protocol/process owner.
+- Preserve the published v1 required fields; version incompatible changes.
+- Diagnostics must use resolved model assumptions, reach planning artifacts, and never silently
+  alter probe heights. Fake units do not establish real simulator parity.
 
 ## Changing the contract
 Update together: this module, `scripts/baselines/planners/channel.py`,
@@ -42,11 +48,3 @@ for incompatible changes. Pure query protocol/process/diagnostic behavior is tes
   `ControlledStartPosition`), `setup/`, `eval/`, `third_party/json.hpp`, ns-3 core
   (`RngSeedManager`), POSIX (`fork`, `poll`, `waitpid`)
 - Depended on by: `sim.cc`
-
-
-Keep experiment-relevant budgets configurable and advertise resolved values.
-Bound aggregate responses as well as individual child bodies. Do not move
-ns-3 objects or random draws into the protocol/process owner. Preserve the
-published v1 required fields; version incompatible changes. Diagnostics must
-use resolved model assumptions, reach planning artifacts, and never silently
-alter probe heights. Fake units do not establish real simulator parity.

@@ -5,8 +5,9 @@
 This module writes the simulator's result files. `sim.cc` creates one
 `VizWriter` and one `MetricsWriter` per seed, calls `WriteRunLog` once per
 batch, and calls `ProgressLogger::Tick` every tick. The **ns3-mmwave-viz**
-visualizer and the Python plotting and validation tools read the CSVs. This
-directory has no standalone unit suite.
+visualizer and the Python plotting and validation tools read the CSVs. Unit
+tests for `MetricsWriter`, `WriteRunLog` and `VizWriter` run with
+`make -C tests/unit/io-cli test` from `scratch/mesh-sim/`.
 
 # 1\. Output files {#src_io_output}
 

@@ -7,18 +7,19 @@ fills it from `run.ini` and the JSON files, `ValidateConfig` checks it, and ever
 other layer reads it. `LinkResult` carries one link's radio result for one tick.
 Units are in each field's `///<` comment (dB, dBm, meters, seconds, MHz, Mbps).
 
-## Module Layout
+## 1\. Module layout
 
 | File | Role |
 |------|------|
-| @ref sim-config.h "sim-config.h" | Root `SimConfig`, `RlConfig` (RL controller), `TimingInfo` (wall-clock run times). |
+| @ref sim-config.h "sim-config.h" | Root `SimConfig`, `RlConfig` (RL controller), `MissionConfig`, `BaselineConfig`, `TimingInfo` (wall-clock run times). |
 | @ref channel-config.h "channel-config.h" | `ChannelConfig` (frequency, power, gains, models) and `NyuChannelConfig`. |
-| @ref mesh-config.h "mesh-config.h" | `TrafficConfig` (flow demand model and topology) and `RoutingConfig`. |
+| @ref mesh-config.h "mesh-config.h" | `MeshConfig`, `TrafficConfig` (flow demand model and topology), `TrafficPairSpec` (explicit pairs) and `RoutingConfig`. |
 | @ref node-spec.h "node-spec.h" | `NodeSpec`, mobility parameters, `BuildingSpec`, `MaxSpeedForType()`. |
 | @ref link-result.h "link-result.h" | `LinkResult`: distance, LOS, path loss, power, SINR, capacity, MCS. |
 | @ref probe-spec.h "probe-spec.h" | `ProbeGrid`: receive-only coverage probe points for the channel query. |
+| @ref src/domain/query-config.h "query-config.h" | `QueryConfig`: channel-query worker budgets and their defaults. |
 
-## Run
+## 2\. Run
 
 Nothing runs on its own; these are header-only. To confirm they compile with plain
 `g++` (no ns-3), run from `scratch/mesh-sim/`:
@@ -27,18 +28,19 @@ Nothing runs on its own; these are header-only. To confirm they compile with pla
 make -C tests/unit/config test
 ```
 
-## Output
+## 3\. Output
 
 Nothing is written to disk. `TimingInfo` and `LinkResult` values are consumed by
 `io/` writers, which produce the metrics JSON and viz CSV files.
 
-## Conventions
+## 4\. Conventions
 
 - **Sub-structs are declared in their own header** and held as members of
   `SimConfig`.
 - **Every field has a default.** The loader (`config/config-loader.cc`) passes its
-  own fallback values, so the two sets are maintained separately and can drift;
-  their parity has not been fully audited.
+  own fallback values, so the two sets are maintained separately and can drift.
+  Keep them equal; when checked in November 2026, all 57 loader fallbacks that
+  are plain values matched their struct defaults.
 - **Resolved RL fields.** `RlConfig::control_mode`, `controlled_indices`,
   `num_slots`, `decision_interval_ticks` and `num_ticks` are never read from INI;
   `ApplyRlControl` (`config/rl-control.cc`) assigns them after validation.
@@ -55,7 +57,7 @@ Nothing is written to disk. `TimingInfo` and `LinkResult` values are consumed by
   the run (see @ref src_eval "eval").
 - **No ns-3 includes.** `sim-config.h` includes `src/jammer/jammer-spec.h` for `JammerSpec`.
 
-## Adding a field
+## 5\. Adding a field
 
 A new `SimConfig` field is owned here (struct member with default and `///<`
 comment) together with the loader, validator and `run.log` writer; the
@@ -63,7 +65,7 @@ update-together row for a `run.ini` or CLI option in @ref Contributing
 "Contributing" names the layers to change. For a new value of an existing
 selector, see @ref mesh_sim_add_capacity_model "Add a capacity model".
 
-## Dependencies
+## 6\. Dependencies
 
 - C++17 standard library only.
 - `sim-config.h` needs `src/jammer/jammer-spec.h`, which needs `node-spec.h`.
