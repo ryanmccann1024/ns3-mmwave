@@ -448,7 +448,7 @@
 
 /** @defgroup api_scripts_arpo_data arpo_data
  *  @ingroup api_py_field
- *  @brief Turns raw ARPO Spring Lake field-test CSVs into per-day plots, GPS traces, and per-scenario traces.
+ *  @brief Turns raw field-test CSVs into per-day plots, GPS traces, and per-scenario traces.
  *
  *  Guide: \ref scripts_arpo_data
  */
@@ -499,7 +499,7 @@
 
 /** @defgroup api_scripts_validation validation
  *  @ingroup api_py_field
- *  @brief Checks mesh-sim output against ARPO field data and against stored regression results.
+ *  @brief Checks mesh-sim output against field data and against stored regression results.
  *
  *  Guide: \ref scripts_validation
  */
