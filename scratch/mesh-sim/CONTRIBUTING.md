@@ -2,29 +2,127 @@
 
 This page lists what to update together when you change user-visible behavior,
 the current saved-file schema versions, and the checks to run. Start with the
-[main README](@ref index) for setup and the [RL bridge contract](@ref src_rl)
+[user guide](@ref mesh_sim_overview) for setup and the [RL bridge contract](@ref src_rl)
 for centralized control.
 
 ## 1\. Update together
 
-Before changing a user-visible behavior, update every layer in its row:
+Before changing a user-visible behavior, find the change below and update
+everything listed under it.
 
-| Change | Update together |
-| --- | --- |
-| `run.ini` or CLI option | Loader, resolution/validation, [run.ini options](@ref src_config_run_ini_reference), [CLI options](@ref src_cli), example, and one valid/invalid configuration check. |
-| RL action, observation, mask, cadence, or reward semantics | C++ bridge and simulator loop, Python protocol/environment, [contract](src/rl/README.md), focused fake-simulator and real-binary checks. |
-| Placement engine or query contract | Component/strategy owners, settings/hash, C++ query owners, client/fake worker, [engine workflow](scripts/baselines/planners/README.md), query units and real-binary checks. |
-| Placement seeds, penalties or provenance | INI/CLI owner, preparation and seed-role preflight, runtime identity, baseline artifacts, examples, and a fake-worker check. |
-| Comparison metrics | `policy/metrics.py` registry, evaluation writer, comparison JSON/CSV, schema versions, tests and fetch include rules. Keep initial relocation separate from scored travel. |
-| Training or episode output | Writer, any reader, [output layout](@ref readme_where_output_lands), and a test of the changed fields. |
-| Scenario identity | `read_scenario_identity` in `scripts/rl/env/config.py`, saved training manifest, relevant tests, and the [identity description](@ref src_rl_saved_scenario_identity). |
-| Batch matrix (version 2) field, kind requirement, path rule, task kind, task-key dimension or output destination | `scripts/rl/experiments/config.py` or `plan.py`, the plan version if the plan payload changes, `test_matrix_v2.py`, the public example under `inputs/experiments/examples/`, and the [batch reference](@ref mesh_sim_rl_batch_reference). |
-| `experiment.py`, `run-experiments.sh`, `operate.py` or `train.py m-ppo` flag, default or exit code | Parser, launcher normalization if it is a path flag, the [batch reference](@ref mesh_sim_rl_batch_commands) and [scripts/rl](@ref scripts_rl) flag tables, and a CLI test. Compare documentation with actual `--help`. |
-| Operation mode, online protocol default, schedule, replay-gate or reward-audit method, selection rule | Its policy or `experiments/selection.py` owner, the record version beside it, `test_operation.py`/`test_online_protocols.py`/`test_matrix_v2.py`, and the [protocol](@ref mesh_sim_rl_batch_protocols), [schedule](@ref mesh_sim_rl_batch_schedules) and [selection](@ref mesh_sim_rl_batch_selection) sections. Never merge the two online protocols. |
-| Batch receipt, task or batch state, binding, runtime identity or recovery rule | `scripts/rl/ops/` and `policy/bundle.py` bindings, their versions, scheduler/recovery tests, and the [states](@ref mesh_sim_rl_batch_states) and [resume](@ref mesh_sim_rl_batch_resume) sections. |
-| Batch scenario index (`mission_scenario.json` version 4) or online manifest fields | The producer (`experiments/reporting.py`, `policy/operation.py`), producer contract fixtures, and the companion reader in the sibling `ns3-mmwave-viz` repository (`src/lib/batchMissionIndex.ts`) with its tests and docs. Keep every legacy reader branch. |
-| Reward/observation registry module, order or descriptor | `env/rewards/`/`observations/` registration, `tests/fixtures/registry_identity.json` (never regenerated to hide a change), saved-model loading test, and [policy inputs](@ref src_rl_policy_inputs). |
-| `inputs/baselines/01-static-los-baseline/`, default output layout, root `VERSION`, CI configure line in `.github/workflows/mesh-sim.yml`, `run.log` Resolved-config fields or `flows.csv` columns/format | The getting-started pages [Install and build](@ref mesh_sim_install_build), [Your first run](@ref mesh_sim_first_run), [Understand the result](@ref mesh_sim_first_result) and [Change one setting](@ref mesh_sim_change_one_setting), which quote build commands, binary names, scenario values, output file names and field formats. |
+**`run.ini` or CLI option**
+
+- The loader, plus resolution and validation
+- [run.ini options](@ref src_config_run_ini_reference) and [CLI options](@ref src_cli)
+- An example
+- A valid/invalid configuration check
+
+**RL action, observation, mask, cadence or reward semantics**
+
+- The C++ bridge and simulator loop
+- The Python protocol and environment
+- The [contract](src/rl/README.md)
+- Focused fake-simulator and real-binary checks
+
+**Placement engine or query contract**
+
+- Component and strategy owners, and the settings and settings hash
+- C++ query owners
+- The client and fake worker
+- The [engine workflow](scripts/baselines/planners/README.md)
+- Query unit tests and real-binary checks
+
+**Placement seeds, penalties or provenance**
+
+- The INI/CLI owner
+- Preparation and seed-role preflight
+- Runtime identity and baseline artifacts
+- Examples and a fake-worker check
+
+**Comparison metrics**
+
+- The `policy/metrics.py` registry and the evaluation writer
+- Comparison JSON/CSV and their schema versions
+- Tests and fetch include rules
+- Keep initial relocation separate from scored travel.
+
+**Training or episode output**
+
+- The writer and any reader
+- The [output layout](@ref readme_where_output_lands)
+- A test of the changed fields
+
+**Scenario identity**
+
+- `read_scenario_identity` in `scripts/rl/env/config.py`
+- The saved training manifest and relevant tests
+- The [identity description](@ref src_rl_saved_scenario_identity)
+
+**Batch matrix (version 2): a field, kind requirement, path rule, task kind,
+task-key dimension or output destination**
+
+- `scripts/rl/experiments/config.py` or `plan.py`
+- The plan version, if the plan payload changes
+- `test_matrix_v2.py`
+- The public example under `inputs/experiments/examples/`
+- The [batch reference](@ref mesh_sim_rl_batch_reference)
+
+**A flag, default or exit code of `experiment.py`, `run-experiments.sh`,
+`operate.py` or `train.py m-ppo`**
+
+- The parser, and launcher normalization if it is a path flag
+- The flag tables in the [batch reference](@ref mesh_sim_rl_batch_commands)
+  and [scripts/rl](@ref scripts_rl)
+- A CLI test
+- Compare the documentation with the actual `--help` output.
+
+**Operation mode, online protocol default, schedule, replay-gate or
+reward-audit method, or selection rule**
+
+- Its owner in `policy/` or `experiments/selection.py`, and the record version
+  beside it
+- `test_operation.py`, `test_online_protocols.py` and `test_matrix_v2.py`
+- The [protocol](@ref mesh_sim_rl_batch_protocols),
+  [schedule](@ref mesh_sim_rl_batch_schedules) and
+  [selection](@ref mesh_sim_rl_batch_selection) sections
+- Never merge the two online protocols.
+
+**Batch receipt, task or batch state, binding, runtime identity or recovery
+rule**
+
+- `scripts/rl/ops/` and the `policy/bundle.py` bindings, with their versions
+- Scheduler and recovery tests
+- The [states](@ref mesh_sim_rl_batch_states) and
+  [resume](@ref mesh_sim_rl_batch_resume) sections
+
+**Batch scenario index (`mission_scenario.json` version 4) or online manifest
+fields**
+
+- The producers (`experiments/reporting.py`, `policy/operation.py`) and the
+  producer contract fixtures
+- The companion reader in the sibling `ns3-mmwave-viz` repository
+  (`src/lib/batchMissionIndex.ts`), with its tests and docs
+- Keep every legacy reader branch.
+
+**Reward/observation registry module, order or descriptor**
+
+- Registration in `env/rewards/` or `env/observations/`
+- `tests/fixtures/registry_identity.json`; never regenerate it to hide a change
+- The saved-model loading test
+- [Policy inputs](@ref src_rl_policy_inputs)
+
+**Anything the getting-started pages quote:** the
+`inputs/baselines/01-static-los-baseline/` scenario, the default output layout,
+the root `VERSION`, the CI configure line in `.github/workflows/mesh-sim.yml`,
+the `run.log` Resolved-config fields, or the `flows.csv` columns and format
+
+- [Install and build](@ref mesh_sim_install_build)
+- [Your first run](@ref mesh_sim_first_run)
+- [Understand the result](@ref mesh_sim_first_result)
+- [Change one setting](@ref mesh_sim_change_one_setting)
+
+These pages quote build commands, binary names, scenario values, output file
+names and field formats.
 
 ## 2\. Versioning rules
 
@@ -47,13 +145,38 @@ Before changing a user-visible behavior, update every layer in its row:
 |---|---|---|
 | `train_manifest.json` | 7 | All PPO settings and the full validation seed set. |
 | `rl_episode.json` | 6 | Scored tick counts, a consistent pre-handshake failure schema, optional jammer-motion metadata, and configurable progress persistence. |
-| `eval_manifest.json` | 8 | Scored metrics, initial relocation, planning seed roles, coverage, service, safety and delayed-jammer metrics. Optional: mission outcomes, survivor service, failure accounting, final-minute service/coverage, survivor outage, post-failure movement, team arrival and collision-attempt metrics. Unavailable optional measurements are `null` and are left out of paired comparisons. |
+| `eval_manifest.json` | 8 | Scored metrics, initial relocation, planning seed roles, coverage, service, safety and delayed-jammer metrics, plus the optional measurements below. |
 | Comparison JSON | 2 | Validates the evaluation version and scoring metadata. |
 | Telemetry | 3 | Resolved input parameters and movement-context inputs. |
-| Experiment plans (`experiment_plan_version`) | 2 (matrix version 1), 3 (matrix version 2 batches) | Version 2: resolved parameter identities. Version 3 (`EXPERIMENT_PLAN_VERSION` in `experiments/plan.py`): task graph, SHA-256 task keys over fixed dimensions, destinations, argument lists and hashed inputs (`experiments/plan.py`). Version 2 plans are read unchanged and never rewritten with extra fields. |
-| Online operation manifest (`online_experiment_version`) | 3, 4 (legacy, historical meaning below); 5 (batch operations) | Saves the optional evaluation measurements above. **3:** standalone `scripts.rl.online` with exactly the default mode tuple `('fixed_sampled', 'online')` in default order. **4:** any other standalone mode subset or order (with a `modes` list), **and** the gated online protocol written by the Phase 2, Phase 3 and Phase 8 runners. Version 4 alone therefore does not identify the protocol, and old version 4 files are never relabeled as a verified protocol without evidence from their original writer. **5:** written by `policy/operation.py` (`ONLINE_MANIFEST_VERSION`) for batch operations, with required `protocol` (`frozen_deterministic`, `frozen_sampled`, `online_gated_v1`, `online_sb3_v1`), settings, parent/model/optimizer identities, seed role, schedule metadata where applicable, update/tail accounting and relative evaluation references. The standalone CLI keeps its 3/4 envelope. Readers: the GUI's legacy branch accepts 2–4; version 5 is read only through batch scenario-index references by the companion GUI reader (`ns3-mmwave-viz` `src/lib/batchMissionIndex.ts`, `BATCH_ONLINE_VERSION`). |
+| Experiment plans (`experiment_plan_version`) | 2 (matrix version 1), 3 (matrix version 2 batches) | Version 2: resolved parameter identities; read unchanged and never rewritten with extra fields. Version 3 (`EXPERIMENT_PLAN_VERSION` in `experiments/plan.py`): task graph, SHA-256 task keys over fixed dimensions, destinations, argument lists and hashed inputs. |
+| Online operation manifest (`online_experiment_version`) | 3, 4 (standalone, legacy); 5 (batch operations) | Saves the optional measurements below. Version meanings are listed below the table. |
 | Episode `event_timing.json` | 1 | The checked fixed jammer interval and whether the actual command was verified. |
 | `deployment_gate` extension | 1 | Opt-in; scenarios with the default of zero emit no extension. |
+
+**Optional evaluation measurements** (`eval_manifest.json` and online
+manifests): mission outcomes, survivor service, failure accounting,
+final-minute service and coverage, survivor outage, post-failure movement, team
+arrival and collision attempts. A measurement that is unavailable is `null` and
+is left out of paired comparisons.
+
+**Online operation manifest versions:**
+
+- **3:** standalone `scripts.rl.online` with exactly the default mode tuple
+  `('fixed_sampled', 'online')`, in default order.
+- **4:** any other standalone mode subset or order (with a `modes` list), and
+  the gated online protocol written by the Phase 2, Phase 3 and Phase 8
+  runners. Version 4 alone therefore does not identify the protocol; old
+  version 4 files are never relabeled as a verified protocol without evidence
+  from their original writer.
+- **5:** written by `policy/operation.py` (`ONLINE_MANIFEST_VERSION`) for batch
+  operations. Requires `protocol` (`frozen_deterministic`, `frozen_sampled`,
+  `online_gated_v1` or `online_sb3_v1`), settings, parent/model/optimizer
+  identities and seed role, plus schedule metadata where applicable,
+  update/tail accounting and relative evaluation references.
+- The standalone CLI keeps its version 3/4 envelope.
+- Readers: the GUI's legacy branch accepts versions 2–4. Version 5 is read only
+  through batch scenario-index references, by the companion GUI reader
+  (`ns3-mmwave-viz` `src/lib/batchMissionIndex.ts`, `BATCH_ONLINE_VERSION`).
 
 ### Batch runner
 
@@ -64,7 +187,7 @@ its constant on 2026-10-29); the contracts are in the
 
 | File or schema | Version | Writer / reader |
 |---|---|---|
-| Matrix (`matrix_version`) | 1, 2 | Input. Version 1 read by `policy/experiment.py` (unchanged); version 2 (`MATRIX_V2_VERSION`) by `experiments/config.py`, including placement and per-row configuration extensions (placement baselines, `rows[].configs`, `checks[].applies_to`, operation candidates, `source_checkpoint`, `configs_scope`, `decision_record_seeds`, and replay `comparison`/`parent`/`case`/`contact_audit`) within version 2. Plan v3 keeps its existing payload and key dimensions; replay identities use `operation_digest` and `model_source`. |
+| Matrix (`matrix_version`) | 1, 2 | Input. Version 1 is read by `policy/experiment.py` (unchanged); version 2 (`MATRIX_V2_VERSION`) by `experiments/config.py`. Extensions within version 2 are listed below the table. |
 | Runtime identity (`runtime_identity_version`, `runtime_identity.json`) | 1 (`RUNTIME_IDENTITY_VERSION`) | Writer/reader `ops/batch_identity.py`. Written once; pins plan, matrix, inputs, parent models, binary, non-test `scripts/**/*.py`, package versions and registry descriptor digests. |
 | Step receipt (`batch_step_version`, `state/steps/<task-key>.json`) | 1 (`BATCH_STEP_VERSION`) | Only the scheduler (`ops/local.py`) writes, through `ops/batch_receipts.py`; recovery and status read. |
 | Model binding (`model_binding_version`, `state/bindings/*.json`) | 1 (`MODEL_BINDING_VERSION`) | `policy/bundle.py` `bind_model` (writer, called by the scheduler) and `read_bound_checkpoint` (reader); write-once. |
@@ -82,6 +205,13 @@ its constant on 2026-10-29); the contracts are in the
 | `phase_comparison.json` | 1 (`PHASE_COMPARISON_VERSION`) | `experiments/reporting.py`. |
 | Reward summary (`reward_comparison.{csv,json}`) | 1 (`REWARD_SUMMARY_VERSION`) | `experiments/reporting.py`; keeps the retired campaign summary's metric meanings; not a ranking across unrelated rewards. |
 
+**Extensions within matrix version 2:** placement baselines, `rows[].configs`,
+`checks[].applies_to`, operation candidates, `source_checkpoint`,
+`configs_scope`, `decision_record_seeds`, and replay
+`comparison`/`parent`/`case`/`contact_audit`. Plan version 3 keeps its existing
+payload and key dimensions; replay identities use `operation_digest` and
+`model_source`.
+
 Train, evaluation, episode, telemetry, review, comparison, history and
 checkpoint payloads keep their versions when batch metadata lives in wrappers
 and receipts. `train_manifest.json` gains optional `checkpoint_timing`,
@@ -97,6 +227,9 @@ matching `train.py` option is used; its version is unchanged.
 | Placement engine settings | 2 with optional outdoor probe domains or physical constraints; 1 for unconstrained rectangular requests | The settings version enters the settings hash. |
 
 ### Campaigns and GUI output (historical)
+
+<details>
+<summary>Versions of artifacts from the retired research runners</summary>
 
 These rows document saved artifacts from the retired research runners. Their
 files remain readable data; new batches use the supported schemas above.
@@ -120,6 +253,8 @@ explains the supported replacements.
 | Comparison history | 1 | |
 | `mission_review.json` | 1 | |
 
+</details>
+
 ### Descriptor identities
 
 - `mission_compact_v1` and the new reward descriptors have their own schema
@@ -134,6 +269,9 @@ explains the supported replacements.
   independently in tests.
 
 ### Behavior notes tied to these versions
+
+<details>
+<summary>Behavior decisions recorded alongside the versions above</summary>
 
 - Directed explicit traffic validates ordered duplicates.
 - Investigation secondary target ranges extend to zero in both the native and
@@ -150,6 +288,8 @@ explains the supported replacements.
 - The functional renames of the former `phase3`–`phase7` environment files leave
   every reward/observation ID, descriptor, registration order and schema hash
   unchanged (`tests/fixtures/registry_identity.json`).
+
+</details>
 
 ## 4\. Checks to run
 
