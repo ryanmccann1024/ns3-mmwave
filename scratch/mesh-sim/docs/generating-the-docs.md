@@ -71,7 +71,7 @@ targets and "documented return type" notes); fix those in their own pages when
 you next edit them.
 
 A "does not exist" error naming a stylesheet or extra file means the theme
-folder is missing or incomplete; see section 7.
+folder is missing or incomplete; see section 5.
 
 ## 5\. Theme and site files
 
@@ -134,3 +134,30 @@ additions listed above for `header.html`.
   python3 diagrams/repo-map.py
   ./build.sh
   ```
+
+## 7\. Private pages
+
+Pages built from the partner's data are encrypted with
+[git-crypt](https://github.com/AGWA/git-crypt). `.gitattributes` in
+`scratch/mesh-sim/` lists them: `docs/research/`,
+`docs/field-data/why-the-sides-differ.md`, the `scripts/arpo_data/` README and
+CLAUDE.md, and `scripts/validation/field-comparison.md`.
+
+- **Without the key**, those files hold ciphertext. `build.sh` detects this,
+  prints `checkout is locked; leaving out the private pages`, and builds the
+  public site. Links to the private pages show as plain text, and
+  `doxygen-warnings.log` lists them as "unable to resolve reference"; that is
+  expected.
+- **With the key**, unlock the checkout once and every build includes the
+  private pages:
+
+  ```bash
+  git-crypt unlock /path/to/mesh-sim.key     # or: git-crypt unlock (GPG)
+  ```
+
+  Ask the maintainer for the key. Never commit an exported key, and never copy
+  private content into a public page.
+
+Run `build.sh` rather than `doxygen Doxyfile` directly: the script sets the
+`MESH_SIM_LOCKED_DOCS` and `MESH_SIM_PRIVATE_EXTRA_FILES` variables that the
+Doxyfile reads.

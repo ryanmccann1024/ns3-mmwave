@@ -144,6 +144,9 @@ query   <--  sim.cc
 - Scenario inputs are archived into each output run for reproducibility
 - Regression reference snapshots (`tests/fixtures/regression/p0/*.json` except
   `manifest.json`) are external and untracked; never recapture them from changed code
+- Private docs (partner data, trial names and dates, field-derived values) are
+  encrypted with git-crypt; `.gitattributes` lists them. Keep such content out
+  of every other file, and see `docs/generating-the-docs.md` for locked builds
 
 ## Key differences from mmwave-sim
 
