@@ -20,7 +20,7 @@ that launch the simulator take `--sim-binary <BIN>` for an already-built binary.
 ```bash
 # C++ unit tests (no ns-3 needed), from scratch/mesh-sim/tests/
 make test                    # lint + build + run all suites in UNIT_DIRS
-make -C unit/config test     # one suite (config, eval, routing, traffic)
+make -C unit/config test     # one suite (all suites: UNIT_DIRS in tests/Makefile)
 make integration             # CLI integration tests; needs a built sim binary
 
 # Python env, from scratch/mesh-sim/
@@ -144,6 +144,9 @@ query   <--  sim.cc
 - Scenario inputs are archived into each output run for reproducibility
 - Regression reference snapshots (`tests/fixtures/regression/p0/*.json` except
   `manifest.json`) are external and untracked; never recapture them from changed code
+- Private docs (partner data, trial names and dates, field-derived values) are
+  encrypted with git-crypt; `.gitattributes` lists them. Keep such content out
+  of every other file, and see `docs/generating-the-docs.md` for locked builds
 
 ## Key differences from mmwave-sim
 

@@ -12,12 +12,6 @@ policy a fixed set of mesh nodes with the 2-D `move_2d` profile. Remaining:
 - **Coupled and collision constraints.** Per-slot masks cannot express
   minimum separation, collision avoidance, or any joint constraint between
   controlled nodes. Owner: team — status: open.
-- **Transfer and evaluation loader.** Landed. `scripts/rl/policy/compat.py`
-  checks a saved model against the live `init` in a fixed order — structural
-  contract fields, observation schema, reward schema, then scenario identity —
-  and `scripts/rl/evaluate.py` loads and evaluates a bundle only after those
-  checks pass. Transfer across scenarios is still never implied by matching
-  shapes. Owner: team — status: landed.
 
 ### Centralized-control questions (temporary assumptions in effect)
 Each item below records the assumption the landed code implements. Confirm or
@@ -49,18 +43,6 @@ change it; do not infer the answer from the code.
 
 ### P2 observation/reward/telemetry follow-ups
 
-- **TODO-P2-1 — Jammer 0 dB SINR clamp.** `src/eval/link-evaluator.cc` (the `jamWatt != 0` branch of `EvaluateLink`, ~lines 199-206)
-  clamps SINR to at least 0 dB whenever a jammer contributes power, so a jammed
-  link can never fall below the connectivity threshold and a weak link can even
-  become *connected* when a jammer turns on. Jamming enters SINR only when
-  `band = sub-6`. No jamming-aware claim, reward experiment, or jammer feature
-  should be made until this is decided; removing the clamp needs its own
-  regression review. Owner: team — status: open.
-- **TODO-P2-2 — RL reward ignores `warmup_s`.** `MetricsWriter::AccumulateTick`
-  skips ticks before `warmup_s`, but `RlBridge::AccumulateTick` accumulates
-  every tick, so RL rewards and facts windows include warmup ticks while
-  `summary.json` does not. `init.warmup_s` is exported as metadata only.
-  Aligning them would change existing RL rewards. Owner: team — status: open.
 - **TODO-P2-3 — Peer padding across node counts.** `local_links_v1` sizes its
   peer block from the live `num_mesh_nodes`, so an observation from one N does
   not fit another. The `present` bits are already reserved for a padded preset
@@ -70,18 +52,12 @@ change it; do not infer the answer from the code.
   node's velocity and position, including uncontrolled nodes, and jammer
   interference could be added; none of them is in `local_links_v1`. Each needs
   a leakage review (what a real node could actually know) before becoming a
-  preset feature, and any jammer feature also depends on TODO-P2-1.
+  preset feature.
   Owner: team — status: open.
 
 ### Continuous Desired-Position Actions with SB3
 Continuous control needs a separate action profile, protocol version, and
 verified Python/C++ implementation before it can be enabled.
-
-### Richer Reward Shaping
-Currently supports `throughput` (sum delivered_mbps) and `all_links_los`
-(`mean_sinr` is a deprecated alias for it). Future: weighted combinations of
-throughput, fairness (min-link capacity), latency, coverage area, or energy
-cost.
 
 ### 3D Movement for Drones
 Current control moves only in x/y. Future 3D support needs
@@ -104,13 +80,6 @@ Separately, `--eval-episodes > 1` appears to replay the same evaluation seed
 rather than sampling new ones — unverified.
 Owner: team — status: open.
 
-### TODO-RL-RESUME-1 — Resume from checkpoint
-Training always starts a fresh model. `checkpoints/` and `best_model.zip` are
-provenance and evaluation inputs only; there is no `--resume`. Adding one needs
-`MaskablePPO.load` plus `learn(reset_num_timesteps=False)` handling and a
-decision about manifest continuity (one manifest extended across runs, or a new
-manifest that links to its parent). Owner: team — status: open.
-
 ### TODO-RL-LEARNING-1 — Learning signal beyond the diagnostic smoke
 `inputs/baselines/building-bypass-smoke/` is a diagnostic fixture: it makes a
 directional reward difference visible on a tiny run, and it is not evidence that
@@ -132,10 +101,9 @@ the comparison harness. Owner: team — status: open.
 ### TODO-RL-EVAL-1 — Simulator-summary metrics in policy comparisons
 Every statistic in `scripts.rl.compare` comes from the RL telemetry window, and
 each output states `metric_source` accordingly. A run's `summary.json` carries
-richer per-seed metrics but excludes warmup ticks while the RL window does not,
-so the two cannot be mixed in one table whenever `warmup_s > 0`. Using
-`summary.json` metrics requires resolving that warmup mismatch first (see the
-RL-reward warmup entry above). Owner: team — status: open.
+richer per-seed metrics that are not yet used in comparisons. Both now exclude
+warmup ticks, so the earlier warmup mismatch no longer blocks this.
+Owner: team — status: open.
 
 ### TODO-RL-EVAL-2 — Merging evaluations of one model across output directories
 An evaluation is compared as a single `eval_manifest.json`, so baselines are
@@ -169,3 +137,4 @@ The PPO constructor, CLI, manifests and tuner now share `agents/config.py` for
 learning rate, batch size, GAE lambda, clipping, epochs, target KL and entropy
 settings. Architecture is explicit in matrices. Study resume is implemented by
 the persisted tuning owner; training budget remains fixed per study.
+Owner: team — status: open.
